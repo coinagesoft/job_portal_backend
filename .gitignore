@@ -14,3 +14,5 @@ obj/
 
 # VS Code
 .vscode/
+
+firebase-adminsdk.json

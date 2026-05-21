@@ -1,4 +1,4 @@
-﻿namespace JobPortal.Domain
+﻿namespace JobPortal.Services
 {
     public class Class1
     {
