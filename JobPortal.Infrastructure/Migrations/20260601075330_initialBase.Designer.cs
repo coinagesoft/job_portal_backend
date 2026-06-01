@@ -3,59 +3,59 @@ using System;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260525122442_InitialBaseline")]
-    partial class InitialBaseline
+    [Migration("20260601075330_initialBase")]
+    partial class initialBase
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.8")
-                .HasAnnotation("Relational:MaxIdentifierLength", 64);
+                .HasAnnotation("ProductVersion", "8.0.11")
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("JobPortal.Domain.Entities.AdminSession", b =>
                 {
                     b.Property<Guid>("SessionId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasColumnName("session_id");
 
                     b.Property<Guid>("AdminId")
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasColumnName("admin_id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("expires_at");
 
                     b.Property<string>("IpAddress")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("ip_address");
 
                     b.Property<string>("SessionToken")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("session_token");
 
                     b.Property<bool>("TrustedDevice")
-                        .HasColumnType("tinyint(1)")
+                        .HasColumnType("boolean")
                         .HasColumnName("trusted_device");
 
                     b.HasKey("SessionId");
@@ -69,25 +69,25 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("AdminId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasColumnName("admin_id");
 
                     b.Property<string>("AdminIdentifier")
                         .IsRequired()
-                        .HasColumnType("varchar(255)")
+                        .HasColumnType("text")
                         .HasColumnName("admin_identifier");
 
                     b.Property<string>("AdminRole")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("admin_role");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasColumnName("created_by");
 
                     b.Property<short>("FailedAttempts")
@@ -95,19 +95,19 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnName("failed_attempts");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)")
+                        .HasColumnType("boolean")
                         .HasColumnName("is_active");
 
                     b.Property<DateTime?>("LockedUntil")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("locked_until");
 
                     b.Property<string>("Permissions")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("permissions");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
                     b.HasKey("AdminId");
@@ -125,39 +125,39 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("LogId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ActionDetail")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("ActionType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("ChangeReason")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("IpAddress")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("PerformedBy")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("PerformedByName")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("TargetEntityId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("TargetEntityType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.HasKey("LogId");
 
@@ -170,46 +170,46 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("CvId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AffindaJobId")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<decimal?>("AiConfidenceScore")
-                        .HasColumnType("decimal(65,30)");
+                        .HasColumnType("numeric");
 
                     b.Property<Guid>("CandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("CvFileUrl")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("CvPdfUrl")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("CvS3Url")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("GeneratedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ParsedEmail")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<int?>("ParsedExperienceYrs")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<string>("ParsedName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("ParsedPhone")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("ParsedSkills")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("ParsedTrade")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.HasKey("CvId");
 
@@ -222,26 +222,26 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("EducationId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("CandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("CertificateUrl")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("EducationLevel")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("InstituteName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("MarksPercentage")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<short?>("PassoutYear")
                         .HasColumnType("smallint");
@@ -257,44 +257,44 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("CandidateId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasColumnName("candidate_id");
 
                     b.Property<string>("AdminNotes")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("admin_notes");
 
                     b.Property<byte?>("AiMatchScore")
-                        .HasColumnType("tinyint unsigned")
+                        .HasColumnType("smallint")
                         .HasColumnName("ai_match_score");
 
                     b.Property<string>("AvailabilityStatus")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("availability_status");
 
                     b.Property<DateTime?>("AvailabilityUpdatedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("availability_updated_at");
 
                     b.Property<string>("Band")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("band");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<int>("CreditBalance")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("credit_balance");
 
                     b.Property<string>("CurrentCity")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("current_city");
 
                     b.Property<string>("CurrentState")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("current_state");
 
                     b.Property<DateOnly?>("DateOfBirth")
@@ -302,101 +302,101 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnName("date_of_birth");
 
                     b.Property<string>("DisabilityNote")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("disability_note");
 
                     b.Property<bool>("DisabilityStatus")
-                        .HasColumnType("tinyint(1)")
+                        .HasColumnType("boolean")
                         .HasColumnName("disability_status");
 
                     b.Property<string>("FcmToken")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("fcm_token");
 
                     b.Property<string>("FullName")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("full_name");
 
                     b.Property<string>("Gender")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("gender");
 
                     b.Property<bool>("ItiCertified")
-                        .HasColumnType("tinyint(1)")
+                        .HasColumnType("boolean")
                         .HasColumnName("iti_certified");
 
                     b.Property<string>("ItiCollege")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("iti_college");
 
                     b.Property<string>("ItiMarks")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("iti_marks");
 
                     b.Property<string>("ItiTrade")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("iti_trade");
 
                     b.Property<DateTime?>("LastAppliedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_applied_at");
 
                     b.Property<string>("Nationality")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("nationality");
 
                     b.Property<bool>("NewsletterOptIn")
-                        .HasColumnType("tinyint(1)")
+                        .HasColumnType("boolean")
                         .HasColumnName("newsletter_opt_in");
 
                     b.Property<int?>("PreferredSalary")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("preferred_salary");
 
                     b.Property<string>("PreferredWorkLocation")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("preferred_work_location");
 
                     b.Property<string>("PrimaryTrade")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("primary_trade");
 
                     b.Property<byte>("ProfileCompletionPct")
-                        .HasColumnType("tinyint unsigned")
+                        .HasColumnType("smallint")
                         .HasColumnName("profile_completion_pct");
 
                     b.Property<string>("ProfilePhotoUrl")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("profile_photo_url");
 
                     b.Property<string>("ProfileStatus")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("profile_status");
 
                     b.Property<string>("ReengagementResponse")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("reengagement_response");
 
                     b.Property<bool>("TempPasswordFlag")
-                        .HasColumnType("tinyint(1)")
+                        .HasColumnType("boolean")
                         .HasColumnName("temp_password_flag");
 
                     b.Property<int>("TotalExperienceYears")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("total_experience_years");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
                     b.Property<bool>("WelcomeEmailSent")
-                        .HasColumnType("tinyint(1)")
+                        .HasColumnType("boolean")
                         .HasColumnName("welcome_email_sent");
 
                     b.HasKey("CandidateId");
@@ -411,24 +411,24 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("SkillId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("CandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("SkillName")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("SkillRole")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("SkillType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<byte?>("YearsOfExperience")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint");
 
                     b.HasKey("SkillId");
 
@@ -441,47 +441,47 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("UnlockId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("CandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("CandidateProfileCandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<byte>("CreditsDeducted")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint");
 
                     b.Property<string>("CvWatermarkEmployerId")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("EmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("EmployerProfileEmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("UnlockExpiryDate")
                         .HasColumnType("date");
 
                     b.Property<Guid>("UnlockRequestedBy")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("UnlockStatus")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("UnlockTimestamp")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("WalletBalanceAfter")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<int>("WalletBalanceBefore")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<string>("WatermarkedCvUrl")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.HasKey("UnlockId");
 
@@ -499,36 +499,36 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("WorkId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("CandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("CompanyName")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateOnly?>("EndDate")
                         .HasColumnType("date");
 
                     b.Property<bool>("IsCurrent")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsOffshore")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("JobDescription")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("JobTitle")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date");
 
                     b.Property<string>("WorkLocation")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.HasKey("WorkId");
 
@@ -541,32 +541,32 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("ConsentLogId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("ConsentGiven")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("ConsentTimestamp")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ConsentType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("ConsentVersion")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("DataResidency")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("NationalIdStorage")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.HasKey("ConsentLogId");
 
@@ -579,32 +579,32 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("ConfigId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AcceptedCandidateIdTypes")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("AcceptedEmployerDocTypes")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("ConfigUpdatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("ConfigUpdatedBy")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("CountryCode")
                         .IsRequired()
-                        .HasColumnType("varchar(255)");
+                        .HasColumnType("text");
 
                     b.Property<string>("PrimaryBusinessVerify")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<bool>("RequireSecurityDeposit")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.HasKey("ConfigId");
 
@@ -618,37 +618,40 @@ namespace JobPortal.Infrastructure.Migrations
 
             modelBuilder.Entity("JobPortal.Domain.Entities.CreditWallet", b =>
                 {
-                    b.Property<Guid>("WalletId")
+                    b.Property<Guid>("Wallet_Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid")
+                        .HasColumnName("wallet_id");
 
                     b.Property<int>("CreditBalance")
-                        .HasColumnType("int");
+                        .HasColumnType("integer")
+                        .HasColumnName("credit_balance");
 
                     b.Property<Guid>("EmployerId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<Guid>("EmployerProfileEmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid")
+                        .HasColumnName("employer_id");
 
                     b.Property<DateTime?>("PackExpiresAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("pack_expires_at");
 
                     b.Property<string>("PackageName")
-                        .HasColumnType("longtext");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("package_name");
 
                     b.Property<bool>("SharedWallet")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("shared_wallet");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
 
-                    b.HasKey("WalletId");
+                    b.HasKey("Wallet_Id");
 
                     b.HasIndex("EmployerId")
                         .IsUnique();
-
-                    b.HasIndex("EmployerProfileEmployerId");
 
                     b.ToTable("credit_wallets", (string)null);
                 });
@@ -657,34 +660,34 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("DisputeId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("AssignedTo")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("DisputeType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("RaisedBy")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ResolutionNote")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("ResolvedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.HasKey("DisputeId");
 
@@ -699,48 +702,48 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("BadgeId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("BadgeBlueTick")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("BadgeGstVerified")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("BadgeIssuedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("BadgePanVerified")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("BadgePoeLicensed")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("BadgeRevocationReason")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("BadgeRevokedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("BadgeRpslLicensed")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("BadgeStatus")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("BadgeType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<bool>("BlueTickEligible")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<Guid>("EmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("IssuedBy")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.HasKey("BadgeId");
 
@@ -755,31 +758,40 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("NotifPrefId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid")
+                        .HasColumnName("notif_pref_id");
 
                     b.Property<Guid>("EmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid")
+                        .HasColumnName("employer_id");
 
                     b.Property<string>("FcmToken")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("fcm_token");
 
                     b.Property<bool>("PrefApplicantNotify")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("pref_applicant_notify");
 
                     b.Property<bool>("PrefAvailabilityPush")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("pref_availability_push");
 
                     b.Property<bool>("PrefCreditExpiryEmail")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("pref_credit_expiry_email");
 
                     b.Property<bool>("PrefEmailEnabled")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("pref_email_enabled");
 
                     b.Property<bool>("PrefPushEnabled")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("pref_push_enabled");
 
                     b.Property<short>("SessionTimeoutMinutes")
-                        .HasColumnType("smallint");
+                        .HasColumnType("smallint")
+                        .HasColumnName("session_timeout_minutes");
 
                     b.HasKey("NotifPrefId");
 
@@ -793,165 +805,215 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("EmployerId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid")
+                        .HasColumnName("employer_id");
 
                     b.Property<int>("AccountStatus")
-                        .HasColumnType("int");
+                        .HasColumnType("integer")
+                        .HasColumnName("account_status");
 
                     b.Property<string>("AddressLine1")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("address_line1");
 
                     b.Property<string>("AddressLine2")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("address_line2");
 
                     b.Property<string>("BusinessRegDocUrl")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("business_reg_doc_url");
 
                     b.Property<string>("BusinessType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("business_type");
 
                     b.Property<string>("Cin")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("cin");
 
                     b.Property<string>("City")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("city");
 
                     b.Property<string>("CompanyDescription")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("company_description");
 
                     b.Property<string>("CompanyDisplayName")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("company_display_name");
 
                     b.Property<string>("CompanyLogoUrl")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("company_logo_url");
 
                     b.Property<string>("CompanySize")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("company_size");
 
                     b.Property<DateTime?>("ConsentTimestamp")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("consent_timestamp");
 
                     b.Property<string>("ContactEmailPublic")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("contact_email_public");
 
                     b.Property<string>("ContactPersonName")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("contact_person_name");
 
                     b.Property<string>("ContactPhone")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("contact_phone");
 
                     b.Property<string>("Country")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("country");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
 
                     b.Property<string>("Designation")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("designation");
 
                     b.Property<bool>("GstRegistered")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("gst_registered");
 
                     b.Property<string>("Gstn")
-                        .HasColumnType("varchar(255)");
+                        .HasColumnType("text")
+                        .HasColumnName("gstn");
 
                     b.Property<DateOnly?>("GstnRegistrationDate")
-                        .HasColumnType("date");
+                        .HasColumnType("date")
+                        .HasColumnName("gstn_registration_date");
 
                     b.Property<string>("IndustryType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("industry_type");
 
                     b.Property<string>("KarzaRequestId")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("karza_request_id");
 
                     b.Property<string>("LegalName")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("legal_name");
 
                     b.Property<string>("OfficeAddress")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("office_address");
 
                     b.Property<string>("OperatingHours")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("operating_hours");
 
                     b.Property<string>("Pan")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("pan");
 
                     b.Property<string>("Pincode")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("pincode");
 
                     b.Property<string>("PoeCompanyName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("poe_company_name");
 
                     b.Property<bool>("PoeExpiredFlag")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("poe_expired_flag");
 
                     b.Property<string>("PoeLicenceNumber")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("poe_licence_number");
 
                     b.Property<string>("PoeLicenceS3Url")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("poe_licence_s3_url");
 
                     b.Property<DateOnly?>("PoeValidityDate")
-                        .HasColumnType("date");
+                        .HasColumnType("date")
+                        .HasColumnName("poe_validity_date");
 
                     b.Property<byte>("ProfileCompletionScore")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint")
+                        .HasColumnName("profile_completion_score");
 
                     b.Property<string>("RpslCompanyName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("rpsl_company_name");
 
                     b.Property<bool>("RpslExpiredFlag")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("rpsl_expired_flag");
 
                     b.Property<string>("RpslLicenceNumber")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("rpsl_licence_number");
 
                     b.Property<string>("RpslLicenceS3Url")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("rpsl_licence_s3_url");
 
                     b.Property<DateOnly?>("RpslValidityDate")
-                        .HasColumnType("date");
+                        .HasColumnType("date")
+                        .HasColumnName("rpsl_validity_date");
 
                     b.Property<bool>("SecurityDepositPaid")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("security_deposit_paid");
 
                     b.Property<string>("SecurityDepositStatus")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("security_deposit_status");
 
                     b.Property<string>("State")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("state");
 
                     b.Property<string>("Tags")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("tags");
 
                     b.Property<string>("TradeName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("trade_name");
 
                     b.Property<DateTime?>("TrialExpiresAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("trial_expires_at");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
 
                     b.Property<string>("WebsiteUrl")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("website_url");
 
                     b.Property<short?>("YearEstablished")
-                        .HasColumnType("smallint");
+                        .HasColumnType("smallint")
+                        .HasColumnName("year_established");
 
                     b.HasKey("EmployerId");
 
@@ -968,53 +1030,53 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("SubUserId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("CanManageApplications")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("CanPostJobs")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("CanSearchCandidates")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("CanUnlockProfiles")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("EmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("InviteAccepted")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime?>("InviteExpiresAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("InviteToken")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("SubUserEmail")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("SubUserName")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("SubUserRole")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("SubUserStatus")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.HasKey("SubUserId");
 
@@ -1029,38 +1091,38 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("InvoiceId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("InvoiceAmount")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<DateOnly>("InvoiceDate")
                         .HasColumnType("date");
 
                     b.Property<int>("InvoiceGst")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<string>("InvoiceNumber")
                         .IsRequired()
-                        .HasColumnType("varchar(255)");
+                        .HasColumnType("text");
 
                     b.Property<string>("InvoiceS3Url")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<int>("InvoiceTotal")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("PaymentTransactionTransactionId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("TransactionId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.HasKey("InvoiceId");
 
@@ -1078,35 +1140,35 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("ItiReviewId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AdminNote")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<decimal?>("AiConfidenceScore")
-                        .HasColumnType("decimal(65,30)");
+                        .HasColumnType("numeric");
 
                     b.Property<string>("AiExtractedCertNo")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("AiExtractedInstitute")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("AiExtractedTrade")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<short?>("AiExtractedYear")
                         .HasColumnType("smallint");
 
                     b.Property<Guid>("CandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ItiCertImageUrl")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.HasKey("ItiReviewId");
 
@@ -1119,44 +1181,44 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("ApplicationId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ApplicationStatus")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("AppliedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("CandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("EmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("EmployerInternalNote")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("JobId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("PassportGatePassed")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("RejectionAutoNotify")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<Guid?>("StatusChangedBy")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("StatusUpdatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("ViewedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("WithdrawalAllowed")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.HasKey("ApplicationId");
 
@@ -1174,121 +1236,173 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("JobId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_id");
 
                     b.Property<byte?>("AgeMax")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint")
+                        .HasColumnName("age_max");
 
                     b.Property<byte?>("AgeMin")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint")
+                        .HasColumnName("age_min");
 
                     b.Property<DateOnly>("ApplicationDeadline")
-                        .HasColumnType("date");
+                        .HasColumnType("date")
+                        .HasColumnName("application_deadline");
 
                     b.Property<int>("AppliedCount")
-                        .HasColumnType("int");
+                        .HasColumnType("integer")
+                        .HasColumnName("applied_count");
 
                     b.Property<string>("CompanyVisibility")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("company_visibility");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("CurrentStep")
+                        .HasColumnType("integer")
+                        .HasColumnName("current_step");
 
                     b.Property<bool>("DisabilityEligible")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("disability_eligible");
 
                     b.Property<string>("EducationRequired")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("education_required");
 
                     b.Property<Guid>("EmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid")
+                        .HasColumnName("employer_id");
 
                     b.Property<byte>("ExperienceRequiredYears")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint")
+                        .HasColumnName("experience_required_years");
 
                     b.Property<string>("GenderPreferred")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("gender_preferred");
 
                     b.Property<bool>("IsInternational")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_international");
 
                     b.Property<string>("JobDescription")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("job_description");
 
                     b.Property<string>("JobStatus")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("job_status");
 
                     b.Property<string>("JobTitle")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("job_title");
 
                     b.Property<string>("KeySkills")
-                        .HasColumnType("longtext");
+                        .HasColumnType("json")
+                        .HasColumnName("key_skills");
 
                     b.Property<string>("LanguageRequired")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("language_required");
+
+                    b.Property<int>("LastCompletedStep")
+                        .HasColumnType("integer")
+                        .HasColumnName("last_completed_step");
 
                     b.Property<string>("LicenceDocsRequired")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("licence_docs_required");
 
                     b.Property<string>("LocationType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("location_type");
 
                     b.Property<string>("OffshoreRegion")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("offshore_region");
 
                     b.Property<string>("OffshoreVesselName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("offshore_vessel_name");
 
                     b.Property<string>("OnshoreCity")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("onshore_city");
 
                     b.Property<string>("OnshoreState")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("onshore_state");
 
                     b.Property<bool>("PassportRequired")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean")
+                        .HasColumnName("passport_required");
 
                     b.Property<byte?>("PassportValidityMonths")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint")
+                        .HasColumnName("passport_validity_months");
 
                     b.Property<Guid?>("PostedBySubUserId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid")
+                        .HasColumnName("posted_by_sub_user_id");
 
                     b.Property<DateTime?>("PublishedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<string>("PublishingTags")
+                        .HasColumnType("json")
+                        .HasColumnName("publishing_tags");
 
                     b.Property<string>("Role")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("role");
 
                     b.Property<string>("SalaryCurrency")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("salary_currency");
 
                     b.Property<string>("SalaryDisplayOption")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("salary_display_option");
 
                     b.Property<int>("SalaryMax")
-                        .HasColumnType("int");
+                        .HasColumnType("integer")
+                        .HasColumnName("salary_max");
 
                     b.Property<int>("SalaryMin")
-                        .HasColumnType("int");
+                        .HasColumnType("integer")
+                        .HasColumnName("salary_min");
+
+                    b.Property<string>("ScreeningQuestions")
+                        .HasColumnType("json")
+                        .HasColumnName("screening_questions");
 
                     b.Property<string>("TradeCategory")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text")
+                        .HasColumnName("trade_category");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
 
                     b.Property<short>("Vacancies")
-                        .HasColumnType("smallint");
+                        .HasColumnType("smallint")
+                        .HasColumnName("vacancies");
 
                     b.HasKey("JobId");
 
@@ -1303,56 +1417,56 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("VerificationId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AdminDecision")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<decimal?>("AiConfidenceScore")
-                        .HasColumnType("decimal(65,30)");
+                        .HasColumnType("numeric");
 
                     b.Property<string>("AiExtractedAddress")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateOnly?>("AiExtractedDob")
                         .HasColumnType("date");
 
                     b.Property<string>("AiExtractedName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("CandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("IdBackImageUrl")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("IdFrontImageUrl")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("IdHash")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("IdType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<decimal?>("OcrConfidence")
-                        .HasColumnType("decimal(65,30)");
+                        .HasColumnType("numeric");
 
                     b.Property<string>("RejectionReason")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("ReviewedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("ReviewedBy")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.HasKey("VerificationId");
 
@@ -1367,41 +1481,41 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("NotificationId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Body")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("Channel")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsRead")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("NotificationType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("ReadAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("ReferenceId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ReferenceType")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("SentAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.HasKey("NotificationId");
 
@@ -1414,54 +1528,54 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("OtpId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasColumnName("otp_id");
 
                     b.Property<string>("CountryCode")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("country_code");
 
                     b.Property<bool>("IsVerified")
-                        .HasColumnType("tinyint(1)")
+                        .HasColumnType("boolean")
                         .HasColumnName("is_verified");
 
                     b.Property<DateTime?>("LockedUntil")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("locked_until");
 
                     b.Property<string>("MobileNumber")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("mobile_number");
 
                     b.Property<byte>("OtpAttempts")
-                        .HasColumnType("tinyint unsigned")
+                        .HasColumnType("smallint")
                         .HasColumnName("otp_attempts");
 
                     b.Property<string>("OtpCode")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasColumnType("varchar(255)")
                         .HasColumnName("otp_code");
 
                     b.Property<DateTime>("OtpExpiresAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("otp_expires_at");
 
                     b.Property<DateTime>("OtpSentAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("otp_sent_at");
 
                     b.Property<string>("Purpose")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<int>("ResendCooldownSec")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("resend_cooldown_sec");
 
                     b.Property<Guid?>("UserId")
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
                     b.HasKey("OtpId");
@@ -1475,48 +1589,48 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("PassportVerId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AdminDecision")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<decimal?>("AiConfidenceScore")
-                        .HasColumnType("decimal(65,30)");
+                        .HasColumnType("numeric");
 
                     b.Property<DateOnly?>("AiExtractedExpiryDate")
                         .HasColumnType("date");
 
                     b.Property<string>("AiExtractedFullName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("AiExtractedNationality")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("AiExtractedPassportNo")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("CandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("ExpiryAutoFlagged")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("PassportImageUrl")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("RejectionReason")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("ReviewedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("ReviewedBy")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.HasKey("PassportVerId");
 
@@ -1531,81 +1645,81 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("TransactionId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<int>("AmountPaise")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<Guid?>("CandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("CandidateProfileCandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("CreditQuantity")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("CreditsAddedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid?>("EmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("EmployerProfileEmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("GatewayRefundId")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<int>("GstAmountPaise")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<string>("InvoiceUrl")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid?>("OriginalTxnId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("PackType")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("PaymentMethod")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("PaymentStatus")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("RazorpayOrderId")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("RazorpayPaymentId")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid?>("RefundProcessedBy")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("RefundReason")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("StripePaymentIntentId")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<int>("TotalAmountPaise")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<string>("TransactionType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<byte?>("ValidityMonths")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint");
 
                     b.HasKey("TransactionId");
 
@@ -1626,54 +1740,54 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("ConfigId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AlertChannels")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("CreditExpiryAlertDays")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<byte>("CvUnlockValidityDays")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint");
 
                     b.Property<bool>("FcmFallbackEnabled")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("OneTrialPerGstDomain")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("ReengagementChannel")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<byte>("ReengagementIntervalDays")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint");
 
                     b.Property<bool>("TrialCvDownloadAllowed")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<byte>("TrialDurationDays")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint");
 
                     b.Property<byte>("TrialFreeCredits")
-                        .HasColumnType("tinyint unsigned");
+                        .HasColumnType("smallint");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("UpdatedBy")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("WatermarkTemplate")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("WhatsappTemplateId")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.HasKey("ConfigId");
 
@@ -1686,115 +1800,119 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("SessionId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)")
-                        .HasDefaultValueSql("(UUID())");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("AddressLine1")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("AddressLine2")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("BusinessType")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("Cin")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("City")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("CompanyDescription")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("CompanyDisplayName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("CompanyEmail")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("CompanyLogoUrl")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("CompanySize")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("ContactPersonEmail")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("ContactPersonName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("CountryCode")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("CurrentStep")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<string>("Designation")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool?>("GstRegistered")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Gstn")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly?>("GstnRegistrationDate")
+                        .HasColumnType("date");
 
                     b.Property<string>("IndustryType")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsCompleted")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<int>("LastCompletedStep")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<string>("LegalName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<bool>("LicencesSkipped")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("MobileNumber")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<bool>("MobileVerified")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Pan")
+                        .HasColumnType("text");
 
                     b.Property<string>("Pincode")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("PoeLicenceS3Url")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<bool>("RequiresSecurityDeposit")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("RpslLicenceS3Url")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("SessionType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("State")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("TradeName")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("datetime(6)")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlComputedColumn(b.Property<DateTime>("UpdatedAt"));
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("WebsiteUrl")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.HasKey("SessionId");
 
@@ -1805,22 +1923,22 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("SavedJobId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("CandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("CandidateProfileCandidateId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("JobId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("JobPostingJobId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("SavedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("SavedJobId");
 
@@ -1838,27 +1956,27 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("SavedSearchId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("AlertEnabled")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("EmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("EmployerProfileEmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("SavedSearchName")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("SearchFilters")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.HasKey("SavedSearchId");
 
@@ -1871,32 +1989,32 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("DepositId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<int>("AmountPaise")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DepositStatus")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("EmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("EmployerProfileEmployerId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("PaymentTransactionTransactionId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("TransactionId")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("DepositId");
 
@@ -1914,42 +2032,42 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("TicketId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("AssignedTo")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("Priority")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("RaisedBy")
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
                     b.Property<string>("ResolutionNote")
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("ResolvedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("Subject")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("TicketType")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.HasKey("TicketId");
 
@@ -1964,70 +2082,70 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("UserId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)")
+                        .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
                     b.Property<string>("AccountStatus")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasDefaultValue("Pending")
                         .HasColumnName("account_status");
 
                     b.Property<string>("CountryCode")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasDefaultValue("+91")
                         .HasColumnName("country_code");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
                     b.Property<string>("Email")
-                        .HasColumnType("varchar(255)")
+                        .HasColumnType("text")
                         .HasColumnName("email");
 
                     b.Property<string>("KycStatus")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasDefaultValue("Pending")
                         .HasColumnName("kyc_status");
 
                     b.Property<DateTime?>("LastLoginAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_login_at");
 
                     b.Property<string>("MobileNumber")
                         .IsRequired()
-                        .HasColumnType("varchar(255)")
+                        .HasColumnType("text")
                         .HasColumnName("mobile_number");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("password_hash");
 
                     b.Property<string>("PaymentStatus")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasDefaultValue("Unpaid")
                         .HasColumnName("payment_status");
 
                     b.Property<string>("SuspensionReason")
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("suspension_reason");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
 
                     b.Property<string>("UserType")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasColumnType("text")
                         .HasColumnName("user_type");
 
                     b.HasKey("UserId");
@@ -2175,8 +2293,8 @@ namespace JobPortal.Infrastructure.Migrations
             modelBuilder.Entity("JobPortal.Domain.Entities.CreditWallet", b =>
                 {
                     b.HasOne("JobPortal.Domain.Entities.EmployerProfile", "EmployerProfile")
-                        .WithMany()
-                        .HasForeignKey("EmployerProfileEmployerId")
+                        .WithOne("CreditWallet")
+                        .HasForeignKey("JobPortal.Domain.Entities.CreditWallet", "EmployerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2323,7 +2441,7 @@ namespace JobPortal.Infrastructure.Migrations
                     b.HasOne("JobPortal.Domain.Entities.EmployerProfile", "EmployerProfile")
                         .WithMany()
                         .HasForeignKey("EmployerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("JobPortal.Domain.Entities.EmployerSubUser", "PostedBySubUser")
@@ -2521,6 +2639,8 @@ namespace JobPortal.Infrastructure.Migrations
             modelBuilder.Entity("JobPortal.Domain.Entities.EmployerProfile", b =>
                 {
                     b.Navigation("Badges");
+
+                    b.Navigation("CreditWallet");
 
                     b.Navigation("NotificationSetting");
 
