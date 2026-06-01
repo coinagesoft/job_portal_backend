@@ -1,8 +1,10 @@
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
+using JobPortal.Domain.Enums.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System.Reflection.Emit;
 
 namespace JobPortal.Infrastructure.Persistence;
 
@@ -58,6 +60,77 @@ public class AppDbContext : DbContext
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ConsentLog> ConsentLogs => Set<ConsentLog>();
     public DbSet<Dispute> Disputes => Set<Dispute>();
+    public DbSet<RegistrationSession> RegistrationSessions => Set<RegistrationSession>();
+
+    public override int SaveChanges()
+    {
+        ApplyAuditTimestamps();
+        return base.SaveChanges();
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        ApplyAuditTimestamps();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void ApplyAuditTimestamps()
+    {
+        var now = DateTime.UtcNow;
+
+        // Handle RegistrationSession (has ExpiresAt too)
+        foreach (var entry in ChangeTracker.Entries<RegistrationSession>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAt = now;
+                entry.Entity.UpdatedAt = now;
+                entry.Entity.ExpiresAt = now.AddHours(24);
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.Property(x => x.CreatedAt).IsModified = false;
+                entry.Entity.UpdatedAt = now;
+            }
+        }
+
+        // Handle User
+        foreach (var entry in ChangeTracker.Entries<User>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAt = now;
+                entry.Entity.UpdatedAt = now;
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.Property(x => x.CreatedAt).IsModified = false;
+                entry.Entity.UpdatedAt = now;
+            }
+        }
+
+        // Handle EmployerProfile
+        foreach (var entry in ChangeTracker.Entries<EmployerProfile>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Entity.CreatedAt = now;
+                entry.Entity.UpdatedAt = now;
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.Property(x => x.CreatedAt).IsModified = false;
+                entry.Entity.UpdatedAt = now;
+            }
+        }
+
+        // Handle CreditWallet (UpdatedAt only, no CreatedAt)
+        foreach (var entry in ChangeTracker.Entries<CreditWallet>())
+        {
+            if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
+                entry.Entity.UpdatedAt = now;
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder m)
     {
@@ -144,7 +217,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.UserId).HasColumnName("user_id");
             e.Property(x => x.MobileNumber).HasColumnName("mobile_number");
             e.Property(x => x.CountryCode).HasColumnName("country_code");
-            e.Property(x => x.OtpCode).HasColumnName("otp_code");
+            e.Property(x => x.OtpCode).HasColumnName("otp_code").HasColumnType("varchar(255)");
             e.Property(x => x.OtpSentAt).HasColumnName("otp_sent_at");
             e.Property(x => x.OtpExpiresAt).HasColumnName("otp_expires_at");
             e.Property(x => x.ResendCooldownSec).HasColumnName("resend_cooldown_sec");
@@ -303,12 +376,192 @@ public class AppDbContext : DbContext
              .HasForeignKey(x => x.CandidateId);
         });
 
-        m.Entity<EmployerProfile>(e => {
+        m.Entity<EmployerProfile>(e =>
+        {
             e.ToTable("employer_profiles");
+
             e.HasKey(x => x.EmployerId);
-            e.HasIndex(x => x.Gstn).IsUnique();
-            e.HasOne(x => x.User).WithOne()
-             .HasForeignKey<EmployerProfile>(x => x.UserId);
+
+            // PRIMARY KEY
+            e.Property(x => x.EmployerId)
+                .HasColumnName("employer_id");
+
+            // FOREIGN KEY
+            e.Property(x => x.UserId)
+                .HasColumnName("user_id");
+
+            // BASIC FIELDS
+            e.Property(x => x.LegalName)
+                .HasColumnName("legal_name");
+
+            e.Property(x => x.TradeName)
+                .HasColumnName("trade_name");
+
+            e.Property(x => x.CompanyDisplayName)
+                .HasColumnName("company_display_name");
+
+            e.Property(x => x.CompanyDescription)
+                .HasColumnName("company_description");
+
+            e.Property(x => x.CompanyLogoUrl)
+                .HasColumnName("company_logo_url");
+
+            e.Property(x => x.CompanySize)
+        .HasConversion(
+            v =>
+                v == CompanySize.Size_1_10 ? "1-10" :
+                v == CompanySize.Size_11_50 ? "11-50" :
+                v == CompanySize.Size_51_200 ? "51-200" :
+                v == CompanySize.Size_201_500 ? "201-500" :
+                v == CompanySize.Size_500_Plus ? "500+" :
+                "1-10",
+
+            v =>
+                v == "1-10" ? CompanySize.Size_1_10 :
+                v == "11-50" ? CompanySize.Size_11_50 :
+                v == "51-200" ? CompanySize.Size_51_200 :
+                v == "201-500" ? CompanySize.Size_201_500 :
+                CompanySize.Size_500_Plus
+        )
+        .HasColumnName("company_size");
+
+            e.Property(x => x.YearEstablished)
+                .HasColumnName("year_established");
+
+            e.Property(x => x.WebsiteUrl)
+                .HasColumnName("website_url");
+
+            e.Property(x => x.BusinessType)
+          .HasConversion<string>()
+          .HasColumnName("business_type");
+
+            e.Property(x => x.IndustryType)
+                .HasConversion<string>()
+                .HasColumnName("industry_type");
+
+            e.Property(x => x.GstRegistered)
+                .HasColumnName("gst_registered");
+
+            e.Property(x => x.Gstn)
+                .HasColumnName("gstn");
+
+            e.Property(x => x.Pan)
+                .HasColumnName("pan");
+
+            e.Property(x => x.Cin)
+                .HasColumnName("cin");
+
+            e.Property(x => x.AddressLine1)
+                .HasColumnName("address_line1");
+
+            e.Property(x => x.AddressLine2)
+                .HasColumnName("address_line2");
+
+            e.Property(x => x.City)
+                .HasColumnName("city");
+
+            e.Property(x => x.State)
+                .HasColumnName("state");
+
+            e.Property(x => x.Pincode)
+                .HasColumnName("pincode");
+
+            e.Property(x => x.Country)
+                .HasColumnName("country");
+
+            e.Property(x => x.ContactPhone)
+                .HasColumnName("contact_phone");
+
+            e.Property(x => x.ContactEmailPublic)
+                .HasColumnName("contact_email_public");
+
+            e.Property(x => x.ContactPersonName)
+                .HasColumnName("contact_person_name");
+
+            e.Property(x => x.Designation)
+                .HasColumnName("designation");
+
+            e.Property(x => x.AccountStatus)
+                .HasColumnName("account_status");
+
+            e.Property(x => x.CreatedAt)
+                .HasColumnName("created_at");
+
+            e.Property(x => x.UpdatedAt)
+                .HasColumnName("updated_at");
+
+            e.Property(x => x.GstnRegistrationDate)
+                .HasColumnName("gstn_registration_date");
+
+            e.Property(x => x.KarzaRequestId)
+                .HasColumnName("karza_request_id");
+
+            e.Property(x => x.OfficeAddress)
+                .HasColumnName("office_address");
+
+            e.Property(x => x.OperatingHours)
+                .HasColumnName("operating_hours");
+
+            e.Property(x => x.TrialExpiresAt)
+                .HasColumnName("trial_expires_at");
+
+            e.Property(x => x.SecurityDepositPaid)
+                .HasColumnName("security_deposit_paid");
+
+            e.Property(x => x.SecurityDepositStatus)
+                .HasColumnName("security_deposit_status");
+
+            e.Property(x => x.ProfileCompletionScore)
+                .HasColumnName("profile_completion_score");
+
+            e.Property(x => x.PoeLicenceS3Url)
+                .HasColumnName("poe_licence_s3_url");
+
+            e.Property(x => x.PoeLicenceNumber)
+                .HasColumnName("poe_licence_number");
+
+            e.Property(x => x.PoeCompanyName)
+                .HasColumnName("poe_company_name");
+
+            e.Property(x => x.PoeValidityDate)
+                .HasColumnName("poe_validity_date");
+
+            e.Property(x => x.PoeExpiredFlag)
+                .HasColumnName("poe_expired_flag");
+
+            e.Property(x => x.RpslLicenceS3Url)
+                .HasColumnName("rpsl_licence_s3_url");
+
+            e.Property(x => x.RpslLicenceNumber)
+                .HasColumnName("rpsl_licence_number");
+
+            e.Property(x => x.RpslCompanyName)
+                .HasColumnName("rpsl_company_name");
+
+            e.Property(x => x.RpslValidityDate)
+                .HasColumnName("rpsl_validity_date");
+
+            e.Property(x => x.RpslExpiredFlag)
+                .HasColumnName("rpsl_expired_flag");
+
+            e.Property(x => x.BusinessRegDocUrl)
+                .HasColumnName("business_reg_doc_url");
+
+            e.Property(x => x.ConsentTimestamp)
+                .HasColumnName("consent_timestamp");
+
+            e.Property(x => x.Tags)
+                .HasColumnName("tags");
+            // INDEX
+            e.HasIndex(x => x.Gstn)
+                .IsUnique();
+
+
+
+            // RELATION
+            e.HasOne(x => x.User)
+                .WithOne()
+                .HasForeignKey<EmployerProfile>(x => x.UserId);
         });
 
         m.Entity<EmployerBadge>(e => {
@@ -332,21 +585,183 @@ public class AppDbContext : DbContext
              .HasForeignKey(x => x.UserId);
         });
 
-        m.Entity<EmployerNotificationSetting>(e => {
+        m.Entity<EmployerNotificationSetting>(e =>
+        {
             e.ToTable("employer_notification_settings");
+
             e.HasKey(x => x.NotifPrefId);
-            e.HasIndex(x => x.EmployerId).IsUnique();
+
+            e.Property(x => x.NotifPrefId)
+                .HasColumnName("notif_pref_id");
+
+            e.Property(x => x.EmployerId)
+                .HasColumnName("employer_id");
+
+            e.Property(x => x.PrefEmailEnabled)
+                .HasColumnName("pref_email_enabled");
+
+            e.Property(x => x.PrefPushEnabled)
+                .HasColumnName("pref_push_enabled");
+
+            e.Property(x => x.PrefApplicantNotify)
+                .HasColumnName("pref_applicant_notify");
+
+            e.Property(x => x.PrefCreditExpiryEmail)
+                .HasColumnName("pref_credit_expiry_email");
+
+            e.Property(x => x.PrefAvailabilityPush)
+                .HasColumnName("pref_availability_push");
+
+            e.Property(x => x.FcmToken)
+                .HasColumnName("fcm_token");
+
+            e.Property(x => x.SessionTimeoutMinutes)
+                .HasColumnName("session_timeout_minutes");
+
+            e.HasIndex(x => x.EmployerId)
+                .IsUnique();
+
             e.HasOne(x => x.EmployerProfile)
-             .WithOne(x => x.NotificationSetting)
-             .HasForeignKey<EmployerNotificationSetting>(x => x.EmployerId);
+                .WithOne(x => x.NotificationSetting)
+                .HasForeignKey<EmployerNotificationSetting>(x => x.EmployerId);
         });
 
-        m.Entity<JobPosting>(e => {
+        m.Entity<JobPosting>(e =>
+        {
             e.ToTable("job_postings");
             e.HasKey(x => x.JobId);
+
+            e.Property(x => x.JobId)
+             .HasColumnName("job_id");
+
+            e.Property(x => x.EmployerId)
+             .HasColumnName("employer_id");
+
+            e.Property(x => x.PostedBySubUserId)
+             .HasColumnName("posted_by_sub_user_id");
+
+            e.Property(x => x.JobTitle)
+             .HasColumnName("job_title");
+
+            e.Property(x => x.JobDescription)
+             .HasColumnName("job_description");
+
+            e.Property(x => x.Role)
+             .HasColumnName("role");
+
+            e.Property(x => x.TradeCategory)
+             .HasColumnName("trade_category");
+
+            e.Property(x => x.SalaryMin)
+             .HasColumnName("salary_min");
+
+            e.Property(x => x.SalaryMax)
+             .HasColumnName("salary_max");
+
+            // ✅ string properties — no HasDefaultValue needed
+            // defaults are set on the entity itself
+            e.Property(x => x.SalaryCurrency)
+             .HasColumnName("salary_currency");
+
+            e.Property(x => x.SalaryDisplayOption)
+             .HasColumnName("salary_display_option");
+
+            e.Property(x => x.Vacancies)
+             .HasColumnName("vacancies");
+
+            e.Property(x => x.ExperienceRequiredYears)
+             .HasColumnName("experience_required_years");
+
+            e.Property(x => x.AgeMin)
+             .HasColumnName("age_min");
+
+            e.Property(x => x.AgeMax)
+             .HasColumnName("age_max");
+
+            e.Property(x => x.GenderPreferred)
+             .HasColumnName("gender_preferred");
+
+            e.Property(x => x.EducationRequired)
+             .HasColumnName("education_required");
+
+            e.Property(x => x.LicenceDocsRequired)
+             .HasColumnName("licence_docs_required");
+
+            e.Property(x => x.LanguageRequired)
+             .HasColumnName("language_required");
+
+            e.Property(x => x.KeySkills)
+             .HasColumnName("key_skills")
+             .HasColumnType("json");
+
+            e.Property(x => x.DisabilityEligible)
+             .HasColumnName("disability_eligible");
+
+            e.Property(x => x.LocationType)
+             .HasColumnName("location_type");
+
+            e.Property(x => x.OnshoreCity)
+             .HasColumnName("onshore_city");
+
+            e.Property(x => x.OnshoreState)
+             .HasColumnName("onshore_state");
+
+            e.Property(x => x.OffshoreVesselName)
+             .HasColumnName("offshore_vessel_name");
+
+            e.Property(x => x.OffshoreRegion)
+             .HasColumnName("offshore_region");
+
+            e.Property(x => x.IsInternational)
+             .HasColumnName("is_international");
+
+            e.Property(x => x.PassportRequired)
+             .HasColumnName("passport_required");
+
+            e.Property(x => x.PassportValidityMonths)
+             .HasColumnName("passport_validity_months");
+
+            e.Property(x => x.CompanyVisibility)
+             .HasColumnName("company_visibility");
+
+            e.Property(x => x.ApplicationDeadline)
+             .HasColumnName("application_deadline");
+
+            e.Property(x => x.AppliedCount)
+             .HasColumnName("applied_count");
+
+            e.Property(x => x.JobStatus)
+             .HasColumnName("job_status");
+
+            e.Property(x => x.PublishedAt)
+             .HasColumnName("published_at");
+
+            e.Property(x => x.CreatedAt)
+             .HasColumnName("created_at");
+
+            e.Property(x => x.UpdatedAt)
+             .HasColumnName("updated_at");
+
+            e.Property(x => x.CurrentStep)
+             .HasColumnName("current_step");
+
+            e.Property(x => x.LastCompletedStep)
+             .HasColumnName("last_completed_step");
+
+            e.Property(x => x.ScreeningQuestions)
+             .HasColumnName("screening_questions")
+             .HasColumnType("json");
+
+            e.Property(x => x.PublishingTags)
+             .HasColumnName("publishing_tags")
+             .HasColumnType("json");
+
+            // Relationships
             e.HasOne(x => x.EmployerProfile)
              .WithMany()
-             .HasForeignKey(x => x.EmployerId);
+             .HasForeignKey(x => x.EmployerId)
+             .OnDelete(DeleteBehavior.Restrict);
+
             e.HasOne(x => x.PostedBySubUser)
              .WithMany()
              .HasForeignKey(x => x.PostedBySubUserId)
@@ -385,10 +800,36 @@ public class AppDbContext : DbContext
             e.HasIndex(x => new { x.EmployerId, x.CandidateId }).IsUnique();
         });
 
-        m.Entity<CreditWallet>(e => {
+        m.Entity<CreditWallet>(e =>
+        {
             e.ToTable("credit_wallets");
-            e.HasKey(x => x.WalletId);
-            e.HasIndex(x => x.EmployerId).IsUnique();
+
+            e.HasKey(x => x.Wallet_Id);
+
+            e.Property(x => x.Wallet_Id)
+                .HasColumnName("wallet_id");
+
+            e.Property(x => x.EmployerId)
+                .HasColumnName("employer_id");
+
+            e.Property(x => x.CreditBalance)
+                .HasColumnName("credit_balance");
+
+            e.Property(x => x.PackageName)
+                .HasColumnName("package_name");
+
+            e.Property(x => x.PackExpiresAt)
+                .HasColumnName("pack_expires_at");
+
+            e.Property(x => x.SharedWallet)
+                .HasColumnName("shared_wallet");
+
+            e.Property(x => x.UpdatedAt)
+                .HasColumnName("updated_at");
+
+            e.HasOne(x => x.EmployerProfile)
+                .WithOne(x => x.CreditWallet)
+                .HasForeignKey<CreditWallet>(x => x.EmployerId);
         });
 
         m.Entity<PaymentTransaction>(e => {
@@ -475,6 +916,20 @@ public class AppDbContext : DbContext
              .WithMany()
              .HasForeignKey(x => x.AssignedTo)
              .OnDelete(DeleteBehavior.SetNull);
+        });
+
+
+        m.Entity<RegistrationSession>(e =>
+        {
+            e.ToTable("registration_sessions");
+            e.HasKey(x => x.SessionId);
+
+            e.Property(x => x.SessionId)
+             .ValueGeneratedOnAdd();
+
+            e.Property(x => x.CreatedAt).IsRequired();
+            e.Property(x => x.UpdatedAt).IsRequired();
+            e.Property(x => x.ExpiresAt).IsRequired();
         });
     }
 }

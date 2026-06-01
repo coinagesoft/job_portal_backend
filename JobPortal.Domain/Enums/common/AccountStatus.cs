@@ -1,11 +1,12 @@
 namespace JobPortal.Domain.Enums.common
 {
-public enum AccountStatus
-{
-    Active,
-    Pending,
-    Suspended,
-    Deleted
-}
+        public enum AccountStatus
+        {
+            Pending,
+            Trial,
+            Active,
+            Suspended,
+            Rejected
+        }
 
 }

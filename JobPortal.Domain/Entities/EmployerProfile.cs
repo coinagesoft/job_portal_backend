@@ -1,4 +1,6 @@
-﻿using System;
+﻿using JobPortal.Domain.Enums.common;
+using JobPortal.Domain.Enums.Common;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,11 +17,11 @@ public class EmployerProfile
     public string CompanyDisplayName { get; set; } = default!;
     public string? CompanyDescription { get; set; }
     public string? CompanyLogoUrl { get; set; }
-    public string? CompanySize { get; set; }
+    public CompanySize? CompanySize { get; set; }
     public short? YearEstablished { get; set; }
     public string? WebsiteUrl { get; set; }
-    public string BusinessType { get; set; } = default!;
-    public string IndustryType { get; set; } = default!;
+    public BusinessType BusinessType { get; set; } = default!;
+    public IndustryType IndustryType { get; set; } = default!;
     // GST
     public bool GstRegistered { get; set; } = false;
     public string? Gstn { get; set; }
@@ -42,7 +44,7 @@ public class EmployerProfile
     public string Designation { get; set; } = default!;
     public string? OperatingHours { get; set; }
     // Status
-    public string AccountStatus { get; set; } = "Pending";
+    public AccountStatus AccountStatus { get; set; } = AccountStatus.Pending;
     public DateTime? TrialExpiresAt { get; set; }
     public bool SecurityDepositPaid { get; set; } = false;
     public string? SecurityDepositStatus { get; set; }
@@ -67,8 +69,14 @@ public class EmployerProfile
     public DateTime UpdatedAt { get; set; }
 
     // Navigation
+    // Navigation
     public User User { get; set; } = default!;
+
+    public CreditWallet? CreditWallet { get; set; }
+
     public ICollection<EmployerBadge> Badges { get; set; } = new List<EmployerBadge>();
+
     public ICollection<EmployerSubUser> SubUsers { get; set; } = new List<EmployerSubUser>();
+
     public EmployerNotificationSetting? NotificationSetting { get; set; }
 }

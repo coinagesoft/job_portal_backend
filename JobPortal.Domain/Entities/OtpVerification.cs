@@ -26,4 +26,6 @@ public class OtpVerification
 
     // Navigation
     public User? User { get; set; }
+
+    public string Purpose { get; set; } = "Login";
 }

@@ -65,7 +65,7 @@ public class AuthService : IAuthService
                 Message = "Account suspended. Contact support."
             };
 
-        if (user.AccountStatus == AccountStatus.Deleted)
+        if (user.AccountStatus == AccountStatus.Rejected)
             return new CheckAdminResponseDto
             {
                 Success = false,
@@ -120,11 +120,11 @@ public class AuthService : IAuthService
     // STEP 2 — Verify Firebase token and return JWT
     // ════════════════════════════════════════════════════
     public async Task<AuthResponseDto> FirebaseLoginAsync(
-        FirebaseLoginRequestDto request, string ipAddress)
+      FirebaseLoginRequestDto request, string ipAddress)
     {
         try
         {
-            // ── Verify Firebase ID token ──────────────────
+            // ── Verify Firebase ID token ───────────────────────
             FirebaseToken decodedToken;
             try
             {
@@ -140,50 +140,77 @@ public class AuthService : IAuthService
                 return Fail("Invalid or expired OTP session. Please try again.");
             }
 
-            // ── Token age check (max 5 minutes old) ───────
+            // ── Token age check (max 5 minutes) ───────────────
             var issuedAt = decodedToken.IssuedAtTimeSeconds;
             var nowSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             if (nowSeconds - issuedAt > 300)
                 return Fail("OTP session expired. Please request a new OTP.");
 
-            // ── Extract phone_number from claims ──────────
+            // ── Extract phone_number claim ─────────────────────
+            // Firebase gives full E.164: "+919075309705"
             if (!decodedToken.Claims.TryGetValue(
                     "phone_number", out var phoneObj)
                 || phoneObj is not string fullPhone
                 || string.IsNullOrWhiteSpace(fullPhone))
             {
+                _logger.LogWarning(
+                    "phone_number claim missing. Claims: {Claims}",
+                    string.Join(", ", decodedToken.Claims.Keys));
+
                 return Fail("Phone number not found in token.");
             }
 
-            // ── Find admin by full E.164 number ───────────
+            // ── Split E.164 → countryCode + mobileNumber ──────
+            // fullPhone    = "+919075309705"
+            // countryCode  = "+91"           (from request)
+            // mobileNumber = "9075309705"    (matches DB column)
+
+            if (!fullPhone.StartsWith(request.CountryCode))
+            {
+                _logger.LogWarning(
+                    "Token phone {Phone} does not start with {Code}",
+                    fullPhone, request.CountryCode);
+
+                return Fail("Phone number does not match country code.");
+            }
+
+            var mobileNumber = fullPhone[request.CountryCode.Length..]; // "9075309705"
+
+            // ── DB lookup — match both columns separately ──────
             var user = await _context.Users
                 .FirstOrDefaultAsync(x =>
-                    x.MobileNumber == fullPhone &&
+                    x.MobileNumber == mobileNumber &&       // "9075309705"
+                    x.CountryCode == request.CountryCode && // "+91"
                     x.UserType == UserType.Admin);
 
             if (user == null)
-                return Fail("Access denied.");
+            {
+                _logger.LogWarning(
+                    "No admin found — mobile: {Mobile} code: {Code} IP: {IP}",
+                    mobileNumber, request.CountryCode, ipAddress);
 
-            // ── Account status re-check ───────────────────
-            // (status could have changed between step1 and step2)
+                return Fail("Access denied.");
+            }
+
+            // ── Account status checks ──────────────────────────
             switch (user.AccountStatus)
             {
                 case AccountStatus.Suspended:
                     return Fail("Account suspended. Contact support.");
-                case AccountStatus.Deleted:
+                case AccountStatus.Rejected:
                     return Fail("Access denied.");
                 case AccountStatus.Pending:
                     return Fail("Account is pending activation.");
             }
 
-            // ── AdminUser re-check ────────────────────────
+            // ── AdminUser check ────────────────────────────────
             var adminUser = await _context.AdminUsers
                 .FirstOrDefaultAsync(a => a.UserId == user.UserId);
 
             if (adminUser == null || !adminUser.IsActive)
                 return Fail("Admin account is inactive.");
 
-            // ── Lockout re-check ──────────────────────────
+            // ── Lockout check ──────────────────────────────────
             if (adminUser.LockedUntil.HasValue &&
                 adminUser.LockedUntil.Value > DateTime.UtcNow)
             {
@@ -192,12 +219,12 @@ public class AuthService : IAuthService
                 return Fail($"Account locked. Try again in {mins} minute(s).");
             }
 
-            // ── Update last login ─────────────────────────
+            // ── Update last login ──────────────────────────────
             user.LastLoginAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            // ── Generate JWT ──────────────────────────────
+            // ── Generate JWT ───────────────────────────────────
             var token = _jwtService.GenerateToken(user, adminUser);
             var expiry = _jwtService.GetExpiry();
 
@@ -220,7 +247,8 @@ public class AuthService : IAuthService
             _logger.LogError(ex,
                 "Unexpected error during Firebase login. IP:{IP}", ipAddress);
 
-            return Fail("An unexpected error occurred. Please try again.");
+            // TEMP — shows real error, remove after fixing
+            return Fail($"DEBUG: {ex.GetType().Name} — {ex.Message} — {ex.InnerException?.Message}");
         }
     }
 
@@ -265,15 +293,18 @@ public class AuthService : IAuthService
     }
 
     public async Task<FirebaseCustomTokenResponseDto>
-      GenerateFirebaseCustomTokenAsync(
-          FirebaseCustomTokenRequestDto request)
+        GenerateFirebaseCustomTokenAsync(
+            FirebaseCustomTokenRequestDto request)
     {
         try
         {
+            // ── Find admin by mobileNumber + countryCode ───────
+            // DB stores separately: mobile_number="9075309705"
+            //                       country_code="+91"
             var user = await _context.Users
                 .FirstOrDefaultAsync(x =>
-                    x.MobileNumber == request.MobileNumber
-                    &&
+                    x.MobileNumber == request.MobileNumber &&
+                    x.CountryCode == request.CountryCode &&   // ✅ added
                     x.UserType == UserType.Admin);
 
             if (user == null)
@@ -285,45 +316,46 @@ public class AuthService : IAuthService
                 };
             }
 
-            // Firebase UID
+            // ── Build full E.164 for phone_number claim ────────
+            // Firebase login will receive this claim and split it
+            // countryCode="+91" + mobile="9075309705" = "+919075309705"
+            var fullPhone = $"{user.CountryCode}{user.MobileNumber}";
+
+            // ── Firebase UID = userId ──────────────────────────
             var uid = user.UserId.ToString();
 
-            // Additional claims
-            var claims =
-                new Dictionary<string, object>
-                {
-                { "phone_number", user.MobileNumber },
-                { "role", user.UserType.ToString() }
-                };
+            // ── Claims — phone_number MUST be full E.164 ──────
+            var claims = new Dictionary<string, object>
+        {
+            { "phone_number", fullPhone },              // ✅ "+919075309705"
+            { "role", user.UserType.ToString() }
+        };
 
-            // Generate Firebase custom token
-            var firebaseToken =
-                await FirebaseAuth.DefaultInstance
-                    .CreateCustomTokenAsync(
-                        uid,
-                        claims);
+            // ── Generate custom token ──────────────────────────
+            var firebaseToken = await FirebaseAuth.DefaultInstance
+                .CreateCustomTokenAsync(uid, claims);
 
             return new FirebaseCustomTokenResponseDto
             {
                 Success = true,
                 Message = "Firebase custom token generated.",
-                FirebaseToken = firebaseToken
+                FirebaseToken = firebaseToken,
+                PhoneUsed = fullPhone                       // ✅ helpful for debugging
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Error generating Firebase custom token.");
+            _logger.LogError(ex,
+                "Error generating Firebase custom token for mobile: {Mobile}",
+                request.MobileNumber);
 
             return new FirebaseCustomTokenResponseDto
             {
                 Success = false,
-                Message = ex.Message
+                Message = "Failed to generate token. Please try again."  // ✅ no ex.Message
             };
         }
     }
-
     // ════════════════════════════════════════════════════
     // Helper
     // ════════════════════════════════════════════════════

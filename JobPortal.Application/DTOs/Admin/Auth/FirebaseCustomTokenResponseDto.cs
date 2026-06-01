@@ -13,5 +13,6 @@ namespace JobPortal.Application.DTOs.Admin.Auth
         public string Message { get; set; } = default!;
 
         public string? FirebaseToken { get; set; }
+        public string? PhoneUsed { get; set; }
     }
 }

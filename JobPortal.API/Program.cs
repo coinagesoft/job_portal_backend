@@ -3,8 +3,9 @@ using Google.Apis.Auth.OAuth2;
 using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
+using JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Services.Implement.Admin;
-using Microsoft.AspNetCore.Authentication;
+using JobPortal.Services.Implement.Recruiter;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -32,6 +33,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         ServerVersion.AutoDetect(connectionString)
     );
 });
+
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -61,6 +63,8 @@ builder.Services
 
 // REGISTER SERVICES
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IRecruiterRegistrationService,RecruiterRegistrationService>();
+builder.Services.AddScoped<IJobPostingService, JobPostingService>();
 builder.Services.AddScoped<JwtService>();
 
 FirebaseApp.Create(new AppOptions()
@@ -69,6 +73,28 @@ FirebaseApp.Create(new AppOptions()
         GoogleCredential.FromFile(
             "firebase-adminsdk.json")
 });
+
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new()
+    {
+        Title = "JobPortal API",
+        Version = "v1",
+        Description = "SkillBridge Job Portal — Admin, Recruiter & Candidate APIs"
+    });
+
+    // ✅ This makes enums show as dropdown in Swagger instead of int
+    c.UseInlineDefinitionsForEnums();
+});
+
+// ✅ This makes enum serialize as string "Shipping" not 1
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters
+            .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
+
 
 var app = builder.Build();
 
