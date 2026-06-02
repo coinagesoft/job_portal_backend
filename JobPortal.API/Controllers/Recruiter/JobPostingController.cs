@@ -2,6 +2,7 @@
 using global::JobPortal.Application.DTOs.Recruiter;
 using global::JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Application.DTOs.JobPosting;
+using JobPortal.Services.Implement.Recruiter;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -33,24 +34,35 @@ namespace JobPortal.API.Controllers.Recruiter;
             return Ok(result);
         }
 
-        // ── STEP 1 ─────────────────────────────────────────
-        /// <summary>
-        /// Step 1 — Job Details. Creates a Draft job. Returns jobId for all next steps.
-        /// </summary>
-        [HttpPost("step1-job-details")]
-        public async Task<IActionResult> Step1JobDetails(
-            [FromForm] JobDetailsRequestDto request)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            var result = await _service.SaveJobDetailsAsync(request, GetEmployerId());
-            return result.Success ? Ok(result) : BadRequest(result);
-        }
+    // ── STEP 1 ─────────────────────────────────────────
+    /// <summary>
+    /// Step 1 — Job Details. Creates a Draft job. Returns jobId for all next steps.
+    /// </summary>
+    //[HttpPost("step1-job-details")]
+    //public async Task<IActionResult> Step1JobDetails(
+    //    [FromForm] JobDetailsRequestDto request)
+    //{
+    //    if (!ModelState.IsValid) return BadRequest(ModelState);
+    //    var result = await _service.SaveJobDetailsAsync(request, GetEmployerId());
+    //    return result.Success ? Ok(result) : BadRequest(result);
+    //}
 
-        // ── STEP 2 ─────────────────────────────────────────
-        /// <summary>
-        /// Step 2 — Compensation. Pass jobId from Step 1.
-        /// </summary>
-        [HttpPut("{jobId}/step2-compensation")]
+    [HttpPost("job-details")]
+    public async Task<IActionResult> SaveJobDetails(
+    [FromForm] JobDetailsRequestDto request)
+    {
+        var result = await _service.SaveJobDetailsAsync(request);
+
+        return result.Success
+            ? Ok(result)
+            : BadRequest(result);
+    }
+
+    // ── STEP 2 ─────────────────────────────────────────
+    /// <summary>
+    /// Step 2 — Compensation. Pass jobId from Step 1.
+    /// </summary>
+    [HttpPut("{jobId}/step2-compensation")]
         public async Task<IActionResult> Step2Compensation(
             Guid jobId, [FromBody] CompensationRequestDto request)
         {
@@ -92,7 +104,7 @@ namespace JobPortal.API.Controllers.Recruiter;
         // ── STEP 6 ─────────────────────────────────────────
         [HttpPut("{jobId}/step6-questions")]
         public async Task<IActionResult> Step6Questions(
-            Guid jobId, [FromForm] QuestionsRequestDto request)
+            Guid jobId, [FromBody] QuestionsRequestDto request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             var result = await _service.SaveQuestionsAsync(request, jobId, GetEmployerId());

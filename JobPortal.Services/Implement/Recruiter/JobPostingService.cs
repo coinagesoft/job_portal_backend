@@ -2,8 +2,8 @@
     using global::JobPortal.Domain.Entities;
     using global::JobPortal.Infrastructure.Persistence;
     using global::JobPortal.Services.IImplement.IRecruiter;
-using JobPortal.Application.DTOs.JobPosting;
-using JobPortal.Domain.Enums.common;
+    using JobPortal.Application.DTOs.JobPosting;
+    using JobPortal.Domain.Enums.common;
     using Microsoft.EntityFrameworkCore;
     using Microsoft.Extensions.Logging;
     using System.Text.Json;
@@ -37,24 +37,100 @@ using JobPortal.Domain.Enums.common;
         // ════════════════════════════════════════════════
         // STEP 1 — Job Details → creates Draft job in DB
         // ════════════════════════════════════════════════
+        //    public async Task<JobDetailsResponseDto> SaveJobDetailsAsync(
+        //        JobDetailsRequestDto request, Guid employerId)
+        //    {
+        //        try
+        //        {
+        //            // ── Validate employer exists and is active ─────
+        //            var employer = await _context.EmployerProfiles
+        //.FirstOrDefaultAsync(e =>
+        //    e.EmployerId == employerId);
+
+        //            if (employer == null)
+        //                return new JobDetailsResponseDto
+        //                {
+        //                    Success = false,
+        //                    Message = "Employer account not found or not active."
+        //                };
+
+        //            // ── Create Draft job immediately ───────────────
+        //            var job = new JobPosting
+        //            {
+        //                JobId = Guid.NewGuid(),
+        //                EmployerId = employerId,
+        //                JobTitle = request.JobTitle,
+        //                TradeCategory = request.TradeCategory,
+        //                Role = request.Role,
+        //                ExperienceRequiredYears = (byte)request.ExperienceRequiredYears,
+        //                JobDescription = request.JobDescription,
+        //                JobStatus = "Draft",
+        //                CurrentStep = 1,
+        //                LastCompletedStep = 1,
+        //                ApplicationDeadline = DateOnly.FromDateTime(
+        //                    DateTime.UtcNow.AddDays(30)),  // default 30 days
+        //                CreatedAt = DateTime.UtcNow,
+        //                UpdatedAt = DateTime.UtcNow
+        //            };
+
+        //            _context.JobPostings.Add(job);
+        //            await _context.SaveChangesAsync();      // ✅ saved immediately
+
+        //            _logger.LogInformation(
+        //                "Step1 saved — JobId:{JobId} Employer:{EId}",
+        //                job.JobId, employerId);
+
+        //            return new JobDetailsResponseDto
+        //            {
+        //                Success = true,
+        //                Message = "Job details saved as draft.",
+        //                JobId = job.JobId,
+        //                JobStatus = "Draft",
+        //                StepStatus = BuildStepStatus(job)
+        //            };
+        //        }
+        //        catch (Exception ex)
+        //        {
+        //            _logger.LogError(ex, "Save job details error.");
+
+        //            return new JobDetailsResponseDto
+        //            {
+        //                Success = false,
+        //                Message = ex.InnerException?.Message ?? ex.Message
+        //            };
+        //        }
+        //    }
+
+        // ════════════════════════════════════════════════
+        // STEP 2 — Compensation
+        // ════════════════════════════════════════════════
+
+
+
+        private Guid GetEmployerId() =>
+    Guid.Parse("64de0929-cf0c-4e8f-b842-d536cc1dd012");
+
         public async Task<JobDetailsResponseDto> SaveJobDetailsAsync(
-            JobDetailsRequestDto request, Guid employerId)
+            JobDetailsRequestDto request)
         {
             try
             {
-                // ── Validate employer exists and is active ─────
+                var employerId = GetEmployerId();
+
+                // ── Validate employer exists ─────
                 var employer = await _context.EmployerProfiles
-    .FirstOrDefaultAsync(e =>
-        e.EmployerId == employerId);
+                    .FirstOrDefaultAsync(e => e.EmployerId == employerId);
 
                 if (employer == null)
+                {
                     return new JobDetailsResponseDto
                     {
                         Success = false,
-                        Message = "Employer account not found or not active."
+                        Message = $"Employer not found. EmployerId: {employerId}"
                     };
+                }
 
-                // ── Create Draft job immediately ───────────────
+                // ── Create Draft Job ─────
                 var job = new JobPosting
                 {
                     JobId = Guid.NewGuid(),
@@ -68,17 +144,18 @@ using JobPortal.Domain.Enums.common;
                     CurrentStep = 1,
                     LastCompletedStep = 1,
                     ApplicationDeadline = DateOnly.FromDateTime(
-                        DateTime.UtcNow.AddDays(30)),  // default 30 days
+                        DateTime.UtcNow.AddDays(30)),
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
 
                 _context.JobPostings.Add(job);
-                await _context.SaveChangesAsync();      // ✅ saved immediately
+                await _context.SaveChangesAsync();
 
                 _logger.LogInformation(
-                    "Step1 saved — JobId:{JobId} Employer:{EId}",
-                    job.JobId, employerId);
+                    "Step1 saved — JobId:{JobId} Employer:{EmployerId}",
+                    job.JobId,
+                    employerId);
 
                 return new JobDetailsResponseDto
                 {
@@ -100,10 +177,6 @@ using JobPortal.Domain.Enums.common;
                 };
             }
         }
-
-        // ════════════════════════════════════════════════
-        // STEP 2 — Compensation
-        // ════════════════════════════════════════════════
         public async Task<BaseJobResponseDto> SaveCompensationAsync(
             CompensationRequestDto request, Guid jobId, Guid employerId)
         {
@@ -264,23 +337,27 @@ using JobPortal.Domain.Enums.common;
         // STEP 6 — Screening Questions
         // ════════════════════════════════════════════════
         public async Task<BaseJobResponseDto> SaveQuestionsAsync(
-            QuestionsRequestDto request, Guid jobId, Guid employerId)
+       QuestionsRequestDto request,
+       Guid jobId,
+       Guid employerId)
         {
             try
             {
                 var job = await GetJobAsync(jobId, employerId);
-                if (job == null) return Fail("Job not found.");
+                if (job == null)
+                    return Fail("Job not found.");
 
                 if (request.Questions.Count > 5)
                     return Fail("Maximum 5 screening questions allowed.");
 
-                // Store questions as JSON in a new column
-                job.ScreeningQuestions = JsonSerializer.Serialize(request.Questions);
+                job.ScreeningQuestions =
+                    JsonSerializer.Serialize(request.Questions);
+
                 job.CurrentStep = 6;
                 job.LastCompletedStep = Math.Max(job.LastCompletedStep, 6);
                 job.UpdatedAt = DateTime.UtcNow;
 
-                await _context.SaveChangesAsync();      // ✅ saved immediately
+                await _context.SaveChangesAsync();
 
                 return Ok(job, "Questions saved.");
             }
@@ -290,7 +367,6 @@ using JobPortal.Domain.Enums.common;
                 return Fail("An error occurred.");
             }
         }
-
         // ════════════════════════════════════════════════
         // STEP 7 — Publish or Save Draft
         // ════════════════════════════════════════════════
@@ -453,12 +529,15 @@ using JobPortal.Domain.Enums.common;
             try
             {
                 var job = await GetJobAsync(jobId, employerId);
+
                 if (job == null)
+                {
                     return new ResumeJobResponseDto
                     {
                         Success = false,
                         Message = "Job not found."
                     };
+                }
 
                 return new ResumeJobResponseDto
                 {
@@ -466,6 +545,8 @@ using JobPortal.Domain.Enums.common;
                     Message = $"Resume from Step {job.LastCompletedStep + 1} ({StepNames.GetValueOrDefault(job.LastCompletedStep + 1, "Publishing")}).",
                     JobId = job.JobId,
                     StepStatus = BuildStepStatus(job),
+
+                    // STEP 1 - Job Details
                     Step1Data = new JobDetailsRequestDto
                     {
                         JobTitle = job.JobTitle,
@@ -473,16 +554,109 @@ using JobPortal.Domain.Enums.common;
                         Role = job.Role,
                         ExperienceRequiredYears = job.ExperienceRequiredYears,
                         JobDescription = job.JobDescription
+                    },
+
+                    // STEP 2 - Compensation
+                    Step2Data = new CompensationRequestDto
+                    {
+                        SalaryMin = job.SalaryMin,
+                        SalaryMax = job.SalaryMax,
+
+                        SalaryCurrency =
+                            Enum.TryParse<SalaryCurrency>(
+                                job.SalaryCurrency,
+                                true,
+                                out var currency)
+                                    ? currency
+                                    : SalaryCurrency.INR,
+
+                        SalaryDisplayOption =
+                            Enum.TryParse<SalaryDisplayOption>(
+                                job.SalaryDisplayOption,
+                                true,
+                                out var display)
+                                    ? display
+                                    : SalaryDisplayOption.Show_Range
+                    },
+
+                    // STEP 3 - Skills
+                    Step3Data = new SkillsRequestDto
+                    {
+                        KeySkills =
+                            string.IsNullOrWhiteSpace(job.KeySkills)
+                                ? new List<string>()
+                                : JsonSerializer.Deserialize<List<string>>(job.KeySkills) ?? new List<string>(),
+
+                        LicenceDocsRequired = job.LicenceDocsRequired,
+                        LanguageRequired = job.LanguageRequired
+                    },
+
+                    // STEP 4 - Eligibility
+                    Step4Data = new EligibilityRequestDto
+                    {
+                        Vacancies = job.Vacancies,
+
+                        EducationRequired =
+                            Enum.TryParse<EducationLevel>(
+                                job.EducationRequired,
+                                true,
+                                out var education)
+                                    ? education
+                                    : default,
+
+                        AgeMin = job.AgeMin,
+                        AgeMax = job.AgeMax,
+
+                        GenderPreferred =
+                            Enum.TryParse<GenderPreferred>(
+                                job.GenderPreferred,
+                                true,
+                                out var gender)
+                                    ? gender
+                                    : GenderPreferred.Any,
+
+                        DisabilityEligible = job.DisabilityEligible,
+                        PassportRequired = job.PassportRequired,
+                        PassportValidityMonths = job.PassportValidityMonths
+                    },
+
+                    // STEP 5 - Location
+                    Step5Data = new LocationRequestDto
+                    {
+                        LocationType =
+                            Enum.TryParse<LocationType>(
+                                job.LocationType,
+                                true,
+                                out var locationType)
+                                    ? locationType
+                                    : default,
+
+                        OnshoreCity = job.OnshoreCity,
+                        OnshoreState = job.OnshoreState,
+                        OffshoreVesselName = job.OffshoreVesselName,
+                        OffshoreRegion = job.OffshoreRegion,
+                        Country = "India"
+                    },
+
+                    // STEP 6 - Questions
+                    Step6Data = new QuestionsRequestDto
+                    {
+                        Questions =
+                            string.IsNullOrWhiteSpace(job.ScreeningQuestions)
+                                ? new List<ScreeningQuestion>()
+                                : JsonSerializer.Deserialize<List<ScreeningQuestion>>(job.ScreeningQuestions)
+                                    ?? new List<ScreeningQuestion>()
                     }
                 };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Resume job error.");
+
                 return new ResumeJobResponseDto
                 {
                     Success = false,
-                    Message = "An error occurred."
+                    Message = ex.InnerException?.Message ?? ex.Message
                 };
             }
         }

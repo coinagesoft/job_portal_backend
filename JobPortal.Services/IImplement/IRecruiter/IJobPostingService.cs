@@ -13,8 +13,11 @@ namespace JobPortal.Services.IImplement.IRecruiter
     public interface IJobPostingService
     {
         // Step 1 — creates draft job
+        //Task<JobDetailsResponseDto> SaveJobDetailsAsync(
+        //    JobDetailsRequestDto request, Guid employerId);
+
         Task<JobDetailsResponseDto> SaveJobDetailsAsync(
-            JobDetailsRequestDto request, Guid employerId);
+          JobDetailsRequestDto request);
 
         // Step 2-6 — update draft (all use jobId)
         Task<BaseJobResponseDto> SaveCompensationAsync(
