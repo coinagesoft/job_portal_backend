@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using JobPortal.Services.IImplement.ICandidate;
+using JobPortal.Services.Implement.Candidate;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
@@ -70,6 +72,7 @@ builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<ISubUserService, SubUserService>();
 builder.Services.AddScoped<ISubUserEmailService, SubUserEmailService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ICandidateAuthService, CandidateAuthService>();
 
 
 FirebaseApp.Create(new AppOptions()
