@@ -17,6 +17,13 @@ public class AppDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<OtpVerification> OtpVerifications => Set<OtpVerification>();
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
+    public DbSet<CreditPlan> CreditPlans { get; set; }
+
+    public DbSet<CreditUsageTransaction> CreditUsageTransactions { get; set; }
+
+    public DbSet<CreditAllocationHistory> CreditAllocationHistory { get; set; }
+    public DbSet<EmployerCandidateAccess> EmployerCandidateAccesses { get; set; }
+    public DbSet<SubUserCreditAllocation> SubUserCreditAllocation { get; set; }
     public DbSet<AdminSession> AdminSessions => Set<AdminSession>();
 
     // Section 2 — Candidate
@@ -297,7 +304,6 @@ public class AppDbContext : DbContext
             e.Property(x => x.LastAppliedAt).HasColumnName("last_applied_at");
             e.Property(x => x.FcmToken).HasColumnName("fcm_token");
             e.Property(x => x.AdminNotes).HasColumnName("admin_notes");
-            e.Property(x => x.CreditBalance).HasColumnName("credit_balance");
             e.Property(x => x.WelcomeEmailSent).HasColumnName("welcome_email_sent");
             e.Property(x => x.NewsletterOptIn).HasColumnName("newsletter_opt_in");
             e.Property(x => x.TempPasswordFlag).HasColumnName("temp_password_flag");

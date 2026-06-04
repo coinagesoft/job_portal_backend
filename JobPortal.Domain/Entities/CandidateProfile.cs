@@ -29,7 +29,7 @@ public class CandidateProfile
     public string? ItiTrade { get; set; }
     public string? ItiMarks { get; set; }
     public string? ItiCollege { get; set; }
-    public string? Band { get; set; }                   // A | B | C
+    public string? Band { get; set; }                  
     public byte? AiMatchScore { get; set; }
     public string ProfileStatus { get; set; } = "Active";
     public byte ProfileCompletionPct { get; set; } = 0;
@@ -37,7 +37,6 @@ public class CandidateProfile
     public DateTime? LastAppliedAt { get; set; }
     public string? FcmToken { get; set; }
     public string? AdminNotes { get; set; }
-    public int CreditBalance { get; set; } = 0;
     public bool WelcomeEmailSent { get; set; } = false;
     public bool NewsletterOptIn { get; set; } = false;
     public bool TempPasswordFlag { get; set; } = false;

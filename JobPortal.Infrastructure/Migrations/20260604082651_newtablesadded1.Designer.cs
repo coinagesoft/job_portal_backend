@@ -3,6 +3,7 @@ using System;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260604082651_newtablesadded1")]
+    partial class newtablesadded1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -599,38 +602,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.ToTable("country_verification_config", (string)null);
                 });
 
-            modelBuilder.Entity("JobPortal.Domain.Entities.CreditAllocationHistory", b =>
-                {
-                    b.Property<Guid>("HistoryId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AllocatedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("BalanceAfter")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BalanceBefore")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("CreditsAllocated")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("EmployerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("SubUserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("HistoryId");
-
-                    b.ToTable("CreditAllocationHistory");
-                });
-
             modelBuilder.Entity("JobPortal.Domain.Entities.CreditPlan", b =>
                 {
                     b.Property<Guid>("PlanId")
@@ -639,9 +610,6 @@ namespace JobPortal.Infrastructure.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("CreatedBy")
-                        .HasColumnType("uuid");
 
                     b.Property<int>("Credits")
                         .HasColumnType("integer");
@@ -655,9 +623,6 @@ namespace JobPortal.Infrastructure.Migrations
 
                     b.Property<decimal>("Price")
                         .HasColumnType("numeric");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid");
 
                     b.Property<int>("ValidityMonths")
                         .HasColumnType("integer");
@@ -2171,41 +2136,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.HasIndex("PaymentTransactionTransactionId");
 
                     b.ToTable("security_deposits", (string)null);
-                });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.SubUserCreditAllocation", b =>
-                {
-                    b.Property<Guid>("AllocationId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("AllocatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("AllocatedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("AllocatedCredits")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("EmployerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("RemainingCredits")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("SubUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("UsedCredits")
-                        .HasColumnType("integer");
-
-                    b.HasKey("AllocationId");
-
-                    b.ToTable("SubUserCreditAllocation");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.SupportTicket", b =>

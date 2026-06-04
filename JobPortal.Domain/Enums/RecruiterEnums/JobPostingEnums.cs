@@ -35,3 +35,14 @@ public enum EducationLevel
 {
     Any, Tenth, Twelfth, ITI, ITI_Diploma, Diploma, Graduate, Post_Graduate
 }
+
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum TransactionType
+{
+    Purchase = 1,
+     UnlockProfile = 2,
+     DownloadCv = 3,
+     Refund = 4,
+     Bonus = 5
+}

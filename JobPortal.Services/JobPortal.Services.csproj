@@ -13,10 +13,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="IImplement\IEndUser\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.2.0" />
     <PackageReference Include="FirebaseAdmin" Version="3.5.0" />
     <PackageReference Include="MailKit" Version="4.17.0" />
@@ -28,6 +24,10 @@
   <ItemGroup>
     <ProjectReference Include="..\JobPortal.Application\JobPortal.Application.csproj" />
     <ProjectReference Include="..\JobPortal.Infrastructure\JobPortal.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="IImplement\IEndUser\" />
   </ItemGroup>
 
 </Project>
