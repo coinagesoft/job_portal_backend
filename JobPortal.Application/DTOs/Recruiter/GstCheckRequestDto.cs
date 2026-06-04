@@ -33,7 +33,6 @@ public class GstCheckResponseDto
     public string Message { get; set; } = string.Empty;
     public bool GstRegistered { get; set; }
     public string IndustryType { get; set; } = string.Empty;
-    public bool RequiresSecurityDeposit { get; set; }
     public string? RegistrationSessionId { get; set; }
 
     public StepStatusDto? StepStatus { get; set; }

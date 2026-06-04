@@ -17,62 +17,105 @@ namespace JobPortal.Infrastructure.JWT
             _configuration = configuration;
         }
 
-        public string GenerateToken(User user,AdminUser adminUser)
+        //public string GenerateToken(User user,AdminUser adminUser)
+        //{
+        //    var claims = new[]
+        //    {
+        //        new Claim(
+        //            ClaimTypes.NameIdentifier,
+        //            user.UserId.ToString()
+        //        ),
+
+        //        new Claim(
+        //            ClaimTypes.Role,
+        //            user.UserType.ToString()
+        //        ),
+
+        //        new Claim(
+        //            ClaimTypes.MobilePhone,
+        //            user.MobileNumber
+        //        )
+        //    };
+
+        //    var key =
+        //        new SymmetricSecurityKey(
+        //            Encoding.UTF8.GetBytes(
+        //                _configuration["Jwt:Key"]!
+        //            )
+        //        );
+
+        //    var credentials =
+        //        new SigningCredentials(
+        //            key,
+        //            SecurityAlgorithms.HmacSha256
+        //        );
+
+        //    var token =
+        //        new JwtSecurityToken(
+        //            issuer:
+        //                _configuration["Jwt:Issuer"],
+
+        //            audience:
+        //                _configuration["Jwt:Audience"],
+
+        //            claims:
+        //                claims,
+
+        //            expires:
+        //                DateTime.UtcNow.AddMinutes(
+        //                    Convert.ToDouble(
+        //                        _configuration[
+        //                            "Jwt:ExpiryMinutes"
+        //                        ]
+        //                    )
+        //                ),
+
+        //            signingCredentials:
+        //                credentials
+        //        );
+
+        //    return new JwtSecurityTokenHandler()
+        //        .WriteToken(token);
+        //}
+
+
+        public string GenerateToken(
+    Guid userId,
+    string role,
+    string? mobileNumber = null)
         {
-            var claims = new[]
+            var claims = new List<Claim>
+    {
+        new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+        new Claim(ClaimTypes.Role, role)
+    };
+
+            if (!string.IsNullOrWhiteSpace(mobileNumber))
             {
-                new Claim(
-                    ClaimTypes.NameIdentifier,
-                    user.UserId.ToString()
-                ),
+                claims.Add(
+                    new Claim(
+                        ClaimTypes.MobilePhone,
+                        mobileNumber
+                    ));
+            }
 
-                new Claim(
-                    ClaimTypes.Role,
-                    user.UserType.ToString()
-                ),
+            var key = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(
+                    _configuration["Jwt:Key"]!
+                ));
 
-                new Claim(
-                    ClaimTypes.MobilePhone,
-                    user.MobileNumber
-                )
-            };
+            var credentials = new SigningCredentials(
+                key,
+                SecurityAlgorithms.HmacSha256);
 
-            var key =
-                new SymmetricSecurityKey(
-                    Encoding.UTF8.GetBytes(
-                        _configuration["Jwt:Key"]!
-                    )
-                );
-
-            var credentials =
-                new SigningCredentials(
-                    key,
-                    SecurityAlgorithms.HmacSha256
-                );
-
-            var token =
-                new JwtSecurityToken(
-                    issuer:
-                        _configuration["Jwt:Issuer"],
-
-                    audience:
-                        _configuration["Jwt:Audience"],
-
-                    claims:
-                        claims,
-
-                    expires:
-                        DateTime.UtcNow.AddMinutes(
-                            Convert.ToDouble(
-                                _configuration[
-                                    "Jwt:ExpiryMinutes"
-                                ]
-                            )
-                        ),
-
-                    signingCredentials:
-                        credentials
-                );
+            var token = new JwtSecurityToken(
+                issuer: _configuration["Jwt:Issuer"],
+                audience: _configuration["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(
+                    Convert.ToDouble(
+                        _configuration["Jwt:ExpiryMinutes"])),
+                signingCredentials: credentials);
 
             return new JwtSecurityTokenHandler()
                 .WriteToken(token);

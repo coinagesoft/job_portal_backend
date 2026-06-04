@@ -225,7 +225,7 @@ public class AuthService : IAuthService
             await _context.SaveChangesAsync();
 
             // ── Generate JWT ───────────────────────────────────
-            var token = _jwtService.GenerateToken(user, adminUser);
+            var token = _jwtService.GenerateToken(adminUser.AdminId,UserType.Admin.ToString());
             var expiry = _jwtService.GetExpiry();
 
             _logger.LogInformation(

@@ -37,8 +37,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 SessionId = Guid.NewGuid(),
                 SessionType = "Recruiter",
                 GstRegistered = request.GstRegistered,
+                RequiresSecurityDeposit = false,
                 IndustryType = request.IndustryType.ToString(),
-                RequiresSecurityDeposit = !request.GstRegistered,
                 CurrentStep = 1,
                 LastCompletedStep = 1
                
@@ -56,11 +56,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             {
                 Success = true,
                 Message = request.GstRegistered
-                    ? "GST registered. Proceed to company details."
-                    : "Non-GST entity. Security deposit of ₹2,000 required.",
+        ? "GST registered. Proceed to company details."
+        : "Non-GST entity. Proceed to company details.",
                 GstRegistered = request.GstRegistered,
                 IndustryType = request.IndustryType.ToString(),
-                RequiresSecurityDeposit = !request.GstRegistered,
                 RegistrationSessionId = session.SessionId.ToString(),
                 StepStatus = BuildStepStatus(session)
             };
@@ -586,7 +585,6 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 RpslLicenceS3Url = session.RpslLicenceS3Url,
                 AccountStatus = AccountStatus.Pending,
                 SecurityDepositPaid = false,
-                SecurityDepositStatus = session.GstRegistered == true ? null : "Held",
                 ProfileCompletionScore = 60,
                 ConsentTimestamp = DateTime.UtcNow,
      
@@ -681,7 +679,6 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     Success = true,
                     GstRegistered = session.GstRegistered ?? false,
                     IndustryType = session.IndustryType ?? "",
-                    RequiresSecurityDeposit = session.RequiresSecurityDeposit
                 },
                 Step2Data = session.LastCompletedStep >= 2
                     ? new CompanyDetailsResponseDto

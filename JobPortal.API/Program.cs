@@ -4,6 +4,7 @@ using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.IRecruiter;
+using JobPortal.Services.Implement;
 using JobPortal.Services.Implement.Admin;
 using JobPortal.Services.Implement.Recruiter;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -12,9 +13,9 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-
-
 builder.Services.AddControllers();
+
+builder.Services.AddHttpClient();
 
 builder.Services.AddEndpointsApiExplorer();
 
@@ -62,9 +63,14 @@ builder.Services
 
 // REGISTER SERVICES
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IRecruiterAuthService, RecruiterAuthService>();
 builder.Services.AddScoped<IRecruiterRegistrationService,RecruiterRegistrationService>();
 builder.Services.AddScoped<IJobPostingService, JobPostingService>();
 builder.Services.AddScoped<JwtService>();
+builder.Services.AddScoped<ISubUserService, SubUserService>();
+builder.Services.AddScoped<ISubUserEmailService, SubUserEmailService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+
 
 FirebaseApp.Create(new AppOptions()
 {
@@ -99,12 +105,9 @@ var app = builder.Build();
 
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
     app.UseSwagger();
 
     app.UseSwaggerUI();
-}
 
 app.UseHttpsRedirection();
 

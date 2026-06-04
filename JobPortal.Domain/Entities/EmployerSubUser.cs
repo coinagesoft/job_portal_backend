@@ -13,7 +13,10 @@ public class EmployerSubUser
     public Guid UserId { get; set; }
     public string SubUserName { get; set; } = default!;
     public string SubUserEmail { get; set; } = default!;
-    public string SubUserRole { get; set; } = default!;  // Recruiter|HR_Manager|Viewer
+
+    public string? SubUserMobile { get; set; }        
+    public string? SubUserCountryCode { get; set; }
+    public string SubUserRole { get; set; } = default!;  
     public Guid? InviteToken { get; set; }
     public DateTime? InviteExpiresAt { get; set; }
     public bool InviteAccepted { get; set; } = false;
@@ -23,6 +26,7 @@ public class EmployerSubUser
     public bool CanManageApplications { get; set; } = false;
     public string SubUserStatus { get; set; } = "Active";
     public DateTime CreatedAt { get; set; }
+    public DateTime? DeactivatedAt { get; set; }
 
     // Navigation
     public EmployerProfile EmployerProfile { get; set; } = default!;

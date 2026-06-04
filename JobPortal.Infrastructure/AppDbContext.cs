@@ -4,9 +4,9 @@ using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using System.Reflection.Emit;
 
 namespace JobPortal.Infrastructure.Persistence;
+
 
 public class AppDbContext : DbContext
 {
@@ -575,14 +575,37 @@ public class AppDbContext : DbContext
              .HasForeignKey(x => x.IssuedBy);
         });
 
-        m.Entity<EmployerSubUser>(e => {
+        m.Entity<EmployerSubUser>(e =>
+        {
             e.ToTable("employer_sub_users");
             e.HasKey(x => x.SubUserId);
+
+            e.Property(x => x.SubUserId).HasColumnName("SubUserId");
+            e.Property(x => x.EmployerId).HasColumnName("EmployerId");
+            e.Property(x => x.UserId).HasColumnName("UserId");
+            e.Property(x => x.SubUserName).HasColumnName("SubUserName");
+            e.Property(x => x.SubUserEmail).HasColumnName("SubUserEmail");
+            e.Property(x => x.SubUserMobile).HasColumnName("SubUserMobile");
+            e.Property(x => x.SubUserCountryCode).HasColumnName("SubUserCountryCode");
+            e.Property(x => x.SubUserRole).HasColumnName("SubUserRole");
+            e.Property(x => x.InviteToken).HasColumnName("InviteToken");
+            e.Property(x => x.InviteExpiresAt).HasColumnName("InviteExpiresAt");
+            e.Property(x => x.InviteAccepted).HasColumnName("InviteAccepted");
+            e.Property(x => x.CanSearchCandidates).HasColumnName("CanSearchCandidates");
+            e.Property(x => x.CanUnlockProfiles).HasColumnName("CanUnlockProfiles");
+            e.Property(x => x.CanPostJobs).HasColumnName("CanPostJobs");
+            e.Property(x => x.CanManageApplications).HasColumnName("CanManageApplications");
+            e.Property(x => x.SubUserStatus).HasColumnName("SubUserStatus");
+            e.Property(x => x.CreatedAt).HasColumnName("CreatedAt");
+            e.Property(x => x.DeactivatedAt).HasColumnName("DeactivatedAt");
+
             e.HasOne(x => x.EmployerProfile)
-             .WithMany(x => x.SubUsers)
-             .HasForeignKey(x => x.EmployerId);
-            e.HasOne(x => x.User).WithMany()
-             .HasForeignKey(x => x.UserId);
+                .WithMany(x => x.SubUsers)
+                .HasForeignKey(x => x.EmployerId);
+
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId);
         });
 
         m.Entity<EmployerNotificationSetting>(e =>

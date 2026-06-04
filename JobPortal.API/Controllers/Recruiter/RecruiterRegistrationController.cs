@@ -27,7 +27,7 @@ namespace JobPortal.API.Controllers.Recruiter
         [ProducesResponseType(typeof(GstCheckResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GstCheck(
-            [FromForm] GstCheckRequestDto request)
+            [FromBody] GstCheckRequestDto request)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
@@ -87,7 +87,7 @@ namespace JobPortal.API.Controllers.Recruiter
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> ContactSendOtp(
-            [FromForm] ContactDetailsRequestDto request,
+            [FromBody] ContactDetailsRequestDto request,
             [FromHeader(Name = "X-Session-Id")] string? sessionId)
         {
             if (!ModelState.IsValid)
@@ -127,7 +127,7 @@ namespace JobPortal.API.Controllers.Recruiter
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
         public async Task<IActionResult> VerifyOtp(
-            [FromForm] VerifyContactOtpRequestDto request,
+            [FromBody] VerifyContactOtpRequestDto request,
             [FromHeader(Name = "X-Session-Id")] string? sessionId)
         {
             if (!ModelState.IsValid)

@@ -49,7 +49,7 @@ namespace JobPortal.API.Controllers.Recruiter;
 
     [HttpPost("job-details")]
     public async Task<IActionResult> SaveJobDetails(
-    [FromForm] JobDetailsRequestDto request)
+    [FromBody] JobDetailsRequestDto request)
     {
         var result = await _service.SaveJobDetailsAsync(request);
 
@@ -74,7 +74,7 @@ namespace JobPortal.API.Controllers.Recruiter;
         // ── STEP 3 ─────────────────────────────────────────
         [HttpPut("{jobId}/step3-skills")]
         public async Task<IActionResult> Step3Skills(
-            Guid jobId, [FromForm] SkillsRequestDto request)
+            Guid jobId, [FromBody] SkillsRequestDto request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             var result = await _service.SaveSkillsAsync(request, jobId, GetEmployerId());
@@ -84,7 +84,7 @@ namespace JobPortal.API.Controllers.Recruiter;
         // ── STEP 4 ─────────────────────────────────────────
         [HttpPut("{jobId}/step4-eligibility")]
         public async Task<IActionResult> Step4Eligibility(
-            Guid jobId, [FromForm] EligibilityRequestDto request)
+            Guid jobId, [FromBody] EligibilityRequestDto request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             var result = await _service.SaveEligibilityAsync(request, jobId, GetEmployerId());
@@ -94,7 +94,7 @@ namespace JobPortal.API.Controllers.Recruiter;
         // ── STEP 5 ─────────────────────────────────────────
         [HttpPut("{jobId}/step5-location")]
         public async Task<IActionResult> Step5Location(
-            Guid jobId, [FromForm] LocationRequestDto request)
+            Guid jobId, [FromBody] LocationRequestDto request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             var result = await _service.SaveLocationAsync(request, jobId, GetEmployerId());
@@ -117,7 +117,7 @@ namespace JobPortal.API.Controllers.Recruiter;
         /// </summary>
         [HttpPut("step7-publish")]
         public async Task<IActionResult> Step7Publish(
-            [FromForm] PublishingRequestDto request)
+            [FromBody] PublishingRequestDto request)
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
             var result = await _service.PublishJobAsync(request, GetEmployerId());
