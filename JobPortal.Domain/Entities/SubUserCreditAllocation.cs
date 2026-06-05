@@ -25,7 +25,6 @@ namespace JobPortal.Domain.Entities
 
         public DateTime AllocatedAt { get; set; }
 
-        public Guid AllocatedBy { get; set; }
 
         public DateTime UpdatedAt { get; set; }
     }

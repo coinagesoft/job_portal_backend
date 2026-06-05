@@ -22,7 +22,6 @@ namespace JobPortal.Domain.Entities
 
         public int BalanceAfter { get; set; }
 
-        public Guid AllocatedBy { get; set; }
 
         public DateTime CreatedAt { get; set; }
     }

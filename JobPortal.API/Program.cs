@@ -37,10 +37,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 });
 
 
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer
+    (options =>{
         options.TokenValidationParameters =
             new TokenValidationParameters
             {
@@ -69,11 +67,14 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IRecruiterAuthService, RecruiterAuthService>();
 builder.Services.AddScoped<IRecruiterRegistrationService,RecruiterRegistrationService>();
 builder.Services.AddScoped<IJobPostingService, JobPostingService>(); 
-builder.Services.AddScoped<JwtService>();
-builder.Services.AddScoped<ISubUserService, SubUserService>();
+builder.Services.AddScoped<JwtService>(); 
+builder.Services.AddScoped<IRecruiterCreditPlanService, RecruiterCreditPlanService>();
+builder.Services.AddScoped<ISubUserService, SubUserService>(); 
+builder.Services.AddScoped<ICreditConfigurationService, CreditConfigurationService>();
 builder.Services.AddScoped<ISubUserEmailService, SubUserEmailService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICandidateAuthService, CandidateAuthService>();
+builder.Services.AddScoped<ICreditWalletService,CreditWalletService>();
 
 
 FirebaseApp.Create(new AppOptions()

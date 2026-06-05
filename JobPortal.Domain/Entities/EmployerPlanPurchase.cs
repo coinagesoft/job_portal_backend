@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace JobPortal.Domain.Entities
 {
-    public class EmployerCreditPlan
+    public class EmployerPlanPurchase
     {
         [Key]
         public Guid EmployerCreditPlanId { get; set; }

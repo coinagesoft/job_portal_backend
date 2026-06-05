@@ -16,3 +16,4 @@ obj/
 .vscode/
 
 firebase-adminsdk.json
+appsettings.json

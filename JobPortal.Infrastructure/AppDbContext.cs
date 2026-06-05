@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options) { }
+    
 
     // Section 1 — Auth
     public DbSet<User> Users => Set<User>();
@@ -21,11 +22,15 @@ public class AppDbContext : DbContext
 
     public DbSet<CreditUsageTransaction> CreditUsageTransactions { get; set; }
 
+    public DbSet<CandidateCvDownload> CandidateCvDownload { get; set; }
+
+    public DbSet<CreditConfiguration> CreditConfigurations { get; set; }
+
     public DbSet<CreditAllocationHistory> CreditAllocationHistory { get; set; }
     public DbSet<EmployerCandidateAccess> EmployerCandidateAccesses { get; set; }
     public DbSet<SubUserCreditAllocation> SubUserCreditAllocation { get; set; }
     public DbSet<AdminSession> AdminSessions => Set<AdminSession>();
-    public DbSet<EmployerCreditPlan> EmployerCreditPlan { get; set; }
+    public DbSet<EmployerPlanPurchase> EmployerPlanPurchase { get; set; }
 
     // Section 2 — Candidate
     public DbSet<CandidateProfile> CandidateProfiles => Set<CandidateProfile>();
@@ -67,8 +72,10 @@ public class AppDbContext : DbContext
     public DbSet<CountryVerificationConfig> CountryVerificationConfigs => Set<CountryVerificationConfig>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ConsentLog> ConsentLogs => Set<ConsentLog>();
-    public DbSet<Dispute> Disputes => Set<Dispute>();
+    public DbSet<Dispute> Disputes => Set<Dispute>(); 
     public DbSet<RegistrationSession> RegistrationSessions => Set<RegistrationSession>();
+
+
 
     public override int SaveChanges()
     {

@@ -3,6 +3,7 @@ using System;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260605091131_creditconfiguration")]
+    partial class creditconfiguration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -213,40 +216,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.HasIndex("CandidateId");
 
                     b.ToTable("candidate_cv", (string)null);
-                });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.CandidateCvDownload", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CandidateCvCvId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CandidateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("CreditsUsed")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("CvId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("DownloadedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("EmployerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("SubUserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CandidateCvCvId");
-
-                    b.ToTable("CandidateCvDownload");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.CandidateEducation", b =>
@@ -637,6 +606,9 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("HistoryId")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AllocatedBy")
                         .HasColumnType("uuid");
 
                     b.Property<int>("BalanceAfter")
@@ -2281,6 +2253,9 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<DateTime>("AllocatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("AllocatedBy")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("AllocatedCredits")
                         .HasColumnType("integer");
 
@@ -2479,17 +2454,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("CandidateProfile");
-                });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.CandidateCvDownload", b =>
-                {
-                    b.HasOne("JobPortal.Domain.Entities.CandidateCv", "CandidateCv")
-                        .WithMany()
-                        .HasForeignKey("CandidateCvCvId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CandidateCv");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.CandidateEducation", b =>
