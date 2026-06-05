@@ -370,18 +370,57 @@ public class AppDbContext : DbContext
              .OnDelete(DeleteBehavior.SetNull);
         });
 
-        m.Entity<PassportVerification>(e => {
+        m.Entity<PassportVerification>(e =>
+        {
             e.ToTable("passport_verifications");
-            e.HasKey(x => x.PassportVerId);
-            e.HasOne(x => x.CandidateProfile)
-             .WithMany()
-             .HasForeignKey(x => x.CandidateId);
-            e.HasOne(x => x.Reviewer)
-             .WithMany()
-             .HasForeignKey(x => x.ReviewedBy)
-             .OnDelete(DeleteBehavior.SetNull);
-        });
 
+            e.HasKey(x => x.VerificationId);
+
+            e.Property(x => x.VerificationId)
+                .HasColumnName("verification_id");
+
+            e.Property(x => x.CandidateId)
+                .HasColumnName("candidate_id");
+
+            e.Property(x => x.FrontImageUrl)
+                .HasColumnName("front_image_url");
+
+            e.Property(x => x.BackImageUrl)
+                .HasColumnName("back_image_url");
+
+            e.Property(x => x.AiExtractedName)
+                .HasColumnName("ai_extracted_name");
+
+            e.Property(x => x.AiExtractedDob)
+                .HasColumnName("ai_extracted_dob");
+
+            e.Property(x => x.AiConfidenceScore)
+                .HasColumnName("ai_confidence_score");
+
+            e.Property(x => x.AdminDecision)
+                .HasColumnName("admin_decision");
+
+            e.Property(x => x.RejectionReason)
+                .HasColumnName("rejection_reason");
+
+            e.Property(x => x.ReviewedBy)
+                .HasColumnName("reviewed_by");
+
+            e.Property(x => x.ReviewedAt)
+                .HasColumnName("reviewed_at");
+
+            e.Property(x => x.CreatedAt)
+                .HasColumnName("created_at");
+
+            e.HasOne(x => x.CandidateProfile)
+                .WithMany()
+                .HasForeignKey(x => x.CandidateId);
+
+            e.HasOne(x => x.Reviewer)
+                .WithMany()
+                .HasForeignKey(x => x.ReviewedBy)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
         m.Entity<ItiCertificateReview>(e => {
             e.ToTable("iti_certificate_reviews");
             e.HasKey(x => x.ItiReviewId);

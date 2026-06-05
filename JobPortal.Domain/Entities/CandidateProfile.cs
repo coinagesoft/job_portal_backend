@@ -40,6 +40,13 @@ public class CandidateProfile
     public bool WelcomeEmailSent { get; set; } = false;
     public bool NewsletterOptIn { get; set; } = false;
     public bool TempPasswordFlag { get; set; } = false;
+    public string? Pincode { get; set; }
+
+    public string? ProfessionalSummary { get; set; }
+
+    public string? About { get; set; }
+
+    public string? NoticePeriod { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
