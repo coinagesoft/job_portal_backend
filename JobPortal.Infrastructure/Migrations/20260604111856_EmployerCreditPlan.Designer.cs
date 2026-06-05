@@ -3,6 +3,7 @@ using System;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260604111856_EmployerCreditPlan")]
+    partial class EmployerCreditPlan
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -870,45 +873,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.HasKey("AccessId");
 
                     b.ToTable("EmployerCandidateAccesses");
-                });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.EmployerCreditPlan", b =>
-                {
-                    b.Property<Guid>("EmployerCreditPlanId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("AssignedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("AssignedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Credits")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("EmployerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("PlanId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PlanName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("Price")
-                        .HasColumnType("numeric");
-
-                    b.HasKey("EmployerCreditPlanId");
-
-                    b.ToTable("EmployerCreditPlan");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.EmployerNotificationSetting", b =>

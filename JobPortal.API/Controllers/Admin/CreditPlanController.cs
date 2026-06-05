@@ -1,5 +1,7 @@
-﻿using JobPortal.Application.DTOs.Admin.CreditWallet;
+﻿using JobPortal.API.Controllers.Recruiter;
+using JobPortal.Application.DTOs.Admin.CreditWallet;
 using JobPortal.Services.IImplement.IAdmin;
+using JobPortal.Services.Implement.Admin;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Admin
@@ -11,10 +13,12 @@ namespace JobPortal.API.Controllers.Admin
     public class CreditPlanController : ControllerBase
     {
         private readonly ICreditPlanService _service;
-
+        private readonly ILogger<CreditPlanService> _logger;
         public CreditPlanController(
+            ILogger<CreditPlanService> logger,
             ICreditPlanService service)
         {
+            _logger = logger;
             _service = service;
         }
 
@@ -94,5 +98,6 @@ namespace JobPortal.API.Controllers.Admin
 
             return Ok(result);
         }
+
     }
 }

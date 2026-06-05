@@ -40,9 +40,8 @@ public enum EducationLevel
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum TransactionType
 {
-    Purchase = 1,
-     UnlockProfile = 2,
-     DownloadCv = 3,
-     Refund = 4,
-     Bonus = 5
+    PlanPurchase = 1,
+    CreditAllocation = 2,
+    ProfileUnlock = 3,
+    CvDownload = 4
 }

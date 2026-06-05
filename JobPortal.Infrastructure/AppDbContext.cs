@@ -25,6 +25,7 @@ public class AppDbContext : DbContext
     public DbSet<EmployerCandidateAccess> EmployerCandidateAccesses { get; set; }
     public DbSet<SubUserCreditAllocation> SubUserCreditAllocation { get; set; }
     public DbSet<AdminSession> AdminSessions => Set<AdminSession>();
+    public DbSet<EmployerCreditPlan> EmployerCreditPlan { get; set; }
 
     // Section 2 — Candidate
     public DbSet<CandidateProfile> CandidateProfiles => Set<CandidateProfile>();

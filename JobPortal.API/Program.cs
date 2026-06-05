@@ -68,7 +68,7 @@ builder.Services.AddScoped<ICreditPlanService,CreditPlanService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IRecruiterAuthService, RecruiterAuthService>();
 builder.Services.AddScoped<IRecruiterRegistrationService,RecruiterRegistrationService>();
-builder.Services.AddScoped<IJobPostingService, JobPostingService>();
+builder.Services.AddScoped<IJobPostingService, JobPostingService>(); 
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<ISubUserService, SubUserService>();
 builder.Services.AddScoped<ISubUserEmailService, SubUserEmailService>();
