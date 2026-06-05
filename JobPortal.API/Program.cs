@@ -3,16 +3,16 @@ using Google.Apis.Auth.OAuth2;
 using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
+using JobPortal.Services.IImplement.ICandidate;
 using JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Services.Implement;
 using JobPortal.Services.Implement.Admin;
+using JobPortal.Services.Implement.Candidate;
 using JobPortal.Services.Implement.Recruiter;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using JobPortal.Services.IImplement.ICandidate;
-using JobPortal.Services.Implement.Candidate;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
@@ -74,7 +74,10 @@ builder.Services.AddScoped<ISubUserService, SubUserService>();
 builder.Services.AddScoped<ISubUserEmailService, SubUserEmailService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICandidateAuthService, CandidateAuthService>();
+builder.Services.AddScoped<ICandidateProfileService,
+    CandidateProfileService>();
 
+builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 
 FirebaseApp.Create(new AppOptions()
 {

@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace JobPortal.Domain.Entities
 {
@@ -16,6 +12,8 @@ namespace JobPortal.Domain.Entities
 
         public Guid PlanId { get; set; }
 
+        [Required]
+        [MaxLength(200)]
         public string PlanName { get; set; } = string.Empty;
 
         public int Credits { get; set; }
@@ -29,5 +27,10 @@ namespace JobPortal.Domain.Entities
         public bool IsActive { get; set; }
 
         public Guid AssignedBy { get; set; }
+
+        // Optional Navigation Properties
+        public EmployerProfile? Employer { get; set; }
+
+        public CreditPlan? CreditPlan { get; set; }
     }
 }
