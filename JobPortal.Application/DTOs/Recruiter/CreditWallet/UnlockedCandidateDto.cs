@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace JobPortal.Application.DTOs.Recruiter.CreditWallet
 {
+
     public class UnlockedCandidateDto
     {
         public Guid UnlockId { get; set; }
@@ -14,7 +15,13 @@ namespace JobPortal.Application.DTOs.Recruiter.CreditWallet
 
         public string CandidateName { get; set; } = string.Empty;
 
-        public DateTime UnlockedAt { get; set; }
+        public string? Trade { get; set; }
+
+        public int ExperienceYears { get; set; }
+
+        public int CreditsDeducted { get; set; }
+
+        public DateTime UnlockTimestamp { get; set; }
 
         public DateOnly UnlockExpiryDate { get; set; }
 

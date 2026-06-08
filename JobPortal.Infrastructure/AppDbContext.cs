@@ -315,6 +315,10 @@ public class AppDbContext : DbContext
             e.Property(x => x.WelcomeEmailSent).HasColumnName("welcome_email_sent");
             e.Property(x => x.NewsletterOptIn).HasColumnName("newsletter_opt_in");
             e.Property(x => x.TempPasswordFlag).HasColumnName("temp_password_flag");
+            e.Property(x => x.Pincode).HasColumnName("Pincode");
+            e.Property(x => x.ProfessionalSummary).HasColumnName("ProfessionalSummary");
+            e.Property(x => x.About).HasColumnName("About");
+            e.Property(x => x.NoticePeriod).HasColumnName("NoticePeriod");
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
             e.HasOne(x => x.User).WithOne()

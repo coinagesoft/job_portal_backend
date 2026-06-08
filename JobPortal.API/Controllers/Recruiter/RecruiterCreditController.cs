@@ -92,4 +92,60 @@ public class RecruiterCreditController : ControllerBase
 
         return Ok(result);
     }
+
+
+    [HttpGet("credit-usage-history")]
+    public async Task<IActionResult> GetCreditUsageHistory(
+    [FromHeader(Name = "EmployerId")] Guid employerId)
+    {
+        var result =
+            await _service.GetCreditUsageHistoryAsync(
+                employerId);
+
+        return Ok(result);
+    }
+
+    [HttpGet("purchase-history")]
+    public async Task<IActionResult> GetPurchaseHistory(
+    [FromHeader(Name = "EmployerId")] Guid employerId)
+    {
+        var result =
+            await _service.GetPurchaseHistoryAsync(
+                employerId);
+
+        return Ok(result);
+    }
+
+    [HttpGet("allocation-history")]
+    public async Task<IActionResult> GetAllocationHistory(
+    [FromHeader(Name = "EmployerId")] Guid employerId)
+    {
+        var result =
+            await _service.GetAllocationHistoryAsync(
+                employerId);
+
+        return Ok(result);
+    }
+
+    [HttpGet("cv-download-history")]
+    public async Task<IActionResult> GetCvDownloadHistory(
+    [FromHeader(Name = "EmployerId")] Guid employerId)
+    {
+        var result =
+            await _service.GetCvDownloadHistoryAsync(
+                employerId);
+
+        return Ok(result);
+    }
+
+    [HttpGet("unlocked-candidates")]
+    public async Task<IActionResult> GetUnlockedCandidates(
+    [FromHeader(Name = "EmployerId")] Guid employerId)
+    {
+        var result =
+            await _service.GetUnlockedCandidatesAsync(
+                employerId);
+
+        return Ok(result);
+    }
 }

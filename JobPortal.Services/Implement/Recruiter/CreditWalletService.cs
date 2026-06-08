@@ -272,7 +272,7 @@ namespace JobPortal.Services.Implement.Recruiter
             var config =
                 await GetCreditConfigurationAsync();
 
-            var wallet =await GetEmployerWalletEntityAsync(employerId);
+            var wallet = await GetEmployerWalletEntityAsync(employerId);
 
             if (wallet == null)
             {
@@ -392,8 +392,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 CreditsDeducted =
                     unlockCost,
 
-                RemainingCredits =
-                    balanceAfter,
+                RemainingCredits = wallet.CreditBalance,
 
                 AccessExpiresAt =
                     DateTime.UtcNow.AddDays(
@@ -512,9 +511,7 @@ namespace JobPortal.Services.Implement.Recruiter
             var config =
                 await GetCreditConfigurationAsync();
 
-            var wallet =
-    await GetEmployerWalletEntityAsync(
-        employerId);
+            var wallet = await GetEmployerWalletEntityAsync(employerId);
 
             if (wallet == null)
             {
@@ -546,8 +543,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            var cvCost =
-                config.CvDownloadCredits;
+            var cvCost = config.CvDownloadCredits;
 
             int balanceBefore;
             int balanceAfter;
@@ -644,37 +640,223 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
+        public async Task<List<CreditUsageHistoryDto>>GetCreditUsageHistoryAsync(Guid employerId)
+        {
+            return await _context.CreditUsageTransactions
+                .Where(x =>
+                    x.EmployerId == employerId)
+                .OrderByDescending(x =>
+                    x.CreatedAt)
+                .Select(x =>
+                    new CreditUsageHistoryDto
+                    {
+                        TransactionId =
+                            x.TransactionId,
+
+                        CandidateId =
+                            x.CandidateId ?? Guid.Empty,
+
+                        TransactionType =
+                            x.TransactionType.ToString(),
+
+                        CreditsUsed =
+                            x.CreditsUsed,
+
+                        BalanceBefore =
+                            x.BalanceBefore,
+
+                        BalanceAfter =
+                            x.BalanceAfter,
+
+                        CreatedAt =
+                            x.CreatedAt
+                    })
+                .ToListAsync();
+        }
+
+        public async Task<List<PurchaseHistoryDto>>GetPurchaseHistoryAsync(Guid employerId)
+        {
+            return await _context.EmployerPlanPurchase
+                .Where(x =>
+                    x.EmployerId == employerId)
+                .OrderByDescending(x =>
+                    x.AssignedAt)
+                .Select(x =>
+                    new PurchaseHistoryDto
+                    {
+                        PurchaseId =
+                            x.EmployerCreditPlanId,
+
+                        PlanId =
+                            x.PlanId,
+
+                        PlanName =
+                            x.PlanName,
+
+                        Credits =
+                            x.Credits,
+
+                        Price =
+                            x.Price,
+
+                        AssignedAt =
+                            x.AssignedAt,
+
+                        ExpiresAt =
+                            x.ExpiresAt,
+
+                        IsActive =
+                            x.IsActive
+                    })
+                .ToListAsync();
+        }
+
+        public async Task<List<AllocationHistoryDto>>GetAllocationHistoryAsync(Guid employerId)
+        {
+            return await _context.CreditAllocationHistory
+                .Where(x =>
+                    x.EmployerId == employerId)
+                .OrderByDescending(x =>
+                    x.CreatedAt)
+                .Select(x =>
+                    new AllocationHistoryDto
+                    {
+                        HistoryId =
+                            x.HistoryId,
+
+                        SubUserId =
+                            x.SubUserId,
+
+                        CreditsAllocated =
+                            x.CreditsAllocated,
+
+                        BalanceBefore =
+                            x.BalanceBefore,
+
+                        BalanceAfter =
+                            x.BalanceAfter,
+
+                        CreatedAt =
+                            x.CreatedAt
+                    })
+                .ToListAsync();
+        }
+
+        public async Task<List<CvDownloadHistoryDto>>GetCvDownloadHistoryAsync(Guid employerId)
+        {
+            return await _context.CandidateCvDownload
+                .Where(x =>
+                    x.EmployerId == employerId)
+                .OrderByDescending(x =>
+                    x.DownloadedAt)
+                .Select(x =>
+                    new CvDownloadHistoryDto
+                    {
+                        DownloadId =
+                            x.Id,
+
+                        CandidateId =
+                            x.CandidateId,
+
+                        CvId =
+                            x.CvId,
+
+                        EmployerId =
+                            x.EmployerId,
+
+                        SubUserId =
+                            x.SubUserId,
+
+                        CreditsUsed =
+                            x.CreditsUsed,
+
+                        DownloadedAt =
+                            x.DownloadedAt
+                    })
+                .ToListAsync();
+        }
+
+        public async Task<List<UnlockedCandidateDto>>GetUnlockedCandidatesAsync(Guid employerId)
+        {
+            return await
+                (
+                    from unlock in _context.CandidateUnlocks
+
+                    join candidate in _context.CandidateProfiles
+                    on unlock.CandidateId equals candidate.CandidateId
+
+                    where unlock.EmployerId == employerId
+
+                    orderby unlock.UnlockTimestamp descending
+
+                    select new UnlockedCandidateDto
+                    {
+                        UnlockId =
+                            unlock.UnlockId,
+
+                        CandidateId =
+                            unlock.CandidateId,
+
+                        CandidateName =
+                            candidate.FullName,
+
+                        Trade =
+                            candidate.PrimaryTrade,
+
+                        ExperienceYears =
+                            candidate.TotalExperienceYears,
+
+                        CreditsDeducted =
+                            unlock.CreditsDeducted,
+
+                        UnlockTimestamp =
+                            unlock.UnlockTimestamp,
+
+                        UnlockExpiryDate =
+                            unlock.UnlockExpiryDate,
+
+                        CvDownloadAllowed =
+                            unlock.CvDownloadAllowed
+                    }
+                )
+                .ToListAsync();
+        }
+        
+
         private async Task<CreditConfiguration?> GetCreditConfigurationAsync()
         {
             return await _context.CreditConfigurations
                 .FirstOrDefaultAsync(x => x.IsActive);
         }
 
-        private async Task<CreditWallet?>
-    GetEmployerWalletEntityAsync(
-        Guid employerId)
+        private async Task<CreditWallet?>GetEmployerWalletEntityAsync(Guid employerId)
         {
             return await _context.CreditWallets
                 .FirstOrDefaultAsync(x =>
                     x.EmployerId == employerId);
         }
 
-        private async Task<SubUserCreditAllocation?>
-    GetSubUserAllocationAsync(
-        Guid subUserId)
+        private async Task<SubUserCreditAllocation?>GetSubUserAllocationAsync(Guid subUserId)
         {
             return await _context.SubUserCreditAllocation
                 .FirstOrDefaultAsync(x =>
                     x.SubUserId == subUserId);
         }
 
-        private async Task<CandidateProfile?>GetCandidateAsync(Guid candidateId)
+        private async Task<CandidateProfile?> GetCandidateAsync(Guid candidateId)
         {
-            return await _context.CandidateProfiles
+            Console.WriteLine($"Searching Candidate: {candidateId}");
+
+            var candidate = await _context.CandidateProfiles
                 .Include(x => x.User)
                 .Include(x => x.Cvs)
-                .FirstOrDefaultAsync(x =>
-                    x.CandidateId == candidateId);
+                .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
+            Console.WriteLine(candidate == null
+                ? "NOT FOUND"
+                : "FOUND");
+
+            return candidate;
         }
 
         private async Task<bool>HasCandidateAccessAsync(Guid employerId,Guid candidateId)

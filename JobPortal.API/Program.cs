@@ -74,11 +74,16 @@ builder.Services.AddScoped<ICreditConfigurationService, CreditConfigurationServi
 builder.Services.AddScoped<ISubUserEmailService, SubUserEmailService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICandidateAuthService, CandidateAuthService>();
+
 builder.Services.AddScoped<ICandidateProfileService, CandidateProfileService>();
 
 builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExtendedService>();
 
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
+
+builder.Services.AddScoped<ICandidateAuthService, CandidateAuthService>();
+builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
+
 
 FirebaseApp.Create(new AppOptions()
 {
