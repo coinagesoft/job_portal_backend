@@ -16,6 +16,8 @@ public class CandidateEducation
     public short? PassoutYear { get; set; }
     public string? CertificateUrl { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string? YearDetails { get; set; }
+    public bool IsAiVerified { get; set; } = false;
 
     // Navigation
     public CandidateProfile CandidateProfile { get; set; } = default!;

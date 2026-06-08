@@ -330,12 +330,23 @@ public class AppDbContext : DbContext
         // EF will auto-map remaining properties by convention
         // since column names match C# property names after snake_case mapping
 
-        m.Entity<CandidateEducation>(e => {
+        m.Entity<CandidateEducation>(e =>
+        {
             e.ToTable("candidate_education");
+
             e.HasKey(x => x.EducationId);
+
             e.HasOne(x => x.CandidateProfile)
-             .WithMany(x => x.Educations)
-             .HasForeignKey(x => x.CandidateId);
+                .WithMany(x => x.Educations)
+                .HasForeignKey(x => x.CandidateId);
+
+            e.Property(x => x.YearDetails)
+                .HasColumnName("year_details")
+                .HasMaxLength(500);
+
+            e.Property(x => x.IsAiVerified)
+                .HasColumnName("is_ai_verified")
+                .HasDefaultValue(false);
         });
 
         m.Entity<CandidateWorkHistory>(e => {
@@ -346,12 +357,24 @@ public class AppDbContext : DbContext
              .HasForeignKey(x => x.CandidateId);
         });
 
-        m.Entity<CandidateSkill>(e => {
+        m.Entity<CandidateSkill>(e =>
+        {
             e.ToTable("candidate_skills");
+
             e.HasKey(x => x.SkillId);
+
             e.HasOne(x => x.CandidateProfile)
-             .WithMany(x => x.Skills)
-             .HasForeignKey(x => x.CandidateId);
+                .WithMany(x => x.Skills)
+                .HasForeignKey(x => x.CandidateId);
+
+            e.Property(x => x.CanRead)
+                .HasColumnName("can_read");
+
+            e.Property(x => x.CanWrite)
+                .HasColumnName("can_write");
+
+            e.Property(x => x.CanSpeak)
+                .HasColumnName("can_speak");
         });
 
         m.Entity<CandidateCv>(e => {
@@ -631,7 +654,7 @@ public class AppDbContext : DbContext
              .WithMany()
              .HasForeignKey(x => x.IssuedBy);
         });
-
+      
         m.Entity<EmployerSubUser>(e =>
         {
             e.ToTable("employer_sub_users");
