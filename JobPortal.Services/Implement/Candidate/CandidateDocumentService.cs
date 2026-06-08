@@ -203,14 +203,14 @@ public class CandidateDocumentService : ICandidateDocumentService
 
             var edu = new CandidateEducation
             {
-                EducationId     = Guid.NewGuid(),
-                CandidateId     = candidateId,
-                EducationLevel  = request.EducationLevel,
-                InstituteName   = request.InstituteName,
-                MarksPercentage = request.MarksPercentage,
-                PassoutYear     = request.PassoutYear,
-                CertificateUrl  = fileUrl,
-                CreatedAt       = DateTime.UtcNow
+                EducationId = Guid.NewGuid(),
+                CandidateId = candidateId,
+                EducationLevel = request.EducationLevel,
+                InstituteName = request.InstituteName,
+                YearDetails = request.MarksPercentage,
+                PassoutYear = request.PassoutYear,
+                CertificateUrl = fileUrl,
+                CreatedAt = DateTime.UtcNow
             };
 
             _context.CandidateEducations.Add(edu);
@@ -543,14 +543,14 @@ public class CandidateDocumentService : ICandidateDocumentService
 
     private static EducationCertificateDto MapEducation(CandidateEducation e) => new()
     {
-        EducationId        = e.EducationId,
-        EducationLevel     = e.EducationLevel,
-        InstituteName      = e.InstituteName,
-        MarksPercentage    = e.MarksPercentage,
-        PassoutYear        = e.PassoutYear,
-        CertificateUrl     = e.CertificateUrl,
+        EducationId = e.EducationId,
+        EducationLevel = e.EducationLevel,
+        InstituteName = e.InstituteName,
+        MarksPercentage = e.YearDetails,
+        PassoutYear = e.PassoutYear,
+        CertificateUrl = e.CertificateUrl,
         VerificationStatus = "Pending",
-        CreatedAt          = e.CreatedAt
+        CreatedAt = e.CreatedAt
     };
 
     private static PassportDocumentDto MapPassport(PassportVerification p) => new()
