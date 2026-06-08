@@ -10,7 +10,7 @@ public class CandidateEducation
 {
     public Guid EducationId { get; set; }
     public Guid CandidateId { get; set; }
-    public string EducationLevel { get; set; } = default!; // 10th|12th|ITI|Diploma|Graduate|Other
+    public string EducationLevel { get; set; } = default!; 
     public string? InstituteName { get; set; }
     public string? MarksPercentage { get; set; }
     public short? PassoutYear { get; set; }

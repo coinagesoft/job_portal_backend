@@ -54,5 +54,16 @@ namespace JobPortal.Services.IImplement.IRecruiter
                 Guid actionUserId,
                 bool isSubUser,
                 DownloadCvRequestDto request);
+
+
+        Task<List<CreditUsageHistoryDto>>GetCreditUsageHistoryAsync(Guid employerId);
+
+        Task<List<PurchaseHistoryDto>>GetPurchaseHistoryAsync(Guid employerId);
+
+        Task<List<AllocationHistoryDto>>GetAllocationHistoryAsync(Guid employerId);
+
+        Task<List<CvDownloadHistoryDto>>GetCvDownloadHistoryAsync(Guid employerId);
+
+        Task<List<UnlockedCandidateDto>>GetUnlockedCandidatesAsync(Guid employerId);
     }
 }
