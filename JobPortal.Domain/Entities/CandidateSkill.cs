@@ -14,6 +14,10 @@ public class CandidateSkill
     public string SkillType { get; set; } = default!;  // Skill | Language
     public byte? YearsOfExperience { get; set; }
     public string? SkillRole { get; set; }
+    public bool? CanRead { get; set; }
+    public bool? CanWrite { get; set; }
+    public bool? CanSpeak { get; set; }
+
 
     // Navigation
     public CandidateProfile CandidateProfile { get; set; } = default!;
