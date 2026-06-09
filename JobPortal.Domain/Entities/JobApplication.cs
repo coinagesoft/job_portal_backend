@@ -22,7 +22,12 @@ public class JobApplication
     public bool PassportGatePassed { get; set; } = true;
 
     // Navigation
+    // Navigation
     public JobPosting JobPosting { get; set; } = default!;
     public CandidateProfile CandidateProfile { get; set; } = default!;
     public EmployerProfile EmployerProfile { get; set; } = default!;
+
+    // Recruiter Notes
+    public ICollection<RecruiterNote> RecruiterNotes { get; set; }
+        = new List<RecruiterNote>();
 }

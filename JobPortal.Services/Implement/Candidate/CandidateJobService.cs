@@ -643,4 +643,381 @@ public class CandidateJobService : ICandidateJobService
             ? plain
             : plain.Substring(0, maxLength).TrimEnd() + "…";
     }
+
+    // ════════════════════════════════════════════════════════
+    // 5. SAVED JOBS — candidate's bookmarked job list
+    // ════════════════════════════════════════════════════════
+    public async Task<SavedJobListResponseDto> GetSavedJobsAsync(Guid candidateId)
+    {
+        try
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            var savedJobs = await _context.SavedJobs
+                .Include(s => s.JobPosting)
+                    .ThenInclude(j => j.EmployerProfile)
+                .Include(s => s.JobPosting)
+                    .ThenInclude(j => j.Applications)
+                .Where(s => s.CandidateId == candidateId)
+                .OrderByDescending(s => s.SavedAt)
+                .ToListAsync();
+
+            // Fetch all application statuses for this candidate in one query
+            var jobIds = savedJobs.Select(s => s.JobId).ToList();
+            var applications = await _context.JobApplications
+                .Where(a => a.CandidateId == candidateId && jobIds.Contains(a.JobId))
+                .ToDictionaryAsync(a => a.JobId, a => a);
+
+            var cards = savedJobs.Select(s =>
+            {
+                var job = s.JobPosting;
+                var isConfidential = job.CompanyVisibility == "Confidential_Client";
+                var publishingTags = ParseJsonList(job.PublishingTags);
+                var isExpired = job.ApplicationDeadline < today;
+                var isActive = job.JobStatus == "Active" && !isExpired;
+
+                applications.TryGetValue(job.JobId, out var application);
+
+                // Location display string for the card
+                var locationDisplay = job.LocationType == "Offshore"
+                    ? $"Offshore – {job.OffshoreRegion ?? "Region TBD"}"
+                    : string.Join(", ", new[] { job.OnshoreCity, job.OnshoreState }
+                        .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+                return new SavedJobCardDto
+                {
+                    SavedJobId = s.SavedJobId,
+                    SavedAt = s.SavedAt,
+                    JobId = job.JobId,
+
+                    // Company
+                    CompanyName = isConfidential ? null : job.EmployerProfile?.CompanyDisplayName,
+                    CompanyLogoUrl = isConfidential ? null : job.EmployerProfile?.CompanyLogoUrl,
+                    IsConfidentialCompany = isConfidential,
+
+                    // Job basics
+                    JobTitle = job.JobTitle,
+                    TradeCategory = job.TradeCategory,
+                    City = job.OnshoreCity,
+                    State = job.OnshoreState,
+                    LocationDisplay = locationDisplay,
+                    EmploymentType = GetEmploymentTypeFromTags(publishingTags),
+                    JobType = GetJobTypeFromTags(publishingTags),
+                    ExperienceDisplay = job.ExperienceRequiredYears == 0
+                                          ? "Fresher"
+                                          : $"Experience: {job.ExperienceRequiredYears}+ Years",
+
+                    // Salary
+                    SalaryDisplay = FormatSalary(job),
+                    SalaryMin = job.SalaryDisplayOption == "Confidential" ? null : job.SalaryMin,
+                    SalaryMax = job.SalaryDisplayOption == "Confidential" ? null : job.SalaryMax,
+                    SalaryCurrency = job.SalaryCurrency,
+
+                    // Deadline & freshness
+                    ApplicationDeadline = job.ApplicationDeadline,
+                    IsDeadlineSoon = (job.ApplicationDeadline.ToDateTime(TimeOnly.MinValue)
+                                      - DateTime.UtcNow).TotalDays <= 7,
+                    IsExpired = isExpired,
+                    TimeAgo = GetTimeAgo(job.PublishedAt),
+
+                    // Tags & skills
+                    Tags = BuildTags(job, publishingTags),
+                    KeySkills = ParseJsonList(job.KeySkills).Take(3).ToList(),
+
+                    // Application state (null = not yet applied)
+                    ApplicationId = application?.ApplicationId,
+                    ApplicationStatus = application?.ApplicationStatus,
+                    StatusNote = BuildStatusNote(application?.ApplicationStatus, job.JobTitle)
+                };
+            }).ToList();
+
+            return new SavedJobListResponseDto
+            {
+                Success = true,
+                Message = $"{cards.Count} saved job(s) found.",
+                SavedJobs = cards,
+                TotalCount = cards.Count,
+                ActiveCount = cards.Count(c => !c.IsExpired),
+                ExpiredCount = cards.Count(c => c.IsExpired),
+                AppliedCount = cards.Count(c => c.ApplicationStatus != null)
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetSavedJobsAsync error. CandidateId={CandidateId}", candidateId);
+            return new SavedJobListResponseDto
+            {
+                Success = false,
+                Message = "An error occurred while fetching saved jobs."
+            };
+        }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 6. APPLY NOW — submit application with screening answers
+    // ════════════════════════════════════════════════════════
+    public async Task<ApplyJobResponseDto> ApplyJobAsync(
+        Guid jobId, Guid candidateId, ApplyJobRequestDto request)
+    {
+        try
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            // ── 1. Load job (must be Active + deadline not passed) ──
+            var job = await _context.JobPostings
+                .Include(j => j.EmployerProfile)
+                .FirstOrDefaultAsync(j =>
+                    j.JobId == jobId &&
+                    j.JobStatus == "Active" &&
+                    j.ApplicationDeadline >= today);
+
+            if (job == null)
+                return ApplyFail("This job is no longer accepting applications.");
+
+            // ── 2. Load candidate (must exist) ────────────────────
+            var candidate = await _context.CandidateProfiles
+                .Include(c => c.Cvs)
+                .FirstOrDefaultAsync(c =>
+                    c.CandidateId == candidateId &&
+                    c.ProfileStatus == "Active");
+
+            if (candidate == null)
+                return ApplyFail("Candidate profile not found.");
+
+            // ── 3. Prevent duplicate applications ─────────────────
+            var alreadyApplied = await _context.JobApplications
+                .AnyAsync(a => a.JobId == jobId && a.CandidateId == candidateId);
+
+            if (alreadyApplied)
+                return ApplyFail("You have already applied to this job.");
+
+            // ── 4. Passport gate — if job requires passport ────────
+            if (job.PassportRequired && request.PassportGatePassed == false)
+                return ApplyFail("A valid passport is required to apply for this job.");
+
+            // ── 5. Validate mandatory screening answers ────────────
+            if (!string.IsNullOrWhiteSpace(job.ScreeningQuestions))
+            {
+                var questions = ParseScreeningQuestions(job.ScreeningQuestions);
+                // Validate all mandatory questions have answers (match by text)
+                foreach (var q in questions.Where(q => q.IsMandatory))
+                {
+                    var answered = request.ScreeningAnswers
+                        .Any(a => a.QuestionText == q.QuestionText &&
+                                  !string.IsNullOrWhiteSpace(a.Answer));
+                    if (!answered)
+                        return ApplyFail($"Mandatory question not answered: \"{q.QuestionText}\"");
+                }
+            }
+
+            // ── 6. Serialize screening answers ────────────────────
+            var answersJson = request.ScreeningAnswers.Count > 0
+                ? JsonSerializer.Serialize(request.ScreeningAnswers)
+                : null;
+
+            // ── 7. Create application record ──────────────────────
+            var application = new JobApplication
+            {
+                ApplicationId = Guid.NewGuid(),
+                JobId = jobId,
+                CandidateId = candidateId,
+                EmployerId = job.EmployerId,
+                AppliedAt = DateTime.UtcNow,
+                ApplicationStatus = "Applied",
+                StatusUpdatedAt = DateTime.UtcNow,
+                PassportGatePassed = request.PassportGatePassed ?? true,
+                WithdrawalAllowed = true,
+                RejectionAutoNotify = true
+            };
+
+            _context.JobApplications.Add(application);
+
+            // ── 8. Increment applied count on job ─────────────────
+            job.AppliedCount += 1;
+
+            // ── 9. Update candidate's LastAppliedAt ───────────────
+            candidate.LastAppliedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "Application submitted — ApplicationId:{AppId} Job:{JobId} Candidate:{CandidateId}",
+                application.ApplicationId, jobId, candidateId);
+
+            return new ApplyJobResponseDto
+            {
+                Success = true,
+                Message = "Application submitted successfully!",
+                ApplicationId = application.ApplicationId,
+                JobId = jobId,
+                JobTitle = job.JobTitle,
+                CompanyName = job.CompanyVisibility == "Confidential_Client"
+                                    ? null
+                                    : job.EmployerProfile.CompanyDisplayName,
+                ApplicationStatus = "Applied",
+                AppliedAt = application.AppliedAt,
+
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "ApplyJobAsync error. JobId={JobId} CandidateId={CandidateId}",
+                jobId, candidateId);
+            return ApplyFail("An unexpected error occurred. Please try again.");
+        }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 7. MY APPLICATIONS — candidate's application history
+    // ════════════════════════════════════════════════════════
+    public async Task<MyApplicationsResponseDto> GetMyApplicationsAsync(Guid candidateId)
+    {
+        try
+        {
+            var apps = await _context.JobApplications
+                .Include(a => a.JobPosting)
+                    .ThenInclude(j => j.EmployerProfile)
+                .Where(a => a.CandidateId == candidateId)
+                .OrderByDescending(a => a.AppliedAt)
+                .ToListAsync();
+
+            var cards = apps.Select(a =>
+            {
+                var job = a.JobPosting;
+                var isConfidential = job.CompanyVisibility == "Confidential_Client";
+                var publishingTags = ParseJsonList(job.PublishingTags);
+
+                return new MyApplicationCardDto
+                {
+                    ApplicationId = a.ApplicationId,
+                    JobId = job.JobId,
+                    JobTitle = job.JobTitle,
+                    TradeCategory = job.TradeCategory,
+                    CompanyName = isConfidential ? null : job.EmployerProfile?.CompanyDisplayName,
+                    CompanyLogoUrl = isConfidential ? null : job.EmployerProfile?.CompanyLogoUrl,
+                    IsConfidentialCompany = isConfidential,
+                    City = job.OnshoreCity,
+                    State = job.OnshoreState,
+                    EmploymentType = GetEmploymentTypeFromTags(publishingTags),
+                    SalaryDisplay = FormatSalary(job),
+                    ApplicationStatus = a.ApplicationStatus,
+                    AppliedAt = a.AppliedAt,
+                    AppliedTimeAgo = GetTimeAgo(a.AppliedAt),
+                    StatusUpdatedAt = a.StatusUpdatedAt,
+                    WithdrawalAllowed = a.WithdrawalAllowed &&
+                                       a.ApplicationStatus != "Hired" &&
+                                       a.ApplicationStatus != "Rejected"
+                };
+            }).ToList();
+
+            return new MyApplicationsResponseDto
+            {
+                Success = true,
+                Message = $"{cards.Count} application(s) found.",
+                Applications = cards,
+                TotalCount = cards.Count,
+                ActiveCount = cards.Count(c =>
+                    c.ApplicationStatus != "Rejected" &&
+                    c.ApplicationStatus != "Withdrawn" &&
+                    c.ApplicationStatus != "Hired"),
+                RejectedCount = cards.Count(c => c.ApplicationStatus == "Rejected"),
+                HiredCount = cards.Count(c => c.ApplicationStatus == "Hired")
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetMyApplicationsAsync error. CandidateId={CandidateId}", candidateId);
+            return new MyApplicationsResponseDto
+            {
+                Success = false,
+                Message = "An error occurred while fetching applications."
+            };
+        }
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 8. WITHDRAW APPLICATION
+    // ════════════════════════════════════════════════════════
+    public async Task<WithdrawApplicationResponseDto> WithdrawApplicationAsync(
+        Guid applicationId, Guid candidateId)
+    {
+        try
+        {
+            var application = await _context.JobApplications
+                .FirstOrDefaultAsync(a =>
+                    a.ApplicationId == applicationId &&
+                    a.CandidateId == candidateId);
+
+            if (application == null)
+                return new WithdrawApplicationResponseDto
+                {
+                    Success = false,
+                    Message = "Application not found."
+                };
+
+            if (!application.WithdrawalAllowed)
+                return new WithdrawApplicationResponseDto
+                {
+                    Success = false,
+                    Message = "This application cannot be withdrawn."
+                };
+
+            if (application.ApplicationStatus == "Hired" ||
+                application.ApplicationStatus == "Rejected")
+                return new WithdrawApplicationResponseDto
+                {
+                    Success = false,
+                    Message = $"Cannot withdraw an application with status '{application.ApplicationStatus}'."
+                };
+
+            application.ApplicationStatus = "Withdrawn";
+            application.StatusUpdatedAt = DateTime.UtcNow;
+            application.WithdrawalAllowed = false;
+
+            // Decrement the job's applied count
+            var job = await _context.JobPostings
+                .FirstOrDefaultAsync(j => j.JobId == application.JobId);
+            if (job != null && job.AppliedCount > 0)
+                job.AppliedCount -= 1;
+
+            await _context.SaveChangesAsync();
+
+            return new WithdrawApplicationResponseDto
+            {
+                Success = true,
+                Message = "Application withdrawn successfully.",
+                ApplicationId = applicationId,
+                ApplicationStatus = "Withdrawn"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "WithdrawApplicationAsync error. ApplicationId={AppId}", applicationId);
+            return new WithdrawApplicationResponseDto
+            {
+                Success = false,
+                Message = "An error occurred while withdrawing the application."
+            };
+        }
+    }
+
+    // ── Apply helper ──────────────────────────────────────────
+    private static ApplyJobResponseDto ApplyFail(string message) =>
+        new() { Success = false, Message = message };
+
+    // ── Status note builder (shown on Saved Jobs card) ────────
+    private static string? BuildStatusNote(string? status, string jobTitle) =>
+        status switch
+        {
+            "Applied" => $"Your application for {jobTitle} is under review.",
+            "Viewed" => $"Employer viewed your application for {jobTitle}.",
+            "Shortlisted" => $"You have been shortlisted for {jobTitle}.",
+            "Interview" => $"Interview scheduled for {jobTitle}. Check your email.",
+            "Hired" => $"Congratulations! You were hired for {jobTitle}.",
+            "Rejected" => $"Application for {jobTitle} was not selected.",
+            "Withdrawn" => $"You withdrew your application for {jobTitle}.",
+            _ => null
+        };
 }

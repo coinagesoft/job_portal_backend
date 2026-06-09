@@ -4,10 +4,12 @@ using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.ICandidate;
+using JobPortal.Services.IImplement.IPublic;
 using JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Services.Implement;
 using JobPortal.Services.Implement.Admin;
 using JobPortal.Services.Implement.Candidate;
+using JobPortal.Services.Implement.Public;
 using JobPortal.Services.Implement.Recruiter;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -84,7 +86,8 @@ builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExt
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
-
+builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
+builder.Services.AddScoped<IHomepageService, HomepageService>();
 
 FirebaseApp.Create(new AppOptions()
 {
