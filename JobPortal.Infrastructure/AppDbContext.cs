@@ -4,6 +4,7 @@ using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System.Reflection.Emit;
 
 namespace JobPortal.Infrastructure.Persistence;
 
@@ -75,7 +76,7 @@ public class AppDbContext : DbContext
     public DbSet<Dispute> Disputes => Set<Dispute>(); 
     public DbSet<RegistrationSession> RegistrationSessions => Set<RegistrationSession>();
 
-
+    public DbSet<RecruiterNote> RecruiterNotes { get; set; }
 
     public override int SaveChanges()
     {
@@ -222,6 +223,27 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.Email)
                 .IsUnique()
                 .HasDatabaseName("uq_users_email");
+        });
+        m.Entity<RecruiterNote>(entity =>
+        {
+            entity.HasKey(n => n.RecruiterNoteId);
+
+            entity.HasOne(n => n.JobApplication)
+                  .WithMany(a => a.RecruiterNotes)
+                  .HasForeignKey(n => n.ApplicationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(n => n.EmployerProfile)
+                  .WithMany()
+                  .HasForeignKey(n => n.EmployerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property(n => n.NoteText)
+                  .IsRequired()
+                  .HasMaxLength(2000);
+
+            entity.Property(n => n.IsAcknowledged)
+                  .HasDefaultValue(false);
         });
 
         // ── otp_verifications ──────────────────────────────────
