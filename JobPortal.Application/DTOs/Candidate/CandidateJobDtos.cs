@@ -327,3 +327,187 @@ public class JobFilterOptionsResponseDto
     public int MaxExperienceYears { get; set; }
     public int TotalActiveJobs { get; set; }
 }
+
+// ─────────────────────────────────────────────────────────────
+// 8.  SAVED JOBS LIST  (candidate-profile/saved-jobs page)
+// ─────────────────────────────────────────────────────────────
+
+/// <summary>
+/// A single saved-job card as shown on the Saved Jobs page.
+/// Mirrors the card UI: company logo, title, type, experience,
+/// salary, tags, and application status note.
+/// </summary>
+public class SavedJobCardDto
+{
+    public Guid SavedJobId { get; set; }
+    public Guid JobId { get; set; }
+    public DateTime SavedAt { get; set; }
+
+    // ── Company ───────────────────────────────────────────────
+    public string? CompanyName { get; set; }
+    public string? CompanyLogoUrl { get; set; }
+    public bool IsConfidentialCompany { get; set; }
+
+    // ── Job basics ────────────────────────────────────────────
+    public string JobTitle { get; set; } = default!;
+    public string TradeCategory { get; set; } = default!;
+    public string? Role { get; set; }
+    public string EmploymentType { get; set; } = default!;
+    public string JobType { get; set; } = default!;
+
+    // ── Location ─────────────────────────────────────────────
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string LocationDisplay { get; set; } = default!;
+
+    // ── Experience ───────────────────────────────────────────
+    public string ExperienceDisplay { get; set; } = default!;
+
+    // ── Salary ───────────────────────────────────────────────
+    public string? SalaryDisplay { get; set; }
+    public int? SalaryMin { get; set; }
+    public int? SalaryMax { get; set; }
+    public string SalaryCurrency { get; set; } = "INR";
+
+    // ── Tags / skills ─────────────────────────────────────────
+    public List<string> Tags { get; set; } = new();
+    public List<string> KeySkills { get; set; } = new();
+
+    // ── Deadline & freshness ──────────────────────────────────
+    public DateOnly ApplicationDeadline { get; set; }
+    public bool IsDeadlineSoon { get; set; }
+    public bool IsExpired { get; set; }
+    public string TimeAgo { get; set; } = default!;
+
+    // ── Application state for this candidate ─────────────────
+    /// <summary>
+    /// Null = not applied yet.
+    /// Non-null = Applied | Viewed | Shortlisted | Interview | Rejected | Hired | Withdrawn
+    /// </summary>
+    public string? ApplicationStatus { get; set; }
+    public Guid? ApplicationId { get; set; }
+
+    /// <summary>
+    /// Human-readable status note on the card, e.g.
+    /// "Employer shortlisted your profile for electrical maintenance …"
+    /// </summary>
+    public string? StatusNote { get; set; }
+}
+
+public class SavedJobListResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public List<SavedJobCardDto> SavedJobs { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int ActiveCount { get; set; }
+    public int ExpiredCount { get; set; }
+    public int AppliedCount { get; set; }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 9.  APPLY NOW — request & response
+// ─────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Posted when candidate clicks "Apply Now" and submits the apply modal.
+/// Carries candidate details (editable in modal) + screening question answers.
+/// </summary>
+public class ApplyJobRequestDto
+{
+    /// <summary>Candidate full name (pre-filled from profile, editable).</summary>
+    public string FullName { get; set; } = string.Empty;
+
+    /// <summary>Phone shown in the modal.</summary>
+    public string? Phone { get; set; }
+
+    /// <summary>Email shown in the modal.</summary>
+    public string? Email { get; set; }
+
+    /// <summary>
+    /// One entry per employer screening question.
+    /// Must include all mandatory questions.
+    /// </summary>
+    /// <summary>Set to true to confirm passport requirement is met.</summary>
+    public bool? PassportGatePassed { get; set; }
+
+    public List<ScreeningAnswerDto> ScreeningAnswers { get; set; } = new();
+}
+
+public class ScreeningAnswerDto
+{
+    /// <summary>Question text — echoed back so employer sees context.</summary>
+    public string QuestionText { get; set; } = string.Empty;
+
+    /// <summary>"Yes" | "No" for radio questions; free text for text questions.</summary>
+    public string Answer { get; set; } = string.Empty;
+}
+
+public class ApplyJobResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+
+    public Guid? ApplicationId { get; set; }
+    public Guid? JobId { get; set; }
+    public string? ApplicationStatus { get; set; }
+    public DateTime? AppliedAt { get; set; }
+
+    // Echoed back for confirmation screen
+    public string? JobTitle { get; set; }
+    public string? CompanyName { get; set; }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 10.  MY APPLICATIONS LIST
+// ─────────────────────────────────────────────────────────────
+
+public class MyApplicationCardDto
+{
+    public Guid ApplicationId { get; set; }
+    public Guid JobId { get; set; }
+
+    public string? CompanyName { get; set; }
+    public string? CompanyLogoUrl { get; set; }
+    public bool IsConfidentialCompany { get; set; }
+
+    public string JobTitle { get; set; } = default!;
+    public string EmploymentType { get; set; } = default!;
+    public string ExperienceDisplay { get; set; } = default!;
+    public string LocationDisplay { get; set; } = default!;
+    public string? SalaryDisplay { get; set; }
+    public List<string> Tags { get; set; } = new();
+    public string? City { get; set; }
+    public string? State { get; set; }
+
+    public string? TradeCategory { get; set; }
+    /// <summary>Applied | Viewed | Shortlisted | Interview | Rejected | Hired | Withdrawn</summary>
+    public string ApplicationStatus { get; set; } = default!;
+    public DateTime AppliedAt { get; set; }
+    public string AppliedTimeAgo { get; set; } = default!;
+    public DateTime StatusUpdatedAt { get; set; }
+    public bool WithdrawalAllowed { get; set; }
+}
+
+public class MyApplicationsResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public List<MyApplicationCardDto> Applications { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int ActiveCount { get; set; }
+    public int RejectedCount { get; set; }
+    public int HiredCount { get; set; }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 11.  WITHDRAW APPLICATION
+// ─────────────────────────────────────────────────────────────
+
+public class WithdrawApplicationResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public Guid ApplicationId { get; set; }
+    public string? ApplicationStatus { get; set; }
+}

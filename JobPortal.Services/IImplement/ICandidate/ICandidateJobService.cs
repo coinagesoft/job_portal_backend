@@ -8,28 +8,33 @@ namespace JobPortal.Services.IImplement.ICandidate;
 
 public interface ICandidateJobService
 {
-    /// <summary>
-    /// Returns paginated, filtered, and sorted active job listings.
-    /// Supports all search/filter params from <see cref="CandidateJobSearchRequestDto"/>.
-    /// </summary>
+    // ── Job Listing & Search ──────────────────────────────────
     Task<CandidateJobListResponseDto> GetJobsAsync(CandidateJobSearchRequestDto request);
-
-    /// <summary>
-    /// Returns full details of a single active job by its ID.
-    /// Includes company info, full description, eligibility, screening questions,
-    /// and a list of similar jobs.
-    /// </summary>
     Task<CandidateJobDetailResponseDto> GetJobDetailAsync(Guid jobId);
+    Task<JobFilterOptionsResponseDto> GetFilterOptionsAsync();
 
-    /// <summary>
-    /// Toggles the saved/bookmark state of a job for a candidate.
-    /// Creates a <see cref="SavedJob"/> record if not present; removes it if present.
-    /// </summary>
+    // ── Save / Unsave ─────────────────────────────────────────
     Task<SaveJobResponseDto> ToggleSaveJobAsync(Guid jobId, Guid candidateId);
 
+    /// <summary>Returns all saved jobs for a candidate with their application status.</summary>
+    Task<SavedJobListResponseDto> GetSavedJobsAsync(Guid candidateId);
+
+    // ── Apply Now ─────────────────────────────────────────────
     /// <summary>
-    /// Returns dynamic filter options (distinct values from active jobs) for populating
-    /// sidebar dropdowns on the jobs-list page.
+    /// Submits a job application for the candidate.
+    /// Validates: job is active, deadline not passed, not already applied.
+    /// Stores screening answers as JSON on the application record.
+    /// Increments JobPosting.AppliedCount.
     /// </summary>
-    Task<JobFilterOptionsResponseDto> GetFilterOptionsAsync();
+    Task<ApplyJobResponseDto> ApplyJobAsync(Guid jobId, Guid candidateId, ApplyJobRequestDto request);
+
+    // ── My Applications ───────────────────────────────────────
+    /// <summary>Returns all applications submitted by this candidate, newest first.</summary>
+    Task<MyApplicationsResponseDto> GetMyApplicationsAsync(Guid candidateId);
+
+    /// <summary>
+    /// Withdraws a previously submitted application.
+    /// Only allowed when WithdrawalAllowed = true and status is not Hired/Rejected.
+    /// </summary>
+    Task<WithdrawApplicationResponseDto> WithdrawApplicationAsync(Guid applicationId, Guid candidateId);
 }
