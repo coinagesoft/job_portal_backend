@@ -65,5 +65,9 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task<List<CvDownloadHistoryDto>>GetCvDownloadHistoryAsync(Guid employerId);
 
         Task<List<UnlockedCandidateDto>>GetUnlockedCandidatesAsync(Guid employerId);
+        
+        Task<List<EmployerTransactionHistoryDto>>GetEmployerTransactionHistoryAsync(Guid employerId);
+
+        Task<CreditWalletDashboardDto>GetCreditWalletDashboardAsync(Guid employerId);
     }
 }

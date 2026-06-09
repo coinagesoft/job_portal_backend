@@ -642,6 +642,13 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public async Task<List<CreditUsageHistoryDto>>GetCreditUsageHistoryAsync(Guid employerId)
         {
+            var monthCredits =
+    await _context.CreditUsageTransactions
+        .Where(x =>
+            x.EmployerId == employerId &&
+            x.CreatedAt.Month == DateTime.UtcNow.Month &&
+            x.CreatedAt.Year == DateTime.UtcNow.Year)
+        .SumAsync(x => x.CreditsUsed);
             return await _context.CreditUsageTransactions
                 .Where(x =>
                     x.EmployerId == employerId)
@@ -671,6 +678,7 @@ namespace JobPortal.Services.Implement.Recruiter
                         CreatedAt =
                             x.CreatedAt
                     })
+
                 .ToListAsync();
         }
 
@@ -821,7 +829,148 @@ namespace JobPortal.Services.Implement.Recruiter
                 )
                 .ToListAsync();
         }
-        
+
+        public async Task<List<EmployerTransactionHistoryDto>>GetEmployerTransactionHistoryAsync(Guid employerId)
+        {
+            var creditTransactions =
+                await
+                (
+                    from t in _context.CreditUsageTransactions
+
+                    join c in _context.CandidateProfiles
+                    on t.CandidateId equals c.CandidateId
+                    into candidateJoin
+
+                    from candidate in candidateJoin.DefaultIfEmpty()
+
+                    where t.EmployerId == employerId
+
+                    select new EmployerTransactionHistoryDto
+                    {
+                        TransactionId =
+                            t.TransactionId,
+
+                        TransactionType =
+                            t.TransactionType.ToString(),
+
+                        Category =
+                            "Credit",
+
+                        CandidateId =
+                            t.CandidateId,
+
+                        CandidateName =
+                            candidate != null
+                                ? candidate.FullName
+                                : null,
+
+                        CreditsUsed =
+                            t.CreditsUsed,
+
+                        AmountPaid =
+                            null,
+
+                        PlanName =
+                            null,
+
+                        CreatedAt =
+                            t.CreatedAt
+                    }
+                )
+                .ToListAsync();
+
+            var purchases =
+                await _context.EmployerPlanPurchase
+                    .Where(x =>
+                        x.EmployerId == employerId)
+                    .Select(x =>
+                        new EmployerTransactionHistoryDto
+                        {
+                            TransactionId =
+                                x.EmployerCreditPlanId,
+
+                            TransactionType =
+                                "PlanPurchase",
+
+                            Category =
+                                "Plan",
+
+                            CandidateId =
+                                null,
+
+                            CandidateName =
+                                null,
+
+                            PlanName =
+                                x.PlanName,
+
+                            CreditsUsed =
+                                x.Credits,
+
+                            AmountPaid =
+                                x.Price,
+
+                            CreatedAt =
+                                x.AssignedAt
+                        })
+                    .ToListAsync();
+
+            return creditTransactions
+                .Concat(purchases)
+                .OrderByDescending(x => x.CreatedAt)
+                .ToList();
+        }
+        public async Task<CreditWalletDashboardDto>GetCreditWalletDashboardAsync(Guid employerId)
+        {
+            var wallet =
+                await _context.CreditWallets
+                    .FirstOrDefaultAsync(x =>
+                        x.EmployerId == employerId);
+
+            var creditsUsedThisMonth =
+                await _context.CreditUsageTransactions
+                    .Where(x =>
+                        x.EmployerId == employerId &&
+                        x.CreatedAt.Month == DateTime.UtcNow.Month &&
+                        x.CreatedAt.Year == DateTime.UtcNow.Year)
+                    .SumAsync(x =>
+                        x.CreditsUsed);
+
+            var profilesUnlocked =
+                await _context.CandidateUnlocks
+                    .CountAsync(x =>
+                        x.EmployerId == employerId);
+
+            var totalSubUsers =
+                await _context.EmployerSubUsers
+                    .CountAsync(x =>
+                        x.EmployerId == employerId &&
+                        x.SubUserStatus == "Active");
+
+            return new CreditWalletDashboardDto
+            {
+                RemainingCredits =
+                    wallet?.CreditBalance ?? 0,
+
+                PlanName =
+                    wallet?.PackageName,
+
+                PlanExpiryDate =
+                    wallet?.PackExpiresAt,
+
+                CreditsUsedThisMonth =
+                    creditsUsedThisMonth,
+
+                ProfilesUnlocked =
+                    profilesUnlocked,
+
+                SharedWalletEnabled =
+                    wallet?.SharedWallet ?? false,
+
+                TotalSubUsers =
+                    totalSubUsers
+            };
+        }
 
         private async Task<CreditConfiguration?> GetCreditConfigurationAsync()
         {
@@ -1127,7 +1276,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 .FirstOrDefaultAsync();
         }
 
-        private async Task CreateCvDownloadRecordAsync(
+    private async Task CreateCvDownloadRecordAsync(
     Guid candidateId,
     Guid cvId,
     Guid employerId,
