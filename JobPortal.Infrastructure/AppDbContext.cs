@@ -80,7 +80,11 @@ public class AppDbContext : DbContext
     public DbSet<CandidateNotificationSetting> CandidateNotificationSettings => Set<CandidateNotificationSetting>();
 
     public DbSet<CandidatePreferenceSetting> CandidatePreferenceSettings => Set<CandidatePreferenceSetting>();
+
+    public DbSet<CandidateLogoutSession> CandidateLogoutSessions => Set<CandidateLogoutSession>();
+
     public override int SaveChanges()
+
     {
         ApplyAuditTimestamps();
         return base.SaveChanges();
@@ -246,6 +250,18 @@ public class AppDbContext : DbContext
 
             entity.Property(n => n.IsAcknowledged)
                   .HasDefaultValue(false);
+        });
+        // Add inside OnModelCreating():
+        m.Entity<CandidateLogoutSession>(e =>
+        {
+            e.ToTable("candidate_logout_sessions");
+            e.HasKey(x => x.LogoutSessionId);
+            e.HasIndex(x => x.CandidateId);
+            e.HasIndex(x => x.JwtJti);
+            e.HasOne(x => x.CandidateProfile)
+                .WithMany()
+                .HasForeignKey(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         m.Entity<CandidateNotificationSetting>(e =>
         {
