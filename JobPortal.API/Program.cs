@@ -4,11 +4,13 @@ using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.ICandidate;
+
 using JobPortal.Services.IImplement.IPublic;
 using JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Services.Implement;
 using JobPortal.Services.Implement.Admin;
 using JobPortal.Services.Implement.Candidate;
+
 using JobPortal.Services.Implement.Public;
 using JobPortal.Services.Implement.Recruiter;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -84,12 +86,21 @@ builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExt
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
 builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
+<<<<<<< HEAD
 builder.Services.AddScoped<IHomepageService, HomepageService>(); 
 builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 
 
 
+=======
+builder.Services.AddScoped<IHomepageService, HomepageService>();
+builder.Services.AddScoped<ICandidateSettingsService, CandidateSettingsService>();
+builder.Services.AddScoped<ICandidateAvailabilityService, CandidateAvailabilityService>();
+builder.Services.AddScoped<ICandidateItiInfoService, CandidateItiInfoService>();
+builder.Services.AddScoped<ICandidateLogoutService, CandidateLogoutService>();
+builder.Services.AddScoped<CandidatePagedJobService>();
+>>>>>>> 30904e7b490c27703916d9e07aafb1de08226ba4
 FirebaseApp.Create(new AppOptions()
 {
     Credential =
