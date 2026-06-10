@@ -3,6 +3,7 @@ using System;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260610100711_supportTicket1")]
+    partial class supportTicket1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2444,25 +2447,29 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<bool>("IsAdminReply")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_admin_reply");
+
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("message");
 
-                    b.Property<Guid>("SenderId")
+                    b.Property<Guid>("RepliedBy")
                         .HasColumnType("uuid")
-                        .HasColumnName("sender_id");
+                        .HasColumnName("replied_by");
 
-                    b.Property<string>("SenderType")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("sender_type");
+                    b.Property<Guid?>("SupportTicketTicketId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("TicketId")
                         .HasColumnType("uuid")
                         .HasColumnName("ticket_id");
 
                     b.HasKey("ReplyId");
+
+                    b.HasIndex("SupportTicketTicketId");
 
                     b.HasIndex("TicketId");
 
@@ -3044,8 +3051,12 @@ namespace JobPortal.Infrastructure.Migrations
 
             modelBuilder.Entity("JobPortal.Domain.Entities.SupportTicketReply", b =>
                 {
-                    b.HasOne("JobPortal.Domain.Entities.SupportTicket", "Ticket")
+                    b.HasOne("JobPortal.Domain.Entities.SupportTicket", null)
                         .WithMany("Replies")
+                        .HasForeignKey("SupportTicketTicketId");
+
+                    b.HasOne("JobPortal.Domain.Entities.SupportTicket", "Ticket")
+                        .WithMany()
                         .HasForeignKey("TicketId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();

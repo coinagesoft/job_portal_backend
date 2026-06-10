@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260605084732_CandidateProfileExtended")]
-    partial class CandidateProfileExtended
+    [Migration("20260609113440_verification")]
+    partial class verification
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -218,6 +218,40 @@ namespace JobPortal.Infrastructure.Migrations
                     b.ToTable("candidate_cv", (string)null);
                 });
 
+            modelBuilder.Entity("JobPortal.Domain.Entities.CandidateCvDownload", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateCvCvId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CreditsUsed")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("CvId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("DownloadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EmployerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SubUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidateCvCvId");
+
+                    b.ToTable("CandidateCvDownload");
+                });
+
             modelBuilder.Entity("JobPortal.Domain.Entities.CandidateEducation", b =>
                 {
                     b.Property<Guid>("EducationId")
@@ -240,11 +274,22 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("InstituteName")
                         .HasColumnType("text");
 
-                    b.Property<string>("MarksPercentage")
-                        .HasColumnType("text");
+                    b.Property<bool>("IsAiVerified")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_ai_verified");
 
                     b.Property<short?>("PassoutYear")
                         .HasColumnType("smallint");
+
+                    b.Property<string>("YearDetails")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("year_details");
+
+                    b.Property<string>("tage")
+                        .HasColumnType("text");
 
                     b.HasKey("EducationId");
 
@@ -261,7 +306,8 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnName("candidate_id");
 
                     b.Property<string>("About")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("About");
 
                     b.Property<string>("AdminNotes")
                         .HasColumnType("text")
@@ -350,10 +396,12 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnName("newsletter_opt_in");
 
                     b.Property<string>("NoticePeriod")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("NoticePeriod");
 
                     b.Property<string>("Pincode")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("Pincode");
 
                     b.Property<int?>("PreferredSalary")
                         .HasColumnType("integer")
@@ -368,7 +416,8 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnName("primary_trade");
 
                     b.Property<string>("ProfessionalSummary")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("ProfessionalSummary");
 
                     b.Property<byte>("ProfileCompletionPct")
                         .HasColumnType("smallint")
@@ -420,6 +469,18 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<Guid>("SkillId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<bool?>("CanRead")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_read");
+
+                    b.Property<bool?>("CanSpeak")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_speak");
+
+                    b.Property<bool?>("CanWrite")
+                        .HasColumnType("boolean")
+                        .HasColumnName("can_write");
 
                     b.Property<Guid>("CandidateId")
                         .HasColumnType("uuid");
@@ -620,9 +681,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("AllocatedBy")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("BalanceAfter")
                         .HasColumnType("integer");
 
@@ -644,6 +702,35 @@ namespace JobPortal.Infrastructure.Migrations
                     b.HasKey("HistoryId");
 
                     b.ToTable("CreditAllocationHistory");
+                });
+
+            modelBuilder.Entity("JobPortal.Domain.Entities.CreditConfiguration", b =>
+                {
+                    b.Property<Guid>("ConfigurationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CandidateAccessDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CvDownloadCredits")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("ProfileUnlockCredits")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ConfigurationId");
+
+                    b.ToTable("CreditConfigurations");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.CreditPlan", b =>
@@ -808,46 +895,26 @@ namespace JobPortal.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("BadgeBlueTick")
-                        .HasColumnType("boolean");
+                    b.Property<int>("BadgeStatus")
+                        .HasColumnType("integer");
 
-                    b.Property<bool>("BadgeGstVerified")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("BadgeIssuedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("BadgePanVerified")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("BadgePoeLicensed")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("BadgeRevocationReason")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("BadgeRevokedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("BadgeRpslLicensed")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("BadgeStatus")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("BadgeType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("BlueTickEligible")
-                        .HasColumnType("boolean");
+                    b.Property<int>("BadgeType")
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("EmployerId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("IssuedBy")
+                    b.Property<DateTime>("IssuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("IssuedBy")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("RevocationReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("BadgeId");
 
@@ -885,53 +952,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.HasKey("AccessId");
 
                     b.ToTable("EmployerCandidateAccesses");
-                });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.EmployerCreditPlan", b =>
-                {
-                    b.Property<Guid>("EmployerCreditPlanId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("AssignedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("AssignedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("CreditPlanPlanId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Credits")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("EmployerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("PlanId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PlanName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<decimal>("Price")
-                        .HasColumnType("numeric");
-
-                    b.HasKey("EmployerCreditPlanId");
-
-                    b.HasIndex("CreditPlanPlanId");
-
-                    b.HasIndex("EmployerId");
-
-                    b.ToTable("EmployerCreditPlan");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.EmployerNotificationSetting", b =>
@@ -979,6 +999,53 @@ namespace JobPortal.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("employer_notification_settings", (string)null);
+                });
+
+            modelBuilder.Entity("JobPortal.Domain.Entities.EmployerPlanPurchase", b =>
+                {
+                    b.Property<Guid>("EmployerCreditPlanId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("AssignedBy")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CreditPlanPlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Credits")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("EmployerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PlanName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("EmployerCreditPlanId");
+
+                    b.HasIndex("CreditPlanPlanId");
+
+                    b.HasIndex("EmployerId");
+
+                    b.ToTable("EmployerPlanPurchase");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.EmployerProfile", b =>
@@ -2009,6 +2076,46 @@ namespace JobPortal.Infrastructure.Migrations
                     b.ToTable("platform_config", (string)null);
                 });
 
+            modelBuilder.Entity("JobPortal.Domain.Entities.RecruiterNote", b =>
+                {
+                    b.Property<Guid>("RecruiterNoteId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("AcknowledgedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ApplicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("EmployerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsAcknowledged")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("NoteText")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("RecruiterNoteId");
+
+                    b.HasIndex("ApplicationId");
+
+                    b.HasIndex("EmployerId");
+
+                    b.ToTable("RecruiterNotes");
+                });
+
             modelBuilder.Entity("JobPortal.Domain.Entities.RegistrationSession", b =>
                 {
                     b.Property<Guid>("SessionId")
@@ -2250,9 +2357,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<DateTime>("AllocatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("AllocatedBy")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("AllocatedCredits")
                         .HasColumnType("integer");
 
@@ -2453,6 +2557,17 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Navigation("CandidateProfile");
                 });
 
+            modelBuilder.Entity("JobPortal.Domain.Entities.CandidateCvDownload", b =>
+                {
+                    b.HasOne("JobPortal.Domain.Entities.CandidateCv", "CandidateCv")
+                        .WithMany()
+                        .HasForeignKey("CandidateCvCvId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CandidateCv");
+                });
+
             modelBuilder.Entity("JobPortal.Domain.Entities.CandidateEducation", b =>
                 {
                     b.HasOne("JobPortal.Domain.Entities.CandidateProfile", "CandidateProfile")
@@ -2558,16 +2673,25 @@ namespace JobPortal.Infrastructure.Migrations
 
                     b.HasOne("JobPortal.Domain.Entities.AdminUser", "IssuedByAdmin")
                         .WithMany()
-                        .HasForeignKey("IssuedBy")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("IssuedBy");
 
                     b.Navigation("EmployerProfile");
 
                     b.Navigation("IssuedByAdmin");
                 });
 
-            modelBuilder.Entity("JobPortal.Domain.Entities.EmployerCreditPlan", b =>
+            modelBuilder.Entity("JobPortal.Domain.Entities.EmployerNotificationSetting", b =>
+                {
+                    b.HasOne("JobPortal.Domain.Entities.EmployerProfile", "EmployerProfile")
+                        .WithOne("NotificationSetting")
+                        .HasForeignKey("JobPortal.Domain.Entities.EmployerNotificationSetting", "EmployerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("EmployerProfile");
+                });
+
+            modelBuilder.Entity("JobPortal.Domain.Entities.EmployerPlanPurchase", b =>
                 {
                     b.HasOne("JobPortal.Domain.Entities.CreditPlan", "CreditPlan")
                         .WithMany()
@@ -2582,17 +2706,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Navigation("CreditPlan");
 
                     b.Navigation("Employer");
-                });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.EmployerNotificationSetting", b =>
-                {
-                    b.HasOne("JobPortal.Domain.Entities.EmployerProfile", "EmployerProfile")
-                        .WithOne("NotificationSetting")
-                        .HasForeignKey("JobPortal.Domain.Entities.EmployerNotificationSetting", "EmployerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("EmployerProfile");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.EmployerProfile", b =>
@@ -2804,6 +2917,25 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Navigation("UpdatedByAdmin");
                 });
 
+            modelBuilder.Entity("JobPortal.Domain.Entities.RecruiterNote", b =>
+                {
+                    b.HasOne("JobPortal.Domain.Entities.JobApplication", "JobApplication")
+                        .WithMany("RecruiterNotes")
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("JobPortal.Domain.Entities.EmployerProfile", "EmployerProfile")
+                        .WithMany()
+                        .HasForeignKey("EmployerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("EmployerProfile");
+
+                    b.Navigation("JobApplication");
+                });
+
             modelBuilder.Entity("JobPortal.Domain.Entities.SavedJob", b =>
                 {
                     b.HasOne("JobPortal.Domain.Entities.CandidateProfile", "CandidateProfile")
@@ -2891,6 +3023,11 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Navigation("NotificationSetting");
 
                     b.Navigation("SubUsers");
+                });
+
+            modelBuilder.Entity("JobPortal.Domain.Entities.JobApplication", b =>
+                {
+                    b.Navigation("RecruiterNotes");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.JobPosting", b =>

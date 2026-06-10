@@ -79,15 +79,16 @@ builder.Services.AddScoped<ICandidateAuthService, CandidateAuthService>();
 builder.Services.AddScoped<ICandidateProfileService, CandidateProfileService>();
 builder.Services.AddScoped<IRecruiterInvoiceService, RecruiterInvoiceService>();
 builder.Services.AddScoped<ICompanyProfileService, CompanyProfileService>();
-
-
+builder.Services.AddScoped<IVerificationService, VerificationService>();
 builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExtendedService>();
-
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
-
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
 builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
-builder.Services.AddScoped<IHomepageService, HomepageService>();
+builder.Services.AddScoped<IHomepageService, HomepageService>(); 
+builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
+
 
 FirebaseApp.Create(new AppOptions()
 {

@@ -3,6 +3,7 @@ using System;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260610050533_notification")]
+    partial class notification
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2433,42 +2436,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.ToTable("support_tickets", (string)null);
                 });
 
-            modelBuilder.Entity("JobPortal.Domain.Entities.SupportTicketReply", b =>
-                {
-                    b.Property<Guid>("ReplyId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("reply_id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("message");
-
-                    b.Property<Guid>("SenderId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("sender_id");
-
-                    b.Property<string>("SenderType")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("sender_type");
-
-                    b.Property<Guid>("TicketId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("ticket_id");
-
-                    b.HasKey("ReplyId");
-
-                    b.HasIndex("TicketId");
-
-                    b.ToTable("support_ticket_replies", (string)null);
-                });
-
             modelBuilder.Entity("JobPortal.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -3042,17 +3009,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Navigation("RaisedByUser");
                 });
 
-            modelBuilder.Entity("JobPortal.Domain.Entities.SupportTicketReply", b =>
-                {
-                    b.HasOne("JobPortal.Domain.Entities.SupportTicket", "Ticket")
-                        .WithMany("Replies")
-                        .HasForeignKey("TicketId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Ticket");
-                });
-
             modelBuilder.Entity("JobPortal.Domain.Entities.CandidateProfile", b =>
                 {
                     b.Navigation("Cvs");
@@ -3083,11 +3039,6 @@ namespace JobPortal.Infrastructure.Migrations
             modelBuilder.Entity("JobPortal.Domain.Entities.JobPosting", b =>
                 {
                     b.Navigation("Applications");
-                });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.SupportTicket", b =>
-                {
-                    b.Navigation("Replies");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.User", b =>

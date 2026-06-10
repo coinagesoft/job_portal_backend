@@ -57,7 +57,7 @@ public class AppDbContext : DbContext
     public DbSet<SavedJob> SavedJobs => Set<SavedJob>();
     public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
     public DbSet<CandidateUnlock> CandidateUnlocks => Set<CandidateUnlock>();
-
+  
     // Section 6 — Payments
     public DbSet<CreditWallet> CreditWallets => Set<CreditWallet>();
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
@@ -67,7 +67,7 @@ public class AppDbContext : DbContext
     // Section 7 — Notifications
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
-
+    public DbSet<SupportTicketReply> SupportTicketReplies => Set<SupportTicketReply>();
     // Section 8 — Admin Config
     public DbSet<PlatformConfig> PlatformConfigs => Set<PlatformConfig>();
     public DbSet<CountryVerificationConfig> CountryVerificationConfigs => Set<CountryVerificationConfig>();
@@ -223,6 +223,36 @@ public class AppDbContext : DbContext
             e.HasIndex(x => x.Email)
                 .IsUnique()
                 .HasDatabaseName("uq_users_email");
+        });
+        m.Entity<SupportTicketReply>(e =>
+        {
+            e.ToTable("support_ticket_replies");
+
+            e.HasKey(x => x.ReplyId);
+
+            e.Property(x => x.ReplyId)
+                .HasColumnName("reply_id");
+
+            e.Property(x => x.TicketId)
+                .HasColumnName("ticket_id");
+
+            e.Property(x => x.SenderId)
+                .HasColumnName("sender_id");
+
+            e.Property(x => x.SenderType)
+                .HasColumnName("sender_type")
+                .HasConversion<string>();
+
+            e.Property(x => x.Message)
+                .HasColumnName("message");
+
+            e.Property(x => x.CreatedAt)
+                .HasColumnName("created_at");
+
+            e.HasOne(x => x.Ticket)
+                .WithMany(x => x.Replies)
+                .HasForeignKey(x => x.TicketId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         m.Entity<RecruiterNote>(entity =>
         {
@@ -534,8 +564,8 @@ public class AppDbContext : DbContext
                 .HasColumnName("website_url");
 
             e.Property(x => x.BusinessType)
-          .HasConversion<string>()
-          .HasColumnName("business_type");
+                 .HasConversion<string>()
+                 .HasColumnName("business_type");
 
             e.Property(x => x.IndustryType)
                 .HasConversion<string>()
@@ -675,8 +705,14 @@ public class AppDbContext : DbContext
             e.HasOne(x => x.IssuedByAdmin)
              .WithMany()
              .HasForeignKey(x => x.IssuedBy);
+            e.Property(x => x.BadgeType)
+             .HasConversion<string>();
+            e.Property(x => x.BadgeStatus)
+            .HasConversion<string>();
         });
-      
+
+
+
         m.Entity<EmployerSubUser>(e =>
         {
             e.ToTable("employer_sub_users");
@@ -734,8 +770,11 @@ public class AppDbContext : DbContext
             e.Property(x => x.PrefCreditExpiryEmail)
                 .HasColumnName("pref_credit_expiry_email");
 
-            e.Property(x => x.PrefAvailabilityPush)
-                .HasColumnName("pref_availability_push");
+            e.Property(x => x.PrefJobStatusUpdates)
+                .HasColumnName("pref_job_status_updates");
+
+            e.Property(x => x.PrefSystemMessages)
+                .HasColumnName("pref_system_messages");
 
             e.Property(x => x.FcmToken)
                 .HasColumnName("fcm_token");
@@ -993,6 +1032,8 @@ public class AppDbContext : DbContext
             e.HasOne(x => x.RaisedByUser)
              .WithMany()
              .HasForeignKey(x => x.RaisedBy);
+            e.Property(x => x.TicketType)
+                .HasConversion<string>();
             e.HasOne(x => x.AssignedAdmin)
              .WithMany()
              .HasForeignKey(x => x.AssignedTo)
