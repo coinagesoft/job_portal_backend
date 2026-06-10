@@ -29,7 +29,7 @@ public class CandidateProfile
     public string? ItiTrade { get; set; }
     public string? ItiMarks { get; set; }
     public string? ItiCollege { get; set; }
-    public string? Band { get; set; }                  
+    public string? Band { get; set; }
     public byte? AiMatchScore { get; set; }
     public string ProfileStatus { get; set; } = "Active";
     public byte ProfileCompletionPct { get; set; } = 0;
@@ -56,4 +56,10 @@ public class CandidateProfile
     public ICollection<CandidateWorkHistory> WorkHistories { get; set; } = new List<CandidateWorkHistory>();
     public ICollection<CandidateSkill> Skills { get; set; } = new List<CandidateSkill>();
     public ICollection<CandidateCv> Cvs { get; set; } = new List<CandidateCv>();
+    public CandidateNotificationSetting? NotificationSetting { get; set; }
+
+    public CandidatePreferenceSetting? PreferenceSetting { get; set; }
+
 }
+
+

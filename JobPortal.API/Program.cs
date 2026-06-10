@@ -88,6 +88,7 @@ builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>(
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
 builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
 builder.Services.AddScoped<IHomepageService, HomepageService>();
+builder.Services.AddScoped<ICandidateSettingsService, CandidateSettingsService>();
 
 FirebaseApp.Create(new AppOptions()
 {

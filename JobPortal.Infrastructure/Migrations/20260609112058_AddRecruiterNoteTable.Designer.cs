@@ -3,6 +3,7 @@ using System;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260609112058_AddRecruiterNoteTable")]
+    partial class AddRecruiterNoteTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -295,89 +298,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.ToTable("candidate_education", (string)null);
                 });
 
-            modelBuilder.Entity("JobPortal.Domain.Entities.CandidateNotificationSetting", b =>
-                {
-                    b.Property<Guid>("NotifPrefId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("ApplicationUpdates")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("CandidateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("DocumentReminders")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("JobMatches")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("OffersAnnouncements")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("RecruiterMessages")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("NotifPrefId");
-
-                    b.HasIndex("CandidateId")
-                        .IsUnique();
-
-                    b.ToTable("candidate_notification_settings", (string)null);
-                });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.CandidatePreferenceSetting", b =>
-                {
-                    b.Property<Guid>("PrefId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CandidateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CommunicationPreference")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("LastPasswordUpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PreferredLanguage")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ResumeVisibility")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TimeZone")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("TwoFactorEnabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("PrefId");
-
-                    b.HasIndex("CandidateId")
-                        .IsUnique();
-
-                    b.ToTable("candidate_preference_settings", (string)null);
-                });
-
             modelBuilder.Entity("JobPortal.Domain.Entities.CandidateProfile", b =>
                 {
                     b.Property<Guid>("CandidateId")
@@ -479,15 +399,9 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("NoticePeriod");
 
-                    b.Property<Guid?>("NotificationSettingNotifPrefId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Pincode")
                         .HasColumnType("text")
                         .HasColumnName("Pincode");
-
-                    b.Property<Guid?>("PreferenceSettingPrefId")
-                        .HasColumnType("uuid");
 
                     b.Property<int?>("PreferredSalary")
                         .HasColumnType("integer")
@@ -543,10 +457,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnName("welcome_email_sent");
 
                     b.HasKey("CandidateId");
-
-                    b.HasIndex("NotificationSettingNotifPrefId");
-
-                    b.HasIndex("PreferenceSettingPrefId");
 
                     b.HasIndex("UserId")
                         .IsUnique();
@@ -2669,47 +2579,13 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Navigation("CandidateProfile");
                 });
 
-            modelBuilder.Entity("JobPortal.Domain.Entities.CandidateNotificationSetting", b =>
-                {
-                    b.HasOne("JobPortal.Domain.Entities.CandidateProfile", "CandidateProfile")
-                        .WithOne()
-                        .HasForeignKey("JobPortal.Domain.Entities.CandidateNotificationSetting", "CandidateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CandidateProfile");
-                });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.CandidatePreferenceSetting", b =>
-                {
-                    b.HasOne("JobPortal.Domain.Entities.CandidateProfile", "CandidateProfile")
-                        .WithOne()
-                        .HasForeignKey("JobPortal.Domain.Entities.CandidatePreferenceSetting", "CandidateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CandidateProfile");
-                });
-
             modelBuilder.Entity("JobPortal.Domain.Entities.CandidateProfile", b =>
                 {
-                    b.HasOne("JobPortal.Domain.Entities.CandidateNotificationSetting", "NotificationSetting")
-                        .WithMany()
-                        .HasForeignKey("NotificationSettingNotifPrefId");
-
-                    b.HasOne("JobPortal.Domain.Entities.CandidatePreferenceSetting", "PreferenceSetting")
-                        .WithMany()
-                        .HasForeignKey("PreferenceSettingPrefId");
-
                     b.HasOne("JobPortal.Domain.Entities.User", "User")
                         .WithOne()
                         .HasForeignKey("JobPortal.Domain.Entities.CandidateProfile", "UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("NotificationSetting");
-
-                    b.Navigation("PreferenceSetting");
 
                     b.Navigation("User");
                 });

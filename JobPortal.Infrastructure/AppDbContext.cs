@@ -77,7 +77,9 @@ public class AppDbContext : DbContext
     public DbSet<RegistrationSession> RegistrationSessions => Set<RegistrationSession>();
 
     public DbSet<RecruiterNote> RecruiterNotes { get; set; }
+    public DbSet<CandidateNotificationSetting> CandidateNotificationSettings => Set<CandidateNotificationSetting>();
 
+    public DbSet<CandidatePreferenceSetting> CandidatePreferenceSettings => Set<CandidatePreferenceSetting>();
     public override int SaveChanges()
     {
         ApplyAuditTimestamps();
@@ -244,6 +246,35 @@ public class AppDbContext : DbContext
 
             entity.Property(n => n.IsAcknowledged)
                   .HasDefaultValue(false);
+        });
+        m.Entity<CandidateNotificationSetting>(e =>
+        {
+            e.ToTable("candidate_notification_settings");
+
+            e.HasKey(x => x.NotifPrefId);
+
+            e.HasIndex(x => x.CandidateId)
+                .IsUnique();
+
+            e.HasOne(x => x.CandidateProfile)
+                .WithOne()
+                .HasForeignKey<CandidateNotificationSetting>(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        m.Entity<CandidatePreferenceSetting>(e =>
+        {
+            e.ToTable("candidate_preference_settings");
+
+            e.HasKey(x => x.PrefId);
+
+            e.HasIndex(x => x.CandidateId)
+                .IsUnique();
+
+            e.HasOne(x => x.CandidateProfile)
+                .WithOne()
+                .HasForeignKey<CandidatePreferenceSetting>(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── otp_verifications ──────────────────────────────────
