@@ -86,6 +86,7 @@ builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExt
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
 builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
+
 builder.Services.AddScoped<IHomepageService, HomepageService>(); 
 builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 builder.Services.AddScoped<INotificationService, NotificationService>(); 
@@ -93,11 +94,15 @@ builder.Services.AddScoped<IRecruiterSettingsService, RecruiterSettingsService>(
 
 
 
+
+
+builder.Services.AddScoped<IHomepageService, HomepageService>();
 builder.Services.AddScoped<ICandidateSettingsService, CandidateSettingsService>();
 builder.Services.AddScoped<ICandidateAvailabilityService, CandidateAvailabilityService>();
 builder.Services.AddScoped<ICandidateItiInfoService, CandidateItiInfoService>();
 builder.Services.AddScoped<ICandidateLogoutService, CandidateLogoutService>();
 builder.Services.AddScoped<CandidatePagedJobService>();
+
 FirebaseApp.Create(new AppOptions()
 {
     Credential =
