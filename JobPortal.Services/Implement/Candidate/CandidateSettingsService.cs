@@ -239,7 +239,7 @@ public class CandidateSettingsService : ICandidateSettingsService
             {
                 TicketId = Guid.NewGuid(),
                 RaisedBy = profile.UserId,
-                TicketType = Enum.Parse<SupportTicketType>(request.Category, true),
+                TicketType = request.Category,
                 Subject = request.Subject,
                 Description = request.Description,
                 Status = "Open",
@@ -426,7 +426,7 @@ public class CandidateSettingsService : ICandidateSettingsService
         {
             TicketId = t.TicketId,
             Subject = t.Subject,
-            Category = t.TicketType.ToString(),
+            Category = t.TicketType,
             Description = t.Description,
             Status = t.Status,
             Priority = t.Priority,
