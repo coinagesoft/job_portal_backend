@@ -985,7 +985,7 @@ namespace JobPortal.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-<<<<<<< HEAD
+
                     b.Property<string>("BadgeStatus")
                         .IsRequired()
                         .HasColumnType("text");
@@ -993,13 +993,13 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("BadgeType")
                         .IsRequired()
                         .HasColumnType("text");
-=======
+
                     b.Property<int>("BadgeStatus")
                         .HasColumnType("integer");
 
                     b.Property<int>("BadgeType")
                         .HasColumnType("integer");
->>>>>>> 30904e7b490c27703916d9e07aafb1de08226ba4
+
 
                     b.Property<Guid>("EmployerId")
                         .HasColumnType("uuid");

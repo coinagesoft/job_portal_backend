@@ -5,6 +5,7 @@
 
 using JobPortal.Application.DTOs.Candidate.Settings;
 using JobPortal.Domain.Entities;
+using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.ICandidate;
 using Microsoft.EntityFrameworkCore;
@@ -238,7 +239,7 @@ public class CandidateSettingsService : ICandidateSettingsService
             {
                 TicketId = Guid.NewGuid(),
                 RaisedBy = profile.UserId,
-                TicketType = request.Category,
+                TicketType = Enum.Parse<SupportTicketType>(request.Category, true),
                 Subject = request.Subject,
                 Description = request.Description,
                 Status = "Open",
@@ -425,7 +426,7 @@ public class CandidateSettingsService : ICandidateSettingsService
         {
             TicketId = t.TicketId,
             Subject = t.Subject,
-            Category = t.TicketType,
+            Category = t.TicketType.ToString(),
             Description = t.Description,
             Status = t.Status,
             Priority = t.Priority,
