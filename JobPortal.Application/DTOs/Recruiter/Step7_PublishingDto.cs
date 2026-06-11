@@ -8,21 +8,21 @@ public class PublishingRequestDto
     public Guid JobId { get; set; }
 
     [Required]
-    public DateOnly ApplicationDeadline { get; set; }
+    public DateOnly? ApplicationDeadline { get; set; }
 
-    public CompanyVisibility CompanyVisibility { get; set; } = CompanyVisibility.Show_Name;
+    public CompanyVisibility? CompanyVisibility { get; set; }
 
     /// <summary>
     /// Hot Job, Urgent Hiring, Premium Listing — optional tags
     /// </summary>
-    public List<string> PublishingTags { get; set; } = new();
+    public List<string>? PublishingTags { get; set; } = new();
 
     /// <summary>
     /// true = publish immediately
     /// false = save as draft
     /// </summary>
     [Required]
-    public bool PublishNow { get; set; } = true;
+    public bool? PublishNow { get; set; } = true;
 }
 
 public class PublishingResponseDto

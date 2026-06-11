@@ -11,11 +11,11 @@ namespace JobPortal.API.Controllers.Recruiter;
     [ApiController]
     [Route("api/recruiter/jobs")]
     //[Authorize(Roles = "Recruiter")]
-    public class JobPostingController : ControllerBase
+    public class RecruiterJobPostingController : ControllerBase
     {
         private readonly IJobPostingService _service;
 
-        public JobPostingController(IJobPostingService service)
+        public RecruiterJobPostingController(IJobPostingService service)
             => _service = service;
 
     //private Guid GetEmployerId() =>
@@ -46,10 +46,10 @@ namespace JobPortal.API.Controllers.Recruiter;
     //    var result = await _service.SaveJobDetailsAsync(request, GetEmployerId());
     //    return result.Success ? Ok(result) : BadRequest(result);
     //}
-
-    [HttpPost("job-details")]
+    // ── STEP 1 ─────────────────────────────────────────
+    [HttpPatch("step1-job-details")]
     public async Task<IActionResult> SaveJobDetails(
-    [FromBody] JobDetailsRequestDto request)
+        [FromForm] JobDetailsRequestDto request)
     {
         var result = await _service.SaveJobDetailsAsync(request);
 
@@ -59,73 +59,101 @@ namespace JobPortal.API.Controllers.Recruiter;
     }
 
     // ── STEP 2 ─────────────────────────────────────────
-    /// <summary>
-    /// Step 2 — Compensation. Pass jobId from Step 1.
-    /// </summary>
-    [HttpPut("{jobId}/step2-compensation")]
-        public async Task<IActionResult> Step2Compensation(
-            Guid jobId, [FromBody] CompensationRequestDto request)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            var result = await _service.SaveCompensationAsync(request, jobId, GetEmployerId());
-            return result.Success ? Ok(result) : BadRequest(result);
-        }
+    [HttpPatch("{jobId}/step2-compensation")]
+    public async Task<IActionResult> Step2Compensation(
+        Guid jobId,
+        [FromForm] CompensationRequestDto request)
+    {
+        var result = await _service.SaveCompensationAsync(
+            request,
+            jobId,
+            GetEmployerId());
 
-        // ── STEP 3 ─────────────────────────────────────────
-        [HttpPut("{jobId}/step3-skills")]
-        public async Task<IActionResult> Step3Skills(
-            Guid jobId, [FromBody] SkillsRequestDto request)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            var result = await _service.SaveSkillsAsync(request, jobId, GetEmployerId());
-            return result.Success ? Ok(result) : BadRequest(result);
-        }
+        return result.Success
+            ? Ok(result)
+            : BadRequest(result);
+    }
 
-        // ── STEP 4 ─────────────────────────────────────────
-        [HttpPut("{jobId}/step4-eligibility")]
-        public async Task<IActionResult> Step4Eligibility(
-            Guid jobId, [FromBody] EligibilityRequestDto request)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            var result = await _service.SaveEligibilityAsync(request, jobId, GetEmployerId());
-            return result.Success ? Ok(result) : BadRequest(result);
-        }
+    // ── STEP 3 ─────────────────────────────────────────
+    [HttpPatch("{jobId}/step3-skills")]
+    public async Task<IActionResult> Step3Skills(
+        Guid jobId,
+        [FromForm] SkillsRequestDto request)
+    {
+        var result = await _service.SaveSkillsAsync(
+            request,
+            jobId,
+            GetEmployerId());
 
-        // ── STEP 5 ─────────────────────────────────────────
-        [HttpPut("{jobId}/step5-location")]
-        public async Task<IActionResult> Step5Location(
-            Guid jobId, [FromBody] LocationRequestDto request)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            var result = await _service.SaveLocationAsync(request, jobId, GetEmployerId());
-            return result.Success ? Ok(result) : BadRequest(result);
-        }
+        return result.Success
+            ? Ok(result)
+            : BadRequest(result);
+    }
 
-        // ── STEP 6 ─────────────────────────────────────────
-        [HttpPut("{jobId}/step6-questions")]
-        public async Task<IActionResult> Step6Questions(
-            Guid jobId, [FromBody] QuestionsRequestDto request)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            var result = await _service.SaveQuestionsAsync(request, jobId, GetEmployerId());
-            return result.Success ? Ok(result) : BadRequest(result);
-        }
+    // ── STEP 4 ─────────────────────────────────────────
+    [HttpPatch("{jobId}/step4-eligibility")]
+    public async Task<IActionResult> Step4Eligibility(
+        Guid jobId,
+        [FromForm] EligibilityRequestDto request)
+    {
+        var result = await _service.SaveEligibilityAsync(
+            request,
+            jobId,
+            GetEmployerId());
 
-        // ── STEP 7 ─────────────────────────────────────────
-        /// <summary>
-        /// Step 7 — Publish or Save Draft. Set publishNow=true to go live.
-        /// </summary>
-        [HttpPut("step7-publish")]
-        public async Task<IActionResult> Step7Publish(
-            [FromBody] PublishingRequestDto request)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-            var result = await _service.PublishJobAsync(request, GetEmployerId());
-            return result.Success ? Ok(result) : BadRequest(result);
-        }
+        return result.Success
+            ? Ok(result)
+            : BadRequest(result);
+    }
 
-        // ── SAVE DRAFT (any time) ──────────────────────────
-        [HttpPut("{jobId}/save-draft")]
+    // ── STEP 5 ─────────────────────────────────────────
+    [HttpPatch("{jobId}/step5-location")]
+    public async Task<IActionResult> Step5Location(
+        Guid jobId,
+        [FromForm] LocationRequestDto request)
+    {
+        var result = await _service.SaveLocationAsync(
+            request,
+            jobId,
+            GetEmployerId());
+
+        return result.Success
+            ? Ok(result)
+            : BadRequest(result);
+    }
+
+    // ── STEP 6 ─────────────────────────────────────────
+    [HttpPatch("{jobId}/step6-questions")]
+    public async Task<IActionResult> Step6Questions(
+        Guid jobId,
+        [FromForm] QuestionsRequestDto request)
+    {
+        var result = await _service.SaveQuestionsAsync(
+            request,
+            jobId,
+            GetEmployerId());
+
+        return result.Success
+            ? Ok(result)
+            : BadRequest(result);
+    }
+
+    // ── STEP 7 ─────────────────────────────────────────
+    [HttpPatch("step7-publish")]
+    public async Task<IActionResult> Step7Publish(
+        [FromForm] PublishingRequestDto request)
+    {
+        var result = await _service.PublishJobAsync(
+            request,
+            GetEmployerId());
+
+        return result.Success
+            ? Ok(result)
+            : BadRequest(result);
+    }
+
+    // ── SAVE DRAFT (any time) ──────────────────────────
+    [HttpPut("{jobId}/save-draft")]
         public async Task<IActionResult> SaveDraft(Guid jobId)
         {
             var result = await _service.SaveDraftAsync(jobId, GetEmployerId());

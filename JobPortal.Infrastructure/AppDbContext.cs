@@ -23,6 +23,9 @@ public class AppDbContext : DbContext
 
     public DbSet<CreditUsageTransaction> CreditUsageTransactions { get; set; }
 
+    public DbSet<UserSession> UserSessions { get; set; }
+    public DbSet<EmployerPreference> EmployerPreferences { get; set; }
+
     public DbSet<CandidateCvDownload> CandidateCvDownload { get; set; }
 
     public DbSet<CreditConfiguration> CreditConfigurations { get; set; }
@@ -84,7 +87,6 @@ public class AppDbContext : DbContext
     public DbSet<CandidateLogoutSession> CandidateLogoutSessions => Set<CandidateLogoutSession>();
 
     public override int SaveChanges()
-
     {
         ApplyAuditTimestamps();
         return base.SaveChanges();

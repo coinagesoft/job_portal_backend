@@ -2,7 +2,7 @@
 
 public class QuestionsRequestDto
 {
-    public List<ScreeningQuestion> Questions { get; set; } = new();
+    public List<ScreeningQuestion>? Questions { get; set; } = new();
 }
 
 public class ScreeningQuestion

@@ -6,11 +6,11 @@ namespace JobPortal.API.Controllers.Recruiter
 {
     [ApiController]
     [Route("api/recruiter/verification")]
-    public class VerificationController : ControllerBase
+    public class RecruiterVerificationController : ControllerBase
     {
         private readonly IVerificationService _verificationService;
 
-        public VerificationController(IVerificationService verificationService)
+        public RecruiterVerificationController(IVerificationService verificationService)
         {
             _verificationService = verificationService;
         }

@@ -14,9 +14,12 @@ public class JobDetailsRequestDto
     /// <summary>
     /// e.g. Welder 6G, Senior Electrician
     /// </summary>
+    /// 
+    public Guid? JobId { get; set; }
+
     [Required(ErrorMessage = "Job title is required.")]
     [MaxLength(200)]
-    public string JobTitle { get; set; } = string.Empty;
+    public string? JobTitle { get; set; } = string.Empty;
 
     /// <summary>
     /// Role searched or typed by user — e.g. Welder, Fitter, Driver
@@ -24,7 +27,7 @@ public class JobDetailsRequestDto
     /// </summary>
     [Required(ErrorMessage = "Trade category is required.")]
     [MaxLength(100)]
-    public string TradeCategory { get; set; } = string.Empty;
+    public string? TradeCategory { get; set; } = string.Empty;
 
     /// <summary>
     /// Specific role within trade — optional
@@ -34,17 +37,17 @@ public class JobDetailsRequestDto
     public string? Role { get; set; }
 
     [Required]
-    public int ExperienceRequiredYears { get; set; } = 0;
+    public int? ExperienceRequiredYears { get; set; } = 0;
 
     [Required]
-    public JobType JobType { get; set; }
+    public JobType? JobType { get; set; }
 
     [Required]
-    public EmploymentType EmploymentType { get; set; }
+    public EmploymentType? EmploymentType { get; set; }
 
     [Required(ErrorMessage = "Job description is required.")]
     [MinLength(50, ErrorMessage = "Description must be at least 50 characters.")]
-    public string JobDescription { get; set; } = string.Empty;
+    public string? JobDescription { get; set; } = string.Empty;
 }
 
 public class JobDetailsResponseDto

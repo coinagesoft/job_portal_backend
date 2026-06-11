@@ -14,7 +14,7 @@ public class CandidateAuthController : ControllerBase
     private readonly ILogger<CandidateAuthController> _logger;
 
     public CandidateAuthController(
-        ICandidateAuthService service,
+ICandidateAuthService service,
         ILogger<CandidateAuthController> logger)
     {
         _service = service;

@@ -2,6 +2,7 @@
 //  JobPortal.Application/DTOs/Candidate/CandidateSettingsDtos.cs
 // ============================================================
 
+using JobPortal.Domain.Enums.RecruiterEnums;
 using System.ComponentModel.DataAnnotations;
 
 namespace JobPortal.Application.DTOs.Candidate.Settings;
@@ -107,7 +108,7 @@ public class CreateSupportTicketRequestDto
     public string Subject { get; set; } = string.Empty;
 
     [Required]
-    public string Category { get; set; } = string.Empty;
+    public SupportTicketType Category { get; set; }
     // ProfileResume | JobApplication | PaymentBilling |
     // AccountAccess | TechnicalIssue | Other
 
@@ -141,7 +142,7 @@ public class SupportTicketItemDto
 {
     public Guid TicketId { get; set; }
     public string Subject { get; set; } = string.Empty;
-    public string Category { get; set; } = string.Empty;
+    public SupportTicketType Category { get; set; }
     public string Description { get; set; } = string.Empty;
     public string Status { get; set; } = "Open";   // Open | InProgress | Resolved | Closed
     public string Priority { get; set; } = "Normal";

@@ -1,5 +1,4 @@
 ﻿
-
 using JobPortal.Application.DTOs.Recruiter.Notification;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.AspNetCore.Mvc;
@@ -7,12 +6,12 @@ using Microsoft.AspNetCore.Mvc;
 namespace JobPortal.API.Controllers.Recruiter
     {
         [ApiController]
-        [Route("api/recruiter")]
-        public class NotificationController : ControllerBase
+        [Route("api/recruiter/notification")]
+        public class RecruiterNotificationController : ControllerBase
         {
             private readonly INotificationService _service;
 
-            public NotificationController(
+            public RecruiterNotificationController(
                 INotificationService service)
             {
                 _service = service;
