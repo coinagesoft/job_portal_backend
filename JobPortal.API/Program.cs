@@ -91,8 +91,9 @@ builder.Services.AddScoped<IHomepageService, HomepageService>();
 builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 builder.Services.AddScoped<INotificationService, NotificationService>(); 
 builder.Services.AddScoped<IRecruiterSettingsService, RecruiterSettingsService>();
-
-
+builder.Services.AddScoped<IRecruiterCandidateProfileService,RecruiterCandidateProfileService>();
+builder.Services.AddScoped<IRecruiterJobListingService, RecruiterJobListingService>();
+builder.Services.AddScoped<IRecruiterApplicantService, RecruiterApplicantService>();
 
 
 

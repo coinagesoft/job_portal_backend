@@ -9,6 +9,7 @@
 // ============================================================
 
 using JobPortal.Application.DTOs.Candidate.Missing;
+using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -56,8 +57,8 @@ public class CandidatePagedJobService
                 })
                 .ToListAsync();
 
-            int activeCount = allSaved.Count(x => x.JobStatus == "Active");
-            int expiredCount = allSaved.Count(x => x.JobStatus != "Active");
+            int activeCount = allSaved.Count(x => x.JobStatus == JobStatus.Active);
+            int expiredCount = allSaved.Count(x => x.JobStatus != JobStatus.Active);
             int appliedCount = allSaved.Count(x => x.HasApplied);
 
             // Optional status filter
@@ -65,8 +66,8 @@ public class CandidatePagedJobService
             {
                 baseQuery = req.Filter.ToLower() switch
                 {
-                    "active" => baseQuery.Where(s => s.JobPosting.JobStatus == "Active"),
-                    "expired" => baseQuery.Where(s => s.JobPosting.JobStatus != "Active"),
+                    "active" => baseQuery.Where(s => s.JobPosting.JobStatus == JobStatus.Active),
+                    "expired" => baseQuery.Where(s => s.JobPosting.JobStatus != JobStatus.Active),
                     "applied" => baseQuery.Where(s => _context.JobApplications
                         .Any(a => a.CandidateId == candidateId && a.JobId == s.JobId)),
                     _ => baseQuery
@@ -108,10 +109,10 @@ public class CandidatePagedJobService
                     State = job.OnshoreState,
                     TradeCategory = job.TradeCategory,
                     EmploymentType = job.LocationType,
-                    JobStatus = job.JobStatus ?? string.Empty,
-                    IsExpired = job.JobStatus != "Active",
+                    JobStatus = job.JobStatus.ToString() ?? string.Empty,
+                    IsExpired = job.JobStatus.ToString() != "Active",
                     HasApplied = appStatus != null,
-                    ApplicationStatus = appStatus,
+                    ApplicationStatus = appStatus.ToString(),
                     ApplicationDeadline = job.ApplicationDeadline.ToDateTime(TimeOnly.MinValue),
                     SavedAt = s.SavedAt,
                     Tags = ParseJsonList(job.PublishingTags)
@@ -167,24 +168,24 @@ public class CandidatePagedJobService
 
             // Compute filter counts before applying status filter
             var allStatuses = await baseQuery
-                .Select(a => a.ApplicationStatus)
+                .Select(a => a.ApplicationStatus.ToString())
                 .ToListAsync();
 
             var filterCounts = new PagedApplicationFilterCountsDto
             {
                 All = allStatuses.Count,
-                Applied = allStatuses.Count(x => x == "Applied"),
-                InReview = allStatuses.Count(x => x == "InReview"),
-                Shortlisted = allStatuses.Count(x => x == "Shortlisted"),
-                Interview = allStatuses.Count(x => x == "Interview"),
-                Rejected = allStatuses.Count(x => x == "Rejected"),
-                Hired = allStatuses.Count(x => x == "Hired"),
-                Withdrawn = allStatuses.Count(x => x == "Withdrawn")
+                Applied = allStatuses.Count(x => x.ToString() == "Applied"),
+                InReview = allStatuses.Count(x => x.ToString() == "InReview"),
+                Shortlisted = allStatuses.Count(x => x.ToString() == "Shortlisted"),
+                Interview = allStatuses.Count(x => x.ToString() == "Interview"),
+                Rejected = allStatuses.Count(x => x.ToString() == "Rejected"),
+                Hired = allStatuses.Count(x => x.ToString() == "Hired"),
+                Withdrawn = allStatuses.Count(x => x.ToString() == "Withdrawn")
             };
 
             // Apply optional status filter
             if (!string.IsNullOrEmpty(req.Status))
-                baseQuery = baseQuery.Where(a => a.ApplicationStatus == req.Status);
+                baseQuery = baseQuery.Where(a => a.ApplicationStatus.ToString() == req.Status);
 
             var totalCount = await baseQuery.CountAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
@@ -216,10 +217,10 @@ public class CandidatePagedJobService
                     TradeCategory = job.TradeCategory,
                     EmploymentType = job.LocationType,
                     Tags = ParseJsonList(job.PublishingTags),
-                    ApplicationStatus = a.ApplicationStatus ?? "Applied",
-                    StageLabel = GetStageLabel(a.ApplicationStatus),
-                    StatusNote = GetStatusNote(a.ApplicationStatus, job.JobTitle),
-                    WithdrawalAllowed = IsWithdrawalAllowed(a.ApplicationStatus),
+                    ApplicationStatus = a.ApplicationStatus.ToString() ?? "Applied",
+                    StageLabel = GetStageLabel(a.ApplicationStatus.ToString()),
+                    StatusNote = GetStatusNote(a.ApplicationStatus.ToString(), job.JobTitle),
+                    WithdrawalAllowed = IsWithdrawalAllowed(a.ApplicationStatus.ToString()),
                     RecruiterNote = latestNote?.NoteText,
                     NoteAcknowledged = latestNote?.IsAcknowledged ?? false,
                     NoteId = latestNote?.RecruiterNoteId,

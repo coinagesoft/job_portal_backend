@@ -1,4 +1,5 @@
-﻿using System;
+﻿using JobPortal.Domain.Enums.RecruiterEnums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,7 +13,7 @@ public class JobApplication
     public Guid CandidateId { get; set; }
     public Guid EmployerId { get; set; }
     public DateTime AppliedAt { get; set; }
-    public string ApplicationStatus { get; set; } = "Applied";
+    public ApplicationStatus ApplicationStatus { get; set; } = ApplicationStatus.Applied;
     public DateTime StatusUpdatedAt { get; set; }
     public Guid? StatusChangedBy { get; set; }
     public DateTime? ViewedAt { get; set; }
@@ -21,7 +22,14 @@ public class JobApplication
     public bool WithdrawalAllowed { get; set; } = true;
     public bool PassportGatePassed { get; set; } = true;
 
-    // Navigation
+    public bool IsShortlisted { get; set; }
+
+    public DateTime? ShortlistedAt { get; set; }
+
+    public DateTime? InterviewScheduledAt { get; set; }
+
+    public DateTime? RejectedAt { get; set; }
+
     // Navigation
     public JobPosting JobPosting { get; set; } = default!;
     public CandidateProfile CandidateProfile { get; set; } = default!;

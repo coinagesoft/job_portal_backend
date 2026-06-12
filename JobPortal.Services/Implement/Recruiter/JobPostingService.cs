@@ -4,7 +4,8 @@
     using global::JobPortal.Services.IImplement.IRecruiter;
     using JobPortal.Application.DTOs.JobPosting;
     using JobPortal.Domain.Enums.common;
-    using Microsoft.EntityFrameworkCore;
+using JobPortal.Domain.Enums.RecruiterEnums;
+using Microsoft.EntityFrameworkCore;
     using Microsoft.Extensions.Logging;
     using System.Text.Json;
 
@@ -112,9 +113,9 @@
 
        public async Task<JobDetailsResponseDto> SaveJobDetailsAsync(
        JobDetailsRequestDto request)
-{
-    try
-    {
+         {
+          try
+          {
         var employerId = GetEmployerId();
 
         var employer = await _context.EmployerProfiles
@@ -145,7 +146,7 @@
                     (byte)(request.ExperienceRequiredYears ?? 0),
                 JobDescription = request.JobDescription ?? string.Empty,
 
-                JobStatus = "Draft",
+                JobStatus = JobStatus.Draft,
                 CurrentStep = 1,
                 LastCompletedStep = 1,
 
@@ -207,7 +208,7 @@
                 : "Job details saved as draft.",
 
             JobId = job.JobId,
-            JobStatus = job.JobStatus,
+            JobStatus = job.JobStatus.ToString(),
             StepStatus = BuildStepStatus(job)
         };
     }
@@ -243,7 +244,7 @@
 
                         EmployerId = employerId,
 
-                        JobStatus = "Draft",
+                        JobStatus = JobStatus.Draft,
 
                         CurrentStep = 2,
 
@@ -326,7 +327,7 @@
 
                         EmployerId = employerId,
 
-                        JobStatus = "Draft",
+                        JobStatus = JobStatus.Draft,
 
                         CurrentStep = 3,
 
@@ -416,7 +417,7 @@
 
                         EmployerId = employerId,
 
-                        JobStatus = "Draft",
+                        JobStatus = JobStatus.Draft,
 
                         CurrentStep = 4,
 
@@ -522,7 +523,7 @@
 
                         EmployerId = employerId,
 
-                        JobStatus = "Draft",
+                        JobStatus = JobStatus.Draft,
 
                         CurrentStep = 5,
 
@@ -628,7 +629,7 @@
 
                         EmployerId = employerId,
 
-                        JobStatus = "Draft",
+                        JobStatus = JobStatus.Draft,
 
                         CurrentStep = 6,
 
@@ -742,7 +743,7 @@
                 {
                     if (request.PublishNow.Value)
                     {
-                        job.JobStatus = "Active";
+                        job.JobStatus = JobStatus.Active;
 
                         if (!job.PublishedAt.HasValue)
                         {
@@ -751,7 +752,7 @@
                     }
                     else
                     {
-                        job.JobStatus = "Draft";
+                        job.JobStatus = JobStatus.Draft;
                     }
                 }
 
@@ -770,9 +771,9 @@
                         : "Publishing settings saved.",
 
                     JobId = job.JobId,
-                    JobStatus = job.JobStatus,
+                    JobStatus = job.JobStatus.ToString(),
                     PublishedAt = job.PublishedAt,
-                    JobUrl = job.JobStatus == "Active"
+                    JobUrl = job.JobStatus == JobStatus.Active
                         ? $"/jobs/{job.JobId}"
                         : null
                 };
@@ -801,7 +802,7 @@
                 var job = await GetJobAsync(jobId, employerId);
                 if (job == null) return Fail("Job not found.");
 
-                job.JobStatus = "Draft";
+                job.JobStatus = JobStatus.Draft;
                 job.UpdatedAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
 
@@ -1019,7 +1020,7 @@
           .FirstOrDefaultAsync(j =>
               j.JobId == jobId &&
               j.EmployerId == employerId &&
-              j.JobStatus != "Archived");
+              j.JobStatus != JobStatus.Archived);
 
         private static JobStepStatusDto BuildStepStatus(JobPosting job)
         {
@@ -1035,7 +1036,7 @@
                 CurrentStep = job.CurrentStep,
                 LastCompletedStep = job.LastCompletedStep,
                 TotalSteps = 7,
-                JobStatus = job.JobStatus,
+                JobStatus = job.JobStatus.ToString(),
                 CompletedSteps = completed,
                 NextStep = next <= 7 ? StepNames[next] : "Done"
             };

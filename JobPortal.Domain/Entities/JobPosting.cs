@@ -1,4 +1,5 @@
-﻿using System;
+﻿using JobPortal.Domain.Enums.RecruiterEnums;
+using System;
 using System.Collections.Generic;
 
 namespace JobPortal.Domain.Entities;
@@ -39,7 +40,7 @@ public class JobPosting
     public string CompanyVisibility { get; set; } = "Show_Name";
     public DateOnly ApplicationDeadline { get; set; }
     public int AppliedCount { get; set; } = 0;
-    public string JobStatus { get; set; } = "Draft";
+    public JobStatus JobStatus { get; set; } = JobStatus.Draft;
     public DateTime? PublishedAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -47,7 +48,7 @@ public class JobPosting
     public int LastCompletedStep { get; set; } = 0;
     public string? ScreeningQuestions { get; set; }
     public string? PublishingTags { get; set; }
-
+    public JobType JobType { get; set; } = JobType.Normal;
     // Navigation
     public EmployerProfile EmployerProfile { get; set; } = default!;
     public EmployerSubUser? PostedBySubUser { get; set; }

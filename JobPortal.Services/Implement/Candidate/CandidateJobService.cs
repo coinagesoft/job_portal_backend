@@ -4,6 +4,7 @@
 
 using JobPortal.Application.DTOs.Candidate.Jobs;
 using JobPortal.Domain.Entities;
+using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.ICandidate;
 using Microsoft.EntityFrameworkCore;
@@ -41,7 +42,7 @@ public class CandidateJobService : ICandidateJobService
             // ── Base query: only Published/Active jobs ────────
             var query = _context.JobPostings
                 .Include(j => j.EmployerProfile)
-                .Where(j => j.JobStatus == "Active")
+                .Where(j => j.JobStatus == JobStatus.Active)
                 .AsQueryable();
 
             // ── Keyword search ────────────────────────────────
@@ -199,7 +200,7 @@ public class CandidateJobService : ICandidateJobService
                     .ThenInclude(e => e.Badges)
                 .FirstOrDefaultAsync(j =>
                     j.JobId == jobId &&
-                    j.JobStatus == "Active" &&
+                    j.JobStatus == JobStatus.Active &&
                     j.ApplicationDeadline >= DateOnly.FromDateTime(DateTime.UtcNow));
 
             if (job == null)
@@ -222,7 +223,7 @@ public class CandidateJobService : ICandidateJobService
                 .Include(j => j.EmployerProfile)
                 .Where(j =>
                     j.JobId != jobId &&
-                    j.JobStatus == "Active" &&
+                    j.JobStatus == JobStatus.Active &&
                     j.TradeCategory == job.TradeCategory &&
                     j.ApplicationDeadline >= DateOnly.FromDateTime(DateTime.UtcNow))
                 .OrderByDescending(j => j.PublishedAt)
@@ -329,7 +330,7 @@ public class CandidateJobService : ICandidateJobService
         {
             // Validate job exists and is active
             var jobExists = await _context.JobPostings
-                .AnyAsync(j => j.JobId == jobId && j.JobStatus == "Active");
+                .AnyAsync(j => j.JobId == jobId && j.JobStatus == JobStatus.Active);
 
             if (!jobExists)
                 return new SaveJobResponseDto
@@ -394,7 +395,7 @@ public class CandidateJobService : ICandidateJobService
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
             var activeJobs = await _context.JobPostings
-                .Where(j => j.JobStatus == "Active" && j.ApplicationDeadline >= today)
+                .Where(j => j.JobStatus == JobStatus.Active && j.ApplicationDeadline >= today)
                 .ToListAsync();
 
             return new JobFilterOptionsResponseDto
@@ -674,7 +675,7 @@ public class CandidateJobService : ICandidateJobService
                 var isConfidential = job.CompanyVisibility == "Confidential_Client";
                 var publishingTags = ParseJsonList(job.PublishingTags);
                 var isExpired = job.ApplicationDeadline < today;
-                var isActive = job.JobStatus == "Active" && !isExpired;
+                var isActive = job.JobStatus == JobStatus.Active && !isExpired;
 
                 applications.TryGetValue(job.JobId, out var application);
 
@@ -726,8 +727,8 @@ public class CandidateJobService : ICandidateJobService
 
                     // Application state (null = not yet applied)
                     ApplicationId = application?.ApplicationId,
-                    ApplicationStatus = application?.ApplicationStatus,
-                    StatusNote = BuildStatusNote(application?.ApplicationStatus, job.JobTitle)
+                    ApplicationStatus = application?.ApplicationStatus.ToString(),
+                    StatusNote = BuildStatusNote(application?.ApplicationStatus.ToString(), job.JobTitle)
                 };
             }).ToList();
 
@@ -768,7 +769,7 @@ public class CandidateJobService : ICandidateJobService
                 .Include(j => j.EmployerProfile)
                 .FirstOrDefaultAsync(j =>
                     j.JobId == jobId &&
-                    j.JobStatus == "Active" &&
+                    j.JobStatus == JobStatus.Active &&
                     j.ApplicationDeadline >= today);
 
             if (job == null)
@@ -823,7 +824,7 @@ public class CandidateJobService : ICandidateJobService
                 CandidateId = candidateId,
                 EmployerId = job.EmployerId,
                 AppliedAt = DateTime.UtcNow,
-                ApplicationStatus = "Applied",
+                ApplicationStatus = ApplicationStatus.Applied,
                 StatusUpdatedAt = DateTime.UtcNow,
                 PassportGatePassed = request.PassportGatePassed ?? true,
                 WithdrawalAllowed = true,
@@ -901,13 +902,13 @@ public class CandidateJobService : ICandidateJobService
                     State = job.OnshoreState,
                     EmploymentType = GetEmploymentTypeFromTags(publishingTags),
                     SalaryDisplay = FormatSalary(job),
-                    ApplicationStatus = a.ApplicationStatus,
+                    ApplicationStatus = a.ApplicationStatus.ToString(),
                     AppliedAt = a.AppliedAt,
                     AppliedTimeAgo = GetTimeAgo(a.AppliedAt),
                     StatusUpdatedAt = a.StatusUpdatedAt,
                     WithdrawalAllowed = a.WithdrawalAllowed &&
-                                       a.ApplicationStatus != "Hired" &&
-                                       a.ApplicationStatus != "Rejected"
+                                       a.ApplicationStatus.ToString() != "Hired" &&
+                                       a.ApplicationStatus.ToString() != "Rejected"
                 };
             }).ToList();
 
@@ -963,15 +964,15 @@ public class CandidateJobService : ICandidateJobService
                     Message = "This application cannot be withdrawn."
                 };
 
-            if (application.ApplicationStatus == "Hired" ||
-                application.ApplicationStatus == "Rejected")
+            if (application.ApplicationStatus.ToString() == "Hired" ||
+                application.ApplicationStatus.ToString() == "Rejected")
                 return new WithdrawApplicationResponseDto
                 {
                     Success = false,
                     Message = $"Cannot withdraw an application with status '{application.ApplicationStatus}'."
                 };
 
-            application.ApplicationStatus = "Withdrawn";
+            application.ApplicationStatus = ApplicationStatus.Withdrawn;
             application.StatusUpdatedAt = DateTime.UtcNow;
             application.WithdrawalAllowed = false;
 

@@ -752,7 +752,7 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public async Task<List<CvDownloadHistoryDto>>GetCvDownloadHistoryAsync(Guid employerId)
         {
-            return await _context.CandidateCvDownload
+            return await _context.CandidateCvDownloads
                 .Where(x =>
                     x.EmployerId == employerId)
                 .OrderByDescending(x =>
@@ -1307,7 +1307,7 @@ namespace JobPortal.Services.Implement.Recruiter
                         DateTime.UtcNow
                 };
 
-            await _context.CandidateCvDownload
+            await _context.CandidateCvDownloads
                 .AddAsync(download);
         }
     }

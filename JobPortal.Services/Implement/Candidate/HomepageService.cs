@@ -65,7 +65,7 @@ public class HomepageService : IHomepageService
         {
             var activeJobs = await _context.JobPostings
                 .Include(j => j.EmployerProfile)
-                .Where(j => j.JobStatus == "Active")
+                .Where(j => j.JobStatus.ToString() == "Active")
                 .Select(j => new
                 {
                     j.JobId,

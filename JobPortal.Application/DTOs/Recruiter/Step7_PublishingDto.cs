@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-
+using JobPortal.Domain.Enums.RecruiterEnums;
 namespace JobPortal.Application.DTOs.JobPosting;
 
 public class PublishingRequestDto
@@ -12,6 +12,8 @@ public class PublishingRequestDto
 
     public CompanyVisibility? CompanyVisibility { get; set; }
 
+    public JobPortal.Domain.Enums.RecruiterEnums.JobType? JobType { get; set; }
+      = JobPortal.Domain.Enums.RecruiterEnums.JobType.Normal;
     /// <summary>
     /// Hot Job, Urgent Hiring, Premium Listing — optional tags
     /// </summary>

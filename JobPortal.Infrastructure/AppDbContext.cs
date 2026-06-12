@@ -26,7 +26,7 @@ public class AppDbContext : DbContext
     public DbSet<UserSession> UserSessions { get; set; }
     public DbSet<EmployerPreference> EmployerPreferences { get; set; }
 
-    public DbSet<CandidateCvDownload> CandidateCvDownload { get; set; }
+    public DbSet<CandidateCvDownload> CandidateCvDownloads { get; set; }
 
     public DbSet<CreditConfiguration> CreditConfigurations { get; set; }
 
@@ -760,8 +760,6 @@ public class AppDbContext : DbContext
             .HasConversion<string>();
         });
 
-
-
         m.Entity<EmployerSubUser>(e =>
         {
             e.ToTable("employer_sub_users");
@@ -871,6 +869,13 @@ public class AppDbContext : DbContext
             e.Property(x => x.SalaryMax)
              .HasColumnName("salary_max");
 
+            e.Property(x => x.JobStatus)
+             .HasColumnName("job_status")
+             .HasConversion<string>();
+
+            e.Property(x => x.JobType)
+                .HasColumnName("job_type")
+                .HasConversion<string>();
             // ✅ string properties — no HasDefaultValue needed
             // defaults are set on the entity itself
             e.Property(x => x.SalaryCurrency)
@@ -942,9 +947,6 @@ public class AppDbContext : DbContext
 
             e.Property(x => x.AppliedCount)
              .HasColumnName("applied_count");
-
-            e.Property(x => x.JobStatus)
-             .HasColumnName("job_status");
 
             e.Property(x => x.PublishedAt)
              .HasColumnName("published_at");

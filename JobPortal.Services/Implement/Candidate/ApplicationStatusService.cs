@@ -55,16 +55,16 @@ public class ApplicationStatusService : IApplicationStatusService
                     TradeCategory = job.TradeCategory,
                     EmploymentType = GetEmploymentType(job),
                     Tags = ParseJsonList(job.PublishingTags),
-                    ApplicationStatus = a.ApplicationStatus,
-                    StageLabel = GetStageLabel(a.ApplicationStatus),
-                    StatusNote = GetStatusNote(a.ApplicationStatus, job.JobTitle),
+                    ApplicationStatus = a.ApplicationStatus.ToString(),
+                    StageLabel = GetStageLabel(a.ApplicationStatus.ToString()),
+                    StatusNote = GetStatusNote(a.ApplicationStatus.ToString(), job.JobTitle),
                     AppliedAt = a.AppliedAt,
                     AppliedAtDisplay = $"Applied: {a.AppliedAt:dd MMM yyyy}",
                     StatusUpdatedAt = a.StatusUpdatedAt,
                     StatusUpdatedAtDisplay = $"Updated: {a.StatusUpdatedAt:dd MMM yyyy}",
                     WithdrawalAllowed = a.WithdrawalAllowed &&
-                                       a.ApplicationStatus != "Hired" &&
-                                       a.ApplicationStatus != "Rejected",
+                                       a.ApplicationStatus.ToString() != "Hired" &&
+                                       a.ApplicationStatus.ToString() != "Rejected",
                     RecruiterNote = latestNote == null ? null : new RecruiterNoteDto
                     {
                         RecruiterNoteId = latestNote.RecruiterNoteId,
