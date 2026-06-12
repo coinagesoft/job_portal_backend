@@ -52,7 +52,11 @@ public class CandidateDocumentController : ControllerBase
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
         var result = await _docService.GetAllDocumentsAsync(id);
-        return result.Success ? Ok(result) : BadRequest(result);
+        if (result.Success) return Ok(result);
+
+        return result.Message == "Candidate profile not found."
+            ? NotFound(result)
+            : BadRequest(result);
     }
 
     // ════════════════════════════════════════════════
@@ -175,10 +179,8 @@ public class CandidateDocumentController : ControllerBase
     [ProducesResponseType(typeof(UploadPassportResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadPassport(
-        [FromForm] UploadPassportRequestDto request,
-        IFormFile frontImage,
-        IFormFile? backImage = null,
-        [FromQuery] Guid? candidateId = null)
+         [FromForm] UploadPassportRequestDto request,
+         [FromQuery] Guid? candidateId = null)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
@@ -187,7 +189,7 @@ public class CandidateDocumentController : ControllerBase
         if (id == Guid.Empty)
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
-        var result = await _docService.UploadPassportAsync(id, request, frontImage, backImage);
+        var result = await _docService.UploadPassportAsync(id, request, request.FrontImage, request.BackImage);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -221,8 +223,6 @@ public class CandidateDocumentController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadAadhaar(
         [FromForm] UploadAadhaarRequestDto request,
-        IFormFile frontImage,
-        IFormFile? backImage = null,
         [FromQuery] Guid? candidateId = null)
     {
         if (!ModelState.IsValid)
@@ -232,7 +232,7 @@ public class CandidateDocumentController : ControllerBase
         if (id == Guid.Empty)
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
-        var result = await _docService.UploadAadhaarAsync(id, request, frontImage, backImage);
+        var result = await _docService.UploadAadhaarAsync(id, request, request.FrontImage, request.BackImage);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 

@@ -21,9 +21,30 @@ public interface ICandidateSettingsService
     Task<CandidateNotificationResponseDto> ResetNotificationsAsync(Guid candidateId);
 
     // ── Help & Support ───────────────────────────────────────────────
-    Task<CreateSupportTicketResponseDto> CreateTicketAsync(
-        Guid candidateId, CreateSupportTicketRequestDto request);
-    Task<SupportTicketListResponseDto> GetTicketsAsync(Guid candidateId);
-    Task<SupportTicketDetailResponseDto> GetTicketByIdAsync(
-        Guid candidateId, Guid ticketId);
+
+    Task<CandidateCreateTicketResponseDto> CreateTicketAsync(
+        Guid candidateId,
+        CandidateCreateTicketRequestDto request);
+
+    Task<CandidateTicketListResponseDto> GetTicketsAsync(
+        Guid candidateId);
+
+    Task<CandidateTicketDetailResponseDto> GetTicketByIdAsync(
+        Guid candidateId,
+        Guid ticketId);
+
+    Task<CandidateTicketThreadResponseDto?> GetTicketThreadAsync(
+        Guid candidateId,
+        Guid ticketId);
+
+    Task<CandidateAddReplyResponseDto> AddReplyAsync(
+        Guid candidateId,
+        Guid ticketId,
+        CandidateAddReplyRequestDto request);
+
+    Task<bool> ResolveTicketAsync(
+        Guid ticketId);
+
+    Task<CandidateTicketSummaryDto> GetSummaryAsync(
+        Guid candidateId);
 }

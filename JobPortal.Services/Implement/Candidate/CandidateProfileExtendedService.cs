@@ -248,22 +248,22 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
                 .AnyAsync(p => p.CandidateId == candidateId);
             if (!exists)
                 return EduListFail("Candidate profile not found.");
-
             var entries = await _context.CandidateEducations
-                .Where(e => e.CandidateId == candidateId)
-                .OrderByDescending(e => e.PassoutYear)
-                .Select(e => new EducationItemDto
-                {
-                    EducationId = e.EducationId,
-                    QualificationDegree = e.EducationLevel,
-                    InstituteName = e.InstituteName,
-                    YearDetails = e.YearDetails,
+                            .Where(e => e.CandidateId == candidateId)
+                            .OrderByDescending(e => e.PassoutYear)
+                            .Select(e => new EducationItemDto
+                            {
+                                EducationId = e.EducationId,
+                                QualificationDegree = e.EducationLevel,
+                                InstituteName = e.InstituteName,
+                                YearDetails = e.YearDetails,
 
-                    CertificateUrl = e.CertificateUrl,
+                                CertificateUrl = e.CertificateUrl,
+                                CertificateNumber = e.CertificateNumber,
 
-                    IsAiVerified = e.IsAiVerified
-                })
-                .ToListAsync();
+                                IsAiVerified = e.IsAiVerified
+                            })
+                            .ToListAsync();
 
             return new EducationListResponseDto
             {
@@ -299,6 +299,7 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
                 YearDetails = request.YearDetails,
                 IsAiVerified = request.IsAiVerified,
                 PassoutYear = request.PassoutYear,
+                CertificateNumber = request.CertificateNumber,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -344,7 +345,7 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             entry.YearDetails = request.YearDetails;
             entry.IsAiVerified = request.IsAiVerified;
             entry.PassoutYear = request.PassoutYear;
-
+            entry.CertificateNumber = request.CertificateNumber;
             profile.ProfileCompletionPct = CalculateCompletionPct(profile);
             profile.UpdatedAt = DateTime.UtcNow;
 

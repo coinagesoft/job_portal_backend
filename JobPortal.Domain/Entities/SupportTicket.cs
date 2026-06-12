@@ -20,6 +20,7 @@ public class SupportTicket
     public string? ResolutionNote { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
     public ICollection<SupportTicketReply> Replies { get; set; }
        = new List<SupportTicketReply>();
     public User RaisedByUser { get; set; } = default!;

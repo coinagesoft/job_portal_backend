@@ -448,6 +448,10 @@ public class AppDbContext : DbContext
             e.Property(x => x.IsAiVerified)
                 .HasColumnName("is_ai_verified")
                 .HasDefaultValue(false);
+
+            e.Property(x => x.CertificateNumber)
+                .HasColumnName("certificate_number")
+                .HasMaxLength(100);
         });
 
         m.Entity<CandidateWorkHistory>(e => {

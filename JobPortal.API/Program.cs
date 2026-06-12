@@ -94,6 +94,8 @@ builder.Services.AddScoped<IRecruiterSettingsService, RecruiterSettingsService>(
 builder.Services.AddScoped<IRecruiterCandidateProfileService,RecruiterCandidateProfileService>();
 builder.Services.AddScoped<IRecruiterJobListingService, RecruiterJobListingService>();
 builder.Services.AddScoped<IRecruiterApplicantService, RecruiterApplicantService>();
+builder.Services.AddScoped<ICandidateNotificationService, CandidateNotificationService>();
+
 
 
 
