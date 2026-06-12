@@ -1,4 +1,5 @@
-﻿using JobPortal.Services.IImplement.ICandidate;
+﻿using JobPortal.Application.DTOs.Recruiter.Notification;
+using JobPortal.Services.IImplement.ICandidate;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Candidate;
@@ -15,38 +16,90 @@ public class CandidateNotificationController : ControllerBase
         _service = service;
     }
 
+    /// <summary>
+    /// Get Notifications  (filter = "all" | "unread")
+    /// </summary>
     [HttpGet("notifications/{candidateId:guid}")]
     public async Task<IActionResult> GetNotifications(
         Guid candidateId,
         [FromQuery] string filter = "all")
     {
-        var result =
-            await _service.GetNotificationsAsync(
+        var result = await _service
+            .GetNotificationsAsync(
                 candidateId,
                 filter);
 
         return Ok(result);
     }
 
+    /// <summary>
+    /// Mark Single Notification As Read
+    /// </summary>
     [HttpPatch("notifications/{notificationId:guid}/read")]
     public async Task<IActionResult> MarkAsRead(
         Guid notificationId)
     {
-        var result =
-            await _service.MarkNotificationAsReadAsync(
+        var result = await _service
+            .MarkNotificationAsReadAsync(
                 notificationId);
+
+        if (!result)
+            return NotFound();
+
+        return Ok();
+    }
+
+    /// <summary>
+    /// Mark All Notifications As Read
+    /// </summary>
+    [HttpPatch("notifications/{candidateId:guid}/read-all")]
+    public async Task<IActionResult> MarkAllAsRead(
+        Guid candidateId)
+    {
+        await _service
+            .MarkAllNotificationsAsReadAsync(
+                candidateId);
+
+        return Ok();
+    }
+
+    /// <summary>
+    /// Get Notification Settings
+    /// </summary>
+    [HttpGet("notification-settings/{candidateId:guid}")]
+    public async Task<IActionResult> GetSettings(
+        Guid candidateId)
+    {
+        var result = await _service
+            .GetNotificationSettingsAsync(
+                candidateId);
+
+        if (result == null)
+            return NotFound();
 
         return Ok(result);
     }
 
-    [HttpPatch("notifications/{candidateId:guid}/read-all")]
-    public async Task<IActionResult> MarkAllRead(
-        Guid candidateId)
+    /// <summary>
+    /// Update Notification Settings
+    /// </summary>
+    [HttpPatch("notification-settings/{candidateId:guid}")]
+    public async Task<IActionResult> UpdateSettings(
+        Guid candidateId,
+        [FromBody] UpdateNotificationSettingsDto request)
     {
-        var result =
-            await _service.MarkAllNotificationsAsReadAsync(
-                candidateId);
+        var result = await _service
+            .UpdateNotificationSettingsAsync(
+                candidateId,
+                request);
 
-        return Ok(result);
+        if (!result)
+            return NotFound();
+
+        return Ok(new
+        {
+            Success = true,
+            Message = "Notification settings updated successfully."
+        });
     }
 }

@@ -82,7 +82,7 @@ public class CandidateNotificationData
     public bool DocumentReminders { get; set; }
     public bool OffersAnnouncements { get; set; }
     public int EnabledCount { get; set; }   // how many toggles are ON
-    public int TotalCount { get; set; }   // always 5
+    public int TotalCount { get; set; }     // always 5
 }
 
 public class UpdateCandidateNotificationRequestDto
@@ -97,12 +97,15 @@ public class UpdateCandidateNotificationRequestDto
 
 // ═══════════════════════════════════════════════════════════════
 // SECTION 3 — HELP & SUPPORT
-// POST /api/candidate/settings/support/tickets
-// GET  /api/candidate/settings/support/tickets
-// GET  /api/candidate/settings/support/tickets/{ticketId}
+// POST   /api/candidate/settings/support/tickets/{candidateId}
+// GET    /api/candidate/settings/support/tickets/{candidateId}
+// GET    /api/candidate/settings/support/thread/{ticketId}
+// POST   /api/candidate/settings/support/tickets/{ticketId}/reply/{candidateId}
+// PATCH  /api/candidate/settings/support/tickets/{ticketId}/resolve
+// GET    /api/candidate/settings/support/{candidateId}/summary
 // ═══════════════════════════════════════════════════════════════
 
-public class CreateSupportTicketRequestDto
+public class CandidateCreateTicketRequestDto
 {
     [Required, MaxLength(200)]
     public string Subject { get; set; } = string.Empty;
@@ -116,29 +119,29 @@ public class CreateSupportTicketRequestDto
     public string Description { get; set; } = string.Empty;
 }
 
-public class CreateSupportTicketResponseDto
+public class CandidateCreateTicketResponseDto
 {
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
-    public SupportTicketItemDto? Data { get; set; }
+    public Guid TicketId { get; set; }
 }
 
-public class SupportTicketListResponseDto
+public class CandidateTicketListResponseDto
 {
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
     public int TotalTickets { get; set; }
-    public List<SupportTicketItemDto> Tickets { get; set; } = new();
+    public List<CandidateTicketItemDto> Tickets { get; set; } = new();
 }
 
-public class SupportTicketDetailResponseDto
+public class CandidateTicketDetailResponseDto
 {
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
-    public SupportTicketItemDto? Data { get; set; }
+    public CandidateTicketItemDto? Data { get; set; }
 }
 
-public class SupportTicketItemDto
+public class CandidateTicketItemDto
 {
     public Guid TicketId { get; set; }
     public string Subject { get; set; } = string.Empty;
@@ -149,4 +152,49 @@ public class SupportTicketItemDto
     public string? ResolutionNote { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
+}
+
+public class CandidateTicketThreadResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public Guid TicketId { get; set; }
+    public string Subject { get; set; } = string.Empty;
+    public SupportTicketType Category { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string Priority { get; set; } = string.Empty;
+    public string? ResolutionNote { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    public List<CandidateTicketReplyDto> Replies { get; set; } = new();
+}
+
+public class CandidateTicketReplyDto
+{
+    public Guid ReplyId { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public string SenderType { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+}
+
+public class CandidateAddReplyRequestDto
+
+{
+    [Required, MaxLength(2000)]
+    public string Message { get; set; } = string.Empty;
+}
+
+public class CandidateAddReplyResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+}
+
+public class CandidateTicketSummaryDto
+{
+    public int TotalTickets { get; set; }
+    public int Open { get; set; }
+    public int InProgress { get; set; }
+    public int Resolved { get; set; }
 }
