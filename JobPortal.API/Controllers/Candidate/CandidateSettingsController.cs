@@ -4,6 +4,7 @@
 // ============================================================
 
 using JobPortal.Application.DTOs.Candidate.Settings;
+using JobPortal.Application.DTOs.Recruiter.SupportTicket;
 using JobPortal.Services.IImplement.ICandidate;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -196,7 +197,40 @@ public class CandidateSettingsController : ControllerBase
         var result = await _service.GetTicketsAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
+    [HttpGet("support/tickets/{ticketId:guid}/thread")]
+    public async Task<IActionResult> GetTicketThread(
+    Guid ticketId,
+    [FromQuery] Guid candidateId)
+    {
+        var result = await _settingsService.GetTicketThreadAsync(
+            candidateId,
+            ticketId);
 
+        return Ok(result);
+    }
+
+    [HttpPost("support/tickets/{ticketId:guid}/reply")]
+    public async Task<IActionResult> AddReply(
+        Guid ticketId,
+        [FromQuery] Guid candidateId,
+        [FromBody] AddTicketReplyRequestDto request)
+    {
+        var result = await _settingsService.AddReplyAsync(
+            candidateId,
+            ticketId,
+            request);
+
+        return Ok(result);
+    }
+
+    [HttpGet("support/summary")]
+    public async Task<IActionResult> GetSummary(
+        [FromQuery] Guid candidateId)
+    {
+        var result = await _settingsService.GetSummaryAsync(candidateId);
+
+        return Ok(result);
+    }
     /// <summary>
     /// Returns a single support ticket by ticketId (must belong to the authenticated candidate).
     /// </summary>
@@ -215,4 +249,15 @@ public class CandidateSettingsController : ControllerBase
         var result = await _service.GetTicketByIdAsync(id, ticketId);
         return result.Success ? Ok(result) : NotFound(result);
     }
+    // GET /api/candidate/settings/support/tickets/{ticketId}/thread
+    [HttpGet("support/tickets/{ticketId:guid}/thread")]
+    public async Task<IActionResult> GetTicketThread(Guid ticketId, [FromQuery] Guid? candidateId = null)
+
+// POST /api/candidate/settings/support/tickets/{ticketId}/reply
+[HttpPost("support/tickets/{ticketId:guid}/reply")]
+    public async Task<IActionResult> AddReply(Guid ticketId, [FromBody] AddTicketReplyRequestDto request, [FromQuery] Guid? candidateId = null)
+
+// GET /api/candidate/settings/support/summary
+[HttpGet("support/summary")]
+    public async Task<IActionResult> GetSummary([FromQuery] Guid? candidateId = null)
 }

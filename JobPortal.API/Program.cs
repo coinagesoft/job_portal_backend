@@ -91,7 +91,7 @@ builder.Services.AddScoped<IHomepageService, HomepageService>();
 builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 builder.Services.AddScoped<INotificationService, NotificationService>(); 
 builder.Services.AddScoped<IRecruiterSettingsService, RecruiterSettingsService>();
-
+builder.Services.AddScoped<ICandidateNotificationService, CandidateNotificationService>();
 
 
 

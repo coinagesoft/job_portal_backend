@@ -4,6 +4,8 @@
 // ============================================================
 
 using JobPortal.Application.DTOs.Candidate.Settings;
+using RecruiterSupportTicketDtos =
+    JobPortal.Application.DTOs.Recruiter.SupportTicket;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
@@ -71,7 +73,102 @@ public class CandidateSettingsService : ICandidateSettingsService
             return PrefFail("An error occurred while retrieving preferences.");
         }
     }
+    public async Task<AddTicketReplyResponseDto> AddReplyAsync(
+      Guid candidateId,
+      Guid ticketId,
+      AddTicketReplyRequestDto request)
+    {
+        try
+        {
+            var profile = await _context.CandidateProfiles
+                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
 
+            if (profile == null)
+                return new AddTicketReplyResponseDto
+                {
+                    Success = false,
+                    Message = "Candidate profile not found."
+                };
+
+            var ticket = await _context.SupportTickets
+                .FirstOrDefaultAsync(t =>
+                    t.TicketId == ticketId &&
+                    t.RaisedBy == profile.UserId);
+
+            if (ticket == null)
+                return new AddTicketReplyResponseDto
+                {
+                    Success = false,
+                    Message = "Candidate profile not found."
+                };
+
+            var reply = new SupportTicketReply
+            {
+                ReplyId = Guid.NewGuid(),
+                TicketId = ticketId,
+                SenderId = profile.UserId,
+                SenderType = ReplySenderType.Candidate,
+                Message = request.Message,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.SupportTicketReplies.Add(reply);
+
+            ticket.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return new AddTicketReplyResponseDto
+            {
+                Success = true,
+                Message = "Reply added successfully."
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "AddReplyAsync error for candidateId={Id}, ticketId={TicketId}",
+                candidateId,
+                ticketId);
+
+            return new AddTicketReplyResponseDto
+            {
+                Success = false,
+                Message = "Candidate profile not found."
+            };
+        }
+    }
+    public async Task<SupportTicketSummaryDto> GetSummaryAsync(Guid candidateId)
+    {
+        try
+        {
+            var profile = await _context.CandidateProfiles
+                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
+
+            if (profile == null)
+                return new SupportTicketSummaryDto();
+
+            var tickets = await _context.SupportTickets
+                .Where(x => x.RaisedBy == profile.UserId)
+                .ToListAsync();
+
+            return new SupportTicketSummaryDto
+            {
+                TotalTickets = tickets.Count,
+                Open = tickets.Count(x => x.Status == "Open"),
+                InProgress = tickets.Count(x => x.Status == "In Progress"),
+                Resolved = tickets.Count(x => x.Status == "Resolved")
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "GetSummaryAsync error for candidateId={Id}",
+                candidateId);
+
+            return new SupportTicketSummaryDto();
+        }
+    }
     public async Task<UpdateCandidatePreferenceResponseDto> UpdatePreferencesAsync(
         Guid candidateId, UpdateCandidatePreferenceRequestDto request)
     {
@@ -398,7 +495,57 @@ public class CandidateSettingsService : ICandidateSettingsService
             PlanName = "Candidate"
         };
     }
+    public async Task<SupportTicketThreadResponseDto> GetTicketThreadAsync(
+    Guid candidateId,
+    Guid ticketId)
+    {
+        try
+        {
+            var profile = await _context.CandidateProfiles
+                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
 
+            if (profile == null)
+                return null;
+
+            var ticket = await _context.SupportTickets
+                .FirstOrDefaultAsync(t =>
+                    t.TicketId == ticketId &&
+                    t.RaisedBy == profile.UserId);
+
+            if (ticket == null)
+                return null;
+
+            var replies = await _context.SupportTicketReplies
+                .Where(x => x.TicketId == ticketId)
+                .OrderBy(x => x.CreatedAt)
+                .Select(x => new TicketReplyDto
+                {
+                    ReplyId = x.ReplyId,
+                    SenderId = x.SenderId,
+                    Message = x.Message,
+                    CreatedAt = x.CreatedAt,
+                    SenderType = x.SenderType.ToString()
+                })
+                .ToListAsync();
+
+            return new SupportTicketThreadResponseDto
+            {
+                Success = true,
+                Message = "Thread retrieved successfully.",
+                Ticket = MapToTicketDto(ticket),
+                Replies = replies
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "GetTicketThreadAsync error for candidateId={Id}, ticketId={TicketId}",
+                candidateId,
+                ticketId);
+
+            return null;
+        }
+    }
     private static CandidateNotificationData MapToNotifData(
         Guid candidateId, CandidateNotificationSetting notif)
     {

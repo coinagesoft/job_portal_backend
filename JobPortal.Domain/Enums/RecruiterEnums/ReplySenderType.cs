@@ -9,6 +9,7 @@ namespace JobPortal.Domain.Enums.RecruiterEnums
     public enum ReplySenderType
     {
         Employer = 1,
-        Admin = 2
+        Candidate = 2,
+        Admin = 3
     }
 }
