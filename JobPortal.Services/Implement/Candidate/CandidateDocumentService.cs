@@ -200,7 +200,6 @@ public class CandidateDocumentService : ICandidateDocumentService
             var fileName = $"education/{candidateId}/cert_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
             var fileUrl  = $"{_configuration["Storage:BaseUrl"]}/{fileName}";
             // ─────────────────────────────────────────────────────────────
-
             var edu = new CandidateEducation
             {
                 EducationId = Guid.NewGuid(),
@@ -210,9 +209,9 @@ public class CandidateDocumentService : ICandidateDocumentService
                 YearDetails = request.MarksPercentage,
                 PassoutYear = request.PassoutYear,
                 CertificateUrl = fileUrl,
+                CertificateNumber = request.CertificateNumber,
                 CreatedAt = DateTime.UtcNow
             };
-
             _context.CandidateEducations.Add(edu);
 
             // Update completion %
@@ -549,6 +548,7 @@ public class CandidateDocumentService : ICandidateDocumentService
         MarksPercentage = e.YearDetails,
         PassoutYear = e.PassoutYear,
         CertificateUrl = e.CertificateUrl,
+        CertificateNumber = e.CertificateNumber,
         VerificationStatus = "Pending",
         CreatedAt = e.CreatedAt
     };

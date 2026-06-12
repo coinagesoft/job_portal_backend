@@ -142,6 +142,7 @@ public class EducationItemDto
     /// <summary>Free-text year/details, e.g. "Passed: 2014 | Cert No: ITI/2014/PUN/7823"</summary>
     public string? YearDetails { get; set; }                      // rendered from PassoutYear + MarksPercentage
     public string? CertificateUrl { get; set; }
+    public string? CertificateNumber { get; set; }
     /// <summary>True when the certificate has been AI-verified (AI Verified badge).</summary>
     public bool IsAiVerified { get; set; }
 }
@@ -173,6 +174,10 @@ public class AddEducationRequestDto
     public string? YearDetails { get; set; }
     public bool IsAiVerified { get; set; }
     public short? PassoutYear { get; set; }
+
+    /// <summary>Certificate / Roll number printed on the certificate, e.g. "ITI/2014/PUN/7823"</summary>
+    [MaxLength(100)]
+    public string? CertificateNumber { get; set; }
 }
 
 /// <summary>
@@ -191,6 +196,10 @@ public class UpdateEducationRequestDto
     public string? YearDetails { get; set; }
     public bool IsAiVerified { get; set; }
     public short? PassoutYear { get; set; }
+
+    /// <summary>Certificate / Roll number printed on the certificate, e.g. "ITI/2014/PUN/7823"</summary>
+    [MaxLength(100)]
+    public string? CertificateNumber { get; set; }
 }
 
 /// <summary>

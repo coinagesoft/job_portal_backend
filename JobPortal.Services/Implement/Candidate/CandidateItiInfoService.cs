@@ -1,10 +1,10 @@
-﻿
-// ============================================================
+﻿// ============================================================
 //  JobPortal.Services/Implement/Candidate/
 //  CandidateItiInfoService.cs
 // ============================================================
 
 using JobPortal.Application.DTOs.Candidate.Missing;
+using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.ICandidate;
 using Microsoft.EntityFrameworkCore;
@@ -88,7 +88,7 @@ public class CandidateItiInfoService : ICandidateItiInfoService
     /// <summary>
     /// Simple stepped completion score.  Adjust weights to match your product spec.
     /// </summary>
-    private static byte RecalculatePct(dynamic p)
+    private static byte RecalculatePct(CandidateProfile p)
     {
         int score = 0;
         if (!string.IsNullOrEmpty(p.FullName)) score += 15;
@@ -104,7 +104,7 @@ public class CandidateItiInfoService : ICandidateItiInfoService
         return (byte)Math.Min(score, 80);
     }
 
-    private static ItiInfoData MapItiData(dynamic p) => new()
+    private static ItiInfoData MapItiData(CandidateProfile p) => new()
     {
         CandidateId = p.CandidateId,
         PrimaryTrade = p.PrimaryTrade ?? string.Empty,
@@ -115,7 +115,7 @@ public class CandidateItiInfoService : ICandidateItiInfoService
         ProfileCompletionPct = p.ProfileCompletionPct
     };
 
-    private static ItiInfoResponseDto ItiOk(dynamic p, string msg) => new()
+    private static ItiInfoResponseDto ItiOk(CandidateProfile p, string msg) => new()
     {
         Success = true,
         Message = msg,
