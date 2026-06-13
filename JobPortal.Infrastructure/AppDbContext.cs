@@ -45,7 +45,7 @@ public class AppDbContext : DbContext
 
     // Section 3 — KYC
     public DbSet<KycVerification> KycVerifications => Set<KycVerification>();
-    public DbSet<PassportVerification> PassportVerifications => Set<PassportVerification>();
+    public DbSet<PassportVerification> PassportVerifications { get; set; }
     public DbSet<ItiCertificateReview> ItiCertificateReviews => Set<ItiCertificateReview>();
 
     // Section 4 — Employer
@@ -987,19 +987,41 @@ public class AppDbContext : DbContext
              .OnDelete(DeleteBehavior.SetNull);
         });
 
-        m.Entity<JobApplication>(e => {
+        m.Entity<JobApplication>(e =>
+        {
             e.ToTable("job_applications");
+
             e.HasKey(x => x.ApplicationId);
-            e.HasIndex(x => new { x.JobId, x.CandidateId }).IsUnique();
+
+            e.HasIndex(x => new { x.JobId, x.CandidateId })
+                .IsUnique();
+
+            e.Property(x => x.ApplicationStatus)
+                .HasConversion<string>();
+
+            e.Property(x => x.IsShortlisted)
+                .HasColumnName("is_shortlisted");
+
+            e.Property(x => x.ShortlistedAt)
+                .HasColumnName("shortlisted_at");
+
+            e.Property(x => x.InterviewScheduledAt)
+                .HasColumnName("interview_scheduled_at");
+
+            e.Property(x => x.RejectedAt)
+                .HasColumnName("rejected_at");
+
             e.HasOne(x => x.JobPosting)
-             .WithMany(x => x.Applications)
-             .HasForeignKey(x => x.JobId);
+                .WithMany(x => x.Applications)
+                .HasForeignKey(x => x.JobId);
+
             e.HasOne(x => x.CandidateProfile)
-             .WithMany()
-             .HasForeignKey(x => x.CandidateId);
+                .WithMany()
+                .HasForeignKey(x => x.CandidateId);
+
             e.HasOne(x => x.EmployerProfile)
-             .WithMany()
-             .HasForeignKey(x => x.EmployerId);
+                .WithMany()
+                .HasForeignKey(x => x.EmployerId);
         });
 
         m.Entity<SavedJob>(e => {

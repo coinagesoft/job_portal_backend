@@ -67,7 +67,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 .FirstOrDefaultAsync();
 
             // Passport
-            var passport = await _context.Set<PassportVerification>()
+            var passport = await _context.PassportVerifications
                 .Where(p => p.CandidateId == candidateId)
                 .OrderByDescending(p => p.CreatedAt)
                 .FirstOrDefaultAsync();
@@ -88,7 +88,8 @@ public class CandidateDocumentService : ICandidateDocumentService
         catch (Exception ex)
         {
             _logger.LogError(ex, "GetAllDocumentsAsync failed for {CandidateId}", candidateId);
-            return DocsFail("Internal server error.");
+
+            return DocsFail(ex.Message);
         }
     }
 

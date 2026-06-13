@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260612112149_applicants")]
-    partial class applicants
+    [Migration("20260613105142_passportverification")]
+    partial class passportverification
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -260,6 +260,11 @@ namespace JobPortal.Infrastructure.Migrations
 
                     b.Property<Guid>("CandidateId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("CertificateNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("certificate_number");
 
                     b.Property<string>("CertificateUrl")
                         .HasColumnType("text");
@@ -1630,8 +1635,9 @@ namespace JobPortal.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("ApplicationStatus")
-                        .HasColumnType("integer");
+                    b.Property<string>("ApplicationStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("AppliedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1646,10 +1652,12 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("InterviewScheduledAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("interview_scheduled_at");
 
                     b.Property<bool>("IsShortlisted")
-                        .HasColumnType("boolean");
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_shortlisted");
 
                     b.Property<Guid>("JobId")
                         .HasColumnType("uuid");
@@ -1658,13 +1666,15 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<DateTime?>("RejectedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rejected_at");
 
                     b.Property<bool>("RejectionAutoNotify")
                         .HasColumnType("boolean");
 
                     b.Property<DateTime?>("ShortlistedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("shortlisted_at");
 
                     b.Property<Guid?>("StatusChangedBy")
                         .HasColumnType("uuid");
@@ -2609,6 +2619,9 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("TicketType")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("TicketId");
 

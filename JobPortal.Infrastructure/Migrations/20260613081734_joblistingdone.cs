@@ -5,7 +5,7 @@
 namespace JobPortal.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class jobListing : Migration
+    public partial class joblistingdone : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

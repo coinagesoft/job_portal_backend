@@ -4,13 +4,11 @@ using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.ICandidate;
-
 using JobPortal.Services.IImplement.IPublic;
 using JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Services.Implement;
 using JobPortal.Services.Implement.Admin;
 using JobPortal.Services.Implement.Candidate;
-
 using JobPortal.Services.Implement.Public;
 using JobPortal.Services.Implement.Recruiter;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -96,7 +94,7 @@ builder.Services.AddScoped<IRecruiterJobListingService, RecruiterJobListingServi
 builder.Services.AddScoped<IRecruiterApplicantService, RecruiterApplicantService>();
 builder.Services.AddScoped<ICandidateNotificationService, CandidateNotificationService>();
 
-
+builder.Services.AddScoped<IRecruiterCvSearchService,RecruiterCvSearchService>();
 
 
 builder.Services.AddScoped<IHomepageService, HomepageService>();
