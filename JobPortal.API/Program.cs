@@ -78,8 +78,10 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICandidateAuthService, CandidateAuthService>();
 builder.Services.AddScoped<ICandidateProfileService, CandidateProfileService>();
 builder.Services.AddScoped<IRecruiterInvoiceService, RecruiterInvoiceService>();
-builder.Services.AddScoped<ICompanyProfileService, CompanyProfileService>();
+builder.Services.AddScoped<ICompanyProfileService, CompanyProfileService>(); 
 builder.Services.AddScoped<IVerificationService, VerificationService>();
+builder.Services.AddScoped<ICandidateJobService, CandidateJobService>();
+
 builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExtendedService>();
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
