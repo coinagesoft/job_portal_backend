@@ -18,7 +18,7 @@ namespace JobPortal.Infrastructure.Migrations
                 nullable: true);
         }
 
-        /// <inheritdoc />
+        /// <inheritdc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
