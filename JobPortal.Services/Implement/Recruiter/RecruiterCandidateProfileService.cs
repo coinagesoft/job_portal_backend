@@ -278,8 +278,8 @@ namespace JobPortal.Services.Implement.Recruiter
             return response;
         }
 
-        public async Task<CandidateUnlockStatusResponseDto>
-            GetUnlockStatusAsync(
+
+        public async Task<CandidateUnlockStatusResponseDto> GetUnlockStatusAsync(
                 Guid employerId,
                 Guid candidateId)
         {
@@ -311,5 +311,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 CvDownloadAllowed = true
             };
         }
+  
+    
     }
 }

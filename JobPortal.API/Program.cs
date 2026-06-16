@@ -81,7 +81,7 @@ builder.Services.AddScoped<IRecruiterInvoiceService, RecruiterInvoiceService>();
 builder.Services.AddScoped<ICompanyProfileService, CompanyProfileService>(); 
 builder.Services.AddScoped<IVerificationService, VerificationService>();
 builder.Services.AddScoped<ICandidateJobService, CandidateJobService>();
-
+builder.Services.AddScoped<ITwilioOtpService,TwilioOtpService>();
 builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExtendedService>();
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
@@ -134,6 +134,19 @@ builder.Services.AddControllers()
             .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()
+            .WithOrigins(
+                "http://localhost:3000",
+                "https://localhost:3000");
+    });
+});
 
 var app = builder.Build();
 
@@ -144,6 +157,10 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+
+app.UseCors("Frontend");
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 

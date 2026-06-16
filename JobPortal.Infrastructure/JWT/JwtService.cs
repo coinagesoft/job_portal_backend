@@ -80,14 +80,20 @@ namespace JobPortal.Infrastructure.JWT
 
 
         public string GenerateToken(
-    Guid userId,
-    string role,
-    string? mobileNumber = null)
+       Guid userId,
+       string role,
+       string? mobileNumber = null,
+       Guid? employerId = null)
         {
             var claims = new List<Claim>
     {
-        new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
-        new Claim(ClaimTypes.Role, role)
+        new Claim(
+            ClaimTypes.NameIdentifier,
+            userId.ToString()),
+
+        new Claim(
+            ClaimTypes.Role,
+            role)
     };
 
             if (!string.IsNullOrWhiteSpace(mobileNumber))
@@ -95,14 +101,21 @@ namespace JobPortal.Infrastructure.JWT
                 claims.Add(
                     new Claim(
                         ClaimTypes.MobilePhone,
-                        mobileNumber
-                    ));
+                        mobileNumber));
+            }
+
+            // NEW
+            if (employerId.HasValue)
+            {
+                claims.Add(
+                    new Claim(
+                        "EmployerId",
+                        employerId.Value.ToString()));
             }
 
             var key = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(
-                    _configuration["Jwt:Key"]!
-                ));
+                    _configuration["Jwt:Key"]!));
 
             var credentials = new SigningCredentials(
                 key,
@@ -120,7 +133,6 @@ namespace JobPortal.Infrastructure.JWT
             return new JwtSecurityTokenHandler()
                 .WriteToken(token);
         }
-
         public DateTime GetExpiry()
         {
             return DateTime.UtcNow.AddMinutes(
