@@ -25,14 +25,18 @@ public class CandidateDocumentService : ICandidateDocumentService
     private static readonly string[] AllowedDocTypes = { "application/pdf", "image/jpeg", "image/png" };
     private static readonly string[] AllowedImgTypes = { "image/jpeg", "image/png", "image/webp" };
 
+    private readonly IAffindaService _affindaService;
+
     public CandidateDocumentService(
         AppDbContext context,
         ILogger<CandidateDocumentService> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IAffindaService affindaService)
     {
-        _context       = context;
-        _logger        = logger;
+        _context = context;
+        _logger = logger;
         _configuration = configuration;
+        _affindaService = affindaService;
     }
 
     // ════════════════════════════════════════════════
@@ -138,7 +142,26 @@ public class CandidateDocumentService : ICandidateDocumentService
             profile.UpdatedAt            = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+            try
+            {
+                var affindaResult =
+    await _affindaService.ParseResumeAsync(file);
 
+                return new UploadResumeResponseDto
+                {
+                    Success = true,
+                    Message = affindaResult,
+                    CvId = cv.CvId,
+                    CvFileUrl = fileUrl,
+                    ProfileCompletionPct = profile.ProfileCompletionPct
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Affinda parsing failed");
+            }
             return new UploadResumeResponseDto
             {
                 Success              = true,
