@@ -144,7 +144,10 @@ builder.Services.AddCors(options =>
             .AllowCredentials()
             .WithOrigins(
                 "http://localhost:3000",
-                "https://localhost:3000");
+                "https://localhost:3000",
+                     "https://job-portal-web-phi.vercel.app");
+
+
     });
 });
 

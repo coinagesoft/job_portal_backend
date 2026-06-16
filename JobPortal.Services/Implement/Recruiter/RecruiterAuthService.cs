@@ -467,41 +467,62 @@ public class RecruiterAuthService : IRecruiterAuthService
     {
         try
         {
+
+            _logger.LogInformation(
+    "GOOGLE LOGIN START. AccessToken Null:{Null}",
+    string.IsNullOrWhiteSpace(request.AccessToken));
+
             // Verify Google Token
-            GoogleJsonWebSignature.Payload payload;
+            var httpClient = _httpClientFactory.CreateClient();
 
-            try
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue(
+                    "Bearer",
+                    request.AccessToken);
+
+            var googleResponse =
+                await httpClient.GetAsync(
+                    "https://www.googleapis.com/oauth2/v3/userinfo");
+
+            if (!googleResponse.IsSuccessStatusCode)
             {
-                var settings =
-                    new GoogleJsonWebSignature.ValidationSettings
-                    {
-                        Audience = new[]
-                        {
-                        _config["Google:ClientId"]!
-                        }
-                    };
-
-                payload =
-                    await GoogleJsonWebSignature.ValidateAsync(
-                        request.GoogleIdToken,
-                        settings);
-            }
-            catch (InvalidJwtException ex)
-            {
-                _logger.LogWarning(
-                    "Google token invalid: {Msg} IP:{IP}",
-                    ex.Message,
-                    ipAddress);
-
                 return AuthFail(
-                    "Invalid Google session. Please try signing in with Google again.");
+                    "Invalid Google session.");
             }
 
-            var email = payload.Email?.ToLower();
+            var googleJson =
+                await googleResponse.Content
+                    .ReadAsStringAsync();
+
+            _logger.LogInformation(
+    "GOOGLE USERINFO RESPONSE: {Json}",
+    googleJson);
+
+            using var googleDoc =
+                JsonDocument.Parse(googleJson);
+
+            var email =
+                googleDoc.RootElement
+                    .GetProperty("email")
+                    .GetString()
+                    ?.ToLower();
+
+            var name =
+                googleDoc.RootElement
+                    .GetProperty("name")
+                    .GetString();
+
+            _logger.LogInformation(
+    "GOOGLE EMAIL: {Email}",
+    email);
 
             if (string.IsNullOrWhiteSpace(email))
+            {
                 return AuthFail(
                     "Google account email not found.");
+            }
+
+          
 
             var userType = request.UserType;
 
@@ -511,6 +532,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                     u.Email != null &&
                     u.Email.ToLower() == email &&
                     u.UserType == userType);
+
 
             if (user == null)
             {
@@ -528,7 +550,6 @@ public class RecruiterAuthService : IRecruiterAuthService
                     UserType = UserType.Candidate,
                     Email = email,
                     MobileNumber = "",
-                    CountryCode = "+91",
                     PasswordHash = "GOOGLE_AUTH",
                     AccountStatus = AccountStatus.Active,
                     KycStatus = KycStatus.Pending,
@@ -624,13 +645,11 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 UserType = userType.ToString(),
 
-                UserName = payload.Name,
+                UserName = name,
 
                 ProfileStatus = profileStatus,
 
-                RedirectTo = GetRedirectUrl(
-                    user,
-                    profileStatus),
+               
 
                 ExpiresAt = expiry
             };
@@ -884,8 +903,7 @@ public class RecruiterAuthService : IRecruiterAuthService
     }
     // ── Private Helpers ───────────────────────────────────
 
-    private async Task<(string token, DateTime expiry)>
-    GenerateUserTokenAsync(User user)
+    private async Task<(string token, DateTime expiry)> GenerateUserTokenAsync(User user)
     {
         Guid? employerId = null;
 
