@@ -883,9 +883,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 ProfileStatus = profileStatus,
 
-                RedirectTo = GetRedirectUrl(
-                    user,
-                    profileStatus),
+               
 
                 ExpiresAt = expiry
             };
