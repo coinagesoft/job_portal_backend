@@ -4,6 +4,7 @@ using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System.Reflection.Emit;
 
 namespace JobPortal.Infrastructure.Persistence;
 
@@ -22,7 +23,10 @@ public class AppDbContext : DbContext
 
     public DbSet<CreditUsageTransaction> CreditUsageTransactions { get; set; }
 
-    public DbSet<CandidateCvDownload> CandidateCvDownload { get; set; }
+    public DbSet<UserSession> UserSessions { get; set; }
+    public DbSet<EmployerPreference> EmployerPreferences { get; set; }
+
+    public DbSet<CandidateCvDownload> CandidateCvDownloads { get; set; }
 
     public DbSet<CreditConfiguration> CreditConfigurations { get; set; }
 
@@ -41,7 +45,7 @@ public class AppDbContext : DbContext
 
     // Section 3 — KYC
     public DbSet<KycVerification> KycVerifications => Set<KycVerification>();
-    public DbSet<PassportVerification> PassportVerifications => Set<PassportVerification>();
+    public DbSet<PassportVerification> PassportVerifications { get; set; }
     public DbSet<ItiCertificateReview> ItiCertificateReviews => Set<ItiCertificateReview>();
 
     // Section 4 — Employer
@@ -56,7 +60,7 @@ public class AppDbContext : DbContext
     public DbSet<SavedJob> SavedJobs => Set<SavedJob>();
     public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
     public DbSet<CandidateUnlock> CandidateUnlocks => Set<CandidateUnlock>();
-
+  
     // Section 6 — Payments
     public DbSet<CreditWallet> CreditWallets => Set<CreditWallet>();
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
@@ -66,7 +70,7 @@ public class AppDbContext : DbContext
     // Section 7 — Notifications
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
-
+    public DbSet<SupportTicketReply> SupportTicketReplies => Set<SupportTicketReply>();
     // Section 8 — Admin Config
     public DbSet<PlatformConfig> PlatformConfigs => Set<PlatformConfig>();
     public DbSet<CountryVerificationConfig> CountryVerificationConfigs => Set<CountryVerificationConfig>();
@@ -75,7 +79,12 @@ public class AppDbContext : DbContext
     public DbSet<Dispute> Disputes => Set<Dispute>(); 
     public DbSet<RegistrationSession> RegistrationSessions => Set<RegistrationSession>();
 
+    public DbSet<RecruiterNote> RecruiterNotes { get; set; }
+    public DbSet<CandidateNotificationSetting> CandidateNotificationSettings => Set<CandidateNotificationSetting>();
 
+    public DbSet<CandidatePreferenceSetting> CandidatePreferenceSettings => Set<CandidatePreferenceSetting>();
+
+    public DbSet<CandidateLogoutSession> CandidateLogoutSessions => Set<CandidateLogoutSession>();
 
     public override int SaveChanges()
     {
@@ -223,6 +232,98 @@ public class AppDbContext : DbContext
                 .IsUnique()
                 .HasDatabaseName("uq_users_email");
         });
+        m.Entity<SupportTicketReply>(e =>
+        {
+            e.ToTable("support_ticket_replies");
+
+            e.HasKey(x => x.ReplyId);
+
+            e.Property(x => x.ReplyId)
+                .HasColumnName("reply_id");
+
+            e.Property(x => x.TicketId)
+                .HasColumnName("ticket_id");
+
+            e.Property(x => x.SenderId)
+                .HasColumnName("sender_id");
+
+            e.Property(x => x.SenderType)
+                .HasColumnName("sender_type")
+                .HasConversion<string>();
+
+            e.Property(x => x.Message)
+                .HasColumnName("message");
+
+            e.Property(x => x.CreatedAt)
+                .HasColumnName("created_at");
+
+            e.HasOne(x => x.Ticket)
+                .WithMany(x => x.Replies)
+                .HasForeignKey(x => x.TicketId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        m.Entity<RecruiterNote>(entity =>
+        {
+            entity.HasKey(n => n.RecruiterNoteId);
+
+            entity.HasOne(n => n.JobApplication)
+                  .WithMany(a => a.RecruiterNotes)
+                  .HasForeignKey(n => n.ApplicationId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(n => n.EmployerProfile)
+                  .WithMany()
+                  .HasForeignKey(n => n.EmployerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property(n => n.NoteText)
+                  .IsRequired()
+                  .HasMaxLength(2000);
+
+            entity.Property(n => n.IsAcknowledged)
+                  .HasDefaultValue(false);
+        });
+        // Add inside OnModelCreating():
+        m.Entity<CandidateLogoutSession>(e =>
+        {
+            e.ToTable("candidate_logout_sessions");
+            e.HasKey(x => x.LogoutSessionId);
+            e.HasIndex(x => x.CandidateId);
+            e.HasIndex(x => x.JwtJti);
+            e.HasOne(x => x.CandidateProfile)
+                .WithMany()
+                .HasForeignKey(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        m.Entity<CandidateNotificationSetting>(e =>
+        {
+            e.ToTable("candidate_notification_settings");
+
+            e.HasKey(x => x.NotifPrefId);
+
+            e.HasIndex(x => x.CandidateId)
+                .IsUnique();
+
+            e.HasOne(x => x.CandidateProfile)
+                .WithOne()
+                .HasForeignKey<CandidateNotificationSetting>(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        m.Entity<CandidatePreferenceSetting>(e =>
+        {
+            e.ToTable("candidate_preference_settings");
+
+            e.HasKey(x => x.PrefId);
+
+            e.HasIndex(x => x.CandidateId)
+                .IsUnique();
+
+            e.HasOne(x => x.CandidateProfile)
+                .WithOne()
+                .HasForeignKey<CandidatePreferenceSetting>(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         // ── otp_verifications ──────────────────────────────────
         m.Entity<OtpVerification>(e => {
@@ -347,6 +448,10 @@ public class AppDbContext : DbContext
             e.Property(x => x.IsAiVerified)
                 .HasColumnName("is_ai_verified")
                 .HasDefaultValue(false);
+
+            e.Property(x => x.CertificateNumber)
+                .HasColumnName("certificate_number")
+                .HasMaxLength(100);
         });
 
         m.Entity<CandidateWorkHistory>(e => {
@@ -512,8 +617,8 @@ public class AppDbContext : DbContext
                 .HasColumnName("website_url");
 
             e.Property(x => x.BusinessType)
-          .HasConversion<string>()
-          .HasColumnName("business_type");
+                 .HasConversion<string>()
+                 .HasColumnName("business_type");
 
             e.Property(x => x.IndustryType)
                 .HasConversion<string>()
@@ -653,8 +758,12 @@ public class AppDbContext : DbContext
             e.HasOne(x => x.IssuedByAdmin)
              .WithMany()
              .HasForeignKey(x => x.IssuedBy);
+            e.Property(x => x.BadgeType)
+             .HasConversion<string>();
+            e.Property(x => x.BadgeStatus)
+            .HasConversion<string>();
         });
-      
+
         m.Entity<EmployerSubUser>(e =>
         {
             e.ToTable("employer_sub_users");
@@ -712,8 +821,11 @@ public class AppDbContext : DbContext
             e.Property(x => x.PrefCreditExpiryEmail)
                 .HasColumnName("pref_credit_expiry_email");
 
-            e.Property(x => x.PrefAvailabilityPush)
-                .HasColumnName("pref_availability_push");
+            e.Property(x => x.PrefJobStatusUpdates)
+                .HasColumnName("pref_job_status_updates");
+
+            e.Property(x => x.PrefSystemMessages)
+                .HasColumnName("pref_system_messages");
 
             e.Property(x => x.FcmToken)
                 .HasColumnName("fcm_token");
@@ -761,6 +873,13 @@ public class AppDbContext : DbContext
             e.Property(x => x.SalaryMax)
              .HasColumnName("salary_max");
 
+            e.Property(x => x.JobStatus)
+             .HasColumnName("job_status")
+             .HasConversion<string>();
+
+            e.Property(x => x.JobType)
+                .HasColumnName("job_type")
+                .HasConversion<string>();
             // ✅ string properties — no HasDefaultValue needed
             // defaults are set on the entity itself
             e.Property(x => x.SalaryCurrency)
@@ -833,9 +952,6 @@ public class AppDbContext : DbContext
             e.Property(x => x.AppliedCount)
              .HasColumnName("applied_count");
 
-            e.Property(x => x.JobStatus)
-             .HasColumnName("job_status");
-
             e.Property(x => x.PublishedAt)
              .HasColumnName("published_at");
 
@@ -871,19 +987,41 @@ public class AppDbContext : DbContext
              .OnDelete(DeleteBehavior.SetNull);
         });
 
-        m.Entity<JobApplication>(e => {
+        m.Entity<JobApplication>(e =>
+        {
             e.ToTable("job_applications");
+
             e.HasKey(x => x.ApplicationId);
-            e.HasIndex(x => new { x.JobId, x.CandidateId }).IsUnique();
+
+            e.HasIndex(x => new { x.JobId, x.CandidateId })
+                .IsUnique();
+
+            e.Property(x => x.ApplicationStatus)
+                .HasConversion<string>();
+
+            e.Property(x => x.IsShortlisted)
+                .HasColumnName("is_shortlisted");
+
+            e.Property(x => x.ShortlistedAt)
+                .HasColumnName("shortlisted_at");
+
+            e.Property(x => x.InterviewScheduledAt)
+                .HasColumnName("interview_scheduled_at");
+
+            e.Property(x => x.RejectedAt)
+                .HasColumnName("rejected_at");
+
             e.HasOne(x => x.JobPosting)
-             .WithMany(x => x.Applications)
-             .HasForeignKey(x => x.JobId);
+                .WithMany(x => x.Applications)
+                .HasForeignKey(x => x.JobId);
+
             e.HasOne(x => x.CandidateProfile)
-             .WithMany()
-             .HasForeignKey(x => x.CandidateId);
+                .WithMany()
+                .HasForeignKey(x => x.CandidateId);
+
             e.HasOne(x => x.EmployerProfile)
-             .WithMany()
-             .HasForeignKey(x => x.EmployerId);
+                .WithMany()
+                .HasForeignKey(x => x.EmployerId);
         });
 
         m.Entity<SavedJob>(e => {
@@ -971,6 +1109,8 @@ public class AppDbContext : DbContext
             e.HasOne(x => x.RaisedByUser)
              .WithMany()
              .HasForeignKey(x => x.RaisedBy);
+            e.Property(x => x.TicketType)
+                .HasConversion<string>();
             e.HasOne(x => x.AssignedAdmin)
              .WithMany()
              .HasForeignKey(x => x.AssignedTo)

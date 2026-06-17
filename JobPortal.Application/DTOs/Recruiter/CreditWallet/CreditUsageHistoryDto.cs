@@ -21,5 +21,7 @@ namespace JobPortal.Application.DTOs.Recruiter.CreditWallet
         public int BalanceAfter { get; set; }
 
         public DateTime CreatedAt { get; set; }
+
+        public int TotalCreditsUsedThisMonth { get; set; }
     }
 }

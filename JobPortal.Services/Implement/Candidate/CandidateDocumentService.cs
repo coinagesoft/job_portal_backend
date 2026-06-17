@@ -27,16 +27,26 @@ public class CandidateDocumentService : ICandidateDocumentService
     private static readonly string[] AllowedDocTypes = { "application/pdf", "image/jpeg", "image/png" };
     private static readonly string[] AllowedImgTypes = { "image/jpeg", "image/png", "image/webp" };
 
+    private readonly IAffindaService _affindaService;
+
     public CandidateDocumentService(
         AppDbContext context,
         ILogger<CandidateDocumentService> logger,
         IConfiguration configuration,
+<<<<<<< HEAD
         IAffindaService affinda)
+=======
+        IAffindaService affindaService)
+>>>>>>> ff745aa67b3448e8dd0a85b1a5974069a21aae64
     {
         _context = context;
         _logger = logger;
         _configuration = configuration;
+<<<<<<< HEAD
         _affinda = affinda;
+=======
+        _affindaService = affindaService;
+>>>>>>> ff745aa67b3448e8dd0a85b1a5974069a21aae64
     }
 
     // ════════════════════════════════════════════════
@@ -67,6 +77,10 @@ public class CandidateDocumentService : ICandidateDocumentService
                 .OrderByDescending(k => k.CreatedAt)
                 .FirstOrDefaultAsync();
 
+<<<<<<< HEAD
+=======
+            // Passport
+>>>>>>> ff745aa67b3448e8dd0a85b1a5974069a21aae64
             var passport = await _context.PassportVerifications
                 .Where(p => p.CandidateId == candidateId)
                 .OrderByDescending(p => p.CreatedAt)
@@ -88,6 +102,10 @@ public class CandidateDocumentService : ICandidateDocumentService
         catch (Exception ex)
         {
             _logger.LogError(ex, "GetAllDocumentsAsync failed for {CandidateId}", candidateId);
+<<<<<<< HEAD
+=======
+
+>>>>>>> ff745aa67b3448e8dd0a85b1a5974069a21aae64
             return DocsFail(ex.Message);
         }
     }
@@ -169,11 +187,33 @@ public class CandidateDocumentService : ICandidateDocumentService
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+            try
+            {
+                var affindaResult =
+    await _affindaService.ParseResumeAsync(file);
 
+<<<<<<< HEAD
             _logger.LogInformation(
                 "Resume uploaded & parsed for {CandidateId}. Affinda doc: {DocId}. Skills: {SkillCount}",
                 candidateId, parseResult.AffindaDocId, parseResult.ParsedSkills.Count);
 
+=======
+                return new UploadResumeResponseDto
+                {
+                    Success = true,
+                    Message = affindaResult,
+                    CvId = cv.CvId,
+                    CvFileUrl = fileUrl,
+                    ProfileCompletionPct = profile.ProfileCompletionPct
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Affinda parsing failed");
+            }
+>>>>>>> ff745aa67b3448e8dd0a85b1a5974069a21aae64
             return new UploadResumeResponseDto
             {
                 Success = true,
@@ -245,8 +285,15 @@ public class CandidateDocumentService : ICandidateDocumentService
             if (!profileExists)
                 return new UploadEducationCertificateResponseDto { Success = false, Message = "Candidate not found." };
 
+<<<<<<< HEAD
             var fileUrl = $"{_configuration["Storage:BaseUrl"]}/education/{candidateId}/cert_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
 
+=======
+            // ── Upload to storage ─────────────────────────────────────────
+            var fileName = $"education/{candidateId}/cert_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+            var fileUrl  = $"{_configuration["Storage:BaseUrl"]}/{fileName}";
+            // ─────────────────────────────────────────────────────────────
+>>>>>>> ff745aa67b3448e8dd0a85b1a5974069a21aae64
             var edu = new CandidateEducation
             {
                 EducationId = Guid.NewGuid(),

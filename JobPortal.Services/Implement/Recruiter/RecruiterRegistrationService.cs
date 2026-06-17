@@ -609,7 +609,6 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 PrefPushEnabled = true,
                 PrefApplicantNotify = true,
                 PrefCreditExpiryEmail = true,
-                PrefAvailabilityPush = true,
                 SessionTimeoutMinutes = 30
             });
 

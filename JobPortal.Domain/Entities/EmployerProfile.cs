@@ -65,6 +65,8 @@ public class EmployerProfile
     public string? BusinessRegDocUrl { get; set; }
     public DateTime? ConsentTimestamp { get; set; }
     public string? Tags { get; set; }               // JSON
+
+    public string TimeZone { get; set; } = "Asia/Kolkata";
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

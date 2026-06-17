@@ -10,14 +10,14 @@ namespace JobPortal.API.Controllers.Recruiter;
 [ApiController]
 [Route("api/recruiter/sub-users")]
 [Produces("application/json")]
-public class SubUserController : ControllerBase
+public class RecruiterSubUserController : ControllerBase
 {
     private readonly ISubUserService _service;
-    private readonly ILogger<SubUserController> _logger;
+    private readonly ILogger<RecruiterSubUserController> _logger;
 
-    public SubUserController(
+    public RecruiterSubUserController(
         ISubUserService service,
-        ILogger<SubUserController> logger)
+        ILogger<RecruiterSubUserController> logger)
     {
         _service = service;
         _logger = logger;

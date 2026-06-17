@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-
+using JobPortal.Domain.Enums.RecruiterEnums;
 namespace JobPortal.Application.DTOs.JobPosting;
 
 public class PublishingRequestDto
@@ -8,21 +8,23 @@ public class PublishingRequestDto
     public Guid JobId { get; set; }
 
     [Required]
-    public DateOnly ApplicationDeadline { get; set; }
+    public DateOnly? ApplicationDeadline { get; set; }
 
-    public CompanyVisibility CompanyVisibility { get; set; } = CompanyVisibility.Show_Name;
+    public CompanyVisibility? CompanyVisibility { get; set; }
 
+    public JobPortal.Domain.Enums.RecruiterEnums.JobType? JobType { get; set; }
+      = JobPortal.Domain.Enums.RecruiterEnums.JobType.Normal;
     /// <summary>
     /// Hot Job, Urgent Hiring, Premium Listing — optional tags
     /// </summary>
-    public List<string> PublishingTags { get; set; } = new();
+    public List<string>? PublishingTags { get; set; } = new();
 
     /// <summary>
     /// true = publish immediately
     /// false = save as draft
     /// </summary>
     [Required]
-    public bool PublishNow { get; set; } = true;
+    public bool? PublishNow { get; set; } = true;
 }
 
 public class PublishingResponseDto

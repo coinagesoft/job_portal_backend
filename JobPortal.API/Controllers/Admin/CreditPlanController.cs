@@ -10,11 +10,11 @@ namespace JobPortal.API.Controllers.Admin
 
     [ApiController]
     [Route("api/admin/credit-plans")]
-    public class CreditPlanController : ControllerBase
+    public class AdminCreditPlanController : ControllerBase
     {
         private readonly ICreditPlanService _service;
         private readonly ILogger<CreditPlanService> _logger;
-        public CreditPlanController(
+        public AdminCreditPlanController(
             ILogger<CreditPlanService> logger,
             ICreditPlanService service)
         {

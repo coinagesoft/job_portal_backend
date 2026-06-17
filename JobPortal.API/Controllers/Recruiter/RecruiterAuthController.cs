@@ -2,12 +2,14 @@
 
 using JobPortal.Application.DTOs.Recruiter.Auth;
 using JobPortal.Services.IImplement.IRecruiter;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Recruiter;
 
+[AllowAnonymous]
 [ApiController]
-[Route("api/recruiter/auth")]
+[Route("api/auth")]
 [Produces("application/json")]
 public class RecruiterAuthController : ControllerBase
 {

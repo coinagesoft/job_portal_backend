@@ -5,7 +5,7 @@ namespace JobPortal.Application.DTOs.JobPosting;
 public class LocationRequestDto
 {
     [Required]
-    public LocationType LocationType { get; set; }
+    public LocationType? LocationType { get; set; }
 
     // Required if LocationType = Onshore
     public string? OnshoreCity { get; set; }

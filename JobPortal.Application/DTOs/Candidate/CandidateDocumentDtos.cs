@@ -4,6 +4,7 @@
 // ============================================================
 
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 
 namespace JobPortal.Application.DTOs.Candidate.Profile;
 
@@ -17,17 +18,17 @@ namespace JobPortal.Application.DTOs.Candidate.Profile;
 /// </summary>
 public class CandidateDocumentsResponseDto
 {
-    public bool   Success { get; set; }
+    public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
     public CandidateDocumentsData? Data { get; set; }
 }
 
 public class CandidateDocumentsData
 {
-    public ResumeDocumentDto?            Resume               { get; set; }
+    public ResumeDocumentDto? Resume { get; set; }
     public List<EducationCertificateDto> EducationCertificates { get; set; } = new();
-    public PassportDocumentDto?          Passport             { get; set; }
-    public AadhaarDocumentDto?           Aadhaar              { get; set; }
+    public PassportDocumentDto? Passport { get; set; }
+    public AadhaarDocumentDto? Aadhaar { get; set; }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -38,31 +39,31 @@ public class CandidateDocumentsData
 
 public class ResumeDocumentDto
 {
-    public Guid    CvId          { get; set; }
-    public string? CvFileUrl     { get; set; }
-    public string? ParsedName    { get; set; }
-    public string? ParsedPhone   { get; set; }
-    public string? ParsedEmail   { get; set; }
-    public string? ParsedTrade   { get; set; }
-    public int?    ParsedExperienceYrs { get; set; }
-    public string? ParsedSkills  { get; set; }     // JSON string
+    public Guid CvId { get; set; }
+    public string? CvFileUrl { get; set; }
+    public string? ParsedName { get; set; }
+    public string? ParsedPhone { get; set; }
+    public string? ParsedEmail { get; set; }
+    public string? ParsedTrade { get; set; }
+    public int? ParsedExperienceYrs { get; set; }
+    public string? ParsedSkills { get; set; }     // JSON string
     public decimal? AiConfidenceScore { get; set; }
-    public DateTime? UploadedAt  { get; set; }
-    public string  VerificationStatus { get; set; } = "Pending"; // Pending|Verified|Rejected
+    public DateTime? UploadedAt { get; set; }
+    public string VerificationStatus { get; set; } = "Pending"; // Pending|Verified|Rejected
 }
 
 public class UploadResumeResponseDto
 {
-    public bool   Success      { get; set; }
-    public string Message      { get; set; } = string.Empty;
-    public Guid?  CvId         { get; set; }
-    public string? CvFileUrl   { get; set; }
-    public byte   ProfileCompletionPct { get; set; }
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public Guid? CvId { get; set; }
+    public string? CvFileUrl { get; set; }
+    public byte ProfileCompletionPct { get; set; }
 }
 
 public class DeleteResumeResponseDto
 {
-    public bool   Success { get; set; }
+    public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
 }
 
@@ -75,14 +76,15 @@ public class DeleteResumeResponseDto
 
 public class EducationCertificateDto
 {
-    public Guid   EducationId       { get; set; }
-    public string EducationLevel    { get; set; } = string.Empty;  // 10th|12th|ITI|Diploma|Graduate|Other
-    public string? InstituteName    { get; set; }
-    public string? MarksPercentage  { get; set; }
-    public short?  PassoutYear      { get; set; }
-    public string? CertificateUrl   { get; set; }
-    public string  VerificationStatus { get; set; } = "Pending";  // Pending|Verified|Rejected
-    public DateTime CreatedAt       { get; set; }
+    public Guid EducationId { get; set; }
+    public string EducationLevel { get; set; } = string.Empty;  // 10th|12th|ITI|Diploma|Graduate|Other
+    public string? InstituteName { get; set; }
+    public string? MarksPercentage { get; set; }
+    public short? PassoutYear { get; set; }
+    public string? CertificateUrl { get; set; }
+    public string? CertificateNumber { get; set; }
+    public string VerificationStatus { get; set; } = "Pending";  // Pending|Verified|Rejected
+    public DateTime CreatedAt { get; set; }
 }
 
 public class UploadEducationCertificateRequestDto
@@ -99,21 +101,25 @@ public class UploadEducationCertificateRequestDto
     [Range(1950, 2100)]
     public short? PassoutYear { get; set; }
 
+    /// <summary>Certificate / Roll number printed on the certificate, e.g. "ITI/2014/PUN/7823"</summary>
+    [MaxLength(100)]
+    public string? CertificateNumber { get; set; }
+
     // IFormFile passed separately in [FromForm]
 }
 
 public class UploadEducationCertificateResponseDto
 {
-    public bool   Success        { get; set; }
-    public string Message        { get; set; } = string.Empty;
-    public Guid?  EducationId    { get; set; }
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public Guid? EducationId { get; set; }
     public string? CertificateUrl { get; set; }
-    public byte   ProfileCompletionPct { get; set; }
+    public byte ProfileCompletionPct { get; set; }
 }
 
 public class DeleteEducationCertificateResponseDto
 {
-    public bool   Success { get; set; }
+    public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
 }
 
@@ -125,37 +131,41 @@ public class DeleteEducationCertificateResponseDto
 
 public class PassportDocumentDto
 {
-    public Guid    VerificationId   { get; set; }
-    public string? FrontImageUrl    { get; set; }
-    public string? BackImageUrl     { get; set; }
-    public string? AiExtractedName  { get; set; }
+    public Guid VerificationId { get; set; }
+    public string? FrontImageUrl { get; set; }
+    public string? BackImageUrl { get; set; }
+    public string? AiExtractedName { get; set; }
     public DateOnly? AiExtractedDob { get; set; }
-    public string  AdminDecision    { get; set; } = "Pending";  // Pending|Approved|Rejected
-    public string? RejectionReason  { get; set; }
-    public DateTime UploadedAt      { get; set; }
+    public string AdminDecision { get; set; } = "Pending";  // Pending|Approved|Rejected
+    public string? RejectionReason { get; set; }
+    public DateTime UploadedAt { get; set; }
 }
 
 public class UploadPassportRequestDto
 {
-    // IFormFile fields (FrontImage required, BackImage optional) passed via [FromForm]
     [Required]
     public bool ConsentGiven { get; set; }  // PDPA / GDPR consent for ID data
+
+    [Required]
+    public IFormFile FrontImage { get; set; } = default!;
+
+    public IFormFile? BackImage { get; set; }
 }
 
 public class UploadPassportResponseDto
 {
-    public bool   Success          { get; set; }
-    public string Message          { get; set; } = string.Empty;
-    public Guid?  VerificationId   { get; set; }
-    public string? FrontImageUrl   { get; set; }
-    public string? BackImageUrl    { get; set; }
-    public string AdminDecision    { get; set; } = "Pending";
-    public byte   ProfileCompletionPct { get; set; }
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public Guid? VerificationId { get; set; }
+    public string? FrontImageUrl { get; set; }
+    public string? BackImageUrl { get; set; }
+    public string AdminDecision { get; set; } = "Pending";
+    public byte ProfileCompletionPct { get; set; }
 }
 
 public class DeletePassportResponseDto
 {
-    public bool   Success { get; set; }
+    public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
 }
 
@@ -167,38 +177,42 @@ public class DeletePassportResponseDto
 
 public class AadhaarDocumentDto
 {
-    public Guid    VerificationId    { get; set; }
-    public string? FrontImageUrl     { get; set; }
-    public string? BackImageUrl      { get; set; }
-    public string? AiExtractedName   { get; set; }
-    public DateOnly? AiExtractedDob  { get; set; }
+    public Guid VerificationId { get; set; }
+    public string? FrontImageUrl { get; set; }
+    public string? BackImageUrl { get; set; }
+    public string? AiExtractedName { get; set; }
+    public DateOnly? AiExtractedDob { get; set; }
     public string? AiExtractedAddress { get; set; }
-    public decimal? OcrConfidence    { get; set; }
-    public string  AdminDecision     { get; set; } = "Pending";  // Pending|Approved|Rejected
-    public string? RejectionReason   { get; set; }
-    public DateTime UploadedAt       { get; set; }
+    public decimal? OcrConfidence { get; set; }
+    public string AdminDecision { get; set; } = "Pending";  // Pending|Approved|Rejected
+    public string? RejectionReason { get; set; }
+    public DateTime UploadedAt { get; set; }
 }
 
 public class UploadAadhaarRequestDto
 {
-    // IFormFile fields (FrontImage required, BackImage optional) passed via [FromForm]
     [Required]
     public bool ConsentGiven { get; set; }  // Required: explicit consent to process Aadhaar
+
+    [Required]
+    public IFormFile FrontImage { get; set; } = default!;
+
+    public IFormFile? BackImage { get; set; }
 }
 
 public class UploadAadhaarResponseDto
 {
-    public bool   Success          { get; set; }
-    public string Message          { get; set; } = string.Empty;
-    public Guid?  VerificationId   { get; set; }
-    public string? FrontImageUrl   { get; set; }
-    public string? BackImageUrl    { get; set; }
-    public string AdminDecision    { get; set; } = "Pending";
-    public byte   ProfileCompletionPct { get; set; }
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public Guid? VerificationId { get; set; }
+    public string? FrontImageUrl { get; set; }
+    public string? BackImageUrl { get; set; }
+    public string AdminDecision { get; set; } = "Pending";
+    public byte ProfileCompletionPct { get; set; }
 }
 
 public class DeleteAadhaarResponseDto
 {
-    public bool   Success { get; set; }
+    public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
 }

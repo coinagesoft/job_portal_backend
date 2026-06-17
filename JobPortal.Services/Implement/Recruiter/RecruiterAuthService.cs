@@ -6,6 +6,7 @@ using JobPortal.Domain.Enums.common;
 using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
+using JobPortal.Services.Implement.Recruiter;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -22,8 +23,8 @@ public class RecruiterAuthService : IRecruiterAuthService
     private readonly ILogger<RecruiterAuthService> _logger;
     private readonly IConfiguration _config;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ITwilioOtpService _twilioOtpService;
     private readonly ISubUserEmailService _emailService;
-
     private const int OtpExpiryMinutes = 10;
     private const int MaxOtpAttempts = 3;
     private const int ResendCooldownSeconds = 60;
@@ -31,10 +32,11 @@ public class RecruiterAuthService : IRecruiterAuthService
     public RecruiterAuthService(
         AppDbContext context,
         JwtService jwtService,
-         ISubUserEmailService emailService,
+        ISubUserEmailService emailService,
         ILogger<RecruiterAuthService> logger,
         IConfiguration config,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        ITwilioOtpService twilioOtpService)
     {
         _context = context;
         _jwtService = jwtService;
@@ -42,30 +44,41 @@ public class RecruiterAuthService : IRecruiterAuthService
         _logger = logger;
         _config = config;
         _httpClientFactory = httpClientFactory;
+        _twilioOtpService = twilioOtpService;
     }
 
     // ════════════════════════════════════════════════
     // SEND OTP
     // ════════════════════════════════════════════════
     public async Task<SendOtpResponseDto> SendOtpAsync(
-        SendOtpRequestDto request, string ipAddress)
+      SendOtpRequestDto request,
+      string ipAddress)
     {
         try
         {
             var identifier = request.Identifier.Trim().ToLower();
+            _logger.LogInformation(
+    "SEND OTP START - Identifier:{Identifier}",
+    request.Identifier);
             var isEmail = IsEmail(identifier);
             var isMobile = IsMobile(identifier);
-            var userType = Enum.Parse<UserType>(request.UserType.ToString());
+            var userType = request.UserType;
 
-            // ── Validate identifier format ─────────────────
             if (!isEmail && !isMobile)
-                return SendFail("Please enter a valid email or mobile number.");
+            {
+                return SendFail(
+                    "Please enter a valid email or mobile number.");
+            }
 
-            if (isMobile && string.IsNullOrWhiteSpace(request.CountryCode))
-                return SendFail("Country code is required for mobile number.");
+            if (isMobile &&
+                string.IsNullOrWhiteSpace(request.CountryCode))
+            {
+                return SendFail(
+                    "Country code is required for mobile number.");
+            }
 
-            // ── Find user ──────────────────────────────────
             User? user;
+
             if (isEmail)
             {
                 user = await _context.Users
@@ -84,80 +97,165 @@ public class RecruiterAuthService : IRecruiterAuthService
             }
 
             if (user == null)
+            {
                 return SendFail(
                     $"No {userType} account found. Please register first.");
+            }
 
-            // ── Account status checks ──────────────────────
             if (user.AccountStatus == AccountStatus.Suspended)
-                return SendFail("Your account has been suspended. Contact support.");
+            {
+                return SendFail(
+                    "Your account has been suspended. Contact support.");
+            }
 
             if (user.AccountStatus == AccountStatus.Rejected)
-                return SendFail("Account not found.");
-
-            if (user.PaymentStatus == PaymentStatus.Unpaid &&
-                user.UserType == UserType.Candidate)
+            {
                 return SendFail(
-                    "Registration fee pending. Please complete payment first.");
+                    "Account not found.");
+            }
 
-            // ── Resend cooldown check ──────────────────────
-            var recentOtp = await _context.OtpVerifications
+            var employer = await _context.EmployerProfiles
+                .FirstOrDefaultAsync(x =>
+                    x.UserId == user.UserId);
+
+            if (employer != null)
+            {
+                if (employer.AccountStatus == AccountStatus.Suspended)
+                {
+                    return SendFail(
+                        "Company account suspended.");
+                }
+
+                if (employer.AccountStatus == AccountStatus.Rejected)
+                {
+                    return SendFail(
+                        "Company account rejected.");
+                }
+            }
+
+            var activeOtps = await _context.OtpVerifications
                 .Where(o =>
-                    (isEmail ? o.MobileNumber == identifier
-                             : o.MobileNumber == identifier) &&
+                    o.MobileNumber == identifier &&
                     o.Purpose == $"{userType}Login" &&
                     !o.IsVerified)
                 .OrderByDescending(o => o.OtpSentAt)
-                .FirstOrDefaultAsync();
+                .ToListAsync();
+
+            var recentOtp = activeOtps.FirstOrDefault();
 
             if (recentOtp != null)
             {
-                var cooldownEnd = recentOtp.OtpSentAt
-                    .AddSeconds(ResendCooldownSeconds);
+                var cooldownEnd =
+                    recentOtp.OtpSentAt.AddSeconds(
+                        recentOtp.ResendCooldownSec);
+
                 if (DateTime.UtcNow < cooldownEnd)
                 {
-                    var waitSecs = (int)(cooldownEnd - DateTime.UtcNow)
-                        .TotalSeconds;
+                    var waitSecs = Math.Max(
+                        1,
+                        (int)(cooldownEnd - DateTime.UtcNow)
+                        .TotalSeconds);
+
                     return SendFail(
                         $"Please wait {waitSecs} seconds before requesting a new OTP.");
                 }
 
-                // Invalidate previous OTPs
-                recentOtp.IsVerified = true;
+                foreach (var otp in activeOtps)
+                {
+                    otp.IsVerified = true;
+                }
+
+                await _context.SaveChangesAsync();
             }
 
-            // ── Generate OTP ───────────────────────────────
-            var otpCode = GenerateOtp();
-
-            var otpRecord = new OtpVerification
-            {
-                OtpId = Guid.NewGuid(),
-                UserId = user.UserId,
-                MobileNumber = identifier,   // stores email OR mobile
-                CountryCode = request.CountryCode ?? "email",
-                OtpCode = BCrypt.Net.BCrypt.HashPassword(otpCode),
-                OtpSentAt = DateTime.UtcNow,
-                OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes),
-                ResendCooldownSec = ResendCooldownSeconds,
-                IsVerified = false,
-                Purpose = $"{userType}Login"
-            };
-            _context.OtpVerifications.Add(otpRecord);
-            await _context.SaveChangesAsync();
-
-            // ── Send OTP ───────────────────────────────────
+            // SEND OTP
             if (isEmail)
             {
-                // TODO: Send via SMTP / SendGrid
+                var otpCode = GenerateOtp();
+
+                var otpRecord = new OtpVerification
+                {
+                    OtpId = Guid.NewGuid(),
+                    UserId = user.UserId,
+                    MobileNumber = identifier,
+                    CountryCode = "email",
+
+                    OtpCode = BCrypt.Net.BCrypt.HashPassword(
+                        otpCode),
+
+                    OtpSentAt = DateTime.UtcNow,
+
+                    OtpExpiresAt = DateTime.UtcNow.AddMinutes(
+                        OtpExpiryMinutes),
+
+                    ResendCooldownSec = ResendCooldownSeconds,
+
+                    IsVerified = false,
+
+                    Purpose = $"{userType}Login"
+                };
+
+                _context.OtpVerifications.Add(
+                    otpRecord);
+
+                await _context.SaveChangesAsync();
+
                 await _emailService.SendOtpEmailAsync(
-                                       identifier,
-                                          otpCode);
+                    identifier,
+                    otpCode);
             }
             else
             {
-                // TODO: Send via Firebase / MSG91
+                var phoneNumber =
+                    $"{request.CountryCode}{identifier}";
+
                 _logger.LogInformation(
-                    "LOGIN OTP for {Mobile}: {OTP} [DEV ONLY]",
-                    identifier, otpCode);
+    "TWILIO SEND OTP - Phone:{Phone}",
+    phoneNumber);
+                var sent =
+                    await _twilioOtpService
+                        .SendOtpAsync(phoneNumber);
+                _logger.LogInformation(
+    "TWILIO RESULT - Sent:{Sent}",
+    sent);
+
+                if (!sent)
+                {
+                    return SendFail(
+                        "Unable to send OTP.");
+                }
+
+                var otpRecord = new OtpVerification
+                {
+                    OtpId = Guid.NewGuid(),
+                    UserId = user.UserId,
+                    MobileNumber = identifier,
+                    CountryCode = request.CountryCode,
+
+                    OtpCode = "TWILIO_VERIFY",
+
+                    OtpSentAt = DateTime.UtcNow,
+
+                    OtpExpiresAt = DateTime.UtcNow.AddMinutes(
+                        OtpExpiryMinutes),
+
+                    ResendCooldownSec = ResendCooldownSeconds,
+
+                    IsVerified = false,
+
+                    Purpose = $"{userType}Login"
+                };
+                _logger.LogInformation(
+    "INSERT OTP RECORD - User:{UserId} Verified:{Verified}",
+    user.UserId,
+    otpRecord.IsVerified);
+                _context.OtpVerifications.Add(
+                    otpRecord);
+
+                await _context.SaveChangesAsync();
+                _logger.LogInformation(
+    "OTP RECORD SAVED - OtpId:{OtpId}",
+    otpRecord.OtpId);
             }
 
             var masked = isEmail
@@ -167,16 +265,29 @@ public class RecruiterAuthService : IRecruiterAuthService
             return new SendOtpResponseDto
             {
                 Success = true,
-                Message = $"OTP sent to {masked}. Valid for {OtpExpiryMinutes} minutes.",
+                Message =
+                    $"OTP sent to {masked}. Valid for {OtpExpiryMinutes} minutes.",
+
                 MaskedIdentifier = masked,
-                IdentifierType = isEmail ? "email" : "mobile",
-                ExpiresInSeconds = OtpExpiryMinutes * 60,
-                ResendCooldownSeconds = ResendCooldownSeconds
+
+                IdentifierType =
+                    isEmail
+                        ? "email"
+                        : "mobile",
+
+                ExpiresInSeconds =
+                    OtpExpiryMinutes * 60,
+
+                ResendCooldownSeconds =
+                    ResendCooldownSeconds
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "SendOtp error. IP:{IP}", ipAddress);
+            _logger.LogError(
+                ex,
+                "SendOtp error. IP:{IP}",
+                ipAddress);
 
             return SendFail(
                 $"{ex.GetType().Name}: {ex.Message}");
@@ -187,16 +298,17 @@ public class RecruiterAuthService : IRecruiterAuthService
     // VERIFY OTP
     // ════════════════════════════════════════════════
     public async Task<AuthResponseDto> VerifyOtpAsync(
-        VerifyOtpRequestDto request, string ipAddress)
+     VerifyOtpRequestDto request,
+     string ipAddress)
     {
         try
         {
             var identifier = request.Identifier.Trim().ToLower();
             var isEmail = IsEmail(identifier);
-            var userType = Enum.Parse<UserType>(request.UserType.ToString());
+            var userType = request.UserType;
 
-            // ── Find user ──────────────────────────────────
             User? user;
+
             if (isEmail)
             {
                 user = await _context.Users
@@ -217,7 +329,28 @@ public class RecruiterAuthService : IRecruiterAuthService
             if (user == null)
                 return AuthFail("Account not found.");
 
-            // ── Get latest unverified OTP ──────────────────
+            // Recruiter Validation
+            Guid? employerId = null;
+
+            if (user.UserType == UserType.Recruiter)
+            {
+                var employer = await _context.EmployerProfiles
+                    .FirstOrDefaultAsync(x => x.UserId == user.UserId);
+
+                if (employer == null)
+                    return AuthFail("Employer profile not found.");
+
+                if (employer.AccountStatus == AccountStatus.Suspended)
+                    return AuthFail("Company account suspended.");
+
+                if (employer.AccountStatus == AccountStatus.Rejected)
+                    return AuthFail("Company account rejected.");
+
+                employerId = employer.EmployerId;
+            }
+            _logger.LogInformation(
+    "VERIFY OTP START - User:{UserId}",
+    user.UserId);
             var otp = await _context.OtpVerifications
                 .Where(o =>
                     o.UserId == user.UserId &&
@@ -225,42 +358,60 @@ public class RecruiterAuthService : IRecruiterAuthService
                     !o.IsVerified)
                 .OrderByDescending(o => o.OtpSentAt)
                 .FirstOrDefaultAsync();
+            _logger.LogInformation(
+    "VERIFY OTP FOUND:{Found}",
+    otp != null);
 
             if (otp == null)
-                return AuthFail("OTP not found. Please request a new one.");
+                return AuthFail("OTP not found. Please request a new OTP.");
 
-            // ── Expiry check ───────────────────────────────
             if (DateTime.UtcNow > otp.OtpExpiresAt)
                 return AuthFail("OTP has expired. Please request a new one.");
 
-            // ── Attempts check ─────────────────────────────
             if (otp.OtpAttempts >= MaxOtpAttempts)
                 return AuthFail(
                     "Too many failed attempts. Please request a new OTP.");
 
-            // ── Verify OTP ─────────────────────────────────
-            var isValid = BCrypt.Net.BCrypt.Verify(
-                request.OtpCode, otp.OtpCode);
+            bool isValid;
+
+            if (isEmail)
+            {
+                isValid =
+                    BCrypt.Net.BCrypt.Verify(
+                        request.OtpCode,
+                        otp.OtpCode);
+            }
+            else
+            {
+                var phoneNumber =
+                    $"{request.CountryCode}{identifier}";
+
+                isValid =
+                    await _twilioOtpService
+                        .VerifyOtpAsync(
+                            phoneNumber,
+                            request.OtpCode);
+            }
 
             if (!isValid)
             {
                 otp.OtpAttempts++;
+
                 await _context.SaveChangesAsync();
 
                 var remaining = MaxOtpAttempts - otp.OtpAttempts;
-                return AuthFail(remaining > 0
-                    ? $"Invalid OTP. {remaining} attempt(s) remaining."
-                    : "Too many failed attempts. Please request a new OTP.");
+
+                return AuthFail(
+                    remaining > 0
+                        ? $"Invalid OTP. {remaining} attempt(s) remaining."
+                        : "Too many failed attempts. Please request a new OTP.");
             }
 
-            // ── Mark OTP used ──────────────────────────────
             otp.IsVerified = true;
 
-            // ── Update last login ──────────────────────────
             user.LastLoginAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
 
-            // ── Activate pending users (first login) ───────
             if (user.AccountStatus == AccountStatus.Pending)
             {
                 user.AccountStatus = AccountStatus.Active;
@@ -268,99 +419,137 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             await _context.SaveChangesAsync();
 
-            // ── Generate JWT ───────────────────────────────
-            var (token, expiry) = GenerateUserToken(user);
+        
+            var (token, expiry) =
+                await GenerateUserTokenAsync(user);
 
-            // ── Determine profile completeness ────────────
-            var profileStatus = await GetProfileStatusAsync(user);
+            var profileStatus =
+                await GetProfileStatusAsync(user);
 
             _logger.LogInformation(
                 "Login success — UserId:{UserId} Type:{Type} IP:{IP}",
-                user.UserId, userType, ipAddress);
+                user.UserId,
+                userType,
+                ipAddress);
+
+
 
             return new AuthResponseDto
             {
                 Success = true,
                 Message = "Login successful.",
                 Token = token,
-                UserType = userType.ToString(),
                 UserId = user.UserId,
+                EmployerId = employerId,
+                UserType = userType.ToString(),
                 UserName = await GetUserNameAsync(user),
                 ProfileStatus = profileStatus,
-                RedirectTo = GetRedirectUrl(user, profileStatus),
                 ExpiresAt = expiry
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "VerifyOtp error. IP:{IP}", ipAddress);
-            return AuthFail($"{ex.GetType().Name}: {ex.Message}");
+            _logger.LogError(
+                ex,
+                "VerifyOtp error. IP:{IP}",
+                ipAddress);
+
+            return AuthFail(
+                $"{ex.GetType().Name}: {ex.Message}");
         }
     }
-
     // ════════════════════════════════════════════════
     // GOOGLE LOGIN
     // ════════════════════════════════════════════════
     public async Task<AuthResponseDto> GoogleLoginAsync(
-        GoogleLoginRequestDto request, string ipAddress)
+       GoogleLoginRequestDto request,
+       string ipAddress)
     {
         try
         {
-            // ── Verify Google ID token ─────────────────────
-            GoogleJsonWebSignature.Payload payload;
-            try
+
+            _logger.LogInformation(
+    "GOOGLE LOGIN START. AccessToken Null:{Null}",
+    string.IsNullOrWhiteSpace(request.AccessToken));
+
+            // Verify Google Token
+            var httpClient = _httpClientFactory.CreateClient();
+
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue(
+                    "Bearer",
+                    request.AccessToken);
+
+            var googleResponse =
+                await httpClient.GetAsync(
+                    "https://www.googleapis.com/oauth2/v3/userinfo");
+
+            if (!googleResponse.IsSuccessStatusCode)
             {
-                var settings = new GoogleJsonWebSignature.ValidationSettings
-                {
-                    Audience = new[]
-                    {
-                        _config["Google:ClientId"]!
-                    }
-                };
-                payload = await GoogleJsonWebSignature
-                    .ValidateAsync(request.GoogleIdToken, settings);
-            }
-            catch (InvalidJwtException ex)
-            {
-                _logger.LogWarning(
-                    "Google token invalid: {Msg} IP:{IP}", ex.Message, ipAddress);
                 return AuthFail(
-                    "Invalid Google session. Please try signing in with Google again.");
+                    "Invalid Google session.");
             }
 
-            var email = payload.Email?.ToLower();
+            var googleJson =
+                await googleResponse.Content
+                    .ReadAsStringAsync();
+
+            _logger.LogInformation(
+    "GOOGLE USERINFO RESPONSE: {Json}",
+    googleJson);
+
+            using var googleDoc =
+                JsonDocument.Parse(googleJson);
+
+            var email =
+                googleDoc.RootElement
+                    .GetProperty("email")
+                    .GetString()
+                    ?.ToLower();
+
+            var name =
+                googleDoc.RootElement
+                    .GetProperty("name")
+                    .GetString();
+
+            _logger.LogInformation(
+    "GOOGLE EMAIL: {Email}",
+    email);
+
             if (string.IsNullOrWhiteSpace(email))
-                return AuthFail("Google account email not found.");
+            {
+                return AuthFail(
+                    "Google account email not found.");
+            }
 
-            var userTypeEnum = Enum.Parse<UserType>(
-      request.UserType.ToString());
-            var userType = userTypeEnum.ToString();
+          
 
+            var userType = request.UserType;
 
-            // ── Find existing user ─────────────────────────
+            // Find Existing User
             var user = await _context.Users
-    .FirstOrDefaultAsync(u =>
-        u.Email != null &&
-        u.Email.ToLower() == email &&
-        u.UserType == userTypeEnum);
+                .FirstOrDefaultAsync(u =>
+                    u.Email != null &&
+                    u.Email.ToLower() == email &&
+                    u.UserType == userType);
+
 
             if (user == null)
             {
-                // ── Auto-register new user via Google ──────
-                // Only for Candidates — Employers must register formally
-                if (request.UserType == UserType.Recruiter)
+                // Recruiters must already exist
+                if (userType == UserType.Recruiter)
+                {
                     return AuthFail(
-                        "No employer account found for this Google account. " +
-                        "Please register your company first.");
+                        "No employer account found for this Google account. Please register your company first.");
+                }
 
-                // Create candidate account
+                // Auto-register Candidate
                 user = new User
                 {
                     UserId = Guid.NewGuid(),
                     UserType = UserType.Candidate,
                     Email = email,
                     MobileNumber = "",
-                    CountryCode = "+91",
                     PasswordHash = "GOOGLE_AUTH",
                     AccountStatus = AccountStatus.Active,
                     KycStatus = KycStatus.Pending,
@@ -368,139 +557,226 @@ public class RecruiterAuthService : IRecruiterAuthService
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+
                 _context.Users.Add(user);
+
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation(
-                    "New candidate registered via Google — UserId:{Id}",
+                    "New candidate registered via Google - UserId:{Id}",
                     user.UserId);
             }
             else
             {
-                // ── Account checks for existing user ───────
                 if (user.AccountStatus == AccountStatus.Suspended)
+                {
                     return AuthFail(
                         "Your account has been suspended. Contact support.");
+                }
 
                 if (user.AccountStatus == AccountStatus.Rejected)
-                    return AuthFail("Account is Rejected.");
+                {
+                    return AuthFail(
+                        "Account has been rejected.");
+                }
             }
 
-            // ── Update last login ──────────────────────────
+            // Recruiter Validation
+            Guid? employerId = null;
+
+            if (user.UserType == UserType.Recruiter)
+            {
+                var employer =
+                    await _context.EmployerProfiles
+                        .FirstOrDefaultAsync(x =>
+                            x.UserId == user.UserId);
+
+                if (employer == null)
+                {
+                    return AuthFail(
+                        "Employer profile not found.");
+                }
+
+                if (employer.AccountStatus == AccountStatus.Suspended)
+                {
+                    return AuthFail(
+                        "Company account suspended.");
+                }
+
+                if (employer.AccountStatus == AccountStatus.Rejected)
+                {
+                    return AuthFail(
+                        "Company account rejected.");
+                }
+
+                employerId = employer.EmployerId;
+            }
+
+            // Update Login Time
             user.LastLoginAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
+
             await _context.SaveChangesAsync();
 
-            var (token, expiry) = GenerateUserToken(user);
-            var profileStatus = await GetProfileStatusAsync(user);
+            // Generate JWT
+            var (token, expiry) =
+                await GenerateUserTokenAsync(user);
+
+            // Profile Status
+            var profileStatus =
+                await GetProfileStatusAsync(user);
 
             _logger.LogInformation(
-                "Google login — UserId:{Id} Type:{Type} IP:{IP}",
-                user.UserId, userType, ipAddress);
+                "Google login - UserId:{Id} Type:{Type} IP:{IP}",
+                user.UserId,
+                userType,
+                ipAddress);
 
             return new AuthResponseDto
             {
                 Success = true,
                 Message = "Google login successful.",
+
                 Token = token,
-                UserType = userType,
+
                 UserId = user.UserId,
-                UserName = payload.Name,
+
+                EmployerId = employerId,
+
+                UserType = userType.ToString(),
+
+                UserName = name,
+
                 ProfileStatus = profileStatus,
-                RedirectTo = GetRedirectUrl(user, profileStatus),
+
+               
+
                 ExpiresAt = expiry
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Google login error. IP:{IP}", ipAddress);
-            return AuthFail("An error occurred. Please try again.");
+            _logger.LogError(
+                ex,
+                "Google login error. IP:{IP}",
+                ipAddress);
+
+            return AuthFail(
+                "An error occurred. Please try again.");
         }
     }
-
     // ════════════════════════════════════════════════
     // LINKEDIN LOGIN
     // ════════════════════════════════════════════════
     public async Task<AuthResponseDto> LinkedInLoginAsync(
-        LinkedInLoginRequestDto request, string ipAddress)
+      LinkedInLoginRequestDto request,
+      string ipAddress)
     {
         try
         {
-            // ── Step 1: Exchange code for access token ─────
+            // Step 1: Exchange code for access token
             var httpClient = _httpClientFactory.CreateClient();
 
             var tokenResponse = await httpClient.PostAsync(
                 "https://www.linkedin.com/oauth/v2/accessToken",
-                new FormUrlEncodedContent(new Dictionary<string, string>
-                {
-                    ["grant_type"] = "authorization_code",
-                    ["code"] = request.LinkedInCode,
-                    ["redirect_uri"] = request.RedirectUri,
-                    ["client_id"] = _config["LinkedIn:ClientId"]!,
-                    ["client_secret"] = _config["LinkedIn:ClientSecret"]!
-                }));
+                new FormUrlEncodedContent(
+                    new Dictionary<string, string>
+                    {
+                        ["grant_type"] = "authorization_code",
+                        ["code"] = request.LinkedInCode,
+                        ["redirect_uri"] = request.RedirectUri,
+                        ["client_id"] = _config["LinkedIn:ClientId"]!,
+                        ["client_secret"] = _config["LinkedIn:ClientSecret"]!
+                    }));
 
             if (!tokenResponse.IsSuccessStatusCode)
             {
                 _logger.LogWarning(
-                    "LinkedIn token exchange failed. IP:{IP}", ipAddress);
+                    "LinkedIn token exchange failed. IP:{IP}",
+                    ipAddress);
+
                 return AuthFail(
                     "LinkedIn authentication failed. Please try again.");
             }
 
-            var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
-            using var tokenDoc = JsonDocument.Parse(tokenJson);
-            var accessToken = tokenDoc.RootElement
-                .GetProperty("access_token").GetString();
+            var tokenJson =
+                await tokenResponse.Content.ReadAsStringAsync();
+
+            using var tokenDoc =
+                JsonDocument.Parse(tokenJson);
+
+            var accessToken =
+                tokenDoc.RootElement
+                    .GetProperty("access_token")
+                    .GetString();
 
             if (string.IsNullOrWhiteSpace(accessToken))
-                return AuthFail("LinkedIn authentication failed.");
+            {
+                return AuthFail(
+                    "LinkedIn authentication failed.");
+            }
 
-            // ── Step 2: Get user profile from LinkedIn ─────
+            // Step 2: Get LinkedIn User Profile
             httpClient.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", accessToken);
+                new AuthenticationHeaderValue(
+                    "Bearer",
+                    accessToken);
 
-            var profileResponse = await httpClient.GetAsync(
-                "https://api.linkedin.com/v2/userinfo");
+            var profileResponse =
+                await httpClient.GetAsync(
+                    "https://api.linkedin.com/v2/userinfo");
 
             if (!profileResponse.IsSuccessStatusCode)
-                return AuthFail("Failed to get LinkedIn profile.");
+            {
+                return AuthFail(
+                    "Failed to get LinkedIn profile.");
+            }
 
-            var profileJson = await profileResponse.Content.ReadAsStringAsync();
-            using var profileDoc = JsonDocument.Parse(profileJson);
+            var profileJson =
+                await profileResponse.Content.ReadAsStringAsync();
 
-            var email = profileDoc.RootElement
-                .TryGetProperty("email", out var emailProp)
+            using var profileDoc =
+                JsonDocument.Parse(profileJson);
+
+            var email =
+                profileDoc.RootElement.TryGetProperty(
+                    "email",
+                    out var emailProp)
                     ? emailProp.GetString()?.ToLower()
                     : null;
 
-            var name = profileDoc.RootElement
-                .TryGetProperty("name", out var nameProp)
+            var name =
+                profileDoc.RootElement.TryGetProperty(
+                    "name",
+                    out var nameProp)
                     ? nameProp.GetString()
                     : null;
 
             if (string.IsNullOrWhiteSpace(email))
+            {
                 return AuthFail(
-                    "LinkedIn account email not found. " +
-                    "Please ensure your LinkedIn email is visible.");
+                    "LinkedIn account email not found. Please ensure your LinkedIn email is visible.");
+            }
 
-            var userType = request.UserType.ToString();
+            var userType = request.UserType;
 
-            // ── Find or create user ────────────────────────
+            // Find Existing User
             var user = await _context.Users
                 .FirstOrDefaultAsync(u =>
                     u.Email != null &&
                     u.Email.ToLower() == email &&
-                    u.UserType.ToString() == userType);
+                    u.UserType == userType);
 
             if (user == null)
             {
-                if (request.UserType == UserType.Recruiter)
+                // Recruiters must already exist
+                if (userType == UserType.Recruiter)
+                {
                     return AuthFail(
-                        "No employer account found for this LinkedIn account. " +
-                        "Please register your company first.");
+                        "No employer account found for this LinkedIn account. Please register your company first.");
+                }
 
-                // Auto-register candidate
+                // Auto Register Candidate
                 user = new User
                 {
                     UserId = Guid.NewGuid(),
@@ -515,62 +791,133 @@ public class RecruiterAuthService : IRecruiterAuthService
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+
                 _context.Users.Add(user);
+
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation(
-                    "New candidate registered via LinkedIn — UserId:{Id}",
+                    "New candidate registered via LinkedIn - UserId:{Id}",
                     user.UserId);
             }
             else
             {
                 if (user.AccountStatus == AccountStatus.Suspended)
+                {
                     return AuthFail(
                         "Your account has been suspended. Contact support.");
+                }
 
                 if (user.AccountStatus == AccountStatus.Rejected)
-                    return AuthFail("Account not found.");
+                {
+                    return AuthFail(
+                        "Account has been rejected.");
+                }
             }
 
+            // Recruiter Validation
+            Guid? employerId = null;
+
+            if (user.UserType == UserType.Recruiter)
+            {
+                var employer =
+                    await _context.EmployerProfiles
+                        .FirstOrDefaultAsync(x =>
+                            x.UserId == user.UserId);
+
+                if (employer == null)
+                {
+                    return AuthFail(
+                        "Employer profile not found.");
+                }
+
+                if (employer.AccountStatus == AccountStatus.Suspended)
+                {
+                    return AuthFail(
+                        "Company account suspended.");
+                }
+
+                if (employer.AccountStatus == AccountStatus.Rejected)
+                {
+                    return AuthFail(
+                        "Company account rejected.");
+                }
+
+                employerId = employer.EmployerId;
+            }
+
+            // Update Login Information
             user.LastLoginAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
+
             await _context.SaveChangesAsync();
 
-            var (token, expiry) = GenerateUserToken(user);
-            var profileStatus = await GetProfileStatusAsync(user);
+            // Generate JWT
+            var (token, expiry) =
+                await GenerateUserTokenAsync(user);
+
+            // Profile Status
+            var profileStatus =
+                await GetProfileStatusAsync(user);
 
             _logger.LogInformation(
-                "LinkedIn login — UserId:{Id} Type:{Type} IP:{IP}",
-                user.UserId, userType, ipAddress);
+                "LinkedIn login - UserId:{Id} Type:{Type} IP:{IP}",
+                user.UserId,
+                userType,
+                ipAddress);
 
             return new AuthResponseDto
             {
                 Success = true,
                 Message = "LinkedIn login successful.",
+
                 Token = token,
-                UserType = userType,
+
                 UserId = user.UserId,
+
+                EmployerId = employerId,
+
+                UserType = userType.ToString(),
+
                 UserName = name,
+
                 ProfileStatus = profileStatus,
-                RedirectTo = GetRedirectUrl(user, profileStatus),
+
+               
+
                 ExpiresAt = expiry
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "LinkedIn login error. IP:{IP}", ipAddress);
-            return AuthFail("An error occurred. Please try again.");
+            _logger.LogError(
+                ex,
+                "LinkedIn login error. IP:{IP}",
+                ipAddress);
+
+            return AuthFail(
+                "An error occurred. Please try again.");
         }
     }
-
     // ── Private Helpers ───────────────────────────────────
 
-    private (string token, DateTime expiry) GenerateUserToken(User user)
+    private async Task<(string token, DateTime expiry)> GenerateUserTokenAsync(User user)
     {
+        Guid? employerId = null;
+
+        if (user.UserType == UserType.Recruiter)
+        {
+            employerId = await _context.EmployerProfiles
+                .Where(x => x.UserId == user.UserId)
+                .Select(x => (Guid?)x.EmployerId)
+                .FirstOrDefaultAsync();
+        }
+
         var token = _jwtService.GenerateToken(
-            user.UserId,
-            user.UserType.ToString(),
-            user.MobileNumber);
+        user.UserId,
+        user.UserType.ToString(),
+        user.MobileNumber,
+        employerId);
 
         return (token, _jwtService.GetExpiry());
     }

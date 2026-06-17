@@ -4,10 +4,12 @@ using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.ICandidate;
+using JobPortal.Services.IImplement.IPublic;
 using JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Services.Implement;
 using JobPortal.Services.Implement.Admin;
 using JobPortal.Services.Implement.Candidate;
+using JobPortal.Services.Implement.Public;
 using JobPortal.Services.Implement.Recruiter;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -74,8 +76,35 @@ builder.Services.AddScoped<ICreditConfigurationService, CreditConfigurationServi
 builder.Services.AddScoped<ISubUserEmailService, SubUserEmailService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICandidateAuthService, CandidateAuthService>();
-builder.Services.AddScoped<ICandidateAuthService, CandidateAuthService>();
+builder.Services.AddScoped<ICandidateProfileService, CandidateProfileService>();
+builder.Services.AddScoped<IRecruiterInvoiceService, RecruiterInvoiceService>();
+builder.Services.AddScoped<ICompanyProfileService, CompanyProfileService>(); 
+builder.Services.AddScoped<IVerificationService, VerificationService>();
+builder.Services.AddScoped<ICandidateJobService, CandidateJobService>();
+builder.Services.AddScoped<ITwilioOtpService,TwilioOtpService>();
+builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExtendedService>();
+builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
+builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
+
+builder.Services.AddScoped<IHomepageService, HomepageService>(); 
+builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
+builder.Services.AddScoped<INotificationService, NotificationService>(); 
+builder.Services.AddScoped<IRecruiterSettingsService, RecruiterSettingsService>();
+builder.Services.AddScoped<IRecruiterCandidateProfileService,RecruiterCandidateProfileService>();
+builder.Services.AddScoped<IRecruiterJobListingService, RecruiterJobListingService>();
+builder.Services.AddScoped<IRecruiterApplicantService, RecruiterApplicantService>();
+builder.Services.AddScoped<ICandidateNotificationService, CandidateNotificationService>();
+
+builder.Services.AddScoped<IRecruiterCvSearchService,RecruiterCvSearchService>();
+
+
+builder.Services.AddScoped<IHomepageService, HomepageService>();
+builder.Services.AddScoped<ICandidateSettingsService, CandidateSettingsService>();
+builder.Services.AddScoped<ICandidateAvailabilityService, CandidateAvailabilityService>();
+builder.Services.AddScoped<ICandidateItiInfoService, CandidateItiInfoService>();
+builder.Services.AddScoped<ICandidateLogoutService, CandidateLogoutService>();
+builder.Services.AddScoped<CandidatePagedJobService>();
 
 FirebaseApp.Create(new AppOptions()
 {
@@ -105,16 +134,36 @@ builder.Services.AddControllers()
             .Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Frontend", policy =>
+    {
+        policy
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()
+            .WithOrigins(
+                "http://localhost:3000",
+                "https://localhost:3000",
+                "https://job-portal-web-phi.vercel.app");
+
+
+    });
+});
 
 var app = builder.Build();
 
 
 // Configure the HTTP request pipeline.
-    app.UseSwagger();
+app.UseSwagger();
 
-    app.UseSwaggerUI();
+app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
+
+app.UseCors("Frontend");
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using JobPortal.Domain.Enums.RecruiterEnums;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -10,21 +11,23 @@ namespace JobPortal.Domain.Entities;
 public class EmployerBadge
 {
     public Guid BadgeId { get; set; }
+
     public Guid EmployerId { get; set; }
-    public string BadgeType { get; set; } = default!;
-    public string BadgeStatus { get; set; } = "Active";
-    public bool BadgeGstVerified { get; set; } = false;
-    public bool BadgePanVerified { get; set; } = false;
-    public bool BadgePoeLicensed { get; set; } = false;
-    public bool BadgeRpslLicensed { get; set; } = false;
-    public bool BadgeBlueTick { get; set; } = false;
-    public bool BlueTickEligible { get; set; } = false;
-    public string? BadgeRevocationReason { get; set; }
-    public Guid IssuedBy { get; set; }
-    public DateTime BadgeIssuedAt { get; set; }
-    public DateTime? BadgeRevokedAt { get; set; }
+
+    public BadgeType BadgeType { get; set; }
+
+    public BadgeStatus BadgeStatus { get; set; }
+
+    public string? RevocationReason { get; set; }
+
+    public Guid? IssuedBy { get; set; }
+
+    public DateTime IssuedAt { get; set; }
+
+    public DateTime? RevokedAt { get; set; }
 
     // Navigation
     public EmployerProfile EmployerProfile { get; set; } = default!;
-    public AdminUser IssuedByAdmin { get; set; } = default!;
+    public AdminUser? IssuedByAdmin { get; set; }
 }
+

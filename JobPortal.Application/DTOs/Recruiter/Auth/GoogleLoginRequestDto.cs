@@ -12,11 +12,8 @@ namespace JobPortal.Application.DTOs.Recruiter.Auth;
 
 public class GoogleLoginRequestDto
 {
-    /// <summary>
-    /// ID token from Google Sign-In on frontend
-    /// </summary>
     [Required]
-    public string GoogleIdToken { get; set; } = string.Empty;
+    public string AccessToken { get; set; } = string.Empty;
 
     [Required]
     [JsonConverter(typeof(JsonStringEnumConverter))]

@@ -131,9 +131,7 @@ public class RecruiterCreditController : ControllerBase
     public async Task<IActionResult> GetCvDownloadHistory(
     [FromHeader(Name = "EmployerId")] Guid employerId)
     {
-        var result =
-            await _service.GetCvDownloadHistoryAsync(
-                employerId);
+        var result = await _service.GetCvDownloadHistoryAsync(employerId);
 
         return Ok(result);
     }
@@ -142,9 +140,26 @@ public class RecruiterCreditController : ControllerBase
     public async Task<IActionResult> GetUnlockedCandidates(
     [FromHeader(Name = "EmployerId")] Guid employerId)
     {
-        var result =
-            await _service.GetUnlockedCandidatesAsync(
-                employerId);
+        var result = await _service.GetUnlockedCandidatesAsync( employerId);
+
+        return Ok(result);
+    }
+
+    [HttpGet("transaction-history")]
+    public async Task<IActionResult> GetTransactionHistory(
+    [FromHeader(Name = "EmployerId")] Guid employerId)
+    {
+        var result = await _service.GetEmployerTransactionHistoryAsync(employerId);
+
+        return Ok(result);
+    }
+
+
+    [HttpGet("credit-wallet-dashboard")]
+    public async Task<IActionResult>GetCreditWalletDashboard(
+        [FromHeader(Name = "EmployerId")]Guid employerId)
+    {
+        var result = await _service.GetCreditWalletDashboardAsync(employerId);
 
         return Ok(result);
     }

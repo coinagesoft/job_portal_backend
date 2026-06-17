@@ -1,3 +1,4 @@
+
 ﻿// ============================================================
 //  JobPortal.Application/DTOs/AI/AffindaDtos.cs
 //
@@ -202,3 +203,5 @@ public class AffindaParseResult
     // Store raw JSON for future re-parsing
     public string? RawAffindaJson { get; set; }
 }
+
+﻿
