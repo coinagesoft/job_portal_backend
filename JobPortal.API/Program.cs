@@ -86,7 +86,6 @@ builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExt
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
 builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
-
 builder.Services.AddScoped<IHomepageService, HomepageService>(); 
 builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 builder.Services.AddScoped<INotificationService, NotificationService>(); 
@@ -95,16 +94,14 @@ builder.Services.AddScoped<IRecruiterCandidateProfileService,RecruiterCandidateP
 builder.Services.AddScoped<IRecruiterJobListingService, RecruiterJobListingService>();
 builder.Services.AddScoped<IRecruiterApplicantService, RecruiterApplicantService>();
 builder.Services.AddScoped<ICandidateNotificationService, CandidateNotificationService>();
-
 builder.Services.AddScoped<IRecruiterCvSearchService,RecruiterCvSearchService>();
-
-
 builder.Services.AddScoped<IHomepageService, HomepageService>();
 builder.Services.AddScoped<ICandidateSettingsService, CandidateSettingsService>();
 builder.Services.AddScoped<ICandidateAvailabilityService, CandidateAvailabilityService>();
 builder.Services.AddScoped<ICandidateItiInfoService, CandidateItiInfoService>();
 builder.Services.AddScoped<ICandidateLogoutService, CandidateLogoutService>();
 builder.Services.AddScoped<CandidatePagedJobService>();
+builder.Services.AddScoped<IAffindaService, AffindaService>();
 
 FirebaseApp.Create(new AppOptions()
 {
