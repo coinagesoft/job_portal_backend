@@ -1,5 +1,6 @@
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
+using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
@@ -83,7 +84,7 @@ builder.Services.AddScoped<IVerificationService, VerificationService>();
 builder.Services.AddScoped<ICandidateJobService, CandidateJobService>();
 builder.Services.AddScoped<ITwilioOtpService,TwilioOtpService>();
 builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExtendedService>();
-builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
+//builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
 builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
 builder.Services.AddScoped<IHomepageService, HomepageService>(); 
@@ -101,7 +102,12 @@ builder.Services.AddScoped<ICandidateAvailabilityService, CandidateAvailabilityS
 builder.Services.AddScoped<ICandidateItiInfoService, CandidateItiInfoService>();
 builder.Services.AddScoped<ICandidateLogoutService, CandidateLogoutService>();
 builder.Services.AddScoped<CandidatePagedJobService>();
-builder.Services.AddScoped<IAffindaService, AffindaService>();
+//builder.Services.AddScoped<IAffindaService, AffindaService>();
+builder.Services.Configure<CloudinarySettingsDto>(
+    builder.Configuration.GetSection("CloudinarySettings"));
+
+builder.Services.AddScoped<ICloudinaryService,
+    CloudinaryService>();
 
 FirebaseApp.Create(new AppOptions()
 {
@@ -142,7 +148,7 @@ builder.Services.AddCors(options =>
             .WithOrigins(
                 "http://localhost:3000",
                 "https://localhost:3000",
-                "https://job-portal-web-phi.vercel.app");
+                "https://job-portal-dev-phi.vercel.app");
 
 
     });

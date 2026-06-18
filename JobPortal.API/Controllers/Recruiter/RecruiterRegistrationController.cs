@@ -51,28 +51,85 @@ namespace JobPortal.API.Controllers.Recruiter
         [HttpPost("company-details")]
         [ProducesResponseType(typeof(CompanyDetailsResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [RequestSizeLimit(10 * 1024 * 1024)] // 10MB max request
+        [RequestSizeLimit(10 * 1024 * 1024)]
         public async Task<IActionResult> CompanyDetails(
-            [FromForm] CompanyDetailsRequestDto request,
-            [FromHeader(Name = "X-Session-Id")] string? sessionId)
+          [FromForm] CompanyDetailsRequestDto request,
+          [FromHeader(Name = "X-Session-Id")] string? sessionId)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
             if (string.IsNullOrWhiteSpace(sessionId))
-                return BadRequest(new { message = "X-Session-Id header is required." });
+            {
+                return BadRequest(new
+                {
+                    message = "X-Session-Id header is required."
+                });
+            }
 
-            // Validate BusinessType enum
+            // BusinessType validation
             if (!Enum.IsDefined(typeof(BusinessType), request.BusinessType))
-                return BadRequest(new { message = "Invalid BusinessType value." });
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid BusinessType value."
+                });
+            }
 
-            // Validate CompanySize enum if provided
+            // CompanySize validation
             if (request.CompanySize.HasValue &&
                 !Enum.IsDefined(typeof(CompanySize), request.CompanySize.Value))
-                return BadRequest(new { message = "Invalid CompanySize value." });
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid CompanySize value."
+                });
+            }
 
-            var result = await _service.SaveCompanyDetailsAsync(request, sessionId);
-            return result.Success ? Ok(result) : BadRequest(result);
+            // IndustryType validation
+            if (request.IndustryType.HasValue &&
+                !Enum.IsDefined(typeof(IndustryType), request.IndustryType.Value))
+            {
+                return BadRequest(new
+                {
+                    message = "Invalid IndustryType value."
+                });
+            }
+
+            // Logo validation before hitting service
+            if (request.CompanyLogo != null)
+            {
+                var allowedTypes = new[]
+                {
+            "image/jpeg",
+            "image/jpg",
+            "image/png"
+        };
+
+                if (!allowedTypes.Contains(request.CompanyLogo.ContentType))
+                {
+                    return BadRequest(new
+                    {
+                        message = "Company logo must be JPG or PNG."
+                    });
+                }
+
+                if (request.CompanyLogo.Length > 2 * 1024 * 1024)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Company logo must be under 2 MB."
+                    });
+                }
+            }
+
+            var result = await _service.SaveCompanyDetailsAsync(
+                request,
+                sessionId);
+
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
         }
 
         // ════════════════════════════════════════════════
@@ -161,25 +218,27 @@ namespace JobPortal.API.Controllers.Recruiter
         [HttpPost("upload-licences")]
         [ProducesResponseType(typeof(LicencesResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [RequestSizeLimit(20 * 1024 * 1024)] // 20MB max (two 5MB files + overhead)
+        [RequestSizeLimit(15 * 1024 * 1024)]
         public async Task<IActionResult> UploadLicences(
-            [FromForm] LicencesRequestDto request,
-            [FromHeader(Name = "X-Session-Id")] string? sessionId)
+       [FromForm] LicencesRequestDto request,
+       [FromHeader(Name = "X-Session-Id")] string? sessionId)
         {
-            if (string.IsNullOrWhiteSpace(sessionId))
-                return BadRequest(new { message = "X-Session-Id header is required." });
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            // If not skipping, at least one file should be present
-            if (!request.SkipLicences &&
-                (request.PoeLicence == null || request.PoeLicence.Length == 0) &&
-                (request.RpslLicence == null || request.RpslLicence.Length == 0))
+            if (string.IsNullOrWhiteSpace(sessionId))
                 return BadRequest(new
                 {
-                    message = "Please upload at least one licence file, or set skipLicences=true."
+                    message = "X-Session-Id header is required."
                 });
 
-            var result = await _service.UploadLicencesAsync(request, sessionId);
-            return result.Success ? Ok(result) : BadRequest(result);
+            var result = await _service.UploadLicencesAsync(
+                request,
+                sessionId);
+
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
         }
 
         // ════════════════════════════════════════════════

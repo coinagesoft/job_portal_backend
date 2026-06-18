@@ -14,13 +14,17 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<RecruiterRegistrationService> _logger;
+    private readonly ICloudinaryService _cloudinaryService;
 
     public RecruiterRegistrationService(
         AppDbContext context,
-        ILogger<RecruiterRegistrationService> logger)
+        ILogger<RecruiterRegistrationService> logger,
+         ICloudinaryService cloudinaryService)
     {
         _context = context;
         _logger = logger;
+        _cloudinaryService = cloudinaryService;
+
     }
 
     // ════════════════════════════════════════════════
@@ -81,11 +85,13 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     // STEP 2 — Company Details → update DB immediately
     // ════════════════════════════════════════════════
     public async Task<CompanyDetailsResponseDto> SaveCompanyDetailsAsync(
-        CompanyDetailsRequestDto request, string sessionId)
+      CompanyDetailsRequestDto request,
+      string sessionId)
     {
         try
         {
             var session = await GetValidSessionAsync(sessionId);
+
             if (session == null)
                 return new CompanyDetailsResponseDto
                 {
@@ -93,7 +99,6 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     Message = "Session expired. Please start again."
                 };
 
-            // ── Validate step order ────────────────────────
             if (session.LastCompletedStep < 1)
                 return new CompanyDetailsResponseDto
                 {
@@ -101,82 +106,110 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     Message = "Please complete Step 1 (GST Check) first."
                 };
 
-            // ── Handle logo upload ─────────────────────────
-            string? logoUrl = null;
-            if (request.CompanyLogo != null && request.CompanyLogo.Length > 0)
+            string? logoUrl = session.CompanyLogoUrl;
+
+            // Upload logo to Cloudinary
+            if (request.CompanyLogo != null &&
+                request.CompanyLogo.Length > 0)
             {
-                var allowedTypes = new[] { "image/jpeg", "image/jpg", "image/png" };
+                var allowedTypes = new[]
+                {
+                "image/jpeg",
+                "image/jpg",
+                "image/png"
+            };
+
                 if (!allowedTypes.Contains(request.CompanyLogo.ContentType))
+                {
                     return new CompanyDetailsResponseDto
                     {
                         Success = false,
                         Message = "Logo must be PNG or JPG."
                     };
+                }
 
                 if (request.CompanyLogo.Length > 2 * 1024 * 1024)
+                {
                     return new CompanyDetailsResponseDto
                     {
                         Success = false,
                         Message = "Logo must be under 2MB."
                     };
+                }
 
-                // TODO: Upload to S3
-                logoUrl = $"https://s3.amazonaws.com/skillbridge/logos/{Guid.NewGuid()}.jpg";
+                logoUrl = await _cloudinaryService.UploadImageAsync(
+                    request.CompanyLogo,
+                    "jobportalrecruiter/company-logos");
+
+                if (string.IsNullOrWhiteSpace(logoUrl))
+                {
+                    return new CompanyDetailsResponseDto
+                    {
+                        Success = false,
+                        Message = "Logo upload failed."
+                    };
+                }
             }
 
-            // ── Update session in DB ───────────────────────
+            // Save everything
             session.LegalName = request.LegalName;
             session.TradeName = request.TradeName;
             session.CompanyDisplayName = request.CompanyDisplayName;
             session.BusinessType = request.BusinessType.ToString();
             session.CompanySize = request.CompanySize?.ToString();
             session.Cin = request.Cin;
-            session.State = request.State;
-            session.City = request.City;
-            session.Pincode = request.Pincode;
-            session.AddressLine1 = request.AddressLine1;
-            session.AddressLine2 = request.AddressLine2;
-            session.WebsiteUrl = request.WebsiteUrl;
-            session.CompanyLogoUrl = logoUrl;
 
-            // ── NEW ───────────────────────────────────────────
             session.Gstn = request.Gstn;
             session.Pan = request.Pan;
             session.GstnRegistrationDate = request.GstnRegistrationDate;
-            // Override IndustryType from Step 2 if provided
+
             if (request.IndustryType.HasValue)
                 session.IndustryType = request.IndustryType.ToString();
-            // ─────────────────────────────────────────────────
+
+            session.State = request.State;
+            session.City = request.City;
+            session.Pincode = request.Pincode;
+
+            session.AddressLine1 = request.AddressLine1;
+            session.AddressLine2 = request.AddressLine2;
+
+            session.WebsiteUrl = request.WebsiteUrl;
+
+            session.CompanyLogoUrl = logoUrl;
 
             session.CurrentStep = 2;
-            session.LastCompletedStep = Math.Max(session.LastCompletedStep, 2);
+            session.LastCompletedStep =
+                Math.Max(session.LastCompletedStep, 2);
 
-            await _context.SaveChangesAsync();         // ✅ saved to DB immediately
+            await _context.SaveChangesAsync();
 
             _logger.LogInformation(
-                "Step2 saved — Session:{Id}", session.SessionId);
+                "Step2 saved — Session:{Id}",
+                session.SessionId);
 
             return new CompanyDetailsResponseDto
             {
                 Success = true,
-                Message = "Company details saved.",
-                CompanyLogoUrl = logoUrl,
+                Message = "Company details saved successfully.",
+                CompanyLogoUrl = session.CompanyLogoUrl,
                 StepStatus = BuildStepStatus(session)
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Save company details error.");
+            _logger.LogError(ex,
+                "Save company details error.");
+
             return new CompanyDetailsResponseDto
             {
                 Success = false,
-                Message = ex.InnerException?.InnerException?.Message
-                       ?? ex.InnerException?.Message
-                       ?? ex.Message
+                Message =
+                    ex.InnerException?.InnerException?.Message
+                    ?? ex.InnerException?.Message
+                    ?? ex.Message
             };
         }
     }
-
     // ════════════════════════════════════════════════
     // STEP 3A — Contact + Send OTP → update DB
     // ════════════════════════════════════════════════
@@ -383,117 +416,175 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     // STEP 4 — Upload Licences → update DB
     // ════════════════════════════════════════════════
     public async Task<LicencesResponseDto> UploadLicencesAsync(
-        LicencesRequestDto request, string sessionId)
+     LicencesRequestDto request,
+     string sessionId)
     {
         try
         {
             var session = await GetValidSessionAsync(sessionId);
+
             if (session == null)
+            {
                 return new LicencesResponseDto
                 {
                     Success = false,
                     Message = "Session expired. Please start again."
                 };
+            }
 
             if (session.LastCompletedStep < 3)
+            {
                 return new LicencesResponseDto
                 {
                     Success = false,
                     Message = "Please complete Step 3 (Contact & OTP) first."
                 };
+            }
 
-            if (request.SkipLicences)
+            if (request.PoeLicence == null)
             {
-                // ✅ Mark as skipped and save to DB
-                session.LicencesSkipped = true;
-                session.CurrentStep = 4;
-                session.LastCompletedStep = Math.Max(session.LastCompletedStep, 4);
-                await _context.SaveChangesAsync();
-
                 return new LicencesResponseDto
                 {
-                    Success = true,
-                    Message = "Licences skipped. You can upload later from dashboard.",
-                    StepStatus = BuildStepStatus(session)
+                    Success = false,
+                    Message = "POE licence is required."
                 };
             }
 
-            var allowedTypes = new[] { "application/pdf", "image/jpeg", "image/png" };
+            if (request.RpslLicence == null)
+            {
+                return new LicencesResponseDto
+                {
+                    Success = false,
+                    Message = "RPSL licence is required."
+                };
+            }
+
+            var allowedTypes = new[]
+            {
+            "application/pdf",
+            "image/jpeg",
+            "image/jpg",
+            "image/png"
+        };
+
             const long maxSize = 5 * 1024 * 1024;
-            var badgesEarned = new List<string>();
 
-            if (request.PoeLicence != null && request.PoeLicence.Length > 0)
+            // POE validation
+            if (!allowedTypes.Contains(request.PoeLicence.ContentType))
             {
-                if (!allowedTypes.Contains(request.PoeLicence.ContentType))
-                    return new LicencesResponseDto
-                    {
-                        Success = false,
-                        Message = "POE licence must be PDF, JPG or PNG."
-                    };
-
-                if (request.PoeLicence.Length > maxSize)
-                    return new LicencesResponseDto
-                    {
-                        Success = false,
-                        Message = "POE licence must be under 5MB."
-                    };
-
-                // TODO: S3 upload
-                session.PoeLicenceS3Url =
-                    $"https://s3.amazonaws.com/skillbridge/poe/{Guid.NewGuid()}.pdf";
-                badgesEarned.Add("Recruitment_Licensed");
+                return new LicencesResponseDto
+                {
+                    Success = false,
+                    Message = "POE licence must be PDF, JPG or PNG."
+                };
             }
 
-            if (request.RpslLicence != null && request.RpslLicence.Length > 0)
+            if (request.PoeLicence.Length > maxSize)
             {
-                if (!allowedTypes.Contains(request.RpslLicence.ContentType))
-                    return new LicencesResponseDto
-                    {
-                        Success = false,
-                        Message = "RPSL licence must be PDF, JPG or PNG."
-                    };
-
-                if (request.RpslLicence.Length > maxSize)
-                    return new LicencesResponseDto
-                    {
-                        Success = false,
-                        Message = "RPSL licence must be under 5MB."
-                    };
-
-                // TODO: S3 upload
-                session.RpslLicenceS3Url =
-                    $"https://s3.amazonaws.com/skillbridge/rpsl/{Guid.NewGuid()}.pdf";
-                badgesEarned.Add("RPSL_Licensed");
+                return new LicencesResponseDto
+                {
+                    Success = false,
+                    Message = "POE licence must be under 5MB."
+                };
             }
 
-            // ✅ Save to DB immediately
+            // RPSL validation
+            if (!allowedTypes.Contains(request.RpslLicence.ContentType))
+            {
+                return new LicencesResponseDto
+                {
+                    Success = false,
+                    Message = "RPSL licence must be PDF, JPG or PNG."
+                };
+            }
+
+            if (request.RpslLicence.Length > maxSize)
+            {
+                return new LicencesResponseDto
+                {
+                    Success = false,
+                    Message = "RPSL licence must be under 5MB."
+                };
+            }
+
+            // Upload POE
+            var poeUrl =
+                await _cloudinaryService.UploadDocumentAsync(
+                    request.PoeLicence,
+                    "skillbridge/licences/poe");
+
+            if (string.IsNullOrWhiteSpace(poeUrl))
+            {
+                return new LicencesResponseDto
+                {
+                    Success = false,
+                    Message = "Failed to upload POE licence."
+                };
+            }
+
+            // Upload RPSL
+            var rpslUrl =
+                await _cloudinaryService.UploadDocumentAsync(
+                    request.RpslLicence,
+                    "skillbridge/licences/rpsl");
+
+            if (string.IsNullOrWhiteSpace(rpslUrl))
+            {
+                return new LicencesResponseDto
+                {
+                    Success = false,
+                    Message = "Failed to upload RPSL licence."
+                };
+            }
+
+            // Save DB
+            session.PoeLicenceS3Url = poeUrl;
+            session.RpslLicenceS3Url = rpslUrl;
+
             session.LicencesSkipped = false;
+
             session.CurrentStep = 4;
-            session.LastCompletedStep = Math.Max(session.LastCompletedStep, 4);
+
+            session.LastCompletedStep =
+                Math.Max(session.LastCompletedStep, 4);
+
             await _context.SaveChangesAsync();
 
             _logger.LogInformation(
-                "Step4 saved — Session:{Id}", session.SessionId);
+                "Step4 saved — Session:{Id}",
+                session.SessionId);
 
             return new LicencesResponseDto
             {
                 Success = true,
-                Message = badgesEarned.Count > 0
-                    ? "Licences uploaded. Pending admin review."
-                    : "No licences uploaded.",
+                Message = "Licences uploaded successfully. Pending admin review.",
+
                 PoeLicenceUrl = session.PoeLicenceS3Url,
+
                 RpslLicenceUrl = session.RpslLicenceS3Url,
-                BadgesEarned = badgesEarned,
+
+                BadgesEarned = new List<string>
+            {
+                "Recruitment_Licensed",
+                "RPSL_Licensed"
+            },
+
                 StepStatus = BuildStepStatus(session)
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Upload licences error.");
+            _logger.LogError(
+                ex,
+                "Upload licences error.");
+
             return new LicencesResponseDto
             {
                 Success = false,
-                Message = "An error occurred. Please try again."
+                Message =
+                    ex.InnerException?.InnerException?.Message
+                    ?? ex.InnerException?.Message
+                    ?? ex.Message
             };
         }
     }

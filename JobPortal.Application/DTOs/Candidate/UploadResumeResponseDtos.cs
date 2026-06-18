@@ -5,7 +5,7 @@
 
 namespace JobPortal.Application.DTOs.Candidate.Profile;
 
-public class UploadResumeResponseDto
+public class UploadResumeResponseDtos
 {
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;

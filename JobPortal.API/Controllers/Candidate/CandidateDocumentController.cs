@@ -71,7 +71,7 @@ public class CandidateDocumentController : ControllerBase
     /// </summary>
     [HttpPost("resume")]
     [RequestSizeLimit(11 * 1024 * 1024)]
-    [ProducesResponseType(typeof(UploadResumeResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(UploadResumeResponseDtos), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadResume(
         IFormFile resume,
