@@ -50,7 +50,7 @@ using System.Threading.Tasks;
                 response.Badges.Add(new VerificationBadgeDto
                 {
                     BadgeName = "POE Licensed",
-                    Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceS3Url)
+                    Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl)
                         ? "Approved"
                         : "Pending",
                     Description = "POE licence verification."
@@ -59,7 +59,7 @@ using System.Threading.Tasks;
                 response.Badges.Add(new VerificationBadgeDto
                 {
                     BadgeName = "RPSL Licensed",
-                    Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceS3Url)
+                    Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl)
                         ? "Approved"
                         : "Pending",
                     Description = "RPSL licence verification."
@@ -86,8 +86,8 @@ using System.Threading.Tasks;
                 response.Documents.Add(new VerificationDocumentDto
                 {
                     DocumentType = "POE",
-                    FileUrl = profile.PoeLicenceS3Url,
-                    Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceS3Url)
+                    FileUrl = profile.PoeLicenceUrl,
+                    Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl)
                         ? "Uploaded"
                         : "Not Uploaded",
                     UploadedAt = profile.UpdatedAt
@@ -96,8 +96,8 @@ using System.Threading.Tasks;
                 response.Documents.Add(new VerificationDocumentDto
                 {
                     DocumentType = "RPSL",
-                    FileUrl = profile.RpslLicenceS3Url,
-                    Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceS3Url)
+                    FileUrl = profile.RpslLicenceUrl,
+                    Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl)
                         ? "Uploaded"
                         : "Not Uploaded",
                     UploadedAt = profile.UpdatedAt
@@ -134,11 +134,11 @@ using System.Threading.Tasks;
                 switch (request.DocumentType.ToUpper())
                 {
                     case "POE":
-                        profile.PoeLicenceS3Url = fileUrl;
+                        profile.PoeLicenceUrl = fileUrl;
                         break;
 
                     case "RPSL":
-                        profile.RpslLicenceS3Url = fileUrl;
+                        profile.RpslLicenceUrl = fileUrl;
                         break;
 
                     case "BUSINESS_REGISTRATION":
@@ -171,8 +171,8 @@ using System.Threading.Tasks;
 
                 string? fileUrl = documentType.ToUpper() switch
                 {
-                    "POE" => profile.PoeLicenceS3Url,
-                    "RPSL" => profile.RpslLicenceS3Url,
+                    "POE" => profile.PoeLicenceUrl,
+                    "RPSL" => profile.RpslLicenceUrl,
                     "BUSINESS_REGISTRATION" => profile.BusinessRegDocUrl,
                     _ => null
                 };

@@ -50,13 +50,13 @@ public class EmployerProfile
     public string? SecurityDepositStatus { get; set; }
     public byte ProfileCompletionScore { get; set; } = 0;
     // POE
-    public string? PoeLicenceS3Url { get; set; }
+    public string? PoeLicenceUrl { get; set; }
     public string? PoeLicenceNumber { get; set; }
     public string? PoeCompanyName { get; set; }
     public DateOnly? PoeValidityDate { get; set; }
     public bool PoeExpiredFlag { get; set; } = false;
     // RPSL
-    public string? RpslLicenceS3Url { get; set; }
+    public string? RpslLicenceUrl { get; set; }
     public string? RpslLicenceNumber { get; set; }
     public string? RpslCompanyName { get; set; }
     public DateOnly? RpslValidityDate { get; set; }
@@ -67,6 +67,12 @@ public class EmployerProfile
     public string? Tags { get; set; }               // JSON
 
     public string TimeZone { get; set; } = "Asia/Kolkata";
+
+    public string? CompanyLogoPublicId { get; set; }
+
+    public string? PoeLicencePublicId { get; set; }
+
+    public string? RpslLicencePublicId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

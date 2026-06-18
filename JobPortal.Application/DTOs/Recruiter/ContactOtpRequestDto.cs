@@ -58,8 +58,14 @@ namespace JobPortal.Application.DTOs.Recruiter
         public string CountryCode { get; set; } = string.Empty;
 
         [Required]
-        [StringLength(6, MinimumLength = 6)]
-        public string OtpCode { get; set; } = string.Empty;
+        public string MobileOtpCode { get; set; } = string.Empty;
+
+        [Required]
+        [EmailAddress]
+        public string CompanyEmail { get; set; } = string.Empty;
+
+        [Required]
+        public string EmailOtpCode { get; set; } = string.Empty;
     }
 
     public class VerifyContactOtpResponseDto

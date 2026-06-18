@@ -3,6 +3,7 @@ using System;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260618093625_AddCompanyEmailVerified")]
+    partial class AddCompanyEmailVerified
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2014,6 +2017,7 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<string>("CountryCode")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("country_code");
 
@@ -2029,6 +2033,7 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnName("locked_until");
 
                     b.Property<string>("MobileNumber")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("mobile_number");
 

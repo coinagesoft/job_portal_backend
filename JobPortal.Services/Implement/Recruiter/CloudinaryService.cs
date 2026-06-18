@@ -1,65 +1,107 @@
-﻿
-using CloudinaryDotNet;
+﻿using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
-using Npgsql.BackendMessages;
-using System.Security.Principal;
 
-public class CloudinaryService : ICloudinaryService
+namespace JobPortal.Services.Implement.Recruiter
 {
-    private readonly Cloudinary _cloudinary;
-
-    public CloudinaryService(
-        IOptions<CloudinarySettingsDto> settings)
+    public class CloudinaryService : ICloudinaryService
     {
-        var account = new Account(
-            settings.Value.CloudName,
-            settings.Value.ApiKey,
-            settings.Value.ApiSecret);
+        private readonly Cloudinary _cloudinary;
 
-        _cloudinary = new Cloudinary(account);
-    }
-
-    public async Task<string?> UploadImageAsync(
-        IFormFile file,
-        string folder)
-    {
-        await using var stream = file.OpenReadStream();
-
-        var uploadParams = new ImageUploadParams
+        public CloudinaryService(
+            IOptions<CloudinarySettingsDto> settings)
         {
-            File = new FileDescription(file.FileName, stream),
-            Folder = folder
-        };
+            if (string.IsNullOrWhiteSpace(settings.Value.CloudName))
+                throw new Exception("CloudName missing");
 
-        var result = await _cloudinary.UploadAsync(uploadParams);
+            if (string.IsNullOrWhiteSpace(settings.Value.ApiKey))
+                throw new Exception("ApiKey missing");
 
-        return result.SecureUrl.ToString();
-    }
+            if (string.IsNullOrWhiteSpace(settings.Value.ApiSecret))
+                throw new Exception("ApiSecret missing");
 
-    public async Task<string?> UploadDocumentAsync(
-        IFormFile file,
-        string folder)
-    {
-        await using var stream = file.OpenReadStream();
+            var account = new Account(
+                settings.Value.CloudName,
+                settings.Value.ApiKey,
+                settings.Value.ApiSecret);
 
-        var uploadParams = new RawUploadParams
+            _cloudinary = new Cloudinary(account);
+
+        }
+
+        public async Task<CloudinaryUploadResult> UploadImageAsync(
+            IFormFile file,
+            string folder)
         {
-            File = new FileDescription(file.FileName, stream),
-            Folder = folder
-        };
+            await using var stream = file.OpenReadStream();
 
-        var result = await _cloudinary.UploadAsync(uploadParams);
+            var uploadParams = new ImageUploadParams
+            {
+                File = new FileDescription(file.FileName, stream),
+                Folder = folder
+            };
 
-        return result.SecureUrl.ToString();
-    }
+            var result = await _cloudinary.UploadAsync(uploadParams);
 
-    public async Task DeleteAsync(string publicId)
-    {
-        await _cloudinary.DestroyAsync(
-            new DeletionParams(publicId));
+            if (result.Error != null)
+            {
+                throw new Exception(
+                    $"Cloudinary error: {result.Error.Message}");
+            }
+
+            if (result.SecureUrl == null)
+            {
+                throw new Exception(
+                    "Cloudinary upload failed. SecureUrl is null.");
+            }
+            return new CloudinaryUploadResult
+            {
+                Url = result.SecureUrl.ToString(),
+                PublicId = result.PublicId
+            };
+        }
+
+        public async Task<CloudinaryUploadResult> UploadDocumentAsync(
+            IFormFile file,
+            string folder)
+        {
+            await using var stream = file.OpenReadStream();
+
+            var uploadParams = new RawUploadParams
+            {
+                File = new FileDescription(file.FileName, stream),
+                Folder = folder
+            };
+
+            var result = await _cloudinary.UploadAsync(uploadParams);
+            if (result.Error != null)
+            {
+                throw new Exception(
+                    $"Cloudinary error: {result.Error.Message}");
+            }
+
+            if (result.SecureUrl == null)
+            {
+                throw new Exception(
+                    "Cloudinary upload failed. SecureUrl is null.");
+            }
+            return new CloudinaryUploadResult
+            {
+                Url = result.SecureUrl.ToString(),
+                PublicId = result.PublicId
+            };
+        }
+
+        public async Task DeleteAsync(string? publicId)
+        {
+            if (string.IsNullOrWhiteSpace(publicId))
+                return;
+
+            await _cloudinary.DestroyAsync(
+                new DeletionParams(publicId));
+        }
     }
 }

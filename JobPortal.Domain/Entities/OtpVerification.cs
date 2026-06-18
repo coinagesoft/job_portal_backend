@@ -6,9 +6,11 @@ public class OtpVerification
 
     public Guid? UserId { get; set; }
 
-    public string MobileNumber { get; set; } = default!;
+    public string? MobileNumber { get; set; } = default!;
 
-    public string CountryCode { get; set; } = default!;
+    public string? Email { get; set; }
+
+    public string? CountryCode { get; set; } = default!;
 
     public string OtpCode { get; set; } = default!;
 
@@ -23,6 +25,8 @@ public class OtpVerification
     public bool IsVerified { get; set; }
 
     public DateTime? LockedUntil { get; set; }
+
+    public bool CompanyEmailVerified { get; set; }
 
     // Navigation
     public User? User { get; set; }

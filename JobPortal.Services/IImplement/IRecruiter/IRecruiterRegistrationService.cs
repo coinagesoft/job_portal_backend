@@ -20,12 +20,36 @@ namespace JobPortal.Services.IImplement.IRecruiter
             CompanyDetailsRequestDto request, string sessionId);
 
         // Step 3A — Save contact + send OTP
-        Task<ContactDetailsResponseDto> SaveContactAndSendOtpAsync(
-            ContactDetailsRequestDto request, string sessionId);
+        // Step 3A
+        Task<ContactDetailsResponseDto> SaveContactDetailsAsync(
+            ContactDetailsRequestDto request,
+            string sessionId);
 
-        // Step 3B — Verify OTP
-        Task<VerifyContactOtpResponseDto> VerifyContactOtpAsync(
-            VerifyContactOtpRequestDto request, string sessionId);
+        // Mobile OTP
+        Task<OtpResponseDto> SendMobileOtpAsync(
+            SendMobileOtpRequestDto request,
+            string sessionId);
+
+        Task<OtpResponseDto> VerifyMobileOtpAsync(
+            VerifyMobileOtpRequestDto request,
+            string sessionId);
+
+        Task<OtpResponseDto> ResendMobileOtpAsync(
+            string sessionId);
+
+        // Email OTP
+        Task<OtpResponseDto> SendEmailOtpAsync(
+            SendEmailOtpRequestDto request,
+            string sessionId);
+
+        Task<OtpResponseDto> VerifyEmailOtpAsync(
+            VerifyEmailOtpRequestDto request,
+            string sessionId);
+
+        Task<OtpResponseDto> ResendEmailOtpAsync(
+            string sessionId);
+
+      
 
         // Step 4 — Upload licences
         Task<LicencesResponseDto> UploadLicencesAsync(
@@ -35,7 +59,7 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task<ReviewSubmitResponseDto> SubmitRegistrationAsync(
             ReviewSubmitRequestDto request, string ipAddress);
 
-
+     
         Task<ResumeSessionResponseDto> ResumeSessionAsync(
          string sessionId);
     }

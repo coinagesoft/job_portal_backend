@@ -15,9 +15,11 @@ public class ResumeSessionResponseDto
     public string Message { get; set; } = string.Empty;
     public StepStatusDto? StepStatus { get; set; }
 
-    // Pre-filled data for each completed step
     public GstCheckResponseDto? Step1Data { get; set; }
-    public CompanyDetailsResponseDto? Step2Data { get; set; }
-    public bool Step3Verified { get; set; }
-    public bool Step4LicencesSkipped { get; set; }
+
+    public ResumeCompanyDetailsDto? Step2Data { get; set; }
+
+    public ResumeContactDetailsDto? Step3Data { get; set; }
+
+    public ResumeLicenceDetailsDto? Step4Data { get; set; }
 }

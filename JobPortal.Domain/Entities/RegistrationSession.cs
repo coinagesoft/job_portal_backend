@@ -51,11 +51,16 @@ public class RegistrationSession
     public string? CompanyDescription { get; set; }
     public bool MobileVerified { get; set; } = false;
 
+    public bool CompanyEmailVerified { get; set; }
     // Step 4 data
-    public string? PoeLicenceS3Url { get; set; }
-    public string? RpslLicenceS3Url { get; set; }
+    public string? PoeLicenceUrl { get; set; }
+    public string? RpslLicenceUrl { get; set; }
     public bool LicencesSkipped { get; set; } = false;
+    public string? CompanyLogoPublicId { get; set; }
 
+    public string? PoeLicencePublicId { get; set; }
+
+    public string? RpslLicencePublicId { get; set; }
     // Meta
     public bool IsCompleted { get; set; } = false;
     public DateTime CreatedAt { get; set; }  

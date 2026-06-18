@@ -252,8 +252,8 @@ public class CandidateJobService : ICandidateJobService
                 CompanyEmail = isConfidential ? null : employer.ContactEmailPublic,
                 CompanyIndustry = employer.IndustryType.ToString(),
                 CompanySize = employer.CompanySize?.ToString(),
-                HasPoeLicence = !string.IsNullOrWhiteSpace(employer.PoeLicenceS3Url),
-                HasRpslLicence = !string.IsNullOrWhiteSpace(employer.RpslLicenceS3Url),
+                HasPoeLicence = !string.IsNullOrWhiteSpace(employer.PoeLicenceUrl),
+                HasRpslLicence = !string.IsNullOrWhiteSpace(employer.RpslLicenceUrl),
 
                 // ── Job basics ────────────────────────────────
                 JobTitle = job.JobTitle,

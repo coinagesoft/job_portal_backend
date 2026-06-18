@@ -699,7 +699,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.ProfileCompletionScore)
                 .HasColumnName("profile_completion_score");
 
-            e.Property(x => x.PoeLicenceS3Url)
+            e.Property(x => x.PoeLicenceUrl)
                 .HasColumnName("poe_licence_s3_url");
 
             e.Property(x => x.PoeLicenceNumber)
@@ -714,7 +714,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.PoeExpiredFlag)
                 .HasColumnName("poe_expired_flag");
 
-            e.Property(x => x.RpslLicenceS3Url)
+            e.Property(x => x.RpslLicenceUrl)
                 .HasColumnName("rpsl_licence_s3_url");
 
             e.Property(x => x.RpslLicenceNumber)

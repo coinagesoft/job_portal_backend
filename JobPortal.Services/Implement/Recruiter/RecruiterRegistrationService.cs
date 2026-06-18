@@ -15,15 +15,20 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     private readonly AppDbContext _context;
     private readonly ILogger<RecruiterRegistrationService> _logger;
     private readonly ICloudinaryService _cloudinaryService;
-
+    private readonly ITwilioOtpService _twilioOtpService;
+    private readonly IEmailService _emailService;
     public RecruiterRegistrationService(
         AppDbContext context,
         ILogger<RecruiterRegistrationService> logger,
-         ICloudinaryService cloudinaryService)
+         ICloudinaryService cloudinaryService,
+         ITwilioOtpService twilioOtpService,
+         IEmailService emailService)
     {
         _context = context;
         _logger = logger;
         _cloudinaryService = cloudinaryService;
+        _twilioOtpService = twilioOtpService;
+        _emailService = emailService;
 
     }
 
@@ -85,30 +90,32 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     // STEP 2 — Company Details → update DB immediately
     // ════════════════════════════════════════════════
     public async Task<CompanyDetailsResponseDto> SaveCompanyDetailsAsync(
-      CompanyDetailsRequestDto request,
-      string sessionId)
+       CompanyDetailsRequestDto request,
+       string sessionId)
     {
         try
         {
             var session = await GetValidSessionAsync(sessionId);
 
             if (session == null)
+            {
                 return new CompanyDetailsResponseDto
                 {
                     Success = false,
                     Message = "Session expired. Please start again."
                 };
+            }
 
             if (session.LastCompletedStep < 1)
+            {
                 return new CompanyDetailsResponseDto
                 {
                     Success = false,
                     Message = "Please complete Step 1 (GST Check) first."
                 };
+            }
 
-            string? logoUrl = session.CompanyLogoUrl;
-
-            // Upload logo to Cloudinary
+            // Upload logo
             if (request.CompanyLogo != null &&
                 request.CompanyLogo.Length > 0)
             {
@@ -137,11 +144,16 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     };
                 }
 
-                logoUrl = await _cloudinaryService.UploadImageAsync(
-                    request.CompanyLogo,
-                    "jobportalrecruiter/company-logos");
+                // Remove previous logo if re-uploading
+                await _cloudinaryService.DeleteAsync(
+                    session.CompanyLogoPublicId);
 
-                if (string.IsNullOrWhiteSpace(logoUrl))
+                // Upload new logo
+                var logo = await _cloudinaryService.UploadImageAsync(
+                    request.CompanyLogo,
+                    "jobportalrecruiter_logo/company-logos");
+
+                if (string.IsNullOrWhiteSpace(logo.Url))
                 {
                     return new CompanyDetailsResponseDto
                     {
@@ -149,23 +161,34 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                         Message = "Logo upload failed."
                     };
                 }
+
+                session.CompanyLogoUrl = logo.Url;
+                session.CompanyLogoPublicId = logo.PublicId;
             }
 
-            // Save everything
+            // Company Details
             session.LegalName = request.LegalName;
             session.TradeName = request.TradeName;
             session.CompanyDisplayName = request.CompanyDisplayName;
+
             session.BusinessType = request.BusinessType.ToString();
+
             session.CompanySize = request.CompanySize?.ToString();
+
             session.Cin = request.Cin;
 
+            // GST Details
             session.Gstn = request.Gstn;
             session.Pan = request.Pan;
             session.GstnRegistrationDate = request.GstnRegistrationDate;
 
             if (request.IndustryType.HasValue)
-                session.IndustryType = request.IndustryType.ToString();
+            {
+                session.IndustryType =
+                    request.IndustryType.ToString();
+            }
 
+            // Address
             session.State = request.State;
             session.City = request.City;
             session.Pincode = request.Pincode;
@@ -173,11 +196,12 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             session.AddressLine1 = request.AddressLine1;
             session.AddressLine2 = request.AddressLine2;
 
+            // Website
             session.WebsiteUrl = request.WebsiteUrl;
 
-            session.CompanyLogoUrl = logoUrl;
-
+            // Step tracking
             session.CurrentStep = 2;
+
             session.LastCompletedStep =
                 Math.Max(session.LastCompletedStep, 2);
 
@@ -191,13 +215,16 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             {
                 Success = true,
                 Message = "Company details saved successfully.",
+
                 CompanyLogoUrl = session.CompanyLogoUrl,
+
                 StepStatus = BuildStepStatus(session)
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
+            _logger.LogError(
+                ex,
                 "Save company details error.");
 
             return new CompanyDetailsResponseDto
@@ -213,27 +240,33 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     // ════════════════════════════════════════════════
     // STEP 3A — Contact + Send OTP → update DB
     // ════════════════════════════════════════════════
-    public async Task<ContactDetailsResponseDto> SaveContactAndSendOtpAsync(
-        ContactDetailsRequestDto request, string sessionId)
+    public async Task<ContactDetailsResponseDto> SaveContactDetailsAsync(
+     ContactDetailsRequestDto request,
+     string sessionId)
     {
         try
         {
             var session = await GetValidSessionAsync(sessionId);
+
             if (session == null)
+            {
                 return new ContactDetailsResponseDto
                 {
                     Success = false,
                     Message = "Session expired. Please start again."
                 };
+            }
 
             if (session.LastCompletedStep < 2)
+            {
                 return new ContactDetailsResponseDto
                 {
                     Success = false,
                     Message = "Please complete Step 2 (Company Details) first."
                 };
+            }
 
-            // ── Check mobile not already registered ────────
+            // Mobile duplicate
             var mobileExists = await _context.Users
                 .AnyAsync(u =>
                     u.MobileNumber == request.MobileNumber &&
@@ -241,183 +274,565 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     u.UserType == UserType.Recruiter);
 
             if (mobileExists)
+            {
                 return new ContactDetailsResponseDto
                 {
                     Success = false,
                     Message = "This mobile number is already registered."
                 };
+            }
 
+            // Email duplicate
             var emailExists = await _context.Users
                 .AnyAsync(u => u.Email == request.CompanyEmail);
 
             if (emailExists)
+            {
                 return new ContactDetailsResponseDto
                 {
                     Success = false,
                     Message = "This email is already registered."
                 };
+            }
 
-            // ── Generate and save OTP ──────────────────────
-            var otpCode = GenerateOtp();
+            //------------------------------------------------
+            // MOBILE OTP
+            //------------------------------------------------
+
+            var fullPhone =
+                $"{request.CountryCode}{request.MobileNumber}";
+
+            var smsSent =
+                await _twilioOtpService.SendOtpAsync(fullPhone);
+
+            if (!smsSent)
+            {
+                return new ContactDetailsResponseDto
+                {
+                    Success = false,
+                    Message = "Failed to send mobile OTP."
+                };
+            }
+
+            //------------------------------------------------
+            // EMAIL OTP
+            //------------------------------------------------
+
+            var emailOtp = GenerateOtp();
+
+            await _emailService.SendOtpEmailAsync(
+                request.CompanyEmail,
+                emailOtp);
+
+            //------------------------------------------------
+            // Invalidate old records
+            //------------------------------------------------
 
             var oldOtps = await _context.OtpVerifications
                 .Where(o =>
-                    o.MobileNumber == request.MobileNumber &&
-                    o.CountryCode == request.CountryCode &&
-                    o.Purpose == "RecruiterRegistration" &&
-                    !o.IsVerified)
+                    (
+                        o.MobileNumber == request.MobileNumber ||
+                        o.Email == request.CompanyEmail
+                    )
+                    &&
+                    !o.IsVerified
+                )
                 .ToListAsync();
 
             foreach (var old in oldOtps)
-                old.IsVerified = true;
-
-            var otpRecord = new OtpVerification
             {
-                OtpId = Guid.NewGuid(),
-                MobileNumber = request.MobileNumber,
-                CountryCode = request.CountryCode,
-                OtpCode = BCrypt.Net.BCrypt.HashPassword(otpCode),
-                OtpSentAt = DateTime.UtcNow,
-                OtpExpiresAt = DateTime.UtcNow.AddMinutes(10),
-                IsVerified = false,
-                Purpose = "RecruiterRegistration",
-                ResendCooldownSec = 60,   // ← add this
-                OtpAttempts = 0
-            };
-            _context.OtpVerifications.Add(otpRecord);
+                old.IsVerified = true;
+            }
 
-            // ── Update session in DB ───────────────────────
+            //------------------------------------------------
+            // Mobile OTP metadata
+            //------------------------------------------------
+
+            _context.OtpVerifications.Add(
+                new OtpVerification
+                {
+                    OtpId = Guid.NewGuid(),
+                    MobileNumber = request.MobileNumber,
+                    CountryCode = request.CountryCode,
+                    Email = request.CompanyEmail,
+
+                    OtpCode = "TWILIO_VERIFY",
+
+                    OtpSentAt = DateTime.UtcNow,
+                    OtpExpiresAt = DateTime.UtcNow.AddMinutes(10),
+
+                    IsVerified = false,
+
+                    Purpose = "RecruiterRegistration",
+
+                    ResendCooldownSec = 60,
+
+                    OtpAttempts = 0
+                });
+
+            //------------------------------------------------
+            // Email OTP
+            //------------------------------------------------
+
+            _context.OtpVerifications.Add(
+                new OtpVerification
+                {
+                    OtpId = Guid.NewGuid(),
+
+                    Email = request.CompanyEmail,
+
+                    MobileNumber = request.MobileNumber,
+
+                    CountryCode = request.CountryCode,
+
+                    OtpCode = BCrypt.Net.BCrypt.HashPassword(emailOtp),
+
+                    OtpSentAt = DateTime.UtcNow,
+
+                    OtpExpiresAt = DateTime.UtcNow.AddMinutes(10),
+
+                    IsVerified = false,
+
+                    Purpose = "RecruiterRegistrationEmail",
+
+                    ResendCooldownSec = 60,
+
+                    OtpAttempts = 0
+                });
+
+            //------------------------------------------------
+            // Update Session
+            //------------------------------------------------
+
             session.ContactPersonName = request.ContactPersonName;
             session.Designation = request.Designation;
             session.ContactPersonEmail = request.ContactPersonEmail;
             session.CompanyEmail = request.CompanyEmail;
+
             session.MobileNumber = request.MobileNumber;
             session.CountryCode = request.CountryCode;
+
             session.CompanyDescription = request.CompanyDescription;
-            session.MobileVerified = false;            // reset if resending
+
+            session.MobileVerified = false;
+            session.CompanyEmailVerified = false;
+
             session.CurrentStep = 3;
 
-            await _context.SaveChangesAsync();         // ✅ saved to DB immediately
+            await _context.SaveChangesAsync();
 
             _logger.LogInformation(
-                "Step3A saved — OTP:{OTP} Session:{Id} [DEV ONLY]",
-                otpCode, session.SessionId);
+                "Step3A saved — Mobile + Email OTP sent. Session:{Id}",
+                session.SessionId);
 
             return new ContactDetailsResponseDto
             {
                 Success = true,
-                Message = $"OTP sent to {MaskMobile(request.MobileNumber)}. Valid for 10 minutes.",
+                Message = "Mobile OTP and Email OTP sent successfully.",
+
                 MaskedMobile = MaskMobile(request.MobileNumber),
+
                 OtpExpiresInSeconds = 600,
+
                 StepStatus = BuildStepStatus(session)
             };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Save contact error.");
+
             return new ContactDetailsResponseDto
             {
                 Success = false,
-                Message = ex.InnerException?.InnerException?.Message
-                       ?? ex.InnerException?.Message
-                       ?? ex.Message
+                Message =
+                    ex.InnerException?.InnerException?.Message
+                    ?? ex.InnerException?.Message
+                    ?? ex.Message
             };
         }
     }
 
-    // ════════════════════════════════════════════════
-    // STEP 3B — Verify OTP → update DB
-    // ════════════════════════════════════════════════
-    public async Task<VerifyContactOtpResponseDto> VerifyContactOtpAsync(
-        VerifyContactOtpRequestDto request, string sessionId)
+  
+
+    public async Task<OtpResponseDto> SendEmailOtpAsync(
+    SendEmailOtpRequestDto request,
+    string sessionId)
     {
         try
         {
             var session = await GetValidSessionAsync(sessionId);
+
             if (session == null)
-                return new VerifyContactOtpResponseDto
-                {
-                    Success = false,
-                    Message = "Session expired. Please start again."
-                };
-
-            var otp = await _context.OtpVerifications
-                .Where(o =>
-                    o.MobileNumber == request.MobileNumber &&
-                    o.CountryCode == request.CountryCode &&
-                    o.Purpose == "RecruiterRegistration" &&
-                    !o.IsVerified)
-                .OrderByDescending(o => o.OtpSentAt)
-                .FirstOrDefaultAsync();
-
-            if (otp == null)
-                return new VerifyContactOtpResponseDto
-                {
-                    Success = false,
-                    Message = "OTP not found. Please request a new one."
-                };
-
-            if (DateTime.UtcNow > otp.OtpExpiresAt)
-                return new VerifyContactOtpResponseDto
-                {
-                    Success = false,
-                    Message = "OTP expired. Please request a new one."
-                };
-
-            if (otp.OtpAttempts >= 3)
-                return new VerifyContactOtpResponseDto
-                {
-                    Success = false,
-                    Message = "Too many failed attempts. Please request a new OTP."
-                };
-
-            var isValid = BCrypt.Net.BCrypt.Verify(request.OtpCode, otp.OtpCode);
-            if (!isValid)
             {
-                otp.OtpAttempts++;
-                await _context.SaveChangesAsync();
-                return new VerifyContactOtpResponseDto
+                return new OtpResponseDto
                 {
                     Success = false,
-                    Message = $"Invalid OTP. {3 - otp.OtpAttempts} attempt(s) remaining."
+                    Message = "Session expired."
                 };
             }
 
-            // ── Mark OTP verified + update session ─────────
-            otp.IsVerified = true;
+            var otp = GenerateOtp();
+
+            await _emailService.SendOtpEmailAsync(
+                request.CompanyEmail,
+                otp);
+
+            var oldOtp = await _context.OtpVerifications
+                .Where(x =>
+                    x.Email == request.CompanyEmail &&
+                    x.Purpose == "RecruiterRegistrationEmail" &&
+                    !x.IsVerified)
+                .ToListAsync();
+
+            foreach (var item in oldOtp)
+                item.IsVerified = true;
+
+            _context.OtpVerifications.Add(
+                new OtpVerification
+                {
+                    OtpId = Guid.NewGuid(),
+                    Email = request.CompanyEmail,
+                    OtpCode = BCrypt.Net.BCrypt.HashPassword(otp),
+                    OtpSentAt = DateTime.UtcNow,
+                    OtpExpiresAt = DateTime.UtcNow.AddMinutes(10),
+                    Purpose = "RecruiterRegistrationEmail",
+                    IsVerified = false,
+                    OtpAttempts = 0,
+                    ResendCooldownSec = 60
+                });
+
+            await _context.SaveChangesAsync();
+
+            return new OtpResponseDto
+            {
+                Success = true,
+                Message = "Email OTP sent successfully.",
+                OtpExpiresInSeconds = 600
+            };
+        }
+        catch (Exception ex)
+        {
+            return new OtpResponseDto
+            {
+                Success = false,
+                Message =
+                    ex.InnerException?.InnerException?.Message
+                    ?? ex.InnerException?.Message
+                    ?? ex.Message
+            };
+        }
+    }
+
+    public async Task<OtpResponseDto> VerifyEmailOtpAsync(
+    VerifyEmailOtpRequestDto request,
+    string sessionId)
+    {
+        try
+        {
+            var session = await GetValidSessionAsync(sessionId);
+
+            if (session == null)
+            {
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "Session expired."
+                };
+            }
+
+            var otpRecord = await _context.OtpVerifications
+                .Where(x =>
+                    x.Email == request.CompanyEmail &&
+                    x.Purpose == "RecruiterRegistrationEmail" &&
+                    !x.IsVerified)
+                .OrderByDescending(x => x.OtpSentAt)
+                .FirstOrDefaultAsync();
+
+            if (otpRecord == null)
+            {
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "OTP not found."
+                };
+            }
+
+            var valid = BCrypt.Net.BCrypt.Verify(
+                request.EmailOtpCode,
+                otpRecord.OtpCode);
+
+            if (!valid)
+            {
+                otpRecord.OtpAttempts++;
+
+                await _context.SaveChangesAsync();
+
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "Invalid OTP."
+                };
+            }
+
+            otpRecord.IsVerified = true;
+
+            session.CompanyEmailVerified = true;
+
+            await _context.SaveChangesAsync();
+
+            return new OtpResponseDto
+            {
+                Success = true,
+                Message = "Email verified successfully."
+            };
+        }
+        catch (Exception ex)
+        {
+            return new OtpResponseDto
+            {
+                Success = false,
+                Message =
+                    ex.InnerException?.InnerException?.Message
+                    ?? ex.InnerException?.Message
+                    ?? ex.Message
+            };
+        }
+    }
+
+    public async Task<OtpResponseDto> ResendEmailOtpAsync(
+    string sessionId)
+    {
+        try
+        {
+            var session = await GetValidSessionAsync(sessionId);
+
+            if (session == null)
+            {
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "Session expired."
+                };
+            }
+
+            var otp = GenerateOtp();
+
+            await _emailService.SendOtpEmailAsync(
+                session.CompanyEmail!,
+                otp);
+
+            var oldOtps = await _context.OtpVerifications
+                .Where(x =>
+                    x.Email == session.CompanyEmail &&
+                    x.Purpose == "RecruiterRegistrationEmail" &&
+                    !x.IsVerified)
+                .ToListAsync();
+
+            foreach (var item in oldOtps)
+            {
+                item.IsVerified = true;
+            }
+
+            _context.OtpVerifications.Add(
+                new OtpVerification
+                {
+                    OtpId = Guid.NewGuid(),
+                    Email = session.CompanyEmail!,
+                    MobileNumber = session.MobileNumber!,
+                    CountryCode = session.CountryCode!,
+                    OtpCode = BCrypt.Net.BCrypt.HashPassword(otp),
+                    OtpSentAt = DateTime.UtcNow,
+                    OtpExpiresAt = DateTime.UtcNow.AddMinutes(10),
+                    Purpose = "RecruiterRegistrationEmail",
+                    IsVerified = false,
+                    OtpAttempts = 0,
+                    ResendCooldownSec = 60
+                });
+
+            await _context.SaveChangesAsync();
+
+            return new OtpResponseDto
+            {
+                Success = true,
+                Message = "Email OTP resent successfully.",
+                OtpExpiresInSeconds = 600
+            };
+        }
+        catch (Exception ex)
+        {
+            return new OtpResponseDto
+            {
+                Success = false,
+                Message =
+                     ex.InnerException?.InnerException?.Message
+                     ?? ex.InnerException?.Message
+                     ?? ex.Message
+            };
+        }
+    }
+
+    public async Task<OtpResponseDto> SendMobileOtpAsync(
+    SendMobileOtpRequestDto request,
+    string sessionId)
+    {
+        try
+        {
+            var fullPhone =
+                $"{request.CountryCode}{request.MobileNumber}";
+
+            var sent =
+                await _twilioOtpService.SendOtpAsync(fullPhone);
+
+            if (!sent)
+            {
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "Failed to send OTP."
+                };
+            }
+
+            return new OtpResponseDto
+            {
+                Success = true,
+                Message = "Mobile OTP sent successfully.",
+                OtpExpiresInSeconds = 600
+            };
+        }
+        catch (Exception ex)
+        {
+            return new OtpResponseDto
+            {
+                Success = false,
+                Message =
+                    ex.InnerException?.InnerException?.Message
+                    ?? ex.InnerException?.Message
+                    ?? ex.Message
+            };
+        }
+    }
+
+    public async Task<OtpResponseDto> VerifyMobileOtpAsync(
+    VerifyMobileOtpRequestDto request,
+    string sessionId)
+    {
+        try
+        {
+            var session = await GetValidSessionAsync(sessionId);
+
+            if (session == null)
+            {
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "Session expired."
+                };
+            }
+
+            var fullPhone =
+                $"{request.CountryCode}{request.MobileNumber}";
+
+            var valid =
+                await _twilioOtpService.VerifyOtpAsync(
+                    fullPhone,
+                    request.MobileOtpCode);
+
+            if (!valid)
+            {
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "Invalid OTP."
+                };
+            }
+
             session.MobileVerified = true;
-            session.LastCompletedStep = Math.Max(session.LastCompletedStep, 3); 
 
-            await _context.SaveChangesAsync();        
+            if (session.MobileVerified &&
+                session.CompanyEmailVerified)
+            {
+                session.LastCompletedStep =
+                    Math.Max(session.LastCompletedStep, 3);
+            }
 
-            _logger.LogInformation(
-                "Step3B verified — Session:{Id}", session.SessionId);
+            await _context.SaveChangesAsync();
 
-            return new VerifyContactOtpResponseDto
+            return new OtpResponseDto
             {
                 Success = true,
                 Message = "Mobile verified successfully.",
-                EmployerRegistrationToken = sessionId, 
                 StepStatus = BuildStepStatus(session)
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Verify OTP error.");
-            return new VerifyContactOtpResponseDto
+            return new OtpResponseDto
             {
                 Success = false,
-                Message = "An error occurred. Please try again."
+                Message =
+                    ex.InnerException?.InnerException?.Message
+                    ?? ex.InnerException?.Message
+                    ?? ex.Message
             };
         }
     }
 
+    public async Task<OtpResponseDto> ResendMobileOtpAsync(
+    string sessionId)
+    {
+        try
+        {
+            var session = await GetValidSessionAsync(sessionId);
+
+            if (session == null)
+            {
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "Session expired."
+                };
+            }
+
+            var fullPhone =
+                $"{session.CountryCode}{session.MobileNumber}";
+
+            var sent =
+                await _twilioOtpService.SendOtpAsync(fullPhone);
+
+            if (!sent)
+            {
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "Failed to send OTP."
+                };
+            }
+
+            return new OtpResponseDto
+            {
+                Success = true,
+                Message = "Mobile OTP resent successfully.",
+                OtpExpiresInSeconds = 600
+            };
+        }
+        catch (Exception ex)
+        {
+            return new OtpResponseDto
+            {
+                Success = false,
+                Message =
+                    ex.InnerException?.InnerException?.Message
+                    ?? ex.InnerException?.Message
+                    ?? ex.Message
+            };
+        }
+    }
     // ════════════════════════════════════════════════
     // STEP 4 — Upload Licences → update DB
     // ════════════════════════════════════════════════
     public async Task<LicencesResponseDto> UploadLicencesAsync(
-     LicencesRequestDto request,
-     string sessionId)
+       LicencesRequestDto request,
+       string sessionId)
     {
         try
         {
@@ -507,13 +922,17 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
-            // Upload POE
-            var poeUrl =
-                await _cloudinaryService.UploadDocumentAsync(
-                    request.PoeLicence,
-                    "skillbridge/licences/poe");
+            // Remove previous uploads if user reuploads
+            await _cloudinaryService.DeleteAsync(session.PoeLicencePublicId);
 
-            if (string.IsNullOrWhiteSpace(poeUrl))
+            await _cloudinaryService.DeleteAsync(session.RpslLicencePublicId);
+
+            // Upload POE
+            var poe = await _cloudinaryService.UploadDocumentAsync(
+                request.PoeLicence,
+                "jobportalrecruiter_poe/licences/poe");
+
+            if (string.IsNullOrWhiteSpace(poe.Url))
             {
                 return new LicencesResponseDto
                 {
@@ -523,13 +942,15 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             }
 
             // Upload RPSL
-            var rpslUrl =
-                await _cloudinaryService.UploadDocumentAsync(
-                    request.RpslLicence,
-                    "skillbridge/licences/rpsl");
+            var rpsl = await _cloudinaryService.UploadDocumentAsync(
+                request.RpslLicence,
+                "jobportalrecruiter_rpsl/licences/rpsl");
 
-            if (string.IsNullOrWhiteSpace(rpslUrl))
+            if (string.IsNullOrWhiteSpace(rpsl.Url))
             {
+                // cleanup POE because RPSL failed
+                await _cloudinaryService.DeleteAsync(poe.PublicId);
+
                 return new LicencesResponseDto
                 {
                     Success = false,
@@ -537,11 +958,12 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
-            // Save DB
-            session.PoeLicenceS3Url = poeUrl;
-            session.RpslLicenceS3Url = rpslUrl;
+            // Save URLs + PublicIds
+            session.PoeLicenceUrl = poe.Url;
+            session.PoeLicencePublicId = poe.PublicId;
 
-            session.LicencesSkipped = false;
+            session.RpslLicenceUrl = rpsl.Url;
+            session.RpslLicencePublicId = rpsl.PublicId;
 
             session.CurrentStep = 4;
 
@@ -559,9 +981,9 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 Success = true,
                 Message = "Licences uploaded successfully. Pending admin review.",
 
-                PoeLicenceUrl = session.PoeLicenceS3Url,
+                PoeLicenceUrl = session.PoeLicenceUrl,
 
-                RpslLicenceUrl = session.RpslLicenceS3Url,
+                RpslLicenceUrl = session.RpslLicenceUrl,
 
                 BadgesEarned = new List<string>
             {
@@ -593,41 +1015,94 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     // STEP 5 — Submit → read from DB session
     // ════════════════════════════════════════════════
     public async Task<ReviewSubmitResponseDto> SubmitRegistrationAsync(
-        ReviewSubmitRequestDto request, string ipAddress)
+      ReviewSubmitRequestDto request,
+      string ipAddress)
     {
+        RegistrationSession? session = null;
+
+        using var transaction =
+            await _context.Database.BeginTransactionAsync();
+    
+
+
+
         try
         {
+
             if (!request.ConsentGiven)
+            {
                 return new ReviewSubmitResponseDto
                 {
                     Success = false,
                     Message = "You must accept the terms and conditions."
                 };
+            }
 
-            var session = await GetValidSessionAsync(request.SessionId);
+            session = await GetValidSessionAsync(request.SessionId);
+
             if (session == null)
+            {
                 return new ReviewSubmitResponseDto
                 {
                     Success = false,
                     Message = "Session expired. Please start again."
                 };
+            }
 
-            // ── Validate all required steps done ───────────
             if (!session.MobileVerified)
+            {
                 return new ReviewSubmitResponseDto
                 {
                     Success = false,
                     Message = "Mobile number not verified. Please complete Step 3."
                 };
+            }
 
-            if (session.LastCompletedStep < 3)
+            // Step 4 mandatory
+            if (session.LastCompletedStep < 4)
+            {
                 return new ReviewSubmitResponseDto
                 {
                     Success = false,
-                    Message = $"Please complete all steps. Last completed: Step {session.LastCompletedStep}."
+                    Message =
+                        $"Please complete all steps. Last completed: Step {session.LastCompletedStep}."
                 };
+            }
 
-            // ── Create User ────────────────────────────────
+            // Duplicate mobile check
+            var mobileExists = await _context.Users.AnyAsync(x =>
+     x.MobileNumber == session.MobileNumber &&
+     x.CountryCode == session.CountryCode &&
+     x.UserType == UserType.Recruiter);
+
+            if (mobileExists)
+            {
+                return new ReviewSubmitResponseDto
+                {
+                    Success = false,
+                    Message = "This mobile number is already registered."
+                };
+            }
+
+            // Duplicate email check
+            if (!string.IsNullOrWhiteSpace(session.CompanyEmail))
+            {
+                var emailExists = await _context.Users.AnyAsync(x =>
+                    x.Email == session.CompanyEmail);
+
+                if (emailExists)
+                {
+                    return new ReviewSubmitResponseDto
+                    {
+                        Success = false,
+                        Message = "This email is already registered."
+                    };
+                }
+            }
+
+            var now = DateTime.UtcNow;
+
+            // Create User
             var user = new User
             {
                 UserId = Guid.NewGuid(),
@@ -638,106 +1113,170 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 PasswordHash = "N/A",
                 AccountStatus = AccountStatus.Pending,
                 KycStatus = KycStatus.Pending,
-                PaymentStatus = PaymentStatus.Unpaid
-     
+                PaymentStatus = PaymentStatus.Unpaid,
+                CreatedAt = now,
+                UpdatedAt = now
             };
+
             _context.Users.Add(user);
 
-            // ── Create EmployerProfile from session data ───
+            // Create Employer Profile
             var employer = new EmployerProfile
             {
                 EmployerId = Guid.NewGuid(),
                 UserId = user.UserId,
+
                 LegalName = session.LegalName!,
                 TradeName = session.TradeName,
                 CompanyDisplayName = session.CompanyDisplayName!,
-                BusinessType = Enum.Parse<BusinessType>(session.BusinessType!, true),
-                IndustryType = Enum.Parse<IndustryType>(session.IndustryType!, true),
-                CompanySize = Enum.Parse<CompanySize>(session.CompanySize!, true),
+
+                BusinessType =
+                    Enum.Parse<BusinessType>(session.BusinessType!, true),
+
+                IndustryType =!string.IsNullOrWhiteSpace(session.IndustryType)
+                ? Enum.Parse<IndustryType>(session.IndustryType, true)
+                : IndustryType.Other,
+
+                CompanySize =
+                    !string.IsNullOrWhiteSpace(session.CompanySize)
+                        ? Enum.Parse<CompanySize>(session.CompanySize, true)
+                        : null,
+
                 Cin = session.Cin,
+
                 WebsiteUrl = session.WebsiteUrl,
                 CompanyLogoUrl = session.CompanyLogoUrl,
+                CompanyLogoPublicId = session.CompanyLogoPublicId,
                 GstRegistered = session.GstRegistered ?? false,
                 Gstn = session.Gstn,
                 Pan = session.Pan,
                 GstnRegistrationDate = session.GstnRegistrationDate,
-                State = session.State!,
+
+                State = session.State,
                 City = session.City!,
                 Pincode = session.Pincode!,
                 AddressLine1 = session.AddressLine1!,
                 AddressLine2 = session.AddressLine2,
+
                 Country = "India",
+
                 ContactPersonName = session.ContactPersonName!,
                 Designation = session.Designation!,
                 ContactEmailPublic = session.CompanyEmail,
-                ContactPhone = $"{session.CountryCode}{session.MobileNumber}",
-                CompanyDescription = session.CompanyDescription,
-                PoeLicenceS3Url = session.PoeLicenceS3Url,
-                RpslLicenceS3Url = session.RpslLicenceS3Url,
-                AccountStatus = AccountStatus.Pending,
-                SecurityDepositPaid = false,
-                ProfileCompletionScore = 60,
-                ConsentTimestamp = DateTime.UtcNow,
-     
-            };
-            _context.EmployerProfiles.Add(employer);
+                ContactPhone =
+                    $"{session.CountryCode}{session.MobileNumber}",
 
-            // ── Wallet ─────────────────────────────────────
+                CompanyDescription = session.CompanyDescription,
+
+                PoeLicenceUrl = session.PoeLicenceUrl,
+                PoeLicencePublicId = session.PoeLicencePublicId,
+                RpslLicenceUrl = session.RpslLicenceUrl,
+                RpslLicencePublicId = session.RpslLicencePublicId,
+                AccountStatus = AccountStatus.Pending,
+
+                SecurityDepositPaid = false,
+
+                ProfileCompletionScore = 60,
+
+                ConsentTimestamp = now,
+
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            _context.EmployerProfiles.Add(employer);
+            // ── Create Wallet ─────────────────────────────────────
             _context.CreditWallets.Add(new CreditWallet
             {
                 Wallet_Id = Guid.NewGuid(),
                 EmployerId = employer.EmployerId,
                 CreditBalance = 0,
+                PackageName = null,
+                PackExpiresAt = null,
                 SharedWallet = true,
+                UpdatedAt = now
             });
 
-            // ── Notification settings ──────────────────────
-            _context.EmployerNotificationSettings.Add(new EmployerNotificationSetting
-            {
-                NotifPrefId = Guid.NewGuid(),
-                EmployerId = employer.EmployerId,
-                PrefEmailEnabled = true,
-                PrefPushEnabled = true,
-                PrefApplicantNotify = true,
-                PrefCreditExpiryEmail = true,
-                SessionTimeoutMinutes = 30
-            });
+            // ── Create Notification Settings ─────────────────────
+            _context.EmployerNotificationSettings.Add(
+                new EmployerNotificationSetting
+                {
+                    NotifPrefId = Guid.NewGuid(),
+                    EmployerId = employer.EmployerId,
 
-            // ── Mark session as completed ──────────────────
+                    PrefEmailEnabled = true,
+                    PrefPushEnabled = true,
+                    PrefApplicantNotify = true,
+                    PrefCreditExpiryEmail = true,
+                    PrefJobStatusUpdates = true,
+                    PrefSystemMessages = true,
+
+                    FcmToken = null,
+                    SessionTimeoutMinutes = 30
+                });
+
+            // ── Mark session completed ───────────────────────────
             session.IsCompleted = true;
+            session.CurrentStep = 5;
             session.LastCompletedStep = 5;
 
+            // Save everything
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation(
-                "Recruiter registered — EmployerId:{EId} IP:{IP}",
-                employer.EmployerId, ipAddress);
+            await transaction.CommitAsync();
 
-            var requiresDeposit = session.GstRegistered == false;
+            _logger.LogInformation(
+                "Recruiter registered successfully. EmployerId:{EmployerId}, IP:{IP}",
+                employer.EmployerId,
+                ipAddress);
+
+            var requiresDeposit = !(session.GstRegistered ?? false);
 
             return new ReviewSubmitResponseDto
             {
                 Success = true,
+
                 Message = requiresDeposit
                     ? "Registration submitted. Please pay ₹2,000 security deposit to activate."
                     : "Registration submitted. Your account is under review.",
+
                 EmployerId = employer.EmployerId,
-                AccountStatus = "Pending",
+
+                AccountStatus = AccountStatus.Pending.ToString(),
+
                 RequiresSecurityDeposit = requiresDeposit,
-                SecurityDepositAmountRs = requiresDeposit ? 2000 : null,
-                NextStep = requiresDeposit ? "pay_deposit" : "start_trial",
-                RegistrationCompleted = true
+
+                SecurityDepositAmountRs =
+                    requiresDeposit
+                        ? 2000
+                        : null,
+
+                NextStep =
+                    requiresDeposit
+                        ? "pay_deposit"
+                        : "start_trial",
+
+                RegistrationCompleted = true,
+
+                StepStatus = BuildStepStatus(session)
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Submit error. IP:{IP}", ipAddress);
+            await transaction.RollbackAsync();
+
+            _logger.LogError(
+                ex,
+                "Submit registration failed. IP:{IP}",
+                ipAddress);
+
             return new ReviewSubmitResponseDto
             {
                 Success = false,
-                Message = ex.InnerException?.InnerException?.Message
-                       ?? ex.InnerException?.Message
-                       ?? ex.Message
+                Message =
+                    ex.InnerException?.InnerException?.Message
+                    ?? ex.InnerException?.Message
+                    ?? ex.Message
             };
         }
     }
@@ -750,46 +1289,116 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         try
         {
             var session = await GetValidSessionAsync(sessionId);
+
             if (session == null)
+            {
                 return new ResumeSessionResponseDto
                 {
                     Success = false,
                     Message = "Session not found or expired."
                 };
+            }
 
             return new ResumeSessionResponseDto
             {
                 Success = true,
-                Message = $"Resume from Step {session.LastCompletedStep + 1}.",
+
+                Message = session.IsCompleted
+                    ? "Registration already completed."
+                    : $"Resume from Step {Math.Min(session.LastCompletedStep + 1, 5)}.",
+
                 StepStatus = BuildStepStatus(session),
-                Step3Verified = session.MobileVerified,
-                Step4LicencesSkipped = session.LicencesSkipped,
+
+                // STEP 1
                 Step1Data = new GstCheckResponseDto
                 {
                     Success = true,
                     GstRegistered = session.GstRegistered ?? false,
                     IndustryType = session.IndustryType ?? "",
+                    RegistrationSessionId = session.SessionId.ToString()
                 },
+
+                // STEP 2
                 Step2Data = session.LastCompletedStep >= 2
-                    ? new CompanyDetailsResponseDto
+                    ? new ResumeCompanyDetailsDto
                     {
-                        Success = true,
+                        LegalName = session.LegalName,
+                        TradeName = session.TradeName,
+                        CompanyDisplayName = session.CompanyDisplayName,
+
+                        BusinessType = session.BusinessType,
+                        CompanySize = session.CompanySize,
+
+                        Cin = session.Cin,
+
+                        Gstn = session.Gstn,
+                        Pan = session.Pan,
+                        GstnRegistrationDate = session.GstnRegistrationDate,
+
+                        IndustryType = session.IndustryType,
+
+                        State = session.State,
+                        City = session.City,
+                        Pincode = session.Pincode,
+
+                        AddressLine1 = session.AddressLine1,
+                        AddressLine2 = session.AddressLine2,
+
+                        WebsiteUrl = session.WebsiteUrl,
+
                         CompanyLogoUrl = session.CompanyLogoUrl
+                    }
+                    : null,
+
+                // STEP 3
+                Step3Data = session.LastCompletedStep >= 3
+                    ? new ResumeContactDetailsDto
+                    {
+                        ContactPersonName = session.ContactPersonName,
+                        Designation = session.Designation,
+
+                        ContactPersonEmail = session.ContactPersonEmail,
+                        CompanyEmail = session.CompanyEmail,
+
+                        CountryCode = session.CountryCode,
+                        MobileNumber = session.MobileNumber,
+
+                        CompanyDescription = session.CompanyDescription,
+
+                        MobileVerified = session.MobileVerified
+                    }
+                    : null,
+
+                // STEP 4
+                Step4Data = session.LastCompletedStep >= 4
+                    ? new ResumeLicenceDetailsDto
+                    {
+                        PoeLicenceUrl = session.PoeLicenceUrl,
+                        RpslLicenceUrl = session.RpslLicenceUrl
                     }
                     : null
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Resume session error.");
+            _logger.LogError(
+                ex,
+                "Resume session error. SessionId:{SessionId}",
+                sessionId);
+
             return new ResumeSessionResponseDto
             {
                 Success = false,
-                Message = "An error occurred."
+                Message =
+                    ex.InnerException?.InnerException?.Message
+                    ?? ex.InnerException?.Message
+                    ?? ex.Message
             };
         }
     }
 
+
+   
     // ── Private Helpers ───────────────────────────────────
     private async Task<RegistrationSession?> GetValidSessionAsync(string sessionId)
     {
@@ -829,22 +1438,29 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             TotalSteps = 5,
             SessionId = session.SessionId.ToString(),
             CompletedSteps = completed,
-            NextStep = nextStepNum <= 5 ? stepNames[nextStepNum] : "Submit",
-            CanResume = true,
+            NextStep =
+    session.IsCompleted
+        ? "Completed"
+        : nextStepNum <= 5
+            ? stepNames[nextStepNum]
+            : "Submit",
+            CanResume = !session.IsCompleted,
             ExpiresAt = session.ExpiresAt
         };
     }
 
-    private static string GenerateOtp()
-    {
-        var bytes = new byte[4];
-        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
-        return (BitConverter.ToUInt32(bytes) % 1_000_000).ToString("D6");
-    }
+    
 
     private static string MaskMobile(string mobile)
     {
         if (mobile.Length <= 4) return "****";
         return new string('*', mobile.Length - 4) + mobile[^4..];
+    }
+
+    private static string GenerateOtp()
+    {
+        var random = new Random();
+
+        return random.Next(100000, 999999).ToString();
     }
 }

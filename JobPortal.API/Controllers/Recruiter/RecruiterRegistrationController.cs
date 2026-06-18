@@ -139,71 +139,237 @@ namespace JobPortal.API.Controllers.Recruiter
         // Body: form-data { contactPersonName, designation, companyEmail,
         //                   mobileNumber, countryCode, companyDescription }
         // ════════════════════════════════════════════════
-        [HttpPost("contact-send-otp")]
+        [HttpPost("contact-details")]
         [ProducesResponseType(typeof(ContactDetailsResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> ContactSendOtp(
-            [FromBody] ContactDetailsRequestDto request,
-            [FromHeader(Name = "X-Session-Id")] string? sessionId)
+        public async Task<IActionResult> ContactDetails(
+        [FromBody] ContactDetailsRequestDto request,
+        [FromHeader(Name = "X-Session-Id")] string? sessionId)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
             if (string.IsNullOrWhiteSpace(sessionId))
-                return BadRequest(new { message = "X-Session-Id header is required." });
+                return BadRequest(new
+                {
+                    message = "X-Session-Id header is required."
+                });
 
-            // Validate mobile number format
+            // Validate mobile number
             if (!System.Text.RegularExpressions.Regex.IsMatch(
-                    request.MobileNumber, @"^\d{10,13}$"))
-                return BadRequest(new { message = "Mobile number must be 10–13 digits." });
+                    request.MobileNumber,
+                    @"^\d{10,13}$"))
+            {
+                return BadRequest(new
+                {
+                    message = "Mobile number must be 10-13 digits."
+                });
+            }
 
-            // Validate country code format
+            // Validate country code
             if (!request.CountryCode.StartsWith("+"))
-                return BadRequest(new { message = "Country code must start with '+' (e.g. +91)." });
+            {
+                return BadRequest(new
+                {
+                    message = "Country code must start with '+' (e.g. +91)."
+                });
+            }
 
-            var result = await _service.SaveContactAndSendOtpAsync(request, sessionId);
+            var result =
+                await _service.SaveContactDetailsAsync(
+                    request,
+                    sessionId);
 
-            // Duplicate mobile/email → 409 Conflict, not 400
+            // Duplicate mobile/email
             if (!result.Success &&
                 (result.Message.Contains("already registered") ||
                  result.Message.Contains("already exists")))
+            {
                 return Conflict(result);
+            }
 
-            return result.Success ? Ok(result) : BadRequest(result);
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
         }
 
-        // ════════════════════════════════════════════════
-        // STEP 3B — Verify OTP
-        // POST /api/recruiter/registration/verify-otp
-        // Header: X-Session-Id
-        // Body: form-data { mobileNumber, countryCode, otpCode }
-        // ════════════════════════════════════════════════
-        [HttpPost("verify-otp")]
-        [ProducesResponseType(typeof(VerifyContactOtpResponseDto), StatusCodes.Status200OK)]
+        [HttpPost("send-mobile-otp")]
+        [ProducesResponseType(typeof(OtpResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-        public async Task<IActionResult> VerifyOtp(
-            [FromBody] VerifyContactOtpRequestDto request,
-            [FromHeader(Name = "X-Session-Id")] string? sessionId)
+        public async Task<IActionResult> SendMobileOtp(
+      [FromBody] SendMobileOtpRequestDto request,
+      [FromHeader(Name = "X-Session-Id")] string? sessionId)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
             if (string.IsNullOrWhiteSpace(sessionId))
-                return BadRequest(new { message = "X-Session-Id header is required." });
+                return BadRequest(new
+                {
+                    message = "X-Session-Id header is required."
+                });
 
-            // Validate OTP format — must be exactly 6 digits
-            if (!System.Text.RegularExpressions.Regex.IsMatch(request.OtpCode, @"^\d{6}$"))
-                return BadRequest(new { message = "OTP must be exactly 6 digits." });
+            var result =
+                await _service.SendMobileOtpAsync(request, sessionId);
 
-            var result = await _service.VerifyContactOtpAsync(request, sessionId);
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
+        }
 
-            // Too many attempts → 429
-            if (!result.Success && result.Message.Contains("Too many"))
-                return StatusCode(StatusCodes.Status429TooManyRequests, result);
+        [HttpPost("verify-mobile-otp")]
+        [ProducesResponseType(typeof(OtpResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+        public async Task<IActionResult> VerifyMobileOtp(
+    [FromBody] VerifyMobileOtpRequestDto request,
+    [FromHeader(Name = "X-Session-Id")] string? sessionId)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            return result.Success ? Ok(result) : BadRequest(result);
+            if (string.IsNullOrWhiteSpace(sessionId))
+                return BadRequest(new
+                {
+                    message = "X-Session-Id header is required."
+                });
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(
+                    request.MobileOtpCode,
+                    @"^\d{6}$"))
+            {
+                return BadRequest(new
+                {
+                    message = "OTP must be exactly 6 digits."
+                });
+            }
+
+            var result =
+                await _service.VerifyMobileOtpAsync(request, sessionId);
+
+            if (!result.Success &&
+                result.Message.Contains("Too many"))
+            {
+                return StatusCode(
+                    StatusCodes.Status429TooManyRequests,
+                    result);
+            }
+
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
+        }
+
+        [HttpPost("resend-mobile-otp")]
+        [ProducesResponseType(typeof(OtpResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ResendMobileOtp(
+    [FromHeader(Name = "X-Session-Id")] string? sessionId)
+        {
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                return BadRequest(new
+                {
+                    message = "X-Session-Id header is required."
+                });
+            }
+
+            var result =
+                await _service.ResendMobileOtpAsync(sessionId);
+
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
+        }
+
+        [HttpPost("send-email-otp")]
+        [ProducesResponseType(typeof(OtpResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> SendEmailOtp(
+        [FromBody] SendEmailOtpRequestDto request,
+        [FromHeader(Name = "X-Session-Id")] string? sessionId)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            if (string.IsNullOrWhiteSpace(sessionId))
+                return BadRequest(new
+                {
+                    message = "X-Session-Id header is required."
+                });
+
+            var result =
+                await _service.SendEmailOtpAsync(request, sessionId);
+
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
+        }
+
+        [HttpPost("verify-email-otp")]
+        [ProducesResponseType(typeof(OtpResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+        public async Task<IActionResult> VerifyEmailOtp(
+    [FromBody] VerifyEmailOtpRequestDto request,
+    [FromHeader(Name = "X-Session-Id")] string? sessionId)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            if (string.IsNullOrWhiteSpace(sessionId))
+                return BadRequest(new
+                {
+                    message = "X-Session-Id header is required."
+                });
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(
+                    request.EmailOtpCode,
+                    @"^\d{6}$"))
+            {
+                return BadRequest(new
+                {
+                    message = "OTP must be exactly 6 digits."
+                });
+            }
+
+            var result =
+                await _service.VerifyEmailOtpAsync(request, sessionId);
+
+            if (!result.Success &&
+                result.Message.Contains("Too many"))
+            {
+                return StatusCode(
+                    StatusCodes.Status429TooManyRequests,
+                    result);
+            }
+
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
+        }
+
+        [HttpPost("resend-email-otp")]
+        [ProducesResponseType(typeof(OtpResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ResendEmailOtp(
+    [FromHeader(Name = "X-Session-Id")] string? sessionId)
+        {
+            if (string.IsNullOrWhiteSpace(sessionId))
+            {
+                return BadRequest(new
+                {
+                    message = "X-Session-Id header is required."
+                });
+            }
+
+            var result =
+                await _service.ResendEmailOtpAsync(sessionId);
+
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
         }
 
         // ════════════════════════════════════════════════
@@ -268,6 +434,8 @@ namespace JobPortal.API.Controllers.Recruiter
 
             return result.Success ? Ok(result) : BadRequest(result);
         }
+
+       
         // ════════════════════════════════════════════════
         // UTILITY — Get enum values for dropdowns
         // GET /api/recruiter/registration/enum-options
