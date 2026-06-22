@@ -3,6 +3,7 @@ using System;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260617102205_AddAiEmbeddings")]
+    partial class AddAiEmbeddings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1306,9 +1309,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("company_display_name");
 
-                    b.Property<string>("CompanyLogoPublicId")
-                        .HasColumnType("text");
-
                     b.Property<string>("CompanyLogoUrl")
                         .HasColumnType("text")
                         .HasColumnName("company_logo_url");
@@ -1404,10 +1404,7 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("poe_licence_number");
 
-                    b.Property<string>("PoeLicencePublicId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PoeLicenceUrl")
+                    b.Property<string>("PoeLicenceS3Url")
                         .HasColumnType("text")
                         .HasColumnName("poe_licence_s3_url");
 
@@ -1431,10 +1428,7 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("rpsl_licence_number");
 
-                    b.Property<string>("RpslLicencePublicId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RpslLicenceUrl")
+                    b.Property<string>("RpslLicenceS3Url")
                         .HasColumnType("text")
                         .HasColumnName("rpsl_licence_s3_url");
 
@@ -2050,15 +2044,10 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("otp_id");
 
-                    b.Property<bool>("CompanyEmailVerified")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("CountryCode")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("country_code");
-
-                    b.Property<string>("Email")
-                        .HasColumnType("text");
 
                     b.Property<bool>("IsVerified")
                         .HasColumnType("boolean")
@@ -2069,6 +2058,7 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnName("locked_until");
 
                     b.Property<string>("MobileNumber")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("mobile_number");
 
@@ -2395,12 +2385,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("CompanyEmail")
                         .HasColumnType("text");
 
-                    b.Property<bool>("CompanyEmailVerified")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("CompanyLogoPublicId")
-                        .HasColumnType("text");
-
                     b.Property<string>("CompanyLogoUrl")
                         .HasColumnType("text");
 
@@ -2464,19 +2448,13 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("Pincode")
                         .HasColumnType("text");
 
-                    b.Property<string>("PoeLicencePublicId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PoeLicenceUrl")
+                    b.Property<string>("PoeLicenceS3Url")
                         .HasColumnType("text");
 
                     b.Property<bool>("RequiresSecurityDeposit")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("RpslLicencePublicId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RpslLicenceUrl")
+                    b.Property<string>("RpslLicenceS3Url")
                         .HasColumnType("text");
 
                     b.Property<string>("SessionType")

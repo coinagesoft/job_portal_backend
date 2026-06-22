@@ -39,7 +39,11 @@ namespace JobPortal.Application.DTOs.Recruiter.CVSearch
         public bool CanDownloadCv { get; set; }
 
         public int UnlockCredits { get; set; }
+        public int MatchScore { get; set; }
 
+        public int AiMatchScore { get; set; }
+
+        public string? MatchReason { get; set; }
         public List<string> Skills { get; set; } = new();
     }
 }

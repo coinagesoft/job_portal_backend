@@ -1,4 +1,5 @@
 using JobPortal.Domain.Entities;
+using JobPortal.Domain.Entities.AI;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.Common;
@@ -85,7 +86,11 @@ public class AppDbContext : DbContext
     public DbSet<CandidatePreferenceSetting> CandidatePreferenceSettings => Set<CandidatePreferenceSetting>();
 
     public DbSet<CandidateLogoutSession> CandidateLogoutSessions => Set<CandidateLogoutSession>();
+    public DbSet<CandidateEmbedding> CandidateEmbeddings { get; set; }
 
+    //public DbSet<JobEmbedding> JobEmbeddings { get; set; }
+    public DbSet<JobEmbedding> JobEmbeddings =>
+    Set<JobEmbedding>();
     public override int SaveChanges()
     {
         ApplyAuditTimestamps();
@@ -158,6 +163,52 @@ public class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder m)
     {
+
+        // ── AI Embeddings ─────────────────────────────
+
+        m.Entity<CandidateEmbedding>(e =>
+        {
+            e.ToTable("candidate_embeddings");
+
+            e.HasKey(x => x.CandidateId);
+
+            e.Property(x => x.CandidateId)
+                .HasColumnName("candidate_id");
+
+            e.Property(x => x.EmbeddingJson)
+                .HasColumnName("embedding_json")
+                .HasColumnType("text");
+
+            e.Property(x => x.UpdatedAt)
+                .HasColumnName("updated_at");
+
+            e.HasOne(x => x.Candidate)
+                .WithMany()
+                .HasForeignKey(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        m.Entity<JobEmbedding>(e =>
+        {
+            e.ToTable("job_embeddings");
+
+            e.HasKey(x => x.JobId);
+
+            e.Property(x => x.JobId)
+                .HasColumnName("job_id");
+
+            e.Property(x => x.EmbeddingJson)
+                .HasColumnName("embedding_json")
+                .HasColumnType("text");
+
+            e.Property(x => x.UpdatedAt)
+                .HasColumnName("updated_at");
+
+            e.HasOne(x => x.JobPosting)
+                .WithMany()
+                .HasForeignKey(x => x.JobId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
         // ── users ──────────────────────────────────────────────
 
         var userTypeConverter =
