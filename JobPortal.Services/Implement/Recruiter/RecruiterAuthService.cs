@@ -51,18 +51,19 @@ public class RecruiterAuthService : IRecruiterAuthService
     // SEND OTP
     // ════════════════════════════════════════════════
     public async Task<SendOtpResponseDto> SendOtpAsync(
-      SendOtpRequestDto request,
-      string ipAddress)
+     SendOtpRequestDto request,
+     string ipAddress)
     {
         try
         {
             var identifier = request.Identifier.Trim().ToLower();
+
             _logger.LogInformation(
-    "SEND OTP START - Identifier:{Identifier}",
-    request.Identifier);
+                "SEND OTP START - Identifier:{Identifier}",
+                request.Identifier);
+
             var isEmail = IsEmail(identifier);
             var isMobile = IsMobile(identifier);
-            var userType = request.UserType;
 
             if (!isEmail && !isMobile)
             {
@@ -84,23 +85,23 @@ public class RecruiterAuthService : IRecruiterAuthService
                 user = await _context.Users
                     .FirstOrDefaultAsync(u =>
                         u.Email != null &&
-                        u.Email.ToLower() == identifier &&
-                        u.UserType == userType);
+                        u.Email.ToLower() == identifier);
             }
             else
             {
                 user = await _context.Users
                     .FirstOrDefaultAsync(u =>
                         u.MobileNumber == identifier &&
-                        u.CountryCode == request.CountryCode &&
-                        u.UserType == userType);
+                        u.CountryCode == request.CountryCode);
             }
 
             if (user == null)
             {
                 return SendFail(
-                    $"No {userType} account found. Please register first.");
+                    "No account found. Please register first.");
             }
+
+            var userType = user.UserType;
 
             if (user.AccountStatus == AccountStatus.Suspended)
             {
@@ -210,14 +211,16 @@ public class RecruiterAuthService : IRecruiterAuthService
                     $"{request.CountryCode}{identifier}";
 
                 _logger.LogInformation(
-    "TWILIO SEND OTP - Phone:{Phone}",
-    phoneNumber);
+                    "TWILIO SEND OTP - Phone:{Phone}",
+                    phoneNumber);
+
                 var sent =
                     await _twilioOtpService
                         .SendOtpAsync(phoneNumber);
+
                 _logger.LogInformation(
-    "TWILIO RESULT - Sent:{Sent}",
-    sent);
+                    "TWILIO RESULT - Sent:{Sent}",
+                    sent);
 
                 if (!sent)
                 {
@@ -245,17 +248,20 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                     Purpose = $"{userType}Login"
                 };
+
                 _logger.LogInformation(
-    "INSERT OTP RECORD - User:{UserId} Verified:{Verified}",
-    user.UserId,
-    otpRecord.IsVerified);
+                    "INSERT OTP RECORD - User:{UserId} Verified:{Verified}",
+                    user.UserId,
+                    otpRecord.IsVerified);
+
                 _context.OtpVerifications.Add(
                     otpRecord);
 
                 await _context.SaveChangesAsync();
+
                 _logger.LogInformation(
-    "OTP RECORD SAVED - OtpId:{OtpId}",
-    otpRecord.OtpId);
+                    "OTP RECORD SAVED - OtpId:{OtpId}",
+                    otpRecord.OtpId);
             }
 
             var masked = isEmail
@@ -265,6 +271,7 @@ public class RecruiterAuthService : IRecruiterAuthService
             return new SendOtpResponseDto
             {
                 Success = true,
+
                 Message =
                     $"OTP sent to {masked}. Valid for {OtpExpiryMinutes} minutes.",
 
@@ -298,14 +305,13 @@ public class RecruiterAuthService : IRecruiterAuthService
     // VERIFY OTP
     // ════════════════════════════════════════════════
     public async Task<AuthResponseDto> VerifyOtpAsync(
-     VerifyOtpRequestDto request,
-     string ipAddress)
+       VerifyOtpRequestDto request,
+       string ipAddress)
     {
         try
         {
             var identifier = request.Identifier.Trim().ToLower();
             var isEmail = IsEmail(identifier);
-            var userType = request.UserType;
 
             User? user;
 
@@ -314,28 +320,34 @@ public class RecruiterAuthService : IRecruiterAuthService
                 user = await _context.Users
                     .FirstOrDefaultAsync(u =>
                         u.Email != null &&
-                        u.Email.ToLower() == identifier &&
-                        u.UserType == userType);
+                        u.Email.ToLower() == identifier);
             }
             else
             {
                 user = await _context.Users
                     .FirstOrDefaultAsync(u =>
                         u.MobileNumber == identifier &&
-                        u.CountryCode == request.CountryCode &&
-                        u.UserType == userType);
+                        u.CountryCode == request.CountryCode);
             }
 
             if (user == null)
                 return AuthFail("Account not found.");
 
-            // Recruiter Validation
+            // User account validation
+            if (user.AccountStatus == AccountStatus.Suspended)
+                return AuthFail("Your account has been suspended.");
+
+            if (user.AccountStatus == AccountStatus.Rejected)
+                return AuthFail("Account not found.");
+
+            // Recruiter validation
             Guid? employerId = null;
 
             if (user.UserType == UserType.Recruiter)
             {
                 var employer = await _context.EmployerProfiles
-                    .FirstOrDefaultAsync(x => x.UserId == user.UserId);
+                    .FirstOrDefaultAsync(x =>
+                        x.UserId == user.UserId);
 
                 if (employer == null)
                     return AuthFail("Employer profile not found.");
@@ -348,25 +360,30 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 employerId = employer.EmployerId;
             }
+
             _logger.LogInformation(
-    "VERIFY OTP START - User:{UserId}",
-    user.UserId);
+                "VERIFY OTP START - User:{UserId}",
+                user.UserId);
+
             var otp = await _context.OtpVerifications
                 .Where(o =>
                     o.UserId == user.UserId &&
-                    o.Purpose == $"{userType}Login" &&
+                    o.Purpose == $"{user.UserType}Login" &&
                     !o.IsVerified)
                 .OrderByDescending(o => o.OtpSentAt)
                 .FirstOrDefaultAsync();
+
             _logger.LogInformation(
-    "VERIFY OTP FOUND:{Found}",
-    otp != null);
+                "VERIFY OTP FOUND:{Found}",
+                otp != null);
 
             if (otp == null)
-                return AuthFail("OTP not found. Please request a new OTP.");
+                return AuthFail(
+                    "OTP not found. Please request a new OTP.");
 
             if (DateTime.UtcNow > otp.OtpExpiresAt)
-                return AuthFail("OTP has expired. Please request a new one.");
+                return AuthFail(
+                    "OTP has expired. Please request a new one.");
 
             if (otp.OtpAttempts >= MaxOtpAttempts)
                 return AuthFail(
@@ -399,7 +416,8 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 await _context.SaveChangesAsync();
 
-                var remaining = MaxOtpAttempts - otp.OtpAttempts;
+                var remaining =
+                    MaxOtpAttempts - otp.OtpAttempts;
 
                 return AuthFail(
                     remaining > 0
@@ -419,7 +437,6 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             await _context.SaveChangesAsync();
 
-        
             var (token, expiry) =
                 await GenerateUserTokenAsync(user);
 
@@ -429,10 +446,8 @@ public class RecruiterAuthService : IRecruiterAuthService
             _logger.LogInformation(
                 "Login success — UserId:{UserId} Type:{Type} IP:{IP}",
                 user.UserId,
-                userType,
+                user.UserType,
                 ipAddress);
-
-
 
             return new AuthResponseDto
             {
@@ -441,7 +456,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                 Token = token,
                 UserId = user.UserId,
                 EmployerId = employerId,
-                UserType = userType.ToString(),
+                UserType = user.UserType.ToString(),
                 UserName = await GetUserNameAsync(user),
                 ProfileStatus = profileStatus,
                 ExpiresAt = expiry
@@ -522,27 +537,18 @@ public class RecruiterAuthService : IRecruiterAuthService
                     "Google account email not found.");
             }
 
-          
 
-            var userType = request.UserType;
 
             // Find Existing User
             var user = await _context.Users
                 .FirstOrDefaultAsync(u =>
                     u.Email != null &&
-                    u.Email.ToLower() == email &&
-                    u.UserType == userType);
+                    u.Email.ToLower() == email);
 
+            var userType = user.UserType;
 
             if (user == null)
             {
-                // Recruiters must already exist
-                if (userType == UserType.Recruiter)
-                {
-                    return AuthFail(
-                        "No employer account found for this Google account. Please register your company first.");
-                }
-
                 // Auto-register Candidate
                 user = new User
                 {
@@ -581,6 +587,8 @@ public class RecruiterAuthService : IRecruiterAuthService
                 }
             }
 
+          
+
             // Recruiter Validation
             Guid? employerId = null;
 
@@ -611,6 +619,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 employerId = employer.EmployerId;
             }
+           
 
             // Update Login Time
             user.LastLoginAt = DateTime.UtcNow;
@@ -758,24 +767,14 @@ public class RecruiterAuthService : IRecruiterAuthService
                     "LinkedIn account email not found. Please ensure your LinkedIn email is visible.");
             }
 
-            var userType = request.UserType;
-
             // Find Existing User
             var user = await _context.Users
                 .FirstOrDefaultAsync(u =>
                     u.Email != null &&
-                    u.Email.ToLower() == email &&
-                    u.UserType == userType);
+                    u.Email.ToLower() == email);
 
             if (user == null)
             {
-                // Recruiters must already exist
-                if (userType == UserType.Recruiter)
-                {
-                    return AuthFail(
-                        "No employer account found for this LinkedIn account. Please register your company first.");
-                }
-
                 // Auto Register Candidate
                 user = new User
                 {
@@ -815,10 +814,12 @@ public class RecruiterAuthService : IRecruiterAuthService
                 }
             }
 
+            var userType = user.UserType;
+
             // Recruiter Validation
             Guid? employerId = null;
 
-            if (user.UserType == UserType.Recruiter)
+            if (userType == UserType.Recruiter)
             {
                 var employer =
                     await _context.EmployerProfiles
