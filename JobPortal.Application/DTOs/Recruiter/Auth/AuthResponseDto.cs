@@ -13,6 +13,7 @@ public class AuthResponseDto
     public string Message { get; set; } = string.Empty;
 
     public string? Token { get; set; }
+    public string? OtpToken { get; set; }
 
     public Guid? UserId { get; set; }
 

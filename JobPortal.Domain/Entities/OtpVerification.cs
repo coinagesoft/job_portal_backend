@@ -32,4 +32,8 @@ public class OtpVerification
     public User? User { get; set; }
 
     public string Purpose { get; set; } = "Login";
+
+    public string? VerificationToken { get; set; }
+
+    public DateTime? VerifiedAt { get; set; }
 }

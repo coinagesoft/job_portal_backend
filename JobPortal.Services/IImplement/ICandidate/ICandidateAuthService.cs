@@ -9,11 +9,14 @@ public interface ICandidateAuthService
         CandidateRegisterRequestDto request,
         string ipAddress);
 
-    Task<SendOtpResponseDto> SendOtpAsync(
+    Task<SendOtpResponseDto> SendRegistrationOtpAsync(
         CandidateSendOtpRequestDto request,
         string ipAddress);
 
     Task<AuthResponseDto> VerifyOtpAsync(
         CandidateVerifyOtpRequestDto request,
         string ipAddress);
+
+    Task<CreateCandidateOrderResponseDto> CreateOrderAsync(
+    CreateCandidateOrderRequestDto request);
 }

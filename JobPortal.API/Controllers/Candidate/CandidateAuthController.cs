@@ -14,7 +14,7 @@ public class CandidateAuthController : ControllerBase
     private readonly ILogger<CandidateAuthController> _logger;
 
     public CandidateAuthController(
-ICandidateAuthService service,
+        ICandidateAuthService service,
         ILogger<CandidateAuthController> logger)
     {
         _service = service;
@@ -59,11 +59,11 @@ ICandidateAuthService service,
         }
     }
     [HttpPost("send-otp")]
-    public async Task<IActionResult> SendOtp(
+    public async Task<IActionResult> SendRegistrationOtp(
      [FromBody] CandidateSendOtpRequestDto request)
     {
         var result =
-            await _service.SendOtpAsync(
+            await _service.SendRegistrationOtpAsync(
                 request,
                 GetIp());
 
@@ -80,6 +80,18 @@ ICandidateAuthService service,
             await _service.VerifyOtpAsync(
                 request,
                 GetIp());
+
+        return result.Success
+            ? Ok(result)
+            : BadRequest(result);
+    }
+
+    [HttpPost("create-order")]
+    public async Task<IActionResult> CreateOrder(
+    [FromBody] CreateCandidateOrderRequestDto request)
+    {
+        var result =
+            await _service.CreateOrderAsync(request);
 
         return result.Success
             ? Ok(result)

@@ -57,13 +57,25 @@ public class RecruiterAuthService : IRecruiterAuthService
         try
         {
             var identifier = request.Identifier.Trim().ToLower();
+            var isEmail = IsEmail(identifier);
+
+            if (!isEmail)
+            {
+                identifier = identifier
+                    .Replace(" ", "")
+                    .Replace("-", "")
+                    .Replace("(", "")
+                    .Replace(")", "");
+            }
+
+            var isMobile = IsMobile(identifier);
 
             _logger.LogInformation(
                 "SEND OTP START - Identifier:{Identifier}",
                 request.Identifier);
 
-            var isEmail = IsEmail(identifier);
-            var isMobile = IsMobile(identifier);
+            //var isEmail = IsEmail(identifier);
+            //var isMobile = IsMobile(identifier);
 
             if (!isEmail && !isMobile)
             {
@@ -301,6 +313,8 @@ public class RecruiterAuthService : IRecruiterAuthService
         }
     }
 
+   
+
     // ════════════════════════════════════════════════
     // VERIFY OTP
     // ════════════════════════════════════════════════
@@ -312,6 +326,17 @@ public class RecruiterAuthService : IRecruiterAuthService
         {
             var identifier = request.Identifier.Trim().ToLower();
             var isEmail = IsEmail(identifier);
+
+            if (!isEmail)
+            {
+                identifier = identifier
+                    .Replace(" ", "")
+                    .Replace("-", "")
+                    .Replace("(", "")
+                    .Replace(")", "");
+            }
+
+            var isMobile = IsMobile(identifier);
 
             User? user;
 
@@ -983,8 +1008,21 @@ public class RecruiterAuthService : IRecruiterAuthService
     private static bool IsEmail(string s) =>
         s.Contains('@') && s.Contains('.');
 
-    private static bool IsMobile(string s) =>
-        s.All(char.IsDigit) && s.Length >= 7 && s.Length <= 12;
+    private static bool IsMobile(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s))
+            return false;
+
+        s = s.Trim()
+             .Replace(" ", "")
+             .Replace("-", "")
+             .Replace("(", "")
+             .Replace(")", "");
+
+        return s.All(char.IsDigit)
+            && s.Length >= 7
+            && s.Length <= 12;
+    }
 
     private static string GenerateOtp()
     {
