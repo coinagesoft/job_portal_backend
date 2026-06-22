@@ -31,7 +31,7 @@ namespace JobPortal.Application.DTOs.Recruiter.CVSearch
         public string? SortBy { get; set; } = "KeywordMatch";
 
         public int PageNumber { get; set; } = 1;
-
+        public Guid? JobId { get; set; }
         public int PageSize { get; set; } = 10;
     }
 }

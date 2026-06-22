@@ -56,9 +56,12 @@ public class UploadResumeResponseDto
 {
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
+
     public Guid? CvId { get; set; }
     public string? CvFileUrl { get; set; }
     public byte ProfileCompletionPct { get; set; }
+
+    public AiParsedResumeDto? AiParsed { get; set; }
 }
 
 public class DeleteResumeResponseDto

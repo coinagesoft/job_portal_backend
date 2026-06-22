@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <Folder Include="Middleware\" />
+    <Folder Include="wwwroot\uploads\resumes\" />
   </ItemGroup>
 
   <ItemGroup>

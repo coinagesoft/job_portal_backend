@@ -6,6 +6,10 @@
 //  Field names match exactly what Affinda returns in data{}.
 // ============================================================
 
+
+
+using System.Text.Json;
+
 using System.Text.Json.Serialization;
 
 namespace JobPortal.Application.DTOs.AI;
@@ -97,14 +101,29 @@ public class AffindaLocation
 // ── Skill ─────────────────────────────────────────────────────
 public class AffindaSkill
 {
-    [JsonPropertyName("Id")] public string? Id { get; set; }
-    [JsonPropertyName("name")] public string? Name { get; set; }
-    [JsonPropertyName("type")] public string? Type { get; set; }  // "Specialized Skill" | "Common Skill"
-    [JsonPropertyName("category")] public string? Category { get; set; }
-    [JsonPropertyName("subCategory")] public string? SubCategory { get; set; }
-    [JsonPropertyName("isSoftware")] public bool IsSoftware { get; set; }
-    [JsonPropertyName("isLanguage")] public bool IsLanguage { get; set; }
+    [JsonPropertyName("id")]
+    public JsonElement Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("category")]
+    public string? Category { get; set; }
+
+    [JsonPropertyName("subCategory")]
+    public string? SubCategory { get; set; }
+
+    [JsonPropertyName("isSoftware")]
+    public bool IsSoftware { get; set; }
+
+    [JsonPropertyName("isLanguage")]
+    public bool IsLanguage { get; set; }
 }
+
+
 
 // ── Education ────────────────────────────────────────────────
 public class AffindaEducation
@@ -116,6 +135,7 @@ public class AffindaEducation
     [JsonPropertyName("educationDates")] public AffindaEduDates? EducationDates { get; set; }
     [JsonPropertyName("educationGrade")] public AffindaEduGrade? EducationGrade { get; set; }
     [JsonPropertyName("educationLocation")] public AffindaLocation? EducationLocation { get; set; }
+
 }
 
 public class AffindaEduDates
@@ -169,9 +189,14 @@ public class AffindaLanguage
 // ── Shared ───────────────────────────────────────────────────
 public class AffindaLabelValue
 {
-    [JsonPropertyName("Id")] public string? Id { get; set; }
-    [JsonPropertyName("label")] public string? Label { get; set; }
-    [JsonPropertyName("value")] public string? Value { get; set; }
+    [JsonPropertyName("id")]
+    public JsonElement Id { get; set; }
+
+    [JsonPropertyName("label")]
+    public string? Label { get; set; }
+
+    [JsonPropertyName("value")]
+    public string? Value { get; set; }
 }
 
 // ── Result returned by AffindaService to CandidateDocumentService ──
@@ -202,6 +227,7 @@ public class AffindaParseResult
 
     // Store raw JSON for future re-parsing
     public string? RawAffindaJson { get; set; }
+
 }
 
 ﻿

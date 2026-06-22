@@ -3,17 +3,21 @@ using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
+using JobPortal.Services.IImplement.AI;
 
 namespace JobPortal.Services.Implement.Recruiter
 {
     public class RecruiterCvSearchService : IRecruiterCvSearchService
     {
         private readonly AppDbContext _context;
+        private readonly IJobMatchingService _jobMatchingService;
 
         public RecruiterCvSearchService(
-            AppDbContext context)
+      AppDbContext context,
+      IJobMatchingService jobMatchingService)
         {
             _context = context;
+            _jobMatchingService = jobMatchingService;
         }
 
         // =====================================================
@@ -222,6 +226,13 @@ namespace JobPortal.Services.Implement.Recruiter
 
             foreach (var candidate in candidates)
             {
+                var aiResult = request.JobId.HasValue
+    ? await _jobMatchingService
+        .CalculateMatchAsync(
+
+            candidate.CandidateId,
+            request.JobId.Value)
+    : null;
                 var isUnlocked =
                     await _context
                         .EmployerCandidateAccesses
@@ -272,7 +283,14 @@ namespace JobPortal.Services.Implement.Recruiter
                             candidate.AvailabilityStatus,
 
                         KeywordMatchPercentage =
-                            candidate.AiMatchScore ?? 0,
+    aiResult?.MatchScore ?? 0,
+
+                        AiMatchScore =
+    aiResult?.MatchScore ?? 0,
+                        MatchScore =
+    aiResult?.MatchScore ?? 0,
+                        MatchReason =
+    aiResult?.MatchReason,
 
                         Band =
                             candidate.Band,
@@ -309,7 +327,10 @@ namespace JobPortal.Services.Implement.Recruiter
                             skillNames
                     });
             }
-
+            candidateCards =
+    candidateCards
+        .OrderByDescending(x => x.AiMatchScore)
+        .ToList();
             return new CvSearchResponseDto
             {
                 TotalCandidates =
@@ -518,9 +539,9 @@ namespace JobPortal.Services.Implement.Recruiter
 
                         AvailabilityStatus =
                             candidate.AvailabilityStatus,
-
-                        KeywordMatchPercentage =
-                            candidate.AiMatchScore ?? 0,
+                        KeywordMatchPercentage = 0,
+                        AiMatchScore = 0,
+                        MatchReason = null,
 
                         Band =
                             candidate.Band,
