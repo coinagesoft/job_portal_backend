@@ -16,5 +16,6 @@ namespace JobPortal.Application.DTOs.Recruiter
         public string? MobileNumber { get; set; }
         public string? CompanyDescription { get; set; }
         public bool MobileVerified { get; set; }
+        public bool CompanyEmailVerified { get; set; }
     }
 }

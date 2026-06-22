@@ -49,8 +49,11 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 RequiresSecurityDeposit = false,
                 IndustryType = request.IndustryType.ToString(),
                 CurrentStep = 1,
-                LastCompletedStep = 1
-               
+                LastCompletedStep = 1,
+                CreatedAt = DateTime.UtcNow,
+
+                ExpiresAt = DateTime.UtcNow.AddHours(24)
+
             };
 
             _context.RegistrationSessions.Add(session);
@@ -428,7 +431,6 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             return new ContactDetailsResponseDto
             {
                 Success = true,
-                Message = "Mobile OTP and Email OTP sent successfully.",
 
                 MaskedMobile = MaskMobile(request.MobileNumber),
 
@@ -452,8 +454,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         }
     }
 
-  
-
+ 
     public async Task<OtpResponseDto> SendEmailOtpAsync(
     SendEmailOtpRequestDto request,
     string sessionId)
@@ -577,6 +578,15 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             otpRecord.IsVerified = true;
 
             session.CompanyEmailVerified = true;
+
+            // Step 3 completed only when BOTH are verified
+            if (session.MobileVerified &&
+     session.CompanyEmailVerified)
+            {
+                session.LastCompletedStep =
+                    Math.Max(session.LastCompletedStep, 3);
+                session.CurrentStep = 4;
+            }
 
             await _context.SaveChangesAsync();
 
@@ -753,6 +763,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             {
                 session.LastCompletedStep =
                     Math.Max(session.LastCompletedStep, 3);
+                session.CurrentStep = 4;
             }
 
             await _context.SaveChangesAsync();
@@ -1054,7 +1065,16 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 return new ReviewSubmitResponseDto
                 {
                     Success = false,
-                    Message = "Mobile number not verified. Please complete Step 3."
+                    Message = "Mobile number not verified."
+                };
+            }
+
+            if (!session.CompanyEmailVerified)
+            {
+                return new ReviewSubmitResponseDto
+                {
+                    Success = false,
+                    Message = "Company email not verified."
                 };
             }
 
@@ -1356,7 +1376,6 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     {
                         ContactPersonName = session.ContactPersonName,
                         Designation = session.Designation,
-
                         ContactPersonEmail = session.ContactPersonEmail,
                         CompanyEmail = session.CompanyEmail,
 
@@ -1365,7 +1384,9 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                         CompanyDescription = session.CompanyDescription,
 
-                        MobileVerified = session.MobileVerified
+                        MobileVerified = session.MobileVerified,
+                        CompanyEmailVerified = session.CompanyEmailVerified
+
                     }
                     : null,
 

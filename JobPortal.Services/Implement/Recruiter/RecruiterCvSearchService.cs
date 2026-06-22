@@ -453,6 +453,7 @@ namespace JobPortal.Services.Implement.Recruiter
                     availabilityStatuses
             };
         }
+
         // =====================================================
         // Unlocked Candidates
         // =====================================================
