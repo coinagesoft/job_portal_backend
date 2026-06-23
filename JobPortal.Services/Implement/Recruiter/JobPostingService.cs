@@ -108,15 +108,13 @@ using Microsoft.EntityFrameworkCore;
 
 
 
-        private Guid GetEmployerId() =>
-        Guid.Parse("64de0929-cf0c-4e8f-b842-d536cc1dd012");
+      
 
        public async Task<JobDetailsResponseDto> SaveJobDetailsAsync(
-       JobDetailsRequestDto request)
+       JobDetailsRequestDto request, Guid employerId)
          {
           try
           {
-        var employerId = GetEmployerId();
 
         var employer = await _context.EmployerProfiles
             .FirstOrDefaultAsync(e => e.EmployerId == employerId);

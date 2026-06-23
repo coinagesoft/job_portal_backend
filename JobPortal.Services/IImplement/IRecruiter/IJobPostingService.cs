@@ -17,7 +17,7 @@ namespace JobPortal.Services.IImplement.IRecruiter
         //    JobDetailsRequestDto request, Guid employerId);
 
         Task<JobDetailsResponseDto> SaveJobDetailsAsync(
-          JobDetailsRequestDto request);
+          JobDetailsRequestDto request,Guid employerId);
 
         // Step 2-6 — update draft (all use jobId)
         Task<BaseJobResponseDto> SaveCompensationAsync(
