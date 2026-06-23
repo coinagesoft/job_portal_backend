@@ -66,9 +66,9 @@ public class CandidateProfileService : ICandidateProfileService
                     CurrentCity          = profile.CurrentCity,
                     CurrentState         = profile.CurrentState,
                     TotalExperienceYears = profile.TotalExperienceYears,
-                    NoticePeriod         = profile.PreferredWorkLocation, // re-mapped; add NoticePeriod field via migration if needed
-                    About                = profile.About,                          // add About field to entity via migration
-                    ProfileCompletionPct = profile.ProfileCompletionPct,
+                    NoticePeriod         = profile.PreferredWorkLocation, 
+                    About                = profile.About,
+                    ProfileCompletionPct = CalculateCompletionPct(profile),
                     AvailabilityStatus   = profile.AvailabilityStatus,
                     ProfessionalSummary  = profile.ProfessionalSummary
 
@@ -281,16 +281,31 @@ public class CandidateProfileService : ICandidateProfileService
         try
         {
             var profile = await _context.CandidateProfiles
-                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
+                .FirstOrDefaultAsync(x =>
+                    x.CandidateId == candidateId);
 
             if (profile == null)
-                return PhotoFail("Candidate profile not found.");
+            {
+                return PhotoFail(
+                    "Candidate profile not found.");
+            }
 
-            // Optional: delete from storage service here
+            // Delete from Cloudinary
+            if (!string.IsNullOrWhiteSpace(
+                profile.ProfilePhotoPublicId))
+            {
+                await _cloudinaryService.DeleteAsync(
+                    profile.ProfilePhotoPublicId);
+            }
 
-            profile.ProfilePhotoUrl      = null;
-            profile.ProfileCompletionPct = CalculateCompletionPct(profile);
-            profile.UpdatedAt            = DateTime.UtcNow;
+            profile.ProfilePhotoUrl = null;
+            profile.ProfilePhotoPublicId = null;
+
+            profile.ProfileCompletionPct =
+                CalculateCompletionPct(profile);
+
+            profile.UpdatedAt = DateTime.UtcNow;
+
             await _context.SaveChangesAsync();
 
             return new UploadProfilePhotoResponseDto
@@ -301,15 +316,21 @@ public class CandidateProfileService : ICandidateProfileService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "DeleteProfilePhotoAsync failed for {CandidateId}", candidateId);
-            return PhotoFail("Internal server error.");
+            _logger.LogError(
+                ex,
+                "DeleteProfilePhotoAsync failed for CandidateId:{CandidateId}",
+                candidateId);
+
+            return PhotoFail(
+                "Internal server error.");
         }
     }
 
     // ════════════════════════════════════════════════
     // GET PROFILE COMPLETION BREAKDOWN
     // ════════════════════════════════════════════════
-    public async Task<ProfileCompletionResponseDto> GetProfileCompletionAsync(Guid candidateId)
+    public async Task<ProfileCompletionResponseDto> GetProfileCompletionAsync(
+       Guid candidateId)
     {
         try
         {
@@ -321,7 +342,13 @@ public class CandidateProfileService : ICandidateProfileService
                 .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
 
             if (profile == null)
-                return new ProfileCompletionResponseDto { Success = false, Message = "Profile not found." };
+            {
+                return new ProfileCompletionResponseDto
+                {
+                    Success = false,
+                    Message = "Profile not found."
+                };
+            }
 
             var hasAadhaar = await _context.KycVerifications
                 .AnyAsync(k => k.CandidateId == candidateId);
@@ -329,25 +356,71 @@ public class CandidateProfileService : ICandidateProfileService
             var hasPassport = await _context.Set<PassportVerification>()
                 .AnyAsync(p => p.CandidateId == candidateId);
 
-            var hasPhoto    = !string.IsNullOrWhiteSpace(profile.ProfilePhotoUrl);
-            var hasPersonal = !string.IsNullOrWhiteSpace(profile.FullName)
-                              && !string.IsNullOrWhiteSpace(profile.CurrentCity);
-            var hasResume   = profile.Cvs.Any(c => !string.IsNullOrWhiteSpace(c.CvFileUrl));
-            var hasEdu      = profile.Educations.Any();
-            var hasWork     = profile.WorkHistories.Any();
-            var hasSkills   = profile.Skills.Any();
+            var hasPhoto =
+                !string.IsNullOrWhiteSpace(profile.ProfilePhotoUrl);
+
+            var hasPersonal =
+                !string.IsNullOrWhiteSpace(profile.FullName)
+                && profile.DateOfBirth.HasValue
+                && !string.IsNullOrWhiteSpace(profile.CurrentCity)
+                && !string.IsNullOrWhiteSpace(profile.CurrentState);
+
+            var hasSummary =
+                !string.IsNullOrWhiteSpace(profile.About)
+                || !string.IsNullOrWhiteSpace(profile.ProfessionalSummary);
+
+            var hasResume =
+                profile.Cvs.Any(c =>
+                    !string.IsNullOrWhiteSpace(c.CvFileUrl));
+
+            var hasEdu =
+                profile.Educations.Any();
+
+            var hasWork =
+                profile.WorkHistories.Any();
+
+            var hasSkills =
+                profile.Skills.Any();
 
             var pending = new List<string>();
-            if (!hasPhoto)    pending.Add("Upload a profile photo");
-            if (!hasPersonal) pending.Add("Complete personal info (city, DOB)");
-            if (!hasResume)   pending.Add("Upload your resume");
-            if (!hasEdu)      pending.Add("Add education details");
-            if (!hasWork)     pending.Add("Add work experience");
-            if (!hasSkills)   pending.Add("Add your skills");
-            if (!hasAadhaar)  pending.Add("Upload Aadhaar for KYC verification");
+
+            if (!hasPhoto)
+                pending.Add("Upload a profile photo");
+
+            if (!hasPersonal)
+                pending.Add("Complete personal information");
+
+            if (!hasSummary)
+                pending.Add("Add professional summary");
+
+            if (!hasResume)
+                pending.Add("Upload your resume");
+
+            if (!hasEdu)
+                pending.Add("Add education details");
+
+            if (!hasWork)
+                pending.Add("Add work experience");
+
+            if (!hasSkills)
+                pending.Add("Add your skills");
+
+            if (!hasAadhaar)
+                pending.Add("Upload Aadhaar for KYC verification");
+
+            if (!hasPassport)
+                pending.Add("Upload passport details");
 
             var pct = CalculateCompletionPctDetailed(
-                hasPhoto, hasPersonal, hasResume, hasEdu, hasWork, hasSkills, hasAadhaar, hasPassport);
+                hasPhoto,
+                hasPersonal,
+                hasSummary,
+                hasResume,
+                hasEdu,
+                hasWork,
+                hasSkills,
+                hasAadhaar,
+                hasPassport);
 
             return new ProfileCompletionResponseDto
             {
@@ -355,26 +428,45 @@ public class CandidateProfileService : ICandidateProfileService
                 Message = "Completion data retrieved.",
                 Data = new ProfileCompletionData
                 {
-                    OverallPct      = pct,
-                    HasPhoto        = hasPhoto,
+                    OverallPct = pct,
+
+                    HasPhoto = hasPhoto,
+
                     HasPersonalInfo = hasPersonal,
-                    HasSummary      = false,   // wire to About/ProfessionalSummary once migrated
-                    HasResume       = hasResume,
-                    HasEducation    = hasEdu,
-                    HasWorkHistory  = hasWork,
-                    HasSkills       = hasSkills,
-                    HasAadhaar      = hasAadhaar,
-                    HasPassport     = hasPassport,
-                    PendingActions  = pending
+
+                    HasSummary = hasSummary,
+
+                    HasResume = hasResume,
+
+                    HasEducation = hasEdu,
+
+                    HasWorkHistory = hasWork,
+
+                    HasSkills = hasSkills,
+
+                    HasAadhaar = hasAadhaar,
+
+                    HasPassport = hasPassport,
+
+                    PendingActions = pending
                 }
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "GetProfileCompletionAsync failed for {CandidateId}", candidateId);
-            return new ProfileCompletionResponseDto { Success = false, Message = "Internal server error." };
+            _logger.LogError(
+                ex,
+                "GetProfileCompletionAsync failed for {CandidateId}",
+                candidateId);
+
+            return new ProfileCompletionResponseDto
+            {
+                Success = false,
+                Message = "Internal server error."
+            };
         }
     }
+
     public async Task<CreateCandidateProfileResponseDto> CreateProfileAsync(
     Guid userId,
     CreateCandidateProfileRequestDto request)
@@ -468,34 +560,72 @@ public class CandidateProfileService : ICandidateProfileService
 
     private static byte CalculateCompletionPct(CandidateProfile p)
     {
-        int score = 0;
-        if (!string.IsNullOrWhiteSpace(p.FullName))          score += 10;
-        if (!string.IsNullOrWhiteSpace(p.ProfilePhotoUrl))   score += 15;
-        if (p.DateOfBirth.HasValue)                          score += 5;
-        if (!string.IsNullOrWhiteSpace(p.CurrentCity))       score += 5;
-        if (!string.IsNullOrWhiteSpace(p.CurrentState))      score += 5;
-        if (p.TotalExperienceYears > 0)                      score += 10;
-        if (p.Cvs?.Any(c => c.CvFileUrl != null) == true)   score += 20;
-        if (p.Educations?.Any() == true)                     score += 10;
-        if (p.WorkHistories?.Any() == true)                  score += 10;
-        if (p.Skills?.Any() == true)                         score += 10;
-        return (byte)Math.Min(score, 100);
-    }
+        bool photo =
+            !string.IsNullOrWhiteSpace(p.ProfilePhotoUrl);
 
+        bool personal =
+            !string.IsNullOrWhiteSpace(p.FullName)
+            && p.DateOfBirth.HasValue
+            && !string.IsNullOrWhiteSpace(p.CurrentCity)
+            && !string.IsNullOrWhiteSpace(p.CurrentState);
+
+        bool summary =
+            !string.IsNullOrWhiteSpace(p.About)
+            || !string.IsNullOrWhiteSpace(p.ProfessionalSummary);
+
+        bool resume =
+            p.Cvs?.Any(x =>
+                !string.IsNullOrWhiteSpace(x.CvFileUrl)) == true;
+
+        bool edu =
+            p.Educations?.Any() == true;
+
+        bool work =
+            p.WorkHistories?.Any() == true;
+
+        bool skills =
+            p.Skills?.Any() == true;
+
+        bool aadhaar =
+            p.KycVerifications?.Any() == true;
+
+        bool passport =
+            p.PassportVerifications?.Any() == true;
+
+        return CalculateCompletionPctDetailed(
+            photo,
+            personal,
+            summary,
+            resume,
+            edu,
+            work,
+            skills,
+            aadhaar,
+            passport);
+    }
     private static byte CalculateCompletionPctDetailed(
-        bool photo, bool personal, bool resume,
-        bool edu, bool work, bool skills,
-        bool aadhaar, bool passport)
+        bool photo,
+        bool personal,
+        bool summary,
+        bool resume,
+        bool edu,
+        bool work,
+        bool skills,
+        bool aadhaar,
+        bool passport)
     {
         int score = 0;
-        if (photo)    score += 15;
+
+        if (photo) score += 15;
         if (personal) score += 15;
-        if (resume)   score += 20;
-        if (edu)      score += 10;
-        if (work)     score += 10;
-        if (skills)   score += 10;
-        if (aadhaar)  score += 10;
-        if (passport) score += 10;
+        if (summary) score += 10;
+        if (resume) score += 20;
+        if (edu) score += 10;
+        if (work) score += 10;
+        if (skills) score += 10;
+        if (aadhaar) score += 5;
+        if (passport) score += 5;
+
         return (byte)Math.Min(score, 100);
     }
 

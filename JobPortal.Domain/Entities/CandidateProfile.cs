@@ -63,6 +63,12 @@ public class CandidateProfile
 
     public CandidatePreferenceSetting? PreferenceSetting { get; set; }
 
+    public ICollection<KycVerification> KycVerifications { get; set; }
+    = new List<KycVerification>();
+
+    public ICollection<PassportVerification> PassportVerifications { get; set; }
+        = new List<PassportVerification>();
+
 }
 
 

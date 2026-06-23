@@ -15,6 +15,7 @@ namespace JobPortal.API.Controllers.Candidate;
 [ApiController]
 [Route("api/candidate/profile")]
 [Produces("application/json")]
+[Authorize(Roles ="Candidate")]
 // [Authorize(Roles = "Candidate")]   // Uncomment once JWT auth middleware is wired up
 public class CandidateProfileController : ControllerBase
 {
