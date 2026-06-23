@@ -4,8 +4,8 @@
     using global::JobPortal.Services.IImplement.IRecruiter;
     using JobPortal.Application.DTOs.JobPosting;
     using JobPortal.Domain.Enums.common;
-using JobPortal.Domain.Enums.RecruiterEnums;
-using Microsoft.EntityFrameworkCore;
+    using JobPortal.Domain.Enums.RecruiterEnums;
+    using Microsoft.EntityFrameworkCore;
     using Microsoft.Extensions.Logging;
     using System.Text.Json;
 
@@ -203,6 +203,7 @@ using Microsoft.EntityFrameworkCore;
         };
     }
 }
+        
 
         public async Task<BaseJobResponseDto> SaveCompensationAsync(
         CompensationRequestDto request,

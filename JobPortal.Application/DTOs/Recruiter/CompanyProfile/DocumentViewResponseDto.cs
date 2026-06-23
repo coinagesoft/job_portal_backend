@@ -8,7 +8,7 @@ namespace JobPortal.Application.DTOs.Recruiter.CompanyProfile
 {
     public class DocumentViewResponseDto
     {
-        public string DocumentType { get; set; } = default!;
+        public DocumentType DocumentType { get; set; } = default!;
 
         public string? FileUrl { get; set; }
     }

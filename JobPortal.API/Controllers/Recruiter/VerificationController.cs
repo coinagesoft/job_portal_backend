@@ -83,7 +83,7 @@ namespace JobPortal.API.Controllers.Recruiter
         [HttpGet("{employerId:guid}/document/{documentType}")]
         public async Task<IActionResult> GetDocument(
             Guid employerId,
-            string documentType)
+            DocumentType documentType)
         {
             var result = await _verificationService
                 .GetDocumentAsync(

@@ -18,6 +18,6 @@ namespace JobPortal.Services.IImplement.IRecruiter
 
         Task<DocumentViewResponseDto?> GetDocumentAsync(
             Guid employerId,
-            string documentType);
+            DocumentType documentType);
     }
 }

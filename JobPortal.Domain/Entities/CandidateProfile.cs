@@ -12,6 +12,8 @@ public class CandidateProfile
     public Guid UserId { get; set; }
     public string FullName { get; set; } = default!;
     public string? ProfilePhotoUrl { get; set; }
+    public string? Role { get; set; }
+
     public DateOnly? DateOfBirth { get; set; }
     public string? Gender { get; set; }                 // Male | Female | Prefer_Not_To_Say
     public string? Nationality { get; set; }
@@ -44,6 +46,7 @@ public class CandidateProfile
 
     public string? ProfessionalSummary { get; set; }
 
+    public string? ProfilePhotoPublicId { get; set; }
     public string? About { get; set; }
 
     public string? NoticePeriod { get; set; }

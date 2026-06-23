@@ -3,6 +3,7 @@ using System;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260623095021_role_param")]
+    partial class role_param
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -563,9 +566,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<byte>("ProfileCompletionPct")
                         .HasColumnType("smallint")
                         .HasColumnName("profile_completion_pct");
-
-                    b.Property<string>("ProfilePhotoPublicId")
-                        .HasColumnType("text");
 
                     b.Property<string>("ProfilePhotoUrl")
                         .HasColumnType("text")

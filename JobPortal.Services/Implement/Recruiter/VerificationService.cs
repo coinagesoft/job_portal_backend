@@ -2,6 +2,7 @@
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,14 +13,20 @@ using System.Threading.Tasks;
     {
         public class VerificationService : IVerificationService
         {
-            private readonly AppDbContext _context;
+        private readonly AppDbContext _context;
+        private readonly ICloudinaryService _cloudinaryService;
+        private readonly ILogger<VerificationService> _logger;
+        public VerificationService(
+     AppDbContext context,
+     ICloudinaryService cloudinaryService,
+     ILogger<VerificationService> logger)
+        {
+            _context = context;
+            _cloudinaryService = cloudinaryService;
+            _logger = logger;
+        }
 
-            public VerificationService(AppDbContext context)
-            {
-                _context = context;
-            }
-
-            public async Task<VerificationDashboardResponseDto?> GetVerificationDashboardAsync(
+        public async Task<VerificationDashboardResponseDto?> GetVerificationDashboardAsync(
                 Guid employerId)
             {
                 var profile = await _context.EmployerProfiles
@@ -116,40 +123,76 @@ using System.Threading.Tasks;
                 return response;
             }
 
-            public async Task<bool> UploadDocumentAsync(
-                Guid employerId,
-                UploadVerificationDocumentRequestDto request)
+        public async Task<bool> UploadDocumentAsync(
+    Guid employerId,
+    UploadVerificationDocumentRequestDto request)
+        {
+            try
             {
                 var profile = await _context.EmployerProfiles
-                    .FirstOrDefaultAsync(x => x.EmployerId == employerId);
+                .FirstOrDefaultAsync(x => x.EmployerId == employerId);
 
-                if (profile == null)
+    if (profile == null)
                     return false;
 
-                // TODO:
-                // Upload request.File to S3 / Azure Blob / Local Storage
-                // Replace with actual uploaded file URL
-                var fileUrl = $"uploads/{request.File.FileName}";
+                if (request.File == null || request.File.Length == 0)
+                    throw new Exception("File is required.");
 
-                switch (request.DocumentType.ToUpper())
+                switch (request.DocumentType)
                 {
-                    case "POE":
-                        profile.PoeLicenceUrl = fileUrl;
+                    case DocumentType.POE:
+
+                        // Remove old file
+                        if (!string.IsNullOrWhiteSpace(profile.PoeLicencePublicId))
+                        {
+                            await _cloudinaryService.DeleteAsync(
+                                profile.PoeLicencePublicId);
+                        }
+
+                        var poeUpload =
+                            await _cloudinaryService.UploadDocumentAsync(
+                                request.File,
+                                "verification-documents");
+
+                        profile.PoeLicenceUrl = poeUpload.Url;
+                        profile.PoeLicencePublicId = poeUpload.PublicId;
+
                         break;
 
-                    case "RPSL":
-                        profile.RpslLicenceUrl = fileUrl;
+                    case DocumentType.RPSL:
+
+                        if (!string.IsNullOrWhiteSpace(profile.RpslLicencePublicId))
+                        {
+                            await _cloudinaryService.DeleteAsync(
+                                profile.RpslLicencePublicId);
+                        }
+
+                        var rpslUpload =
+                            await _cloudinaryService.UploadDocumentAsync(
+                                request.File,
+                                "verification-documents");
+
+                        profile.RpslLicenceUrl = rpslUpload.Url;
+                        profile.RpslLicencePublicId = rpslUpload.PublicId;
+
                         break;
 
-                    case "BUSINESS_REGISTRATION":
-                        profile.BusinessRegDocUrl = fileUrl;
+                    case DocumentType.BUSINESS_REGISTRATION:
+
+                        var businessUpload =
+                            await _cloudinaryService.UploadDocumentAsync(
+                                request.File,
+                                "verification-documents");
+
+                        profile.BusinessRegDocUrl = businessUpload.Url;
+
                         break;
 
-                default:
-                    throw new Exception(
-                        $"Invalid document type received: '{request.DocumentType}'. " +
-                        $"Allowed values are: POE, RPSL, BUSINESS_REGISTRATION");
-            }
+                    default:
+
+                        throw new Exception(
+                            $"Invalid document type '{request.DocumentType}'.");
+                }
 
                 profile.UpdatedAt = DateTime.UtcNow;
 
@@ -157,31 +200,48 @@ using System.Threading.Tasks;
 
                 return true;
             }
-
-            public async Task<DocumentViewResponseDto?> GetDocumentAsync(
-                Guid employerId,
-                string documentType)
+            catch (Exception ex)
             {
-                var profile = await _context.EmployerProfiles
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.EmployerId == employerId);
+                _logger.LogError(
+                    ex,
+                    "UploadDocumentAsync error. EmployerId:{EmployerId}",
+                    employerId);
 
-                if (profile == null)
-                    return null;
-
-                string? fileUrl = documentType.ToUpper() switch
-                {
-                    "POE" => profile.PoeLicenceUrl,
-                    "RPSL" => profile.RpslLicenceUrl,
-                    "BUSINESS_REGISTRATION" => profile.BusinessRegDocUrl,
-                    _ => null
-                };
-
-                return new DocumentViewResponseDto
-                {
-                    DocumentType = documentType,
-                    FileUrl = fileUrl
-                };
+                return false;
             }
+
+}
+
+
+
+
+        public async Task<DocumentViewResponseDto?> GetDocumentAsync(
+        Guid employerId,
+        DocumentType documentType)
+        {
+            var profile = await _context.EmployerProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.EmployerId == employerId);
+
+            if (profile == null)
+                return null;
+
+            string? fileUrl = documentType switch
+            {
+                DocumentType.POE => profile.PoeLicenceUrl,
+
+                DocumentType.RPSL => profile.RpslLicenceUrl,
+
+                DocumentType.BUSINESS_REGISTRATION => profile.BusinessRegDocUrl,
+
+                _ => null
+            };
+
+            return new DocumentViewResponseDto
+            {
+                DocumentType = documentType,
+                FileUrl = fileUrl
+            };
         }
+    }
     }

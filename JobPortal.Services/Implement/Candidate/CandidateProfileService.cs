@@ -7,6 +7,7 @@ using JobPortal.Application.DTOs.Candidate.Profile;
 using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.ICandidate;
+using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -19,6 +20,7 @@ public class CandidateProfileService : ICandidateProfileService
     private readonly AppDbContext _context;
     private readonly ILogger<CandidateProfileService> _logger;
     private readonly IConfiguration _configuration;
+    private readonly ICloudinaryService _cloudinaryService;
 
     // Max file size 5 MB
     private const long MaxFileSizeBytes = 5 * 1024 * 1024;
@@ -56,6 +58,7 @@ public class CandidateProfileService : ICandidateProfileService
                 {
                     CandidateId          = profile.CandidateId,
                     FullName             = profile.FullName,
+                    Role                 = profile.Role,
                     ProfilePhotoUrl      = profile.ProfilePhotoUrl,
                     MobileNumber         = profile.User?.MobileNumber,
                     CountryCode          = profile.User?.CountryCode,
@@ -64,10 +67,13 @@ public class CandidateProfileService : ICandidateProfileService
                     CurrentState         = profile.CurrentState,
                     TotalExperienceYears = profile.TotalExperienceYears,
                     NoticePeriod         = profile.PreferredWorkLocation, // re-mapped; add NoticePeriod field via migration if needed
-                    About                = null,                          // add About field to entity via migration
+                    About                = profile.About,                          // add About field to entity via migration
                     ProfileCompletionPct = profile.ProfileCompletionPct,
-                    AvailabilityStatus   = profile.AvailabilityStatus
-                }
+                    AvailabilityStatus   = profile.AvailabilityStatus,
+                    ProfessionalSummary  = profile.ProfessionalSummary
+
+
+}
             };
         }
         catch (Exception ex)
@@ -99,6 +105,7 @@ public class CandidateProfileService : ICandidateProfileService
                 {
                     CandidateId          = profile.CandidateId,
                     FullName             = profile.FullName,
+                    Role                 = profile.Role,
                     ProfilePhotoUrl      = profile.ProfilePhotoUrl,
                     DateOfBirth          = profile.DateOfBirth,
                     Gender               = profile.Gender,
@@ -107,10 +114,10 @@ public class CandidateProfileService : ICandidateProfileService
                     CountryCode          = profile.User?.CountryCode,
                     CurrentCity          = profile.CurrentCity,
                     CurrentState         = profile.CurrentState,
-                    Pincode              = null,   // add Pincode field to entity via migration
-                    ProfessionalSummary  = null,   // add ProfessionalSummary field to entity via migration
-                    About                = null,   // add About field to entity via migration
-                    NoticePeriod         = null,   // add NoticePeriod field to entity via migration
+                    Pincode              = profile.Pincode,   // add Pincode field to entity via migration
+                    ProfessionalSummary  = profile.ProfessionalSummary,   // add ProfessionalSummary field to entity via migration
+                    About                = profile.About,   // add About field to entity via migration
+                    NoticePeriod         = profile.NoticePeriod,   // add NoticePeriod field to entity via migration
                     TotalExperienceYears = profile.TotalExperienceYears,
                     NewsletterOptIn      = profile.NewsletterOptIn,
                     ProfileCompletionPct = profile.ProfileCompletionPct
@@ -142,6 +149,7 @@ public class CandidateProfileService : ICandidateProfileService
 
             // Update fields
             profile.FullName             = request.FullName;
+            profile.Role                 = request.Role;
             profile.DateOfBirth          = request.DateOfBirth;
             profile.Gender               = request.Gender;
             profile.CurrentCity          = request.CurrentCity;
@@ -165,10 +173,10 @@ public class CandidateProfileService : ICandidateProfileService
 
             // NOTE: Pincode, ProfessionalSummary, About, NoticePeriod require new columns
             //       on CandidateProfile entity. Once the migration is added, uncomment:
-            // profile.Pincode             = request.Pincode;
-            // profile.ProfessionalSummary = request.ProfessionalSummary;
-            // profile.About               = request.About;
-            // profile.NoticePeriod        = request.NoticePeriod;
+             profile.Pincode             = request.Pincode;
+             profile.ProfessionalSummary = request.ProfessionalSummary;
+             profile.About               = request.About;
+             profile.NoticePeriod        = request.NoticePeriod;
 
             // Recalculate completion %
             profile.ProfileCompletionPct = CalculateCompletionPct(profile);
@@ -193,51 +201,75 @@ public class CandidateProfileService : ICandidateProfileService
     // UPLOAD PROFILE PHOTO
     // ════════════════════════════════════════════════
     public async Task<UploadProfilePhotoResponseDto> UploadProfilePhotoAsync(
-        Guid candidateId, IFormFile photo)
+      Guid candidateId,
+      IFormFile photo)
     {
         try
         {
             if (photo == null || photo.Length == 0)
+            {
                 return PhotoFail("No file provided.");
+            }
 
             if (photo.Length > MaxFileSizeBytes)
+            {
                 return PhotoFail("File size must not exceed 5 MB.");
+            }
 
             if (!AllowedImageTypes.Contains(photo.ContentType.ToLower()))
-                return PhotoFail("Only JPEG, PNG, or WebP images are allowed.");
+            {
+                return PhotoFail(
+                    "Only JPEG, PNG, or WebP images are allowed.");
+            }
 
             var profile = await _context.CandidateProfiles
-                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
+                .FirstOrDefaultAsync(x =>
+                    x.CandidateId == candidateId);
 
             if (profile == null)
+            {
                 return PhotoFail("Candidate profile not found.");
+            }
 
-            // ── Upload to cloud storage (S3 / Firebase Storage) ──────────
-            // Replace the block below with your actual storage service call.
-            // Example (AWS S3 via AWSSDK):
-            //   var url = await _storageService.UploadAsync(
-            //       $"profiles/{candidateId}/photo_{Guid.NewGuid()}", photo);
-            // For now we use a placeholder URL pattern:
-            var fileName  = $"profiles/{candidateId}/photo_{Guid.NewGuid()}{Path.GetExtension(photo.FileName)}";
-            var photoUrl  = $"{_configuration["Storage:BaseUrl"]}/{fileName}";
-            // ─────────────────────────────────────────────────────────────
+            // Delete old image
+            if (!string.IsNullOrWhiteSpace(profile.ProfilePhotoPublicId))
+            {
+                await _cloudinaryService.DeleteAsync(
+                    profile.ProfilePhotoPublicId);
+            }
 
-            profile.ProfilePhotoUrl      = photoUrl;
-            profile.ProfileCompletionPct = CalculateCompletionPct(profile);
-            profile.UpdatedAt            = DateTime.UtcNow;
+            // Upload new image
+            var uploadResult =
+                await _cloudinaryService.UploadImageAsync(
+                    photo,
+                    "candidate-profile-photos");
+
+            profile.ProfilePhotoUrl = uploadResult.Url;
+            profile.ProfilePhotoPublicId = uploadResult.PublicId;
+
+            profile.ProfileCompletionPct =
+                CalculateCompletionPct(profile);
+
+            profile.UpdatedAt = DateTime.UtcNow;
+
             await _context.SaveChangesAsync();
 
             return new UploadProfilePhotoResponseDto
             {
-                Success         = true,
-                Message         = "Profile photo uploaded.",
-                ProfilePhotoUrl = photoUrl
+                Success = true,
+                Message = "Profile photo uploaded successfully.",
+                ProfilePhotoUrl = profile.ProfilePhotoUrl
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "UploadProfilePhotoAsync failed for {CandidateId}", candidateId);
-            return PhotoFail("Internal server error.");
+            _logger.LogError(
+                ex,
+                "UploadProfilePhotoAsync failed for CandidateId:{CandidateId}",
+                candidateId);
+
+            return PhotoFail(
+                "An error occurred while uploading profile photo.");
         }
     }
 

@@ -26,6 +26,8 @@ public class CandidateProfileSummaryData
 {
     public Guid    CandidateId          { get; set; }
     public string  FullName             { get; set; } = string.Empty;
+    public string? Role { get; set; }
+
     public string? ProfilePhotoUrl      { get; set; }
     public string? MobileNumber         { get; set; }
     public string? CountryCode          { get; set; }
@@ -37,6 +39,9 @@ public class CandidateProfileSummaryData
     public string? About                { get; set; }  // short bio / headline
     public byte    ProfileCompletionPct { get; set; }
     public string  AvailabilityStatus   { get; set; } = "Available";
+    public string? ProfessionalSummary { get; set; }
+
+
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -56,6 +61,7 @@ public class CandidatePersonalInfoData
 {
     public Guid    CandidateId          { get; set; }
     public string  FullName             { get; set; } = string.Empty;
+    public string  Role                  { get; set; } 
     public string? ProfilePhotoUrl      { get; set; }
     public DateOnly? DateOfBirth        { get; set; }
     public string? Gender               { get; set; }  // Male | Female | Prefer_Not_To_Say
@@ -80,6 +86,8 @@ public class UpdateCandidatePersonalInfoRequestDto
 
     /// <summary>Multipart upload handled separately via /profile-photo endpoint.</summary>
     // Not included here intentionally
+
+    public string? Role { get; set; }
 
     [DataType(DataType.Date)]
     public DateOnly? DateOfBirth { get; set; }
