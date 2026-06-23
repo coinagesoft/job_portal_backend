@@ -199,10 +199,7 @@ builder.Services.AddCors(options =>
             "https://localhost:3000",
 
             "https://job-portal-dev-phi.vercel.app",
-
-
-
-    "https://job-portal-web-phi.vercel.app");
+            "https://job-portal-web-phi.vercel.app");
 
     });
 });
