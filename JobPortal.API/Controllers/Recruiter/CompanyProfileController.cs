@@ -1,11 +1,13 @@
 ﻿using JobPortal.Application.DTOs.Recruiter.CompanyProfile;
 using JobPortal.Services.IImplement.IRecruiter;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Recruiter
 {
     [ApiController]
     [Route("api/recruiter/company-profile")]
+    [Authorize(Roles = "Recruiter")]
     public class CompanyProfileController : ControllerBase
     {
         private readonly ICompanyProfileService _companyProfileService;

@@ -10,8 +10,8 @@ namespace JobPortal.API.Controllers.Recruiter;
 
     [ApiController]
     [Route("api/recruiter/jobs")]
-    //[Authorize(Roles = "Recruiter")]
-    public class RecruiterJobPostingController : ControllerBase
+    [Authorize(Roles = "Recruiter")]
+public class RecruiterJobPostingController : ControllerBase
     {
         private readonly IJobPostingService _service;
 
@@ -22,8 +22,16 @@ namespace JobPortal.API.Controllers.Recruiter;
     //    Guid.Parse(User.FindFirst("employer_id")?.Value
     //        ?? throw new UnauthorizedAccessException("Employer ID not found in token."));
 
-    private Guid GetEmployerId() =>
-    Guid.Parse("64de0929-cf0c-4e8f-b842-d536cc1dd012");
+    private Guid GetEmployerId()
+    {
+        var employerId = User.FindFirst("employer_id")?.Value;
+
+        if (string.IsNullOrWhiteSpace(employerId))
+            throw new UnauthorizedAccessException(
+                "Employer ID not found in token.");
+
+        return Guid.Parse(employerId);
+    }
 
     // ── Role Search (no auth needed) ───────────────────
     [HttpGet("search-roles")]

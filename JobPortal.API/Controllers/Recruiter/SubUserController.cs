@@ -2,6 +2,7 @@
 using JobPortal.Application.DTOs.SubUser;
 using JobPortal.Domain.Enums;
 using JobPortal.Services.IImplement.IRecruiter;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
@@ -10,6 +11,7 @@ namespace JobPortal.API.Controllers.Recruiter;
 [ApiController]
 [Route("api/recruiter/sub-users")]
 [Produces("application/json")]
+[Authorize(Roles = "Recruiter")]
 public class RecruiterSubUserController : ControllerBase
 {
     private readonly ISubUserService _service;
@@ -24,8 +26,16 @@ public class RecruiterSubUserController : ControllerBase
     }
 
     // ── Hardcoded for testing — replace with JWT claim ─
-    private Guid GetEmployerId() =>
-        Guid.Parse("64de0929-cf0c-4e8f-b842-d536cc1dd012");
+    private Guid GetEmployerId()
+    {
+        var employerId = User.FindFirst("employer_id")?.Value;
+
+        if (string.IsNullOrWhiteSpace(employerId))
+            throw new UnauthorizedAccessException(
+                "Employer ID not found in token.");
+
+        return Guid.Parse(employerId);
+    }
 
     // ════════════════════════════════════════════════
     // GET ALL SUB-USERS

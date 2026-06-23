@@ -1,11 +1,13 @@
 ﻿using JobPortal.Application.DTOs.Recruiter.CompanyProfile;
 using JobPortal.Services.IImplement.IRecruiter;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Recruiter
 {
     [ApiController]
     [Route("api/recruiter/verification")]
+    [Authorize(Roles = "Recruiter")]
     public class RecruiterVerificationController : ControllerBase
     {
         private readonly IVerificationService _verificationService;

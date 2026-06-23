@@ -1,10 +1,12 @@
 ﻿using JobPortal.Services.IImplement.IRecruiter;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Recruiter
 {
     [ApiController]
     [Route("api/recruiter/candidates")]
+    [Authorize(Roles = "Recruiter")]
     public class RecruiterCandidateProfileController : ControllerBase
     {
         private readonly IRecruiterCandidateProfileService

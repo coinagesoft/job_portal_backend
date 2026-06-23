@@ -1,11 +1,13 @@
 ﻿using JobPortal.Application.DTOs.Recruiter.Settings;
 using JobPortal.Services.IImplement.IRecruiter;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Recruiter
 {
     [ApiController]
     [Route("api/recruiter/settings")]
+    [Authorize(Roles = "Recruiter")]
     public class RecruiterSettingsController : ControllerBase
     {
         private readonly IRecruiterSettingsService _settingsService;

@@ -1,12 +1,14 @@
 ﻿using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.IRecruiter;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Recruiter;
 
 [ApiController]
 [Route("api/admin/credit-configuration")]
+[Authorize]
 public class CreditConfigurationController
     : ControllerBase
 {

@@ -1,11 +1,14 @@
 ﻿using JobPortal.Application.DTOs.Recruiter.CreditWallet;
 using JobPortal.Services.IImplement.IRecruiter;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Recruiter;
 
 [ApiController]
-[Route("api/employer")]
+[Route("api/recruiter")]
+[Authorize(Roles = "Recruiter")]
+
 public class RecruiterCreditController : ControllerBase
 {
     private readonly ICreditWalletService _service;

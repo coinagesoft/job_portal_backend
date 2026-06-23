@@ -1,13 +1,15 @@
 ﻿
 using JobPortal.Application.DTOs.Recruiter.Notification;
 using JobPortal.Services.IImplement.IRecruiter;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Recruiter
     {
         [ApiController]
         [Route("api/recruiter/notification")]
-        public class RecruiterNotificationController : ControllerBase
+    [Authorize(Roles = "Recruiter")]
+    public class RecruiterNotificationController : ControllerBase
         {
             private readonly INotificationService _service;
 

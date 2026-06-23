@@ -566,11 +566,9 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             // Find Existing User
             var user = await _context.Users
-                .FirstOrDefaultAsync(u =>
-                    u.Email != null &&
-                    u.Email.ToLower() == email);
-
-            var userType = user.UserType;
+     .FirstOrDefaultAsync(u =>
+         u.Email != null &&
+         u.Email.ToLower() == email);
 
             if (user == null)
             {
@@ -600,17 +598,17 @@ public class RecruiterAuthService : IRecruiterAuthService
             else
             {
                 if (user.AccountStatus == AccountStatus.Suspended)
-                {
                     return AuthFail(
-                        "Your account has been suspended. Contact support.");
-                }
+                        "Your account has been suspended.");
 
                 if (user.AccountStatus == AccountStatus.Rejected)
-                {
                     return AuthFail(
                         "Account has been rejected.");
-                }
             }
+
+            var userType = user.UserType;
+
+           
 
           
 
