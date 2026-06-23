@@ -59,6 +59,8 @@ public class CandidateAuthController : ControllerBase
         }
     }
     [HttpPost("send-otp")]
+
+
     public async Task<IActionResult> SendRegistrationOtp(
      [FromBody] CandidateSendOtpRequestDto request)
     {

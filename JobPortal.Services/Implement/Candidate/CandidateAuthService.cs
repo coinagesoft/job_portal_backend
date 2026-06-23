@@ -654,7 +654,16 @@ public async Task<CreateCandidateOrderResponseDto> CreateOrderAsync(
 {
     try
     {
-        var client = new RazorpayClient(
+
+            _logger.LogInformation(
+    "KeyId:{KeyId}",
+    _config["Razorpay:KeyId"]);
+
+            _logger.LogInformation(
+                "KeySecret:{KeySecret}",
+                _config["Razorpay:KeySecret"]);
+
+            var client = new RazorpayClient(
             _config["Razorpay:KeyId"],
             _config["Razorpay:KeySecret"]);
 
@@ -686,7 +695,7 @@ public async Task<CreateCandidateOrderResponseDto> CreateOrderAsync(
         return new CreateCandidateOrderResponseDto
         {
             Success = false,
-            Message = "Unable to create payment order."
+            Message = ex.ToString()
         };
     }
 }

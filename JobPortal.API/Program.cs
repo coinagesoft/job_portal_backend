@@ -3,24 +3,25 @@ using Google.Apis.Auth.OAuth2;
 using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
+using JobPortal.Services.AI;
+using JobPortal.Services.IImplement.AI;
 using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.ICandidate;
 using JobPortal.Services.IImplement.IPublic;
 using JobPortal.Services.IImplement.IRecruiter;
+using JobPortal.Services.IImplement.IUploads;
 using JobPortal.Services.Implement;
 using JobPortal.Services.Implement.Admin;
+using JobPortal.Services.Implement.AI;
 using JobPortal.Services.Implement.Candidate;
 using JobPortal.Services.Implement.Public;
-using JobPortal.Services.AI;
-using JobPortal.Services.IImplement.AI;
-using JobPortal.Services.Implement.AI;
-using JobPortal.Services.IImplement.IUploads;
-using JobPortal.Services.Implement.Uploads;
 //using JobPortal.Services.IImplement.AI;
 using JobPortal.Services.Implement.Recruiter;
+using JobPortal.Services.Implement.Uploads;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,7 +31,7 @@ builder.Services.AddHttpClient();
 
 builder.Services.AddEndpointsApiExplorer();
 
-builder.Services.AddSwaggerGen();
+
 
 builder.Services.AddLogging();
 
@@ -141,13 +142,41 @@ FirebaseApp.Create(new AppOptions()
 
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new()
+    c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "JobPortal API",
         Version = "v1",
         Description = "SkillBridge Job Portal — Admin, Recruiter & Candidate APIs"
     });
+
     c.UseInlineDefinitionsForEnums();
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description =
+            "JWT Authorization header using the Bearer scheme.\n\n" +
+            "Enter: Bearer {token}",
+
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
 });
 
 builder.Services.AddControllers()
