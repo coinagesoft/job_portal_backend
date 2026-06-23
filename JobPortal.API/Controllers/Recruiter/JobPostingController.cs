@@ -24,7 +24,7 @@ public class RecruiterJobPostingController : ControllerBase
 
     private Guid GetEmployerId()
     {
-        var employerId = User.FindFirst("employer_id")?.Value;
+        var employerId = User.FindFirst("EmployerId")?.Value;
 
         if (string.IsNullOrWhiteSpace(employerId))
             throw new UnauthorizedAccessException(
@@ -57,11 +57,11 @@ public class RecruiterJobPostingController : ControllerBase
     // ── STEP 1 ─────────────────────────────────────────
     [HttpPatch("step1-job-details")]
     public async Task<IActionResult> SaveJobDetails(
-        [FromForm] JobDetailsRequestDto request)
+       [FromForm] JobDetailsRequestDto request)
     {
         var result = await _service.SaveJobDetailsAsync(
-       request,
-       GetEmployerId());
+            request,
+            GetEmployerId());
 
         return result.Success
             ? Ok(result)

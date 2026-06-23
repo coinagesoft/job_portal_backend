@@ -130,73 +130,55 @@ using Microsoft.EntityFrameworkCore;
 
         JobPosting job;
 
-        // CREATE
-        if (!request.JobId.HasValue)
-        {
-            job = new JobPosting
-            {
-                JobId = Guid.NewGuid(),
-                EmployerId = employerId,
-                JobTitle = request.JobTitle ?? string.Empty,
-                TradeCategory = request.TradeCategory ?? string.Empty,
-                Role = request.Role ?? string.Empty,
-                ExperienceRequiredYears =
-                    (byte)(request.ExperienceRequiredYears ?? 0),
-                JobDescription = request.JobDescription ?? string.Empty,
-
-                JobStatus = JobStatus.Draft,
-                CurrentStep = 1,
-                LastCompletedStep = 1,
-
-                ApplicationDeadline =
-                    DateOnly.FromDateTime(
-                        DateTime.UtcNow.AddDays(30)),
-
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            _context.JobPostings.Add(job);
-        }
-        // UPDATE
-        else
-        {
-            job = await _context.JobPostings
-                .FirstOrDefaultAsync(x =>
-                    x.JobId == request.JobId &&
-                    x.EmployerId == employerId);
-
-            if (job == null)
-            {
-                return new JobDetailsResponseDto
+                // CREATE
+                if (!request.JobId.HasValue ||
+                    request.JobId.Value == Guid.Empty)
                 {
-                    Success = false,
-                    Message = "Job not found."
-                };
-            }
+                    job = new JobPosting
+                    {
+                        JobId = Guid.NewGuid(),
+                        EmployerId = employerId,
+                        JobTitle = request.JobTitle ?? string.Empty,
+                        TradeCategory = request.TradeCategory ?? string.Empty,
+                        Role = request.Role ?? string.Empty,
+                        ExperienceRequiredYears =
+                            (byte)(request.ExperienceRequiredYears ?? 0),
+                        JobDescription = request.JobDescription ?? string.Empty,
 
-            // PATCH logic
+                        JobStatus = JobStatus.Draft,
+                        CurrentStep = 1,
+                        LastCompletedStep = 1,
 
-            if (request.JobTitle != null)
-                job.JobTitle = request.JobTitle;
+                        ApplicationDeadline =
+                            DateOnly.FromDateTime(
+                                DateTime.UtcNow.AddDays(30)),
 
-            if (request.TradeCategory != null)
-                job.TradeCategory = request.TradeCategory;
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
 
-            if (request.Role != null)
-                job.Role = request.Role;
+                    _context.JobPostings.Add(job);
+                }
+                else
+                {
+                    // UPDATE
+                    job = await _context.JobPostings
+                        .FirstOrDefaultAsync(x =>
+                            x.JobId == request.JobId &&
+                            x.EmployerId == employerId);
 
-            if (request.ExperienceRequiredYears.HasValue)
-                job.ExperienceRequiredYears =
-                    (byte)request.ExperienceRequiredYears.Value;
+                    if (job == null)
+                    {
+                        return new JobDetailsResponseDto
+                        {
+                            Success = false,
+                            Message = "Job not found."
+                        };
+                    }
 
-            if (request.JobDescription != null)
-                job.JobDescription = request.JobDescription;
+}
 
-            job.UpdatedAt = DateTime.UtcNow;
-        }
-
-        await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync();
 
         return new JobDetailsResponseDto
         {
