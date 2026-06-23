@@ -28,7 +28,7 @@ public class RecruiterSubUserController : ControllerBase
     // ── Hardcoded for testing — replace with JWT claim ─
     private Guid GetEmployerId()
     {
-        var employerId = User.FindFirst("employer_id")?.Value;
+        var employerId = User.FindFirst("EmployerId")?.Value;
 
         if (string.IsNullOrWhiteSpace(employerId))
             throw new UnauthorizedAccessException(

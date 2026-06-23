@@ -24,7 +24,7 @@ public class RecruiterJobPostingController : ControllerBase
 
     private Guid GetEmployerId()
     {
-        var employerId = User.FindFirst("employer_id")?.Value;
+        var employerId = User.FindFirst("EmployerId")?.Value;
 
         if (string.IsNullOrWhiteSpace(employerId))
             throw new UnauthorizedAccessException(
