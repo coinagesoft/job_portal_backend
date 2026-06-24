@@ -153,6 +153,23 @@ public class PagedSavedJobCardDto
     public DateTime? ApplicationDeadline { get; set; }
     public DateTime SavedAt { get; set; }
     public List<string> Tags { get; set; } = new();
+    public string? EmploymentMode { get; set; }
+
+    public string? LocationType { get; set; }
+
+    public string? Department { get; set; }
+
+    public string? SalaryDisplay { get; set; }
+
+    public int AppliedCount { get; set; }
+
+    public int ViewCount { get; set; }
+
+    public bool IsFeatured { get; set; }
+
+    public bool IsUrgentHiring { get; set; }
+
+    public List<string> KeySkills { get; set; } = new();
 }
 
 

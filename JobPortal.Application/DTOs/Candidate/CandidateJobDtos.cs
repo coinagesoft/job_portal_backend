@@ -163,6 +163,19 @@ public class CandidateJobCardDto
 
     // ── Short description snippet ─────────────────────────────
     public string ShortDescription { get; set; } = default!;
+    public string? EmploymentMode { get; set; }
+    public string? Department { get; set; }
+
+    public int ExperienceMinYears { get; set; }
+    public int ExperienceMaxYears { get; set; }
+    public string? ExperienceDisplay { get; set; }
+
+    public byte? DutyHoursPerDay { get; set; }
+    public bool PaidOvertime { get; set; }
+
+    public int ViewCount { get; set; }
+    public bool IsFeatured { get; set; }
+    public bool IsUrgentHiring { get; set; }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -202,80 +215,184 @@ public class CandidateJobDetailResponseDto
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
 
-    // ── All card fields ───────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Job
+    // ─────────────────────────────────────────────
+
     public Guid JobId { get; set; }
 
-    // ── Company / Employer info ───────────────────────────────
-    public string? CompanyName { get; set; }
-    public string? CompanyLogoUrl { get; set; }
-    public bool IsConfidentialCompany { get; set; }
-    public string? CompanyWebsite { get; set; }
-    public string? CompanyDescription { get; set; }
-    public string? CompanyCity { get; set; }
-    public string? CompanyState { get; set; }
-    public string? CompanyAddress { get; set; }
-    public string? CompanyPhone { get; set; }
-    public string? CompanyEmail { get; set; }
-    public string? CompanyIndustry { get; set; }
-    public string? CompanySize { get; set; }
-    public bool HasPoeLicence { get; set; }
-    public bool HasRpslLicence { get; set; }
-
-    // ── Job basics ────────────────────────────────────────────
     public string JobTitle { get; set; } = default!;
     public string TradeCategory { get; set; } = default!;
     public string? Role { get; set; }
+
     public string JobType { get; set; } = default!;
+
     public string EmploymentType { get; set; } = default!;
 
-    // ── Job description (full) ────────────────────────────────
+    public string EmploymentMode { get; set; } = default!;
+
+    public string? Department { get; set; }
+
     public string JobDescription { get; set; } = default!;
 
-    // ── Location ─────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Company
+    // ─────────────────────────────────────────────
+
+    public string? CompanyName { get; set; }
+
+    public string? CompanyLogoUrl { get; set; }
+
+    public bool IsConfidentialCompany { get; set; }
+
+    public string? CompanyWebsite { get; set; }
+
+    public string? CompanyDescription { get; set; }
+
+    public string? CompanyCity { get; set; }
+
+    public string? CompanyState { get; set; }
+
+    public string? CompanyAddress { get; set; }
+
+    public string? CompanyPhone { get; set; }
+
+    public string? CompanyEmail { get; set; }
+
+    public string? CompanyIndustry { get; set; }
+
+    public string? CompanySize { get; set; }
+
+    public bool HasPoeLicence { get; set; }
+
+    public bool HasRpslLicence { get; set; }
+
+    // ─────────────────────────────────────────────
+    // Location
+    // ─────────────────────────────────────────────
+
     public string LocationType { get; set; } = default!;
+
+    public string? WorkAddressLine { get; set; }
+
     public string? City { get; set; }
+
     public string? State { get; set; }
+
+    public string? Country { get; set; }
+
+    public string? Pincode { get; set; }
+
     public string? OffshoreVesselName { get; set; }
+
     public string? OffshoreRegion { get; set; }
+
     public bool IsInternational { get; set; }
 
-    // ── Salary ───────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Salary
+    // ─────────────────────────────────────────────
+
     public string? SalaryDisplay { get; set; }
+
     public int? SalaryMin { get; set; }
+
     public int? SalaryMax { get; set; }
+
     public string SalaryCurrency { get; set; } = "INR";
 
-    // ── Experience & skills ───────────────────────────────────
-    public int ExperienceRequiredYears { get; set; }
+    // ─────────────────────────────────────────────
+    // Experience
+    // ─────────────────────────────────────────────
+
+    public int ExperienceMinYears { get; set; }
+
+    public int ExperienceMaxYears { get; set; }
+
+    // ─────────────────────────────────────────────
+    // Skills
+    // ─────────────────────────────────────────────
+
     public List<string> KeySkills { get; set; } = new();
+
+    public List<string> KeyResponsibilities { get; set; } = new();
+
+    public List<string> Benefits { get; set; } = new();
+
     public string? LicenceDocsRequired { get; set; }
+
     public string? LanguageRequired { get; set; }
 
-    // ── Eligibility ───────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // Eligibility
+    // ─────────────────────────────────────────────
+
     public int Vacancies { get; set; }
+
     public string? EducationRequired { get; set; }
+
     public int? AgeMin { get; set; }
+
     public int? AgeMax { get; set; }
+
     public string GenderPreferred { get; set; } = "Any";
+
     public bool DisabilityEligible { get; set; }
+
     public bool PassportRequired { get; set; }
+
     public int? PassportValidityMonths { get; set; }
 
-    // ── Deadline & meta ───────────────────────────────────────
-    public DateOnly ApplicationDeadline { get; set; }
-    public bool IsDeadlineSoon { get; set; }
-    public DateTime? PublishedAt { get; set; }
-    public string TimeAgo { get; set; } = default!;
+    // ─────────────────────────────────────────────
+    // Employment Extras
+    // ─────────────────────────────────────────────
+
+    public byte? DutyHoursPerDay { get; set; }
+
+    public bool PaidOvertime { get; set; }
+
+    // ─────────────────────────────────────────────
+    // Analytics
+    // ─────────────────────────────────────────────
+
     public int AppliedCount { get; set; }
+
+    public int ViewCount { get; set; }
+
+    public bool IsFeatured { get; set; }
+
+    public bool IsUrgentHiring { get; set; }
+
+    // ─────────────────────────────────────────────
+    // Dates
+    // ─────────────────────────────────────────────
+
+    public DateOnly ApplicationDeadline { get; set; }
+
+    public bool IsDeadlineSoon { get; set; }
+
+    public DateTime? PublishedAt { get; set; }
+
+    public string TimeAgo { get; set; } = string.Empty;
+
+    // ─────────────────────────────────────────────
+    // Tags
+    // ─────────────────────────────────────────────
+
     public List<string> Tags { get; set; } = new();
 
-    // ── Screening questions ───────────────────────────────────
-    public List<CandidateScreeningQuestionDto> ScreeningQuestions { get; set; } = new();
+    // ─────────────────────────────────────────────
+    // Screening
+    // ─────────────────────────────────────────────
 
-    // ── Similar / related jobs ────────────────────────────────
+    public List<string> ScreeningQuestions { get; set; } = new();
+
+    // ─────────────────────────────────────────────
+    // Similar Jobs
+    // ─────────────────────────────────────────────
+
     public List<CandidateJobCardDto> SimilarJobs { get; set; } = new();
 }
-
 // ─────────────────────────────────────────────────────────────
 // 5.  SCREENING QUESTION (readonly — displayed to candidate)
 // ─────────────────────────────────────────────────────────────
@@ -326,6 +443,27 @@ public class JobFilterOptionsResponseDto
     public int MaxSalary { get; set; }
     public int MaxExperienceYears { get; set; }
     public int TotalActiveJobs { get; set; }
+    public List<string> Countries { get; set; } = new();
+
+    public List<string> EmploymentModes { get; set; } = new();
+
+    public List<string> Departments { get; set; } = new();
+
+    public List<string> Skills { get; set; } = new();
+
+    public List<string> Benefits { get; set; } = new();
+
+    public int MinSalary { get; set; }
+
+    public int MinExperienceYears { get; set; }
+
+    public bool HasFeaturedJobs { get; set; }
+
+    public bool HasUrgentHiringJobs { get; set; }
+
+    public bool HasInternationalJobs { get; set; }
+
+    public bool HasPassportRequiredJobs { get; set; }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -392,6 +530,17 @@ public class SavedJobCardDto
     /// "Employer shortlisted your profile for electrical maintenance …"
     /// </summary>
     public string? StatusNote { get; set; }
+    public string? EmploymentMode { get; set; }
+
+    public string? Department { get; set; }
+
+    public int AppliedCount { get; set; }
+
+    public int ViewCount { get; set; }
+
+    public bool IsFeatured { get; set; }
+
+    public bool IsUrgentHiring { get; set; }
 }
 
 public class SavedJobListResponseDto

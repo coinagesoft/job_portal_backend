@@ -23,5 +23,14 @@ namespace JobPortal.Application.DTOs.Recruiter.JobListing
         public int ClassifiedJobs { get; set; }
 
         public int HotVacancyJobs { get; set; }
+        public int DraftJobs { get; set; }
+
+        public int FeaturedJobs { get; set; }
+
+        public int UrgentHiringJobs { get; set; }
+
+        public int TotalApplications { get; set; }
+
+        public int TotalViews { get; set; }
     }
 }

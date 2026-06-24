@@ -1,4 +1,5 @@
-﻿using JobPortal.Application.DTOs.Recruiter.JobListing;
+﻿using JobPortal.Application.DTOs.JobPosting;
+using JobPortal.Application.DTOs.Recruiter.JobListing;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
@@ -22,70 +23,103 @@ namespace JobPortal.Services.Implement.Recruiter
             _logger = logger;
         }
 
-        public async Task<JobDashboardResponseDto>
-            GetDashboardAsync(Guid employerId)
+        public async Task<JobDashboardResponseDto> GetDashboardAsync(
+       Guid employerId)
         {
             var jobs = await _context.JobPostings
                 .AsNoTracking()
-                .Where(x => x.EmployerId == employerId)
+                .Where(x =>
+                    x.EmployerId == employerId &&
+                    !x.IsDeleted)
                 .ToListAsync();
 
             return new JobDashboardResponseDto
             {
+                // =====================================================
+                // Overall
+                // =====================================================
+
                 TotalJobs = jobs.Count,
 
-                ActiveJobs =
-                    jobs.Count(x =>
-                        x.JobStatus == JobStatus.Active),
+                ActiveJobs = jobs.Count(x =>
+                    x.JobStatus == JobStatus.Active),
 
-                PausedJobs =
-                    jobs.Count(x =>
-                        x.JobStatus == JobStatus.Paused),
+                PausedJobs = jobs.Count(x =>
+                    x.JobStatus == JobStatus.Paused),
 
-                ClosedJobs =
-                    jobs.Count(x =>
-                        x.JobStatus == JobStatus.Closed),
+                ClosedJobs = jobs.Count(x =>
+                    x.JobStatus == JobStatus.Closed),
 
-                ArchivedJobs =
-                    jobs.Count(x =>
-                        x.JobStatus == JobStatus.Archived),
+                ArchivedJobs = jobs.Count(x =>
+                    x.JobStatus == JobStatus.Archived),
 
-                NormalJobs =
-                    jobs.Count(x =>
-                        x.JobType == JobType.Normal),
+                // =====================================================
+                // Job Type
+                // =====================================================
 
-                ClassifiedJobs =
-                    jobs.Count(x =>
-                        x.JobType == JobType.Classified),
+                NormalJobs = jobs.Count(x =>
+                    x.JobType == JobType.Normal_Job),
 
-                HotVacancyJobs =
-                    jobs.Count(x =>
-                        x.JobType == JobType.HotVacancy)
+                ClassifiedJobs = jobs.Count(x =>
+                    x.JobType == JobType.Classified),
+
+                HotVacancyJobs = jobs.Count(x =>
+                    x.JobType == JobType.Hot_Vacancy),
+
+                // =====================================================
+                // Additional Analytics
+                // =====================================================
+
+                DraftJobs = jobs.Count(x =>
+                    x.JobStatus == JobStatus.Draft),
+
+                FeaturedJobs = jobs.Count(x =>
+                    x.IsFeatured),
+
+                UrgentHiringJobs = jobs.Count(x =>
+                    x.IsUrgentHiring),
+
+                TotalApplications = jobs.Sum(x =>
+                    x.AppliedCount),
+
+                TotalViews = jobs.Sum(x =>
+                    x.ViewCount)
             };
         }
 
-        public async Task<JobListResponseDto>
-            GetJobsAsync(
-                Guid employerId,
-                JobListRequestDto request)
+        public async Task<JobListResponseDto> GetJobsAsync(
+      Guid employerId,
+      JobListRequestDto request)
         {
-            var query =
-                _context.JobPostings
+            var query = _context.JobPostings
                 .AsNoTracking()
                 .Where(x =>
-                    x.EmployerId == employerId)
+                    x.EmployerId == employerId &&
+                    !x.IsDeleted)
                 .AsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(
-                request.Search))
+            // ==========================================
+            // Search
+            // ==========================================
+
+            if (!string.IsNullOrWhiteSpace(request.Search))
             {
+                var search = request.Search.Trim();
+
                 query = query.Where(x =>
-                    x.JobTitle.Contains(request.Search) ||
-                    x.TradeCategory.Contains(request.Search));
+                    x.JobTitle.Contains(search) ||
+                    x.TradeCategory.Contains(search) ||
+                    (x.Role != null &&
+                     x.Role.Contains(search)) ||
+                    (x.Department != null &&
+                     x.Department.Contains(search)));
             }
 
-            if (!string.IsNullOrWhiteSpace(
-                request.Status))
+            // ==========================================
+            // Status Filter
+            // ==========================================
+
+            if (!string.IsNullOrWhiteSpace(request.Status))
             {
                 if (Enum.TryParse<JobStatus>(
                     request.Status,
@@ -97,17 +131,28 @@ namespace JobPortal.Services.Implement.Recruiter
                 }
             }
 
+            // ==========================================
+            // Job Type Filter
+            // ==========================================
+
             if (request.JobType.HasValue)
             {
                 query = query.Where(x =>
                     x.JobType == request.JobType.Value);
             }
 
+            // ==========================================
+            // Total Count
+            // ==========================================
+
             var totalRecords =
                 await query.CountAsync();
 
-            var jobs =
-                await query
+            // ==========================================
+            // Data
+            // ==========================================
+
+            var jobs = await query
                 .OrderByDescending(x => x.CreatedAt)
                 .Skip(
                     (request.PageNumber - 1)
@@ -118,32 +163,65 @@ namespace JobPortal.Services.Implement.Recruiter
                     {
                         JobId = x.JobId,
 
+                        // Basic
                         JobTitle = x.JobTitle,
+                        TradeCategory = x.TradeCategory,
+                        Role = x.Role,
+                        Department = x.Department,
 
-                        TradeCategory =
-                            x.TradeCategory,
+                        // Type
+                        JobType = x.JobType,
 
-                        Role =
-                            x.Role,
+                        EmploymentType =
+                            x.EmploymentType.ToString(),
 
-                        JobType =
-                            x.JobType,
+                        EmploymentMode =
+                            x.EmploymentMode.ToString(),
 
+                        // Status
                         JobStatus =
                             x.JobStatus.ToString(),
 
+                        IsActive =
+                            x.IsActive,
+
+                        IsFeatured =
+                            x.IsFeatured,
+
+                        IsUrgentHiring =
+                            x.IsUrgentHiring,
+
+                        // Counts
                         AppliedCount =
                             x.AppliedCount,
+
+                        ViewCount =
+                            x.ViewCount,
 
                         Vacancies =
                             x.Vacancies,
 
+                        // Experience
+                        ExperienceMinYears =
+                            x.ExperienceMinYears,
+
+                        ExperienceMaxYears =
+                            x.ExperienceMaxYears,
+
+                        // Salary
                         SalaryMin =
                             x.SalaryMin,
 
                         SalaryMax =
                             x.SalaryMax,
 
+                        SalaryCurrency =
+                            x.SalaryCurrency.ToString(),
+
+                        SalaryDisplayOption =
+                            x.SalaryDisplayOption.ToString(),
+
+                        // Dates
                         ApplicationDeadline =
                             x.ApplicationDeadline,
 
@@ -153,10 +231,21 @@ namespace JobPortal.Services.Implement.Recruiter
                         PublishedAt =
                             x.PublishedAt,
 
+                        // Location
                         Location =
-                            x.LocationType == "Onshore"
-                                ? $"{x.OnshoreCity}, {x.OnshoreState}"
-                                : x.OffshoreRegion ?? ""
+                            x.LocationType == LocationType.Onshore
+                                ? string.Join(", ",
+                                    new[]
+                                    {
+                                x.OnshoreCity,
+                                x.OnshoreState
+                                    }
+                                    .Where(v =>
+                                        !string.IsNullOrWhiteSpace(v)))
+                                : x.OffshoreRegion ?? string.Empty,
+
+                        LocationType =
+                            x.LocationType.ToString()
                     })
                 .ToListAsync();
 
@@ -164,23 +253,20 @@ namespace JobPortal.Services.Implement.Recruiter
             {
                 TotalRecords = totalRecords,
 
-                PageNumber =
-                    request.PageNumber,
+                PageNumber = request.PageNumber,
 
-                PageSize =
-                    request.PageSize,
+                PageSize = request.PageSize,
 
                 Jobs = jobs
             };
         }
 
         public async Task<RecruiterJobDetailResponseDto?>
-            GetJobByIdAsync(
-                Guid employerId,
-                Guid jobId)
+          GetJobByIdAsync(
+              Guid employerId,
+              Guid jobId)
         {
-            var job =
-                await _context.JobPostings
+            var job = await _context.JobPostings
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x =>
                     x.JobId == jobId &&
@@ -193,81 +279,170 @@ namespace JobPortal.Services.Implement.Recruiter
 
             return new RecruiterJobDetailResponseDto
             {
+                // =====================================================
+                // Basic
+                // =====================================================
+
                 JobId = job.JobId,
 
                 JobTitle = job.JobTitle,
 
-                JobDescription =
-                    job.JobDescription,
+                JobDescription = job.JobDescription,
 
-                TradeCategory =
-                    job.TradeCategory,
+                TradeCategory = job.TradeCategory,
 
-                Role =
-                    job.Role,
+                Role = job.Role,
 
-                JobType =
-                    job.JobType,
+                Department = job.Department,
 
-                JobStatus =
-                    job.JobStatus.ToString(),
+                // =====================================================
+                // Job Type
+                // =====================================================
 
-                SalaryMin =
-                    job.SalaryMin,
+                JobType = job.JobType,
 
-                SalaryMax =
-                    job.SalaryMax,
+                EmploymentType = job.EmploymentType,
 
-                SalaryCurrency =
-                    job.SalaryCurrency,
+                EmploymentMode = job.EmploymentMode,
 
-                Vacancies =
-                    job.Vacancies,
+                JobStatus = job.JobStatus.ToString(),
 
-                ExperienceRequiredYears =
-                    job.ExperienceRequiredYears,
+                // =====================================================
+                // Salary
+                // =====================================================
 
-                EducationRequired =
-                    job.EducationRequired,
+                SalaryMin = job.SalaryMin,
 
-                LanguageRequired =
-                    job.LanguageRequired,
+                SalaryMax = job.SalaryMax,
 
-                LicenceDocsRequired =
-                    job.LicenceDocsRequired,
+                SalaryCurrency = job.SalaryCurrency,
 
-                KeySkills =
-                    job.KeySkills,
+                SalaryDisplayOption = job.SalaryDisplayOption,
 
-                LocationType =
-                    job.LocationType,
+                // =====================================================
+                // Vacancies & Experience
+                // =====================================================
 
-                OnshoreCity =
-                    job.OnshoreCity,
+                Vacancies = job.Vacancies,
 
-                OnshoreState =
-                    job.OnshoreState,
+                ExperienceMinYears = job.ExperienceMinYears,
 
-                OffshoreVesselName =
-                    job.OffshoreVesselName,
+                ExperienceMaxYears = job.ExperienceMaxYears,
 
-                OffshoreRegion =
-                    job.OffshoreRegion,
+                DutyHoursPerDay = job.DutyHoursPerDay,
 
-                PassportRequired =
-                    job.PassportRequired,
+                PaidOvertime = job.PaidOvertime,
 
-                ApplicationDeadline =
-                    job.ApplicationDeadline,
+                // =====================================================
+                // Eligibility
+                // =====================================================
 
-                AppliedCount =
-                    job.AppliedCount,
+                EducationRequired = job.EducationRequired,
 
-                CreatedAt =
-                    job.CreatedAt,
+                GenderPreferred = job.GenderPreferred,
 
-                PublishedAt =
-                    job.PublishedAt
+                AgeMin = job.AgeMin,
+
+                AgeMax = job.AgeMax,
+
+                DisabilityEligible = job.DisabilityEligible,
+
+                PassportRequired = job.PassportRequired,
+
+                PassportValidityMonths = job.PassportValidityMonths,
+
+                // =====================================================
+                // Skills
+                // =====================================================
+
+                KeySkills = job.KeySkills ?? new List<string>(),
+
+                KeyResponsibilities =
+                    job.KeyResponsibilities ?? new List<string>(),
+
+                Benefits =
+                    job.Benefits ?? new List<string>(),
+
+                Tags =
+                    job.Tags ?? new List<string>(),
+
+                LanguageRequired = job.LanguageRequired,
+
+                LicenceDocsRequired = job.LicenceDocsRequired,
+
+                // =====================================================
+                // Location
+                // =====================================================
+
+                LocationType = job.LocationType,
+
+                WorkAddressLine = job.WorkAddressLine,
+
+                OnshoreCity = job.OnshoreCity,
+
+                OnshoreState = job.OnshoreState,
+
+                OnshoreCountry = job.OnshoreCountry,
+
+                OnshorePincode = job.OnshorePincode,
+
+                OffshoreVesselName = job.OffshoreVesselName,
+
+                OffshoreRegion = job.OffshoreRegion,
+
+                OffshoreCountry = job.OffshoreCountry,
+
+                IsInternational = job.IsInternational,
+
+                // =====================================================
+                // Publishing
+                // =====================================================
+
+                CompanyVisibility = job.CompanyVisibility,
+
+                ApplicationDeadline = job.ApplicationDeadline,
+
+                ScreeningQuestions =
+                    job.ScreeningQuestions?
+                        .Select(x => new ScreeningQuestion
+                        {
+                            QuestionText = x
+                        })
+                        .ToList()
+                    ?? new List<ScreeningQuestion>(),
+
+                PublishingTags =
+                    job.PublishingTags ?? new List<string>(),
+
+                // =====================================================
+                // Analytics
+                // =====================================================
+
+                AppliedCount = job.AppliedCount,
+
+                ViewCount = job.ViewCount,
+
+                IsFeatured = job.IsFeatured,
+
+                IsUrgentHiring = job.IsUrgentHiring,
+
+                IsActive = job.IsActive,
+
+                IsDeleted = job.IsDeleted,
+
+                // =====================================================
+                // Audit
+                // =====================================================
+
+                CurrentStep = job.CurrentStep,
+
+                LastCompletedStep = job.LastCompletedStep,
+
+                CreatedAt = job.CreatedAt,
+
+                UpdatedAt = job.UpdatedAt,
+
+                PublishedAt = job.PublishedAt
             };
         }
 
@@ -303,8 +478,7 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<JobStatusUpdateResponseDto>
-    ResumeJobAsync(
+        public async Task<JobStatusUpdateResponseDto> ResumeJobAsync(
         Guid employerId,
         Guid jobId)
         {
@@ -335,8 +509,8 @@ namespace JobPortal.Services.Implement.Recruiter
                 JobStatus = job.JobStatus.ToString()
             };
         }
-        public async Task<JobStatusUpdateResponseDto>
-    CloseJobAsync(
+
+        public async Task<JobStatusUpdateResponseDto> CloseJobAsync(
         Guid employerId,
         Guid jobId)
         {
@@ -368,8 +542,7 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<JobStatusUpdateResponseDto>
-    ArchiveJobAsync(
+        public async Task<JobStatusUpdateResponseDto>ArchiveJobAsync(
         Guid employerId,
         Guid jobId)
         {

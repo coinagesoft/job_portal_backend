@@ -1,6 +1,7 @@
 ﻿using JobPortal.Application.DTOs.JobPosting;
 using JobPortal.Application.DTOs.Recruiter.CreditWallet;
 using JobPortal.Domain.Entities;
+using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;

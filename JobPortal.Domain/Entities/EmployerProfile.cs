@@ -17,17 +17,24 @@ public class EmployerProfile
     public string CompanyDisplayName { get; set; } = default!;
     public string? CompanyDescription { get; set; }
     public string? CompanyLogoUrl { get; set; }
+    public string? CoverImageUrl { get; set; }
     public CompanySize? CompanySize { get; set; }
     public short? YearEstablished { get; set; }
     public string? WebsiteUrl { get; set; }
+    public string? LinkedInUrl { get; set; }
+
+    public string? InstagramUrl { get; set; }
+
+    public string? FacebookUrl { get; set; }
+    public int TotalEmployees { get; set; }
     public BusinessType BusinessType { get; set; } = default!;
     public IndustryType IndustryType { get; set; } = default!;
     // GST
     public bool GstRegistered { get; set; } = false;
-    public string? Gstn { get; set; }
+    public string? Gstin { get; set; }
     public string? Pan { get; set; }
     public string? Cin { get; set; }
-    public DateOnly? GstnRegistrationDate { get; set; }
+    public DateOnly? GstinRegistrationDate { get; set; }
     public string? KarzaRequestId { get; set; }
     // Address
     public string AddressLine1 { get; set; } = default!;
@@ -76,7 +83,7 @@ public class EmployerProfile
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 
-    // Navigation
+
     // Navigation
     public User User { get; set; } = default!;
 

@@ -12,8 +12,8 @@ public class PublishingRequestDto
 
     public CompanyVisibility? CompanyVisibility { get; set; }
 
-    public JobPortal.Domain.Enums.RecruiterEnums.JobType? JobType { get; set; }
-      = JobPortal.Domain.Enums.RecruiterEnums.JobType.Normal;
+    public JobType JobType { get; set; }
+      = JobType.Normal_Job;
     /// <summary>
     /// Hot Job, Urgent Hiring, Premium Listing — optional tags
     /// </summary>

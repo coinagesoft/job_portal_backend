@@ -108,44 +108,60 @@
 
 
 
-      
 
-       public async Task<JobDetailsResponseDto> SaveJobDetailsAsync(
-       JobDetailsRequestDto request, Guid employerId)
-         {
-          try
-          {
 
-        var employer = await _context.EmployerProfiles
-            .FirstOrDefaultAsync(e => e.EmployerId == employerId);
-
-        if (employer == null)
+        public async Task<JobDetailsResponseDto> SaveJobDetailsAsync(
+       JobDetailsRequestDto request,
+       Guid employerId)
         {
-            return new JobDetailsResponseDto
+            try
             {
-                Success = false,
-                Message = $"Employer not found. EmployerId: {employerId}"
-            };
-        }
+                var employer = await _context.EmployerProfiles
+                    .FirstOrDefaultAsync(e => e.EmployerId == employerId);
 
-        JobPosting job;
+                if (employer == null)
+                {
+                    return new JobDetailsResponseDto
+                    {
+                        Success = false,
+                        Message = $"Employer not found. EmployerId: {employerId}"
+                    };
+                }
 
+                JobPosting job;
+
+                // =====================================================
                 // CREATE
+                // =====================================================
                 if (!request.JobId.HasValue ||
-                    request.JobId.Value == Guid.Empty)
+                    request.JobId == Guid.Empty)
                 {
                     job = new JobPosting
                     {
                         JobId = Guid.NewGuid(),
                         EmployerId = employerId,
+
                         JobTitle = request.JobTitle ?? string.Empty,
                         TradeCategory = request.TradeCategory ?? string.Empty,
-                        Role = request.Role ?? string.Empty,
-                        ExperienceRequiredYears =
-                            (byte)(request.ExperienceRequiredYears ?? 0),
-                        JobDescription = request.JobDescription ?? string.Empty,
+                        Role = request.Role,
+
+                        JobDescription =
+                            request.JobDescription ?? string.Empty,
+
+                        ExperienceMinYears =
+                            (byte)(request.ExperienceMinYears ?? 0),
+
+                        ExperienceMaxYears =
+                            (byte)(request.ExperienceMaxYears ?? 0),
+
+                        EmploymentType =
+                            request.EmploymentType,
+
+                        EmploymentMode =
+                            request.EmploymentMode,
 
                         JobStatus = JobStatus.Draft,
+
                         CurrentStep = 1,
                         LastCompletedStep = 1,
 
@@ -154,14 +170,22 @@
                                 DateTime.UtcNow.AddDays(30)),
 
                         CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
+                        UpdatedAt = DateTime.UtcNow,
+
+                        IsActive = true,
+                        IsDeleted = false,
+
+                        ViewCount = 0,
+                        AppliedCount = 0
                     };
 
                     _context.JobPostings.Add(job);
                 }
+                // =====================================================
+                // UPDATE
+                // =====================================================
                 else
                 {
-                    // UPDATE
                     job = await _context.JobPostings
                         .FirstOrDefaultAsync(x =>
                             x.JobId == request.JobId &&
@@ -176,45 +200,95 @@
                         };
                     }
 
-}
+                    job.JobTitle =
+                        request.JobTitle ?? job.JobTitle;
+
+                    job.TradeCategory =
+                        request.TradeCategory ?? job.TradeCategory;
+
+                    job.Role =
+                        request.Role;
+
+                    job.JobDescription =
+                        request.JobDescription ?? job.JobDescription;
+
+                    job.ExperienceMinYears =
+                        (byte)(request.ExperienceMinYears ??
+                               job.ExperienceMinYears);
+
+                    job.ExperienceMaxYears =
+                        (byte)(request.ExperienceMaxYears ??
+                               job.ExperienceMaxYears);
+
+                    job.EmploymentType =
+                        request.EmploymentType;
+
+                    job.EmploymentMode =
+                        request.EmploymentMode;
+
+                    job.UpdatedAt =
+                        DateTime.UtcNow;
+
+                    job.CurrentStep =
+                        Math.Max(job.CurrentStep, 1);
+
+                    job.LastCompletedStep =
+                        Math.Max(job.LastCompletedStep, 1);
+                }
 
                 await _context.SaveChangesAsync();
 
-        return new JobDetailsResponseDto
-        {
-            Success = true,
-            Message = request.JobId.HasValue
-                ? "Job details updated successfully."
-                : "Job details saved as draft.",
+                return new JobDetailsResponseDto
+                {
+                    Success = true,
 
-            JobId = job.JobId,
-            JobStatus = job.JobStatus.ToString(),
-            StepStatus = BuildStepStatus(job)
-        };
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Save job details error.");
+                    Message =
+                        request.JobId.HasValue &&
+                        request.JobId != Guid.Empty
+                            ? "Job details updated successfully."
+                            : "Job details saved as draft.",
 
-        return new JobDetailsResponseDto
-        {
-            Success = false,
-            Message = ex.InnerException?.Message ?? ex.Message
-        };
-    }
-}
-        
+                    JobId = job.JobId,
+
+                    JobStatus =
+                        job.JobStatus.ToString(),
+
+                    StepStatus =
+                        BuildStepStatus(job)
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "SaveJobDetailsAsync error.");
+
+                return new JobDetailsResponseDto
+                {
+                    Success = false,
+                    Message =
+                        ex.InnerException?.Message ??
+                        ex.Message
+                };
+            }
+        }
+
 
         public async Task<BaseJobResponseDto> SaveCompensationAsync(
-        CompensationRequestDto request,
-        Guid jobId,
-        Guid employerId)
+    CompensationRequestDto request,
+    Guid jobId,
+    Guid employerId)
         {
             try
             {
-                var job = await GetJobAsync(jobId, employerId);
+                var job = await GetJobAsync(
+                    jobId,
+                    employerId);
 
+                // =====================================================
                 // CREATE IF NOT EXISTS
+                // =====================================================
+
                 if (job == null)
                 {
                     job = new JobPosting
@@ -228,48 +302,68 @@
                         JobStatus = JobStatus.Draft,
 
                         CurrentStep = 2,
-
                         LastCompletedStep = 2,
 
                         CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow,
 
-                        UpdatedAt = DateTime.UtcNow
+                        SalaryCurrency = SalaryCurrency.INR,
+                        SalaryDisplayOption = SalaryDisplayOption.Show_Range
                     };
 
                     _context.JobPostings.Add(job);
                 }
 
-                // VALIDATE ONLY IF BOTH PROVIDED
+                // =====================================================
+                // VALIDATION
+                // =====================================================
+
                 if (request.SalaryMin.HasValue &&
                     request.SalaryMax.HasValue &&
-                    request.SalaryMin > request.SalaryMax)
+                    request.SalaryMin.Value > request.SalaryMax.Value)
                 {
                     return Fail(
                         "Min salary cannot be greater than max salary.");
                 }
 
-                // PATCH LOGIC
+                // =====================================================
+                // PATCH VALUES
+                // =====================================================
 
                 if (request.SalaryMin.HasValue)
+                {
                     job.SalaryMin = request.SalaryMin.Value;
+                }
 
                 if (request.SalaryMax.HasValue)
+                {
                     job.SalaryMax = request.SalaryMax.Value;
+                }
 
                 if (request.SalaryCurrency.HasValue)
+                {
                     job.SalaryCurrency =
-                        request.SalaryCurrency.Value.ToString();
+                        request.SalaryCurrency.Value;
+                }
 
                 if (request.SalaryDisplayOption.HasValue)
+                {
                     job.SalaryDisplayOption =
-                        request.SalaryDisplayOption.Value.ToString();
+                        request.SalaryDisplayOption.Value;
+                }
 
-                job.CurrentStep = Math.Max(job.CurrentStep, 2);
+                // =====================================================
+                // STEP TRACKING
+                // =====================================================
+
+                job.CurrentStep =
+                    Math.Max(job.CurrentStep, 2);
 
                 job.LastCompletedStep =
                     Math.Max(job.LastCompletedStep, 2);
 
-                job.UpdatedAt = DateTime.UtcNow;
+                job.UpdatedAt =
+                    DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
@@ -279,7 +373,9 @@
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Save compensation error.");
+                _logger.LogError(
+                    ex,
+                    "SaveCompensationAsync error.");
 
                 return Fail(
                     ex.InnerException?.Message ??
@@ -326,7 +422,7 @@
                 if (request.KeySkills != null)
                 {
                     job.KeySkills =
-                        JsonSerializer.Serialize(request.KeySkills);
+                        request.KeySkills;
                 }
 
                 if (!string.IsNullOrWhiteSpace(
@@ -380,9 +476,9 @@
         // STEP 4 — Eligibility
         // ════════════════════════════════════════════════
         public async Task<BaseJobResponseDto> SaveEligibilityAsync(
-         EligibilityRequestDto request,
-         Guid jobId,
-         Guid employerId)
+        EligibilityRequestDto request,
+        Guid jobId,
+        Guid employerId)
         {
             try
             {
@@ -401,7 +497,6 @@
                         JobStatus = JobStatus.Draft,
 
                         CurrentStep = 4,
-
                         LastCompletedStep = 4,
 
                         CreatedAt = DateTime.UtcNow,
@@ -410,6 +505,8 @@
 
                     _context.JobPostings.Add(job);
                 }
+
+                // Validation
 
                 if (request.AgeMin.HasValue &&
                     request.AgeMax.HasValue &&
@@ -426,40 +523,66 @@
                         "Passport validity months required when passport is required.");
                 }
 
-                // PATCH logic
+                // Vacancies
 
                 if (request.Vacancies.HasValue)
                 {
                     job.Vacancies = (short)request.Vacancies.Value;
                 }
 
+                // Education
+
                 if (request.EducationRequired.HasValue)
+                {
                     job.EducationRequired =
                         request.EducationRequired.Value.ToString();
+                }
+
+                // Age
 
                 if (request.AgeMin.HasValue)
+                {
                     job.AgeMin =
                         (byte)request.AgeMin.Value;
+                }
 
                 if (request.AgeMax.HasValue)
+                {
                     job.AgeMax =
                         (byte)request.AgeMax.Value;
+                }
+
+                // Gender
 
                 if (request.GenderPreferred.HasValue)
+                {
                     job.GenderPreferred =
-                        request.GenderPreferred.Value.ToString();
+                        request.GenderPreferred.Value;
+                }
+
+                // Disability
 
                 if (request.DisabilityEligible.HasValue)
+                {
                     job.DisabilityEligible =
                         request.DisabilityEligible.Value;
+                }
+
+                // Passport
 
                 if (request.PassportRequired.HasValue)
+                {
                     job.PassportRequired =
                         request.PassportRequired.Value;
+                }
 
                 if (request.PassportValidityMonths.HasValue)
+                {
                     job.PassportValidityMonths =
                         (byte)request.PassportValidityMonths.Value;
+                }
+
+                // Step tracking
 
                 job.CurrentStep =
                     Math.Max(job.CurrentStep, 4);
@@ -467,15 +590,20 @@
                 job.LastCompletedStep =
                     Math.Max(job.LastCompletedStep, 4);
 
-                job.UpdatedAt = DateTime.UtcNow;
+                job.UpdatedAt =
+                    DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
-                return Ok(job, "Eligibility saved.");
+                return Ok(
+                    job,
+                    "Eligibility saved.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Save eligibility error.");
+                _logger.LogError(
+                    ex,
+                    "SaveEligibilityAsync error.");
 
                 return Fail(
                     ex.InnerException?.Message ??
@@ -486,9 +614,9 @@
         // STEP 5 — Location
         // ════════════════════════════════════════════════
         public async Task<BaseJobResponseDto> SaveLocationAsync(
-           LocationRequestDto request,
-           Guid jobId,
-           Guid employerId)
+     LocationRequestDto request,
+     Guid jobId,
+     Guid employerId)
         {
             try
             {
@@ -507,7 +635,6 @@
                         JobStatus = JobStatus.Draft,
 
                         CurrentStep = 5,
-
                         LastCompletedStep = 5,
 
                         CreatedAt = DateTime.UtcNow,
@@ -517,54 +644,101 @@
                     _context.JobPostings.Add(job);
                 }
 
-                // Validate only when LocationType supplied
+                // ==================================================
+                // Validation
+                // ==================================================
 
                 if (request.LocationType.HasValue)
                 {
-                    if (request.LocationType == LocationType.Onshore)
+                    if (request.LocationType.Value == LocationType.Onshore)
                     {
-                        if (request.OnshoreCity != null &&
-                            string.IsNullOrWhiteSpace(request.OnshoreCity))
+                        if (string.IsNullOrWhiteSpace(request.OnshoreCity))
                             return Fail("City is required for onshore jobs.");
 
-                        if (request.OnshoreState != null &&
-                            string.IsNullOrWhiteSpace(request.OnshoreState))
+                        if (string.IsNullOrWhiteSpace(request.OnshoreState))
                             return Fail("State is required for onshore jobs.");
                     }
-                    else
+
+                    if (request.LocationType.Value == LocationType.Offshore)
                     {
-                        if (request.OffshoreRegion != null &&
-                            string.IsNullOrWhiteSpace(request.OffshoreRegion))
+                        if (string.IsNullOrWhiteSpace(request.OffshoreRegion))
                             return Fail("Offshore region is required.");
                     }
                 }
 
-                // PATCH
+                // ==================================================
+                // Patch Values
+                // ==================================================
 
                 if (request.LocationType.HasValue)
+                {
                     job.LocationType =
-                        request.LocationType.Value.ToString();
+                        request.LocationType.Value;
+                }
+
+                // Onshore
+
+                if (request.WorkAddressLine != null)
+                {
+                    job.WorkAddressLine =
+                        request.WorkAddressLine;
+                }
 
                 if (request.OnshoreCity != null)
-                    job.OnshoreCity = request.OnshoreCity;
+                {
+                    job.OnshoreCity =
+                        request.OnshoreCity;
+                }
 
                 if (request.OnshoreState != null)
-                    job.OnshoreState = request.OnshoreState;
+                {
+                    job.OnshoreState =
+                        request.OnshoreState;
+                }
+
+                if (request.OnshoreCountry != null)
+                {
+                    job.OnshoreCountry =
+                        request.OnshoreCountry;
+                }
+
+                if (request.OnshorePincode != null)
+                {
+                    job.OnshorePincode =
+                        request.OnshorePincode;
+                }
+
+                // Offshore
 
                 if (request.OffshoreVesselName != null)
+                {
                     job.OffshoreVesselName =
                         request.OffshoreVesselName;
+                }
 
                 if (request.OffshoreRegion != null)
+                {
                     job.OffshoreRegion =
                         request.OffshoreRegion;
+                }
+
+                if (request.OffshoreCountry != null)
+                {
+                    job.OffshoreCountry =
+                        request.OffshoreCountry;
+                }
+
+                // International Flag
 
                 if (request.LocationType.HasValue)
                 {
                     job.IsInternational =
-                        request.LocationType == LocationType.Offshore
-                        || job.PassportRequired;
+                        request.LocationType.Value == LocationType.Offshore;
                 }
+
+                // ==================================================
+                // Step Tracking
+                // ==================================================
 
                 job.CurrentStep =
                     Math.Max(job.CurrentStep, 5);
@@ -572,15 +746,20 @@
                 job.LastCompletedStep =
                     Math.Max(job.LastCompletedStep, 5);
 
-                job.UpdatedAt = DateTime.UtcNow;
+                job.UpdatedAt =
+                    DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
-                return Ok(job, "Location saved.");
+                return Ok(
+                    job,
+                    "Location saved.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Save location error.");
+                _logger.LogError(
+                    ex,
+                    "SaveLocationAsync error.");
 
                 return Fail(
                     ex.InnerException?.Message ??
@@ -592,9 +771,9 @@
         // STEP 6 — Screening Questions
         // ════════════════════════════════════════════════
         public async Task<BaseJobResponseDto> SaveQuestionsAsync(
-         QuestionsRequestDto request,
-         Guid jobId,
-         Guid employerId)
+        QuestionsRequestDto request,
+        Guid jobId,
+        Guid employerId)
         {
             try
             {
@@ -613,7 +792,6 @@
                         JobStatus = JobStatus.Draft,
 
                         CurrentStep = 6,
-
                         LastCompletedStep = 6,
 
                         CreatedAt = DateTime.UtcNow,
@@ -623,6 +801,8 @@
                     _context.JobPostings.Add(job);
                 }
 
+                // Validation
+
                 if (request.Questions != null)
                 {
                     if (request.Questions.Count > 5)
@@ -631,9 +811,12 @@
                             "Maximum 5 screening questions allowed.");
                     }
 
-                    job.ScreeningQuestions =
-                        JsonSerializer.Serialize(
-                            request.Questions);
+                    // Save questions directly
+                    job.ScreeningQuestions = request.Questions?
+     .Where(x => !string.IsNullOrWhiteSpace(x.QuestionText))
+     .Select(x => x.QuestionText)
+     .Distinct()
+     .ToList();
                 }
 
                 job.CurrentStep =
@@ -642,15 +825,20 @@
                 job.LastCompletedStep =
                     Math.Max(job.LastCompletedStep, 6);
 
-                job.UpdatedAt = DateTime.UtcNow;
+                job.UpdatedAt =
+                    DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
-                return Ok(job, "Questions saved.");
+                return Ok(
+                    job,
+                    "Questions saved.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Save questions error.");
+                _logger.LogError(
+                    ex,
+                    "SaveQuestionsAsync error.");
 
                 return Fail(
                     ex.InnerException?.Message ??
@@ -700,14 +888,13 @@
                 if (request.CompanyVisibility.HasValue)
                 {
                     job.CompanyVisibility =
-                        request.CompanyVisibility.Value.ToString();
+                        request.CompanyVisibility.Value;
                 }
 
                 if (request.PublishingTags != null)
                 {
                     job.PublishingTags =
-                        JsonSerializer.Serialize(
-                            request.PublishingTags);
+                            request.PublishingTags;
                 }
 
                 job.LastCompletedStep =
@@ -858,7 +1045,8 @@
         // RESUME — get existing draft job progress
         // ════════════════════════════════════════════════
         public async Task<ResumeJobResponseDto> ResumeJobAsync(
-            Guid jobId, Guid employerId)
+     Guid jobId,
+     Guid employerId)
         {
             try
             {
@@ -876,56 +1064,84 @@
                 return new ResumeJobResponseDto
                 {
                     Success = true,
-                    Message = $"Resume from Step {job.LastCompletedStep + 1} ({StepNames.GetValueOrDefault(job.LastCompletedStep + 1, "Publishing")}).",
+
+                    Message =
+                        $"Resume from Step {job.LastCompletedStep + 1} " +
+                        $"({StepNames.GetValueOrDefault(job.LastCompletedStep + 1, "Publishing")}).",
+
                     JobId = job.JobId,
+
                     StepStatus = BuildStepStatus(job),
 
-                    // STEP 1 - Job Details
+                    // =====================================================
+                    // STEP 1 - JOB DETAILS
+                    // =====================================================
+
                     Step1Data = new JobDetailsRequestDto
                     {
                         JobTitle = job.JobTitle,
                         TradeCategory = job.TradeCategory,
                         Role = job.Role,
-                        ExperienceRequiredYears = job.ExperienceRequiredYears,
-                        JobDescription = job.JobDescription
+
+                        ExperienceMinYears = job.ExperienceMinYears,
+                        ExperienceMaxYears = job.ExperienceMaxYears,
+
+                        JobDescription = job.JobDescription,
+
+                        EmploymentType = job.EmploymentType,
+                        EmploymentMode = job.EmploymentMode,
+
+                        Department = job.Department,
+
+                        DutyHoursPerDay = job.DutyHoursPerDay,
+                        PaidOvertime = job.PaidOvertime,
+
+                        KeyResponsibilities =
+                            job.KeyResponsibilities ?? new List<string>()
                     },
 
-                    // STEP 2 - Compensation
+                    // =====================================================
+                    // STEP 2 - COMPENSATION
+                    // =====================================================
+
                     Step2Data = new CompensationRequestDto
                     {
                         SalaryMin = job.SalaryMin,
                         SalaryMax = job.SalaryMax,
 
                         SalaryCurrency =
-                            Enum.TryParse<SalaryCurrency>(
-                                job.SalaryCurrency,
-                                true,
-                                out var currency)
-                                    ? currency
-                                    : SalaryCurrency.INR,
+                            job.SalaryCurrency,
 
                         SalaryDisplayOption =
-                            Enum.TryParse<SalaryDisplayOption>(
-                                job.SalaryDisplayOption,
-                                true,
-                                out var display)
-                                    ? display
-                                    : SalaryDisplayOption.Show_Range
+                            job.SalaryDisplayOption
                     },
 
-                    // STEP 3 - Skills
+                    // =====================================================
+                    // STEP 3 - SKILLS
+                    // =====================================================
+
                     Step3Data = new SkillsRequestDto
                     {
                         KeySkills =
-                            string.IsNullOrWhiteSpace(job.KeySkills)
-                                ? new List<string>()
-                                : JsonSerializer.Deserialize<List<string>>(job.KeySkills) ?? new List<string>(),
+                            job.KeySkills ?? new List<string>(),
 
-                        LicenceDocsRequired = job.LicenceDocsRequired,
-                        LanguageRequired = job.LanguageRequired
+                        LicenceDocsRequired =
+                            job.LicenceDocsRequired,
+
+                        LanguageRequired =
+                            job.LanguageRequired,
+
+                        Benefits =
+                            job.Benefits ?? new List<string>(),
+
+                        Tags =
+                            job.Tags ?? new List<string>()
                     },
 
-                    // STEP 4 - Eligibility
+                    // =====================================================
+                    // STEP 4 - ELIGIBILITY
+                    // =====================================================
+
                     Step4Data = new EligibilityRequestDto
                     {
                         Vacancies = job.Vacancies,
@@ -936,61 +1152,87 @@
                                 true,
                                 out var education)
                                     ? education
-                                    : default,
+                                    : null,
 
                         AgeMin = job.AgeMin,
                         AgeMax = job.AgeMax,
 
                         GenderPreferred =
-                            Enum.TryParse<GenderPreferred>(
-                                job.GenderPreferred,
-                                true,
-                                out var gender)
-                                    ? gender
-                                    : GenderPreferred.Any,
+                            job.GenderPreferred,
 
-                        DisabilityEligible = job.DisabilityEligible,
-                        PassportRequired = job.PassportRequired,
-                        PassportValidityMonths = job.PassportValidityMonths
+                        DisabilityEligible =
+                            job.DisabilityEligible,
+
+                        PassportRequired =
+                            job.PassportRequired,
+
+                        PassportValidityMonths =
+                            job.PassportValidityMonths
                     },
 
-                    // STEP 5 - Location
+                    // =====================================================
+                    // STEP 5 - LOCATION
+                    // =====================================================
+
                     Step5Data = new LocationRequestDto
                     {
                         LocationType =
-                            Enum.TryParse<LocationType>(
-                                job.LocationType,
-                                true,
-                                out var locationType)
-                                    ? locationType
-                                    : default,
+                            job.LocationType,
 
-                        OnshoreCity = job.OnshoreCity,
-                        OnshoreState = job.OnshoreState,
-                        OffshoreVesselName = job.OffshoreVesselName,
-                        OffshoreRegion = job.OffshoreRegion,
-                        Country = "India"
+                        WorkAddressLine =
+                            job.WorkAddressLine,
+
+                        OnshoreCity =
+                            job.OnshoreCity,
+
+                        OnshoreState =
+                            job.OnshoreState,
+
+                        OnshoreCountry =
+                            job.OnshoreCountry,
+
+                        OnshorePincode =
+                            job.OnshorePincode,
+
+                        OffshoreVesselName =
+                            job.OffshoreVesselName,
+
+                        OffshoreRegion =
+                            job.OffshoreRegion,
+
+                        OffshoreCountry =
+                            job.OffshoreCountry
                     },
 
-                    // STEP 6 - Questions
+                    // =====================================================
+                    // STEP 6 - QUESTIONS
+                    // =====================================================
+
                     Step6Data = new QuestionsRequestDto
                     {
                         Questions =
-                            string.IsNullOrWhiteSpace(job.ScreeningQuestions)
-                                ? new List<ScreeningQuestion>()
-                                : JsonSerializer.Deserialize<List<ScreeningQuestion>>(job.ScreeningQuestions)
-                                    ?? new List<ScreeningQuestion>()
+                            job.ScreeningQuestions?
+                                .Select(q => new ScreeningQuestion
+                                {
+                                    QuestionText = q
+                                })
+                                .ToList()
+                            ?? new List<ScreeningQuestion>()
                     }
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Resume job error.");
+                _logger.LogError(
+                    ex,
+                    "ResumeJobAsync error.");
 
                 return new ResumeJobResponseDto
                 {
                     Success = false,
-                    Message = ex.InnerException?.Message ?? ex.Message
+                    Message =
+                        ex.InnerException?.Message ??
+                        ex.Message
                 };
             }
         }

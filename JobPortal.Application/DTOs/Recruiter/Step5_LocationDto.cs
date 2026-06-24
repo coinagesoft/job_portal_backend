@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using JobPortal.Domain.Enums.RecruiterEnums;
+using System.ComponentModel.DataAnnotations;
 
 namespace JobPortal.Application.DTOs.JobPosting;
 
@@ -16,4 +17,10 @@ public class LocationRequestDto
     public string? OffshoreRegion { get; set; }
 
     public string Country { get; set; } = "India";
+
+    public string? WorkAddressLine { get; set; }
+    public string? OnshoreCountry { get; set; }
+    public string? OnshorePincode { get; set; }
+
+    public string? OffshoreCountry { get; set; }
 }

@@ -212,8 +212,6 @@ using System.Threading.Tasks;
 }
 
 
-
-
         public async Task<DocumentViewResponseDto?> GetDocumentAsync(
         Guid employerId,
         DocumentType documentType)
@@ -221,6 +219,7 @@ using System.Threading.Tasks;
             var profile = await _context.EmployerProfiles
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.EmployerId == employerId);
+
 
             if (profile == null)
                 return null;
@@ -242,5 +241,7 @@ using System.Threading.Tasks;
                 FileUrl = fileUrl
             };
         }
+
+
     }
     }

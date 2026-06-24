@@ -16,8 +16,8 @@ public class JobMatchingService : IJobMatchingService
     }
 
     public async Task<CandidateMatchResultDto> CalculateMatchAsync(
-       Guid candidateId,
-       Guid jobId)
+      Guid candidateId,
+      Guid jobId)
     {
         // ==========================================
         // Candidate
@@ -62,24 +62,15 @@ public class JobMatchingService : IJobMatchingService
             candidate.Skills
                 .Select(x => x.SkillName)
                 .Where(x => !string.IsNullOrWhiteSpace(x))
-                .Select(x => x.ToLower())
+                .Select(x => x.Trim().ToLower())
                 .ToList();
 
-        List<string> jobSkills = new();
-
-        if (!string.IsNullOrWhiteSpace(job.KeySkills))
-        {
-            try
-            {
-                jobSkills =
-                    JsonSerializer.Deserialize<List<string>>(
-                        job.KeySkills) ?? new();
-            }
-            catch
-            {
-                jobSkills = new();
-            }
-        }
+        var jobSkills =
+            job.KeySkills?
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim().ToLower())
+                .ToList()
+            ?? new List<string>();
 
         if (jobSkills.Any())
         {
@@ -88,19 +79,17 @@ public class JobMatchingService : IJobMatchingService
             foreach (var jobSkill in jobSkills)
             {
                 if (candidateSkills.Any(x =>
-     x.Equals(jobSkill.ToLower()) ||
-     x.Contains(jobSkill.ToLower())))
+                    x.Equals(jobSkill) ||
+                    x.Contains(jobSkill)))
                 {
                     matchedSkills++;
                 }
             }
 
             skillScore =
-                jobSkills.Count == 0
-                    ? 0
-                    : (int)Math.Round(
-                        (double)matchedSkills /
-                        jobSkills.Count * 100);
+                (int)Math.Round(
+                    (double)matchedSkills /
+                    jobSkills.Count * 100);
         }
 
         // ==========================================
@@ -109,12 +98,11 @@ public class JobMatchingService : IJobMatchingService
 
         int tradeScore = 0;
 
-        if (!string.IsNullOrWhiteSpace(job.TradeCategory)
-            &&
+        if (!string.IsNullOrWhiteSpace(job.TradeCategory) &&
             !string.IsNullOrWhiteSpace(candidate.PrimaryTrade))
         {
             var candidateTrade =
-      candidate.PrimaryTrade.ToLower();
+                candidate.PrimaryTrade.ToLower();
 
             var jobTrade =
                 job.TradeCategory.ToLower();
@@ -134,18 +122,40 @@ public class JobMatchingService : IJobMatchingService
         // Experience Match
         // ==========================================
 
-        int experienceScore = 0;
+        int experienceScore = 100;
 
-        if (job.ExperienceRequiredYears > 0)
+        if (job.ExperienceMinYears > 0 ||
+            job.ExperienceMaxYears > 0)
         {
-            experienceScore =
-                Math.Min(
-                    100,
-                    (int)(
-                        (double)candidate.TotalExperienceYears
-                        / job.ExperienceRequiredYears
-                        * 100));
+            var candidateExperience =
+                candidate.TotalExperienceYears;
+
+            if (candidateExperience >= job.ExperienceMinYears &&
+                candidateExperience <= job.ExperienceMaxYears)
+            {
+                experienceScore = 100;
+            }
+            else if (candidateExperience < job.ExperienceMinYears)
+            {
+                experienceScore =
+                    Math.Max(
+                        0,
+                        (int)(
+                            (double)candidateExperience /
+                            Math.Max(job.ExperienceMinYears, (byte)1)
+                            * 100));
+            }
+            else
+            {
+                // Candidate has more experience than required
+                experienceScore = 90;
+            }
         }
+
+        // ==========================================
+        // Location Match
+        // ==========================================
+
         int locationScore = 0;
 
         if (!string.IsNullOrWhiteSpace(job.OnshoreCity) &&
@@ -158,21 +168,23 @@ public class JobMatchingService : IJobMatchingService
                 locationScore = 100;
             }
         }
+
         // ==========================================
         // Final Score
         // ==========================================
 
         var finalScore =
-        (int)Math.Round(
-            aiScore * 0.35 +
-            skillScore * 0.30 +
-            tradeScore * 0.20 +
-            experienceScore * 0.10 +
-            locationScore * 0.05);
+            (int)Math.Round(
+                aiScore * 0.35 +
+                skillScore * 0.30 +
+                tradeScore * 0.20 +
+                experienceScore * 0.10 +
+                locationScore * 0.05);
 
         // ==========================================
         // Reason
         // ==========================================
+
         string reason;
 
         if (skillScore >= 70)

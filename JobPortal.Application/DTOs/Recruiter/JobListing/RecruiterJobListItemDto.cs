@@ -31,6 +31,29 @@ namespace JobPortal.Application.DTOs.Recruiter.JobListing
         public int SalaryMin { get; set; }
 
         public int SalaryMax { get; set; }
+        public string? Department { get; set; }
+
+        public string? EmploymentType { get; set; }
+
+        public string? EmploymentMode { get; set; }
+
+        public bool IsActive { get; set; }
+
+        public bool IsFeatured { get; set; }
+
+        public bool IsUrgentHiring { get; set; }
+
+        public int ViewCount { get; set; }
+
+        public byte ExperienceMinYears { get; set; }
+
+        public byte ExperienceMaxYears { get; set; }
+
+        public string? SalaryCurrency { get; set; }
+
+        public string? SalaryDisplayOption { get; set; }
+
+        public string? LocationType { get; set; }
 
         public DateOnly ApplicationDeadline { get; set; }
 

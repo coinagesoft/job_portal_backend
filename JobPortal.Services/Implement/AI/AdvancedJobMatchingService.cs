@@ -140,30 +140,26 @@ public class AdvancedJobMatchingService : IJobMatchingService
     }
 
     private int CalculateSkillScore(
-        CandidateProfile candidate,
-        JobPosting job)
+      CandidateProfile candidate,
+      JobPosting job)
     {
-        if (string.IsNullOrWhiteSpace(job.KeySkills))
+        if (job.KeySkills == null || !job.KeySkills.Any())
             return 0;
 
-        var jobSkills =
-            job.KeySkills
-               .Split(',', StringSplitOptions.RemoveEmptyEntries)
-               .Select(x => x.Trim().ToLower())
-               .ToList();
+        var jobSkills = job.KeySkills
+            .Select(x => x.Trim().ToLower())
+            .ToList();
 
-        var candidateSkills =
-            candidate.Skills
-                .Select(x => x.SkillName.ToLower())
-                .ToList();
+        var candidateSkills = candidate.Skills
+            .Select(x => x.SkillName.Trim().ToLower())
+            .ToList();
 
-        var matched =
-            jobSkills.Count(x =>
-                candidateSkills.Contains(x));
+        var matched = jobSkills.Count(x =>
+            candidateSkills.Contains(x));
 
-        return (int)
-            ((double)matched /
-             Math.Max(jobSkills.Count, 1) * 100);
+        return (int)(
+            (double)matched /
+            Math.Max(jobSkills.Count, 1) * 100);
     }
 
     private int CalculateTradeScore(
@@ -181,16 +177,16 @@ public class AdvancedJobMatchingService : IJobMatchingService
     }
 
     private int CalculateExperienceScore(
-        CandidateProfile candidate,
-        JobPosting job)
+       CandidateProfile candidate,
+       JobPosting job)
     {
-        if (job.ExperienceRequiredYears == 0)
+        if (job.ExperienceMinYears == 0)
             return 100;
 
         return Math.Min(
             100,
             candidate.TotalExperienceYears * 100 /
-            job.ExperienceRequiredYears);
+            job.ExperienceMinYears);
     }
 
     private int CalculateLocationScore(

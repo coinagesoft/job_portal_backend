@@ -1168,9 +1168,9 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 CompanyLogoUrl = session.CompanyLogoUrl,
                 CompanyLogoPublicId = session.CompanyLogoPublicId,
                 GstRegistered = session.GstRegistered ?? false,
-                Gstn = session.Gstn,
+                Gstin = session.Gstn,
                 Pan = session.Pan,
-                GstnRegistrationDate = session.GstnRegistrationDate,
+                GstinRegistrationDate = session.GstnRegistrationDate,
 
                 State = session.State,
                 City = session.City!,

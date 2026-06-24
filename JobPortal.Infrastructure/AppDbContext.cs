@@ -283,6 +283,7 @@ public class AppDbContext : DbContext
                 .IsUnique()
                 .HasDatabaseName("uq_users_email");
         });
+
         m.Entity<SupportTicketReply>(e =>
         {
             e.ToTable("support_ticket_replies");
@@ -313,6 +314,7 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.TicketId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
         m.Entity<RecruiterNote>(entity =>
         {
             entity.HasKey(n => n.RecruiterNoteId);
@@ -346,6 +348,7 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.CandidateId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
         m.Entity<CandidateNotificationSetting>(e =>
         {
             e.ToTable("candidate_notification_settings");
@@ -678,8 +681,8 @@ public class AppDbContext : DbContext
             e.Property(x => x.GstRegistered)
                 .HasColumnName("gst_registered");
 
-            e.Property(x => x.Gstn)
-                .HasColumnName("gstn");
+            e.Property(x => x.Gstin)
+                .HasColumnName("gstin");
 
             e.Property(x => x.Pan)
                 .HasColumnName("pan");
@@ -726,7 +729,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.UpdatedAt)
                 .HasColumnName("updated_at");
 
-            e.Property(x => x.GstnRegistrationDate)
+            e.Property(x => x.GstinRegistrationDate)
                 .HasColumnName("gstn_registration_date");
 
             e.Property(x => x.KarzaRequestId)
@@ -789,7 +792,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.Tags)
                 .HasColumnName("tags");
             // INDEX
-            e.HasIndex(x => x.Gstn)
+            e.HasIndex(x => x.Gstin)
                 .IsUnique();
 
 
@@ -933,17 +936,13 @@ public class AppDbContext : DbContext
                 .HasConversion<string>();
             // ✅ string properties — no HasDefaultValue needed
             // defaults are set on the entity itself
-            e.Property(x => x.SalaryCurrency)
-             .HasColumnName("salary_currency");
+           
 
-            e.Property(x => x.SalaryDisplayOption)
-             .HasColumnName("salary_display_option");
 
             e.Property(x => x.Vacancies)
              .HasColumnName("vacancies");
 
-            e.Property(x => x.ExperienceRequiredYears)
-             .HasColumnName("experience_required_years");
+        
 
             e.Property(x => x.AgeMin)
              .HasColumnName("age_min");
@@ -951,8 +950,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.AgeMax)
              .HasColumnName("age_max");
 
-            e.Property(x => x.GenderPreferred)
-             .HasColumnName("gender_preferred");
+           
 
             e.Property(x => x.EducationRequired)
              .HasColumnName("education_required");
@@ -965,13 +963,12 @@ public class AppDbContext : DbContext
 
             e.Property(x => x.KeySkills)
              .HasColumnName("key_skills")
-             .HasColumnType("json");
+             .HasColumnType("jsonb");
 
             e.Property(x => x.DisabilityEligible)
              .HasColumnName("disability_eligible");
 
-            e.Property(x => x.LocationType)
-             .HasColumnName("location_type");
+       
 
             e.Property(x => x.OnshoreCity)
              .HasColumnName("onshore_city");
@@ -994,8 +991,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.PassportValidityMonths)
              .HasColumnName("passport_validity_months");
 
-            e.Property(x => x.CompanyVisibility)
-             .HasColumnName("company_visibility");
+       
 
             e.Property(x => x.ApplicationDeadline)
              .HasColumnName("application_deadline");
@@ -1020,11 +1016,11 @@ public class AppDbContext : DbContext
 
             e.Property(x => x.ScreeningQuestions)
              .HasColumnName("screening_questions")
-             .HasColumnType("json");
+             .HasColumnType("jsonb");
 
             e.Property(x => x.PublishingTags)
              .HasColumnName("publishing_tags")
-             .HasColumnType("json");
+             .HasColumnType("jsonb");
 
             // Relationships
             e.HasOne(x => x.EmployerProfile)
@@ -1036,6 +1032,99 @@ public class AppDbContext : DbContext
              .WithMany()
              .HasForeignKey(x => x.PostedBySubUserId)
              .OnDelete(DeleteBehavior.SetNull);
+
+            // Experience
+            e.Property(x => x.ExperienceMinYears)
+                .HasColumnName("experience_min_years");
+
+            e.Property(x => x.ExperienceMaxYears)
+                .HasColumnName("experience_max_years");
+
+            // Address
+            e.Property(x => x.WorkAddressLine)
+                .HasColumnName("work_address_line");
+
+            e.Property(x => x.OnshoreCountry)
+                .HasColumnName("onshore_country");
+
+            e.Property(x => x.OnshorePincode)
+                .HasColumnName("onshore_pincode");
+
+            e.Property(x => x.OffshoreCountry)
+                .HasColumnName("offshore_country");
+
+            // Enums
+            e.Property(x => x.SalaryCurrency)
+                .HasColumnName("salary_currency")
+                .HasConversion<string>();
+
+            e.Property(x => x.SalaryDisplayOption)
+                .HasColumnName("salary_display_option")
+                .HasConversion<string>();
+
+            e.Property(x => x.GenderPreferred)
+                .HasColumnName("gender_preferred")
+                .HasConversion<string>();
+
+            e.Property(x => x.LocationType)
+                .HasColumnName("location_type")
+                .HasConversion<string>();
+
+            e.Property(x => x.CompanyVisibility)
+                .HasColumnName("company_visibility")
+                .HasConversion<string>();
+
+            e.Property(x => x.EmploymentType)
+                .HasColumnName("employment_type")
+                .HasConversion<string>();
+
+            e.Property(x => x.EmploymentMode)
+                .HasColumnName("employment_mode")
+                .HasConversion<string>();
+
+            // Employment Details
+            e.Property(x => x.DutyHoursPerDay)
+                .HasColumnName("duty_hours_per_day");
+
+            e.Property(x => x.PaidOvertime)
+                .HasColumnName("paid_overtime");
+
+            e.Property(x => x.Department)
+                .HasColumnName("department");
+
+            e.Property(x => x.KeyResponsibilities)
+                .HasColumnName("key_responsibilities")
+                .HasColumnType("jsonb");
+
+            // Analytics
+            e.Property(x => x.ViewCount)
+                .HasColumnName("view_count");
+
+            // Benefits
+            e.Property(x => x.Benefits)
+                .HasColumnName("benefits")
+                .HasColumnType("jsonb");
+
+            // Home Page
+            e.Property(x => x.IsFeatured)
+                .HasColumnName("is_featured");
+
+            e.Property(x => x.IsUrgentHiring)
+                .HasColumnName("is_urgent_hiring");
+
+            e.Property(x => x.IsDeleted)
+                .HasColumnName("is_deleted");
+
+            e.Property(x => x.IsActive)
+                .HasColumnName("is_active");
+
+            // Search
+            e.Property(x => x.Tags)
+                .HasColumnName("tags")
+                .HasColumnType("jsonb");
+
+            e.Property(x => x.SearchKeywords)
+                .HasColumnName("search_keywords");
         });
 
         m.Entity<JobApplication>(e =>

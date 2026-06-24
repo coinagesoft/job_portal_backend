@@ -19,8 +19,7 @@ public static class JobTextBuilder
         Required Skills:
         {job.KeySkills}
 
-        Experience Required:
-        {job.ExperienceRequiredYears} years
+      
 
         Location:
         {job.OnshoreCity}, {job.OnshoreState}

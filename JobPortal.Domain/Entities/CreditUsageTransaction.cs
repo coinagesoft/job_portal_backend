@@ -1,4 +1,4 @@
-﻿using JobPortal.Application.DTOs.JobPosting;
+﻿using JobPortal.Domain.Enums.RecruiterEnums;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;

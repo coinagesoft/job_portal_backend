@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using JobPortal.Domain.Enums.RecruiterEnums;
+using System.ComponentModel.DataAnnotations;
 
 namespace JobPortal.Application.DTOs.JobPosting;
 

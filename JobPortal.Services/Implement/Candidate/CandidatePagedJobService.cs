@@ -94,7 +94,7 @@ public class CandidatePagedJobService
             var cards = items.Select(s =>
             {
                 var job = s.JobPosting;
-                var isConfidential = job.CompanyVisibility == "Confidential_Client";
+                var isConfidential = job.CompanyVisibility == CompanyVisibility.ShowName;
                 appDict.TryGetValue(job.JobId, out var appStatus);
 
                 return new PagedSavedJobCardDto
@@ -108,14 +108,14 @@ public class CandidatePagedJobService
                     City = job.OnshoreCity,
                     State = job.OnshoreState,
                     TradeCategory = job.TradeCategory,
-                    EmploymentType = job.LocationType,
+                    EmploymentType = job.LocationType.ToString(),
                     JobStatus = job.JobStatus.ToString() ?? string.Empty,
                     IsExpired = job.JobStatus.ToString() != "Active",
                     HasApplied = appStatus != null,
                     ApplicationStatus = appStatus.ToString(),
                     ApplicationDeadline = job.ApplicationDeadline.ToDateTime(TimeOnly.MinValue),
                     SavedAt = s.SavedAt,
-                    Tags = ParseJsonList(job.PublishingTags)
+                    Tags = job.PublishingTags
                 };
             }).ToList();
 
@@ -199,7 +199,7 @@ public class CandidatePagedJobService
             var cards = apps.Select(a =>
             {
                 var job = a.JobPosting;
-                var isConfidential = job.CompanyVisibility == "Confidential_Client";
+                var isConfidential = job.CompanyVisibility == CompanyVisibility.ShowName;
                 var latestNote = a.RecruiterNotes?
                     .OrderByDescending(n => n.UpdatedAt)
                     .FirstOrDefault();
@@ -215,8 +215,8 @@ public class CandidatePagedJobService
                     State = job.OnshoreState,
                     JobTitle = job.JobTitle,
                     TradeCategory = job.TradeCategory,
-                    EmploymentType = job.LocationType,
-                    Tags = ParseJsonList(job.PublishingTags),
+                    EmploymentType = job.LocationType.ToString(),
+                    Tags = job.PublishingTags,
                     ApplicationStatus = a.ApplicationStatus.ToString() ?? "Applied",
                     StageLabel = GetStageLabel(a.ApplicationStatus.ToString()),
                     StatusNote = GetStatusNote(a.ApplicationStatus.ToString(), job.JobTitle),

@@ -71,13 +71,12 @@ public class EmbeddingStorageService : IEmbeddingStorageService
 
         if (job == null)
             throw new Exception("Job not found");
-
         var text = $@"
 Title: {job.JobTitle}
 Trade: {job.TradeCategory}
 Description: {job.JobDescription}
-Skills: {job.KeySkills}
-Experience: {job.ExperienceRequiredYears}
+Skills: {string.Join(", ", job.KeySkills ?? new List<string>())}
+Experience: {job.ExperienceMinYears}-{job.ExperienceMaxYears} Years
 Location: {job.OnshoreCity}
 ";
 

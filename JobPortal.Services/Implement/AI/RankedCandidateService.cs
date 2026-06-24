@@ -29,7 +29,7 @@ public class RankedCandidateService : IRankedCandidateService
     // ══════════════════════════════════════════════════════════
 
     public async Task<RankedCandidateListDto> GetRankedCandidatesAsync(
-        RankedCandidateRequestDto request)
+    RankedCandidateRequestDto request)
     {
         // ── Load job ──────────────────────────────────────────
         var job = await _db.JobPostings
@@ -47,23 +47,22 @@ public class RankedCandidateService : IRankedCandidateService
             };
         }
 
-        // ── Load candidates (only those WITH embeddings for AI scoring) ─
+        // ── Load candidates ──────────────────────────────────
         var candidates = await _db.CandidateProfiles
             .AsNoTracking()
             .Include(x => x.User)
             .Include(x => x.Skills)
             .ToListAsync();
 
-        // ── Pre-load job skills once ───────────────────────────
-        List<string> jobSkills = new();
-        if (!string.IsNullOrWhiteSpace(job.KeySkills))
-        {
-            try { jobSkills = JsonSerializer.Deserialize<List<string>>(job.KeySkills) ?? new(); }
-            catch { /* ignore */ }
-        }
-        var jobSkillsLower = jobSkills.Select(s => s.ToLower()).ToList();
+        // ── Pre-load job skills once ─────────────────────────
+        var jobSkillsLower =
+            job.KeySkills?
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim().ToLower())
+                .ToList()
+            ?? new List<string>();
 
-        // ── Score each candidate ───────────────────────────────
+        // ── Score each candidate ─────────────────────────────
         var scoredList = new List<RankedCandidateDto>();
 
         foreach (var candidate in candidates)
@@ -75,9 +74,18 @@ public class RankedCandidateService : IRankedCandidateService
             if (matchResult.MatchScore < request.MinScore)
                 continue;
 
-            // ── Skill intersection detail ─────────────────────
+            // ── Candidate Skills ─────────────────────────────
             var candidateSkillsLower = candidate.Skills
-                .Select(s => s.SkillName.ToLower())
+                .Where(x => !string.IsNullOrWhiteSpace(x.SkillName))
+                .Select(x => x.SkillName.Trim().ToLower())
+                .ToList();
+
+            // Optional: actual matched skills
+            var matchedSkills = jobSkillsLower
+                .Where(js =>
+                    candidateSkillsLower.Any(cs =>
+                        cs == js || cs.Contains(js)))
+                .Distinct()
                 .ToList();
 
             var label = matchResult.MatchScore switch
@@ -97,6 +105,7 @@ public class RankedCandidateService : IRankedCandidateService
                 CurrentCity = candidate.CurrentCity,
                 Band = candidate.Band,
                 ProfilePhotoUrl = candidate.ProfilePhotoUrl,
+
                 ScoreBreakdown = new ScoreBreakdownDto
                 {
                     OverallScore = matchResult.MatchScore,
@@ -111,11 +120,15 @@ public class RankedCandidateService : IRankedCandidateService
             });
         }
 
-        // ── Sort by OverallScore descending, assign rank ───────
+        // ── Sort & Rank ──────────────────────────────────────
         var ranked = scoredList
             .OrderByDescending(x => x.ScoreBreakdown.OverallScore)
             .Take(request.Limit)
-            .Select((c, i) => { c.Rank = i + 1; return c; })
+            .Select((candidate, index) =>
+            {
+                candidate.Rank = index + 1;
+                return candidate;
+            })
             .ToList();
 
         return new RankedCandidateListDto
@@ -132,10 +145,11 @@ public class RankedCandidateService : IRankedCandidateService
     // ══════════════════════════════════════════════════════════
 
     public async Task<CandidateProfileScoreResponseDto?> GetCandidateProfileScoreAsync(
-        Guid candidateId,
-        Guid jobId)
+      Guid candidateId,
+      Guid jobId)
     {
         // ── Validate both exist ───────────────────────────────
+
         var candidate = await _db.CandidateProfiles
             .AsNoTracking()
             .Include(x => x.Skills)
@@ -149,30 +163,45 @@ public class RankedCandidateService : IRankedCandidateService
             return null;
 
         // ── Score ─────────────────────────────────────────────
+
         var matchResult = await _matchingService.CalculateMatchAsync(
-            candidateId, jobId);
+            candidateId,
+            jobId);
 
-        // ── Skill details ─────────────────────────────────────
-        List<string> jobSkills = new();
-        if (!string.IsNullOrWhiteSpace(job.KeySkills))
-        {
-            try { jobSkills = JsonSerializer.Deserialize<List<string>>(job.KeySkills) ?? new(); }
-            catch { }
-        }
+        // ── Skill Details ─────────────────────────────────────
 
-        var candidateSkillsLower = candidate.Skills
-            .Select(s => s.SkillName.ToLower())
-            .ToList();
+        var jobSkills =
+            job.KeySkills?
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .ToList()
+            ?? new List<string>();
+
+        var candidateSkillsLower =
+            candidate.Skills
+                .Where(x => !string.IsNullOrWhiteSpace(x.SkillName))
+                .Select(x => x.SkillName.Trim().ToLower())
+                .ToList();
 
         var matched = jobSkills
-            .Where(js => candidateSkillsLower.Any(cs =>
-                cs.Contains(js.ToLower()) || js.ToLower().Contains(cs)))
+            .Where(jobSkill =>
+                candidateSkillsLower.Any(candidateSkill =>
+                    candidateSkill.Equals(jobSkill.ToLower()) ||
+                    candidateSkill.Contains(jobSkill.ToLower()) ||
+                    jobSkill.ToLower().Contains(candidateSkill)))
+            .Distinct()
             .ToList();
 
         var missing = jobSkills
-            .Where(js => !candidateSkillsLower.Any(cs =>
-                cs.Contains(js.ToLower()) || js.ToLower().Contains(cs)))
+            .Where(jobSkill =>
+                !candidateSkillsLower.Any(candidateSkill =>
+                    candidateSkill.Equals(jobSkill.ToLower()) ||
+                    candidateSkill.Contains(jobSkill.ToLower()) ||
+                    jobSkill.ToLower().Contains(candidateSkill)))
+            .Distinct()
             .ToList();
+
+        // ── Score Label ───────────────────────────────────────
 
         var label = matchResult.MatchScore switch
         {
@@ -182,13 +211,17 @@ public class RankedCandidateService : IRankedCandidateService
             _ => "Low"
         };
 
+        // ── Response ──────────────────────────────────────────
+
         return new CandidateProfileScoreResponseDto
         {
             CandidateId = candidateId,
             JobId = jobId,
             JobTitle = job.JobTitle,
+
             MatchedSkills = matched,
             MissingSkills = missing,
+
             ScoreBreakdown = new ScoreBreakdownDto
             {
                 OverallScore = matchResult.MatchScore,

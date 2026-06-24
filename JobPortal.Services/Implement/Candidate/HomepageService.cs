@@ -3,6 +3,7 @@
 // ============================================================
 
 using JobPortal.Application.DTOs.Public;
+using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IPublic;
 using Microsoft.EntityFrameworkCore;
@@ -59,121 +60,268 @@ public class HomepageService : IHomepageService
         _logger = logger;
     }
 
-    public async Task<HomepageResponseDto> GetHomepageDataAsync(HomepageRequestDto request)
+    public async Task<HomepageResponseDto> GetHomepageDataAsync(
+       HomepageRequestDto request)
     {
         try
         {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
             var activeJobs = await _context.JobPostings
+                .AsNoTracking()
                 .Include(j => j.EmployerProfile)
-                .Where(j => j.JobStatus.ToString() == "Active")
+                .Where(j =>
+                    j.JobStatus == JobStatus.Active &&
+                    j.IsActive &&
+                    !j.IsDeleted &&
+                    j.ApplicationDeadline >= today)
                 .Select(j => new
                 {
                     j.JobId,
                     j.JobTitle,
                     j.TradeCategory,
-                    j.PublishingTags,
+                    j.Tags,
                     j.KeySkills,
+
                     j.OnshoreCity,
                     j.OnshoreState,
+                    j.OnshoreCountry,
+
                     j.OffshoreRegion,
+                    j.OffshoreCountry,
+
                     j.IsInternational,
+
                     j.SalaryMin,
                     j.SalaryMax,
                     j.SalaryCurrency,
                     j.SalaryDisplayOption,
+
+                    j.JobType,
+                    j.EmploymentType,
+                    j.EmploymentMode,
+
+                    j.IsFeatured,
+                    j.IsUrgentHiring,
+
                     j.PublishedAt,
                     j.CompanyVisibility,
-                    CompanyName = j.EmployerProfile != null ? j.EmployerProfile.CompanyDisplayName : null,
-                    CompanyLogoUrl = j.EmployerProfile != null ? j.EmployerProfile.CompanyLogoUrl : null,
-                    Country = j.IsInternational ? j.OffshoreRegion : "India"
+
+                    CompanyName = j.EmployerProfile != null
+                        ? j.EmployerProfile.CompanyDisplayName
+                        : null,
+
+                    CompanyLogoUrl = j.EmployerProfile != null
+                        ? j.EmployerProfile.CompanyLogoUrl
+                        : null,
+
+                    Country = j.IsInternational
+                        ? (j.OffshoreCountry ?? "International")
+                        : (j.OnshoreCountry ?? "India")
                 })
                 .ToListAsync();
 
-            // 1. Browse by Category
+            // =====================================================
+            // Browse By Category
+            // =====================================================
+
             var browseByCategory = activeJobs
-                .GroupBy(j => j.TradeCategory ?? "Other")
+                .GroupBy(j => string.IsNullOrWhiteSpace(j.TradeCategory)
+                    ? "Other"
+                    : j.TradeCategory)
                 .Select(g => new CategoryCardDto
                 {
                     TradeCategory = g.Key,
                     JobCount = g.Count(),
-                    IconSlug = g.Key.ToLower().Replace(" ", "-").Replace("&", "and")
+                    IconSlug = g.Key
+                        .ToLower()
+                        .Replace(" ", "-")
+                        .Replace("&", "and")
                 })
-                .OrderByDescending(c => c.JobCount)
+                .OrderByDescending(x => x.JobCount)
                 .ToList();
 
-            // 2. Latest Jobs by Country
-            var latestJobsByCountry = new Dictionary<string, List<HomepageJobCardDto>>();
+            // =====================================================
+            // Latest Jobs
+            // =====================================================
+
+            var latestJobsByCountry =
+                new Dictionary<string, List<HomepageJobCardDto>>();
+
             foreach (var country in CountryTabs)
             {
                 var aliases = CountryAliases[country];
+
                 latestJobsByCountry[country] = activeJobs
-                    .Where(j => aliases.Any(a =>
-                        string.Equals(j.Country, a, StringComparison.OrdinalIgnoreCase)))
+                    .Where(j =>
+                        aliases.Any(a =>
+                            string.Equals(
+                                j.Country,
+                                a,
+                                StringComparison.OrdinalIgnoreCase)))
                     .OrderByDescending(j => j.PublishedAt)
                     .Take(6)
-                    .Select(j => MapToCard(j.JobId, j.JobTitle, j.TradeCategory,
-                        j.PublishingTags, j.KeySkills, j.CompanyName, j.CompanyLogoUrl,
-                        j.CompanyVisibility, j.OnshoreCity, j.OnshoreState, j.Country,
-                        j.IsInternational, j.SalaryMin, j.SalaryMax, j.SalaryCurrency,
-                        j.SalaryDisplayOption, j.PublishedAt))
+                    .Select(j => new HomepageJobCardDto
+                    {
+                        JobId = j.JobId,
+                        JobTitle = j.JobTitle,
+                        TradeCategory = j.TradeCategory,
+
+                        CompanyName =
+                            j.CompanyVisibility == CompanyVisibility.ShowName
+                                ? j.CompanyName
+                                : null,
+
+                        CompanyLogoUrl =
+                            j.CompanyVisibility == CompanyVisibility.ShowName
+                                ? j.CompanyLogoUrl
+                                : null,
+
+                        City = j.OnshoreCity,
+                        State = j.OnshoreState,
+                        Country = j.Country,
+
+                        IsInternational = j.IsInternational,
+
+                        SalaryDisplay = BuildSalaryDisplay(
+                            j.SalaryMin,
+                            j.SalaryMax,
+                            j.SalaryCurrency,
+                            j.SalaryDisplayOption),
+
+                        PublishedAt = j.PublishedAt,
+                        TimeAgo = GetTimeAgo(j.PublishedAt),
+
+                        KeySkills = j.KeySkills ?? new List<string>(),
+                        Tags = j.Tags ?? new List<string>(),
+
+                        JobType = j.JobType.ToString(),
+                        EmploymentType = j.EmploymentType.ToString(),
+                        EmploymentMode = j.EmploymentMode.ToString(),
+
+                        IsFeatured = j.IsFeatured,
+                        IsUrgentHiring = j.IsUrgentHiring
+                    })
                     .ToList();
             }
 
-            // 3. Jobs of the Day by Category
-            var jobsOfTheDayByCategory = new Dictionary<string, List<HomepageJobCardDto>>();
+            // =====================================================
+            // Jobs Of The Day
+            // =====================================================
+
+            var jobsOfTheDayByCategory =
+                new Dictionary<string, List<HomepageJobCardDto>>();
+
             foreach (var category in JobsOfTheDayCategories)
             {
                 jobsOfTheDayByCategory[category] = activeJobs
-                    .Where(j => string.Equals(j.TradeCategory, category, StringComparison.OrdinalIgnoreCase))
+                    .Where(j =>
+                        string.Equals(
+                            j.TradeCategory,
+                            category,
+                            StringComparison.OrdinalIgnoreCase))
                     .OrderByDescending(j => j.PublishedAt)
                     .Take(8)
-                    .Select(j => MapToCard(j.JobId, j.JobTitle, j.TradeCategory,
-                        j.PublishingTags, j.KeySkills, j.CompanyName, j.CompanyLogoUrl,
-                        j.CompanyVisibility, j.OnshoreCity, j.OnshoreState, j.Country,
-                        j.IsInternational, j.SalaryMin, j.SalaryMax, j.SalaryCurrency,
-                        j.SalaryDisplayOption, j.PublishedAt))
+                    .Select(j => new HomepageJobCardDto
+                    {
+                        JobId = j.JobId,
+                        JobTitle = j.JobTitle,
+                        TradeCategory = j.TradeCategory,
+
+                        CompanyName =
+                            j.CompanyVisibility == CompanyVisibility.ShowName
+                                ? j.CompanyName
+                                : null,
+
+                        CompanyLogoUrl =
+                            j.CompanyVisibility == CompanyVisibility.ShowName
+                                ? j.CompanyLogoUrl
+                                : null,
+
+                        City = j.OnshoreCity,
+                        State = j.OnshoreState,
+                        Country = j.Country,
+
+                        IsInternational = j.IsInternational,
+
+                        SalaryDisplay = BuildSalaryDisplay(
+                            j.SalaryMin,
+                            j.SalaryMax,
+                            j.SalaryCurrency,
+                            j.SalaryDisplayOption),
+
+                        PublishedAt = j.PublishedAt,
+                        TimeAgo = GetTimeAgo(j.PublishedAt),
+
+                        KeySkills = j.KeySkills ?? new List<string>(),
+                        Tags = j.Tags ?? new List<string>(),
+
+                        JobType = j.JobType.ToString(),
+                        EmploymentType = j.EmploymentType.ToString(),
+                        EmploymentMode = j.EmploymentMode.ToString(),
+
+                        IsFeatured = j.IsFeatured,
+                        IsUrgentHiring = j.IsUrgentHiring
+                    })
                     .ToList();
             }
 
-            // 4. Jobs by Role
+            // =====================================================
+            // Jobs By Role
+            // =====================================================
+
             var roleGroups = activeJobs
-                .Where(j => RoleGroupMap.ContainsKey(j.TradeCategory ?? ""))
-                .GroupBy(j => RoleGroupMap[j.TradeCategory!])
+                .Where(j =>
+                    !string.IsNullOrWhiteSpace(j.TradeCategory) &&
+                    RoleGroupMap.ContainsKey(j.TradeCategory))
+                .GroupBy(j => RoleGroupMap[j.TradeCategory])
                 .Select(g => new JobsByRoleCardDto
                 {
                     RoleGroup = g.Key,
                     JobCount = g.Count(),
                     BackgroundImageUrl = null
                 })
-                .OrderByDescending(r => r.JobCount)
+                .OrderByDescending(x => x.JobCount)
                 .ToList();
 
             return new HomepageResponseDto
             {
                 Success = true,
                 Message = "Homepage data loaded successfully.",
+
                 BrowseByCategory = browseByCategory,
+
                 LatestJobs = new LatestJobsSectionDto
                 {
                     CountryTabs = CountryTabs.ToList(),
                     JobsByCountry = latestJobsByCountry
                 },
+
                 JobsOfTheDay = new JobsOfTheDaySectionDto
                 {
                     CategoryTabs = JobsOfTheDayCategories.ToList(),
                     JobsByCategory = jobsOfTheDayByCategory
                 },
+
                 JobsByRole = roleGroups,
-                PopularSearchKeywords = PopularKeywords.ToList()
+
+                PopularSearchKeywords =
+                    PopularKeywords.ToList()
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "HomepageService.GetHomepageDataAsync failed.");
-            return new HomepageResponseDto { Success = false, Message = "An error occurred while loading the homepage." };
+            _logger.LogError(
+                ex,
+                "HomepageService.GetHomepageDataAsync failed.");
+
+            return new HomepageResponseDto
+            {
+                Success = false,
+                Message = "An error occurred while loading the homepage."
+            };
         }
     }
-
     private static HomepageJobCardDto MapToCard(
         Guid jobId, string jobTitle, string? tradeCategory,
         string? publishingTagsJson, string? keySkillsJson,
@@ -237,5 +385,59 @@ public class HomepageService : IHomepageService
         if (string.IsNullOrWhiteSpace(json)) return new();
         try { return JsonSerializer.Deserialize<List<string>>(json) ?? new(); }
         catch { return new(); }
+    }
+    private static string BuildSalaryDisplay(
+    int min,
+    int max,
+    SalaryCurrency currency,
+    SalaryDisplayOption displayOption)
+    {
+        if (displayOption == SalaryDisplayOption.Show_Range)
+            return "Confidential";
+
+        var symbol = currency switch
+        {
+            SalaryCurrency.USD => "$",
+            SalaryCurrency.AED => "AED ",
+            SalaryCurrency.SAR => "SAR ",
+            _ => "₹"
+        };
+
+        return displayOption switch
+        {
+            SalaryDisplayOption.Show_Min_Only
+                => $"{symbol}{min:N0}+",
+
+            SalaryDisplayOption.Show_Max_Only
+                => $"{symbol}{max:N0}",
+
+            _
+                => $"{symbol}{min:N0} - {symbol}{max:N0}"
+        };
+    }
+
+    private static string GetTimeAgo(DateTime? dateTime)
+    {
+        if (!dateTime.HasValue)
+            return "Recently";
+
+        var ts = DateTime.UtcNow - dateTime.Value;
+
+        if (ts.TotalSeconds < 60)
+            return $"{(int)ts.TotalSeconds} sec ago";
+
+        if (ts.TotalMinutes < 60)
+            return $"{(int)ts.TotalMinutes} min ago";
+
+        if (ts.TotalHours < 24)
+            return $"{(int)ts.TotalHours} hr ago";
+
+        if (ts.TotalDays < 30)
+            return $"{(int)ts.TotalDays} day(s) ago";
+
+        if (ts.TotalDays < 365)
+            return $"{(int)(ts.TotalDays / 30)} month(s) ago";
+
+        return $"{(int)(ts.TotalDays / 365)} year(s) ago";
     }
 }

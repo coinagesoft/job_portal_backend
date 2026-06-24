@@ -1,64 +1,161 @@
-﻿using JobPortal.Domain.Enums.RecruiterEnums;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using JobPortal.Application.DTOs.JobPosting;
+using JobPortal.Domain.Enums.RecruiterEnums;
 
-namespace JobPortal.Application.DTOs.Recruiter.JobListing
+namespace JobPortal.Application.DTOs.Recruiter.JobListing;
+
+public class RecruiterJobDetailResponseDto
 {
-    public class RecruiterJobDetailResponseDto
-    {
-        public Guid JobId { get; set; }
+    // =====================================================
+    // Basic
+    // =====================================================
 
-        public string JobTitle { get; set; } = string.Empty;
+    public Guid JobId { get; set; }
 
-        public string JobDescription { get; set; } = string.Empty;
+    public string JobTitle { get; set; } = string.Empty;
 
-        public string TradeCategory { get; set; } = string.Empty;
+    public string JobDescription { get; set; } = string.Empty;
 
-        public string? Role { get; set; }
+    public string TradeCategory { get; set; } = string.Empty;
 
-        public JobType JobType { get; set; }
+    public string? Role { get; set; }
 
-        public string JobStatus { get; set; } = string.Empty;
+    public string? Department { get; set; }
 
-        public int SalaryMin { get; set; }
+    // =====================================================
+    // Job Type
+    // =====================================================
 
-        public int SalaryMax { get; set; }
+    public JobType JobType { get; set; }
 
-        public string SalaryCurrency { get; set; } = string.Empty;
+    public EmploymentType EmploymentType { get; set; }
 
-        public short Vacancies { get; set; }
+    public EmploymentMode EmploymentMode { get; set; }
 
-        public byte ExperienceRequiredYears { get; set; }
+    public string JobStatus { get; set; } = string.Empty;
 
-        public string? EducationRequired { get; set; }
+    // =====================================================
+    // Salary
+    // =====================================================
 
-        public string? LanguageRequired { get; set; }
+    public int SalaryMin { get; set; }
 
-        public string? LicenceDocsRequired { get; set; }
+    public int SalaryMax { get; set; }
 
-        public string? KeySkills { get; set; }
+    public SalaryCurrency SalaryCurrency { get; set; }
 
-        public string LocationType { get; set; } = string.Empty;
+    public SalaryDisplayOption SalaryDisplayOption { get; set; }
 
-        public string? OnshoreCity { get; set; }
+    // =====================================================
+    // Vacancies & Experience
+    // =====================================================
 
-        public string? OnshoreState { get; set; }
+    public short Vacancies { get; set; }
 
-        public string? OffshoreVesselName { get; set; }
+    public byte ExperienceMinYears { get; set; }
 
-        public string? OffshoreRegion { get; set; }
+    public byte ExperienceMaxYears { get; set; }
 
-        public bool PassportRequired { get; set; }
+    public byte? DutyHoursPerDay { get; set; }
 
-        public DateOnly ApplicationDeadline { get; set; }
+    public bool PaidOvertime { get; set; }
 
-        public int AppliedCount { get; set; }
+    // =====================================================
+    // Eligibility
+    // =====================================================
 
-        public DateTime CreatedAt { get; set; }
+    public string? EducationRequired { get; set; }
 
-        public DateTime? PublishedAt { get; set; }
-    }
+    public GenderPreferred GenderPreferred { get; set; }
+
+    public byte? AgeMin { get; set; }
+
+    public byte? AgeMax { get; set; }
+
+    public bool DisabilityEligible { get; set; }
+
+    public bool PassportRequired { get; set; }
+
+    public byte? PassportValidityMonths { get; set; }
+
+    // =====================================================
+    // Skills
+    // =====================================================
+
+    public List<string> KeySkills { get; set; } = new();
+
+    public List<string> KeyResponsibilities { get; set; } = new();
+
+    public List<string> Benefits { get; set; } = new();
+
+    public List<string> Tags { get; set; } = new();
+
+    public string? LanguageRequired { get; set; }
+
+    public string? LicenceDocsRequired { get; set; }
+
+    // =====================================================
+    // Location
+    // =====================================================
+
+    public LocationType LocationType { get; set; }
+
+    public string? WorkAddressLine { get; set; }
+
+    public string? OnshoreCity { get; set; }
+
+    public string? OnshoreState { get; set; }
+
+    public string? OnshoreCountry { get; set; }
+
+    public string? OnshorePincode { get; set; }
+
+    public string? OffshoreVesselName { get; set; }
+
+    public string? OffshoreRegion { get; set; }
+
+    public string? OffshoreCountry { get; set; }
+
+    public bool IsInternational { get; set; }
+
+    // =====================================================
+    // Publishing
+    // =====================================================
+
+    public CompanyVisibility CompanyVisibility { get; set; }
+
+    public DateOnly ApplicationDeadline { get; set; }
+
+    public List<ScreeningQuestion> ScreeningQuestions { get; set; } = new();
+
+    public List<string> PublishingTags { get; set; } = new();
+
+    // =====================================================
+    // Analytics
+    // =====================================================
+
+    public int AppliedCount { get; set; }
+
+    public int ViewCount { get; set; }
+
+    public bool IsFeatured { get; set; }
+
+    public bool IsUrgentHiring { get; set; }
+
+    public bool IsActive { get; set; }
+
+    public bool IsDeleted { get; set; }
+
+    // =====================================================
+    // Audit
+    // =====================================================
+
+    public int CurrentStep { get; set; }
+
+    public int LastCompletedStep { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    public DateTime? PublishedAt { get; set; }
 }

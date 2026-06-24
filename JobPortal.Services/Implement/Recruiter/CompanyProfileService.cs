@@ -39,7 +39,7 @@ namespace JobPortal.Services.Implement.Recruiter
                     IndustryType = x.IndustryType,
 
                     GstRegistered = x.GstRegistered,
-                    Gstn = x.Gstn,
+                    Gstn = x.Gstin,
                     Pan = x.Pan,
                     Cin = x.Cin,
 

@@ -3,6 +3,7 @@
 // ============================================================
 
 using JobPortal.Application.DTOs.Candidate.Applications;
+using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.ICandidate;
 using Microsoft.EntityFrameworkCore;
@@ -37,7 +38,7 @@ public class ApplicationStatusService : IApplicationStatusService
             var allCards = apps.Select(a =>
             {
                 var job = a.JobPosting;
-                var isConfidential = job.CompanyVisibility == "Confidential_Client";
+                var isConfidential = job.CompanyVisibility == CompanyVisibility.ShowName;
                 var latestNote = a.RecruiterNotes?
                     .OrderByDescending(n => n.UpdatedAt)
                     .FirstOrDefault();
@@ -54,7 +55,7 @@ public class ApplicationStatusService : IApplicationStatusService
                     JobTitle = job.JobTitle,
                     TradeCategory = job.TradeCategory,
                     EmploymentType = GetEmploymentType(job),
-                    Tags = ParseJsonList(job.PublishingTags),
+                    Tags = job.PublishingTags,
                     ApplicationStatus = a.ApplicationStatus.ToString(),
                     StageLabel = GetStageLabel(a.ApplicationStatus.ToString()),
                     StatusNote = GetStatusNote(a.ApplicationStatus.ToString(), job.JobTitle),
@@ -219,7 +220,7 @@ public class ApplicationStatusService : IApplicationStatusService
 
     private static string GetEmploymentType(JobPortal.Domain.Entities.JobPosting job)
     {
-        var tags = ParseJsonList(job.PublishingTags);
+        var tags = job.PublishingTags;
         var known = new HashSet<string> { "Permanent", "Contract", "Temporary", "Internship" };
         return tags.FirstOrDefault(t => known.Contains(t)) ?? "Full time";
     }

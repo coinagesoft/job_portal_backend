@@ -30,6 +30,8 @@ public class JobApplication
 
     public DateTime? RejectedAt { get; set; }
 
+
+
     // Navigation
     public JobPosting JobPosting { get; set; } = default!;
     public CandidateProfile CandidateProfile { get; set; } = default!;

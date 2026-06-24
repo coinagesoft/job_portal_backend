@@ -36,7 +36,7 @@ public class HomepageJobCardDto
     public bool IsConfidentialCompany { get; set; }
     public string JobTitle { get; set; } = default!;
     public string TradeCategory { get; set; } = default!;
-    public string EmploymentType { get; set; } = default!;
+    public string? EmploymentType { get; set; } = default!;
     public string? City { get; set; }
     public string? State { get; set; }
     public string? Country { get; set; }
@@ -49,6 +49,12 @@ public class HomepageJobCardDto
     public DateTime? PublishedAt { get; set; }
     public bool IsUrgent { get; set; }
     public string? CoverImageUrl { get; set; }
+
+    public string? JobType { get; set; }
+    public string? EmploymentMode { get; set; }
+
+    public bool IsFeatured { get; set; }
+    public bool IsUrgentHiring { get; set; }
 }
 
 public class JobsOfTheDaySectionDto
