@@ -2,6 +2,7 @@
 //  JobPortal.Services/Implement/Candidate/CandidateJobService.cs
 // ============================================================
 
+using JobPortal.Application.DTOs.Candidate;
 using JobPortal.Application.DTOs.Candidate.Jobs;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums.RecruiterEnums;
@@ -27,6 +28,375 @@ public class CandidateJobService : ICandidateJobService
         _logger = logger;
     }
 
+
+    public async Task<List<CandidateJobListItemDto>> GetAllJobsAsync()
+    {
+        var today =
+            DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var jobs =
+            await _context.JobPostings
+                .AsNoTracking()
+                .Include(x => x.EmployerProfile)
+                    .ThenInclude(x => x.Badges)
+                .Where(x =>
+                    x.JobStatus == JobStatus.Active &&
+                    x.ApplicationDeadline >= today)
+                .OrderByDescending(x => x.IsFeatured)
+                .ThenByDescending(x => x.PublishedAt)
+                .ToListAsync();
+
+        return jobs.Select(job =>
+        {
+            string experienceDisplay;
+
+            if (job.ExperienceMinYears == 0 &&
+                job.ExperienceMaxYears == 0)
+            {
+                experienceDisplay = "Fresher";
+            }
+            else if (job.ExperienceMaxYears == 0)
+            {
+                experienceDisplay =
+                    $"{job.ExperienceMinYears}+ Years";
+            }
+            else
+            {
+                experienceDisplay =
+                    $"{job.ExperienceMinYears}-{job.ExperienceMaxYears} Years";
+            }
+
+            string jobLocation =
+                job.LocationType == LocationType.Offshore
+                    ? job.OffshoreRegion ?? "Offshore"
+                    : string.Join(", ",
+                        new[]
+                        {
+                        job.OnshoreCity,
+                        job.OnshoreState
+                        }
+                        .Where(x =>
+                            !string.IsNullOrWhiteSpace(x)));
+
+            string companyLocation =
+                string.Join(", ",
+                    new[]
+                    {
+                    job.EmployerProfile?.City,
+                    job.EmployerProfile?.State
+                    }
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x)));
+
+            return new CandidateJobListItemDto
+            {
+                JobId = job.JobId,
+                EmployerId = job.EmployerId,
+                CompanyLogoUrl =
+                    job.EmployerProfile?.CompanyLogoUrl,
+
+                CompanyName =
+                    job.CompanyVisibility ==
+                    CompanyVisibility.ShowName
+                        ? job.EmployerProfile?.CompanyDisplayName
+                        : "Confidential Company",
+
+                JobTitle = job.JobTitle,
+
+                TradeCategory = job.TradeCategory,
+
+                Department = job.Department,
+
+                EmploymentType =
+                    job.EmploymentType.ToString(),
+
+                EmploymentMode =
+                    job.EmploymentMode.ToString(),
+
+                JobType =
+                    job.JobType.ToString(),
+
+                JobLocation = jobLocation,
+
+                CompanyLocation = companyLocation,
+
+                SalaryDisplay =
+                    FormatSalary(job) ?? "Confidential",
+
+                ExperienceDisplay =
+                    experienceDisplay,
+
+                Vacancies =
+                    job.Vacancies,
+
+                ApplicationsCount =
+                    job.AppliedCount,
+
+                ViewCount =
+                    job.ViewCount,
+
+                PostedOn =
+                    job.PublishedAt,
+
+                TimeAgo =
+                    GetTimeAgo(job.PublishedAt),
+
+                Description =
+                    job.JobDescription.Length > 150
+                        ? job.JobDescription.Substring(0, 150) + "..."
+                        : job.JobDescription,
+
+                Skills =
+                    job.KeySkills?.Take(5).ToList()
+                    ?? new List<string>(),
+
+                IsFeatured =
+                    job.IsFeatured,
+
+                IsUrgentHiring =
+                    job.IsUrgentHiring,
+
+                PassportRequired =
+                    job.PassportRequired,
+
+                IsInternational =
+                    job.IsInternational,
+
+                AiMatchPercentage = null,
+
+                CompanyVerified =
+                    job.EmployerProfile?.Badges?.Any() == true,
+
+                ApplicationDeadline =
+                    job.ApplicationDeadline
+            };
+        }).ToList();
+    }
+
+    public async Task<CandidateJobDetailsDto?> GetJobDetailsAsync(Guid jobId)
+    {
+        var job = await _context.JobPostings
+            .AsNoTracking()
+            .Include(x => x.EmployerProfile)
+                .ThenInclude(x => x.Badges)
+            .FirstOrDefaultAsync(x =>
+                x.JobId == jobId &&
+                x.JobStatus == JobStatus.Active &&
+                x.IsActive &&
+                !x.IsDeleted);
+
+        if (job == null)
+            return null;
+
+        var employer = job.EmployerProfile;
+
+        var companyLocation = string.Join(", ",
+            new[]
+            {
+            employer?.City,
+            employer?.State,
+            employer?.Country
+            }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        var jobLocation =
+            job.LocationType == LocationType.Offshore
+                ? string.Join(", ",
+                    new[]
+                    {
+                    job.OffshoreRegion,
+                    job.OffshoreCountry
+                    }
+                    .Where(x => !string.IsNullOrWhiteSpace(x)))
+                : string.Join(", ",
+                    new[]
+                    {
+                    job.OnshoreCity,
+                    job.OnshoreState,
+                    job.OnshoreCountry
+                    }
+                    .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        return new CandidateJobDetailsDto
+        {
+            JobId = job.JobId,
+
+            CompanyLogoUrl = employer?.CompanyLogoUrl,
+
+            CompanyName =
+                job.CompanyVisibility == CompanyVisibility.ShowName
+                    ? employer?.CompanyDisplayName
+                    : "Confidential Company",
+
+            CompanyLocation = companyLocation,
+
+            CompanyLocationMapLink =
+                !string.IsNullOrWhiteSpace(employer?.AddressLine1)
+                    ? $"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(employer.AddressLine1)}"
+                    : null,
+
+            VerificationBadges =
+                employer?.Badges?
+                    .Where(x => x.BadgeStatus == BadgeStatus.Approved)
+                    .Select(x => x.BadgeType.ToString())
+                    .ToList()
+                    ?? new List<string>(),
+
+            AiMatchPercentage = null,
+
+            JobTitle = job.JobTitle,
+
+            TradeCategory = job.TradeCategory,
+
+            Department = job.Department,
+
+            EmploymentType = job.EmploymentType.ToString(),
+
+            EmploymentMode = job.EmploymentMode.ToString(),
+
+            JobType = job.JobType.ToString(),
+
+            JobLocation = jobLocation,
+
+            LocationType = job.LocationType.ToString(),
+
+            SalaryRange = FormatSalary(job) ?? "Confidential",
+
+            ApplicationCount = job.AppliedCount,
+
+            OpeningCount = job.Vacancies,
+
+            PostedOn = job.PublishedAt,
+
+            ApplicationDeadline = job.ApplicationDeadline,
+
+            ExperienceMinYears = job.ExperienceMinYears,
+
+            ExperienceMaxYears = job.ExperienceMaxYears,
+
+            EducationRequired = job.EducationRequired,
+
+            AgeMin = job.AgeMin,
+
+            AgeMax = job.AgeMax,
+
+            GenderPreferred = job.GenderPreferred.ToString(),
+
+            DisabilityFriendly = job.DisabilityEligible,
+
+            IsInternational = job.IsInternational,
+
+            PassportRequired = job.PassportRequired,
+
+            DutyHoursPerDay = job.DutyHoursPerDay,
+
+            PaidOvertime = job.PaidOvertime,
+
+            LanguagePreferred = job.LanguageRequired,
+
+            RequiredLicencesCertificates =
+                job.LicenceDocsRequired,
+
+            JobDescription = job.JobDescription,
+
+            KeyResponsibilities =
+                job.KeyResponsibilities ??
+                new List<string>(),
+
+            ProfessionalSkills =
+                job.KeySkills ??
+                new List<string>(),
+
+            PerksAndBenefits =
+                job.Benefits ??
+                new List<string>()
+        };
+    }
+
+    public async Task<CandidateCompanyDetailResponseDto?> GetCompanyDetailAsync(
+    Guid employerId)
+    {
+        var company = await _context.EmployerProfiles
+            .AsNoTracking()
+            .Include(x => x.Badges)
+            .FirstOrDefaultAsync(x => x.EmployerId == employerId);
+
+        if (company == null)
+            return null;
+
+        var activeJobs = await _context.JobPostings
+            .CountAsync(x =>
+                x.EmployerId == employerId &&
+                x.JobStatus == JobStatus.Active &&
+                x.IsActive &&
+                !x.IsDeleted);
+
+        var totalJobs = await _context.JobPostings
+            .CountAsync(x =>
+                x.EmployerId == employerId);
+
+        return new CandidateCompanyDetailResponseDto
+        {
+            EmployerId = company.EmployerId,
+
+            CompanyName = company.CompanyDisplayName,
+            TradeName = company.TradeName,
+
+            CompanyLogoUrl = company.CompanyLogoUrl,
+            CoverImageUrl = company.CoverImageUrl,
+
+            CompanyDescription = company.CompanyDescription,
+
+            IndustryType = company.IndustryType.ToString(),
+            BusinessType = company.BusinessType.ToString(),
+            CompanySize = company.CompanySize?.ToString(),
+
+            TotalEmployees = company.TotalEmployees,
+            YearEstablished = company.YearEstablished,
+
+            AddressLine1 = company.AddressLine1,
+            AddressLine2 = company.AddressLine2,
+            City = company.City,
+            State = company.State,
+            Country = company.Country,
+            Pincode = company.Pincode,
+
+            OfficeAddress = company.OfficeAddress,
+
+            FullLocation = string.Join(", ",
+                new[]
+                {
+                company.City,
+                company.State,
+                company.Country
+                }
+                .Where(x => !string.IsNullOrWhiteSpace(x))),
+
+            IsVerified = company.Badges.Any(),
+
+            HasPoeLicence =
+                !string.IsNullOrWhiteSpace(company.PoeLicenceUrl),
+
+            HasRpslLicence =
+                !string.IsNullOrWhiteSpace(company.RpslLicenceUrl),
+
+            VerificationBadges = company.Badges
+                .Select(x => x.BadgeType.ToString())
+                .ToList(),
+
+            OpenPositionsCount = activeJobs,
+
+            TotalJobsPosted = totalJobs,
+
+            WebsiteUrl = company.WebsiteUrl,
+            LinkedInUrl = company.LinkedInUrl,
+            FacebookUrl = company.FacebookUrl,
+            InstagramUrl = company.InstagramUrl,
+
+            ProfileCompletionScore =
+                company.ProfileCompletionScore
+        };
+    }
     // ════════════════════════════════════════════════════════
     // 1. JOB LIST — with search filters, sorting, pagination
     // ════════════════════════════════════════════════════════
@@ -669,8 +1039,20 @@ public class CandidateJobService : ICandidateJobService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "ToggleSaveJobAsync error. JobId={JobId} CandidateId={CandidateId}", jobId, candidateId);
-            return new SaveJobResponseDto { Success = false, Message = "An error occurred." };
+            _logger.LogError(
+                ex,
+                "ToggleSaveJobAsync error. JobId={JobId} CandidateId={CandidateId}",
+                jobId,
+                candidateId);
+
+            return new SaveJobResponseDto
+            {
+                Success = false,
+                Message = ex.InnerException?.Message ?? ex.Message,
+                JobId = jobId,
+                CandidateId= candidateId,
+                IsSaved = false
+            };
         }
     }
 
@@ -1365,17 +1747,17 @@ public class CandidateJobService : ICandidateJobService
     // 6. APPLY NOW — submit application with screening answers
     // ════════════════════════════════════════════════════════
     public async Task<ApplyJobResponseDto> ApplyJobAsync(
-     Guid jobId,
-     Guid candidateId,
-     ApplyJobRequestDto request)
+       Guid jobId,
+       Guid candidateId,
+       ApplyJobRequestDto request)
     {
         try
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-            // ─────────────────────────────────────────────
+            // =====================================================
             // Load Job
-            // ─────────────────────────────────────────────
+            // =====================================================
 
             var job = await _context.JobPostings
                 .Include(j => j.EmployerProfile)
@@ -1392,9 +1774,19 @@ public class CandidateJobService : ICandidateJobService
                     "This job is no longer accepting applications.");
             }
 
-            // ─────────────────────────────────────────────
-            // Load Candidate
-            // ─────────────────────────────────────────────
+            // =====================================================
+            // Vacancy Validation
+            // =====================================================
+
+            if (job.Vacancies <= 0)
+            {
+                return ApplyFail(
+                    "No openings are available for this job.");
+            }
+
+            // =====================================================
+            // Candidate
+            // =====================================================
 
             var candidate = await _context.CandidateProfiles
                 .Include(c => c.Cvs)
@@ -1408,9 +1800,20 @@ public class CandidateJobService : ICandidateJobService
                     "Candidate profile not found.");
             }
 
-            // ─────────────────────────────────────────────
-            // Prevent Duplicate Application
-            // ─────────────────────────────────────────────
+            // =====================================================
+            // CV Validation
+            // =====================================================
+
+            if (candidate.Cvs == null ||
+                !candidate.Cvs.Any())
+            {
+                return ApplyFail(
+                    "Please upload your CV before applying.");
+            }
+
+            // =====================================================
+            // Duplicate Check
+            // =====================================================
 
             var alreadyApplied =
                 await _context.JobApplications
@@ -1424,9 +1827,9 @@ public class CandidateJobService : ICandidateJobService
                     "You have already applied to this job.");
             }
 
-            // ─────────────────────────────────────────────
+            // =====================================================
             // Passport Validation
-            // ─────────────────────────────────────────────
+            // =====================================================
 
             if (job.PassportRequired &&
                 request.PassportGatePassed == false)
@@ -1435,9 +1838,9 @@ public class CandidateJobService : ICandidateJobService
                     "A valid passport is required to apply for this job.");
             }
 
-            // ─────────────────────────────────────────────
+            // =====================================================
             // Screening Questions Validation
-            // ─────────────────────────────────────────────
+            // =====================================================
 
             if (job.ScreeningQuestions != null &&
                 job.ScreeningQuestions.Any())
@@ -1445,6 +1848,7 @@ public class CandidateJobService : ICandidateJobService
                 foreach (var question in job.ScreeningQuestions)
                 {
                     var answered =
+                        request.ScreeningAnswers != null &&
                         request.ScreeningAnswers.Any(x =>
                             x.QuestionText.Equals(
                                 question,
@@ -1459,9 +1863,9 @@ public class CandidateJobService : ICandidateJobService
                 }
             }
 
-            // ─────────────────────────────────────────────
+            // =====================================================
             // Serialize Answers
-            // ─────────────────────────────────────────────
+            // =====================================================
 
             var answersJson =
                 request.ScreeningAnswers != null &&
@@ -1470,55 +1874,49 @@ public class CandidateJobService : ICandidateJobService
                         request.ScreeningAnswers)
                     : null;
 
-            // ─────────────────────────────────────────────
+            // =====================================================
             // Create Application
-            // ─────────────────────────────────────────────
+            // =====================================================
 
-            var application =
-                new JobApplication
-                {
-                    ApplicationId = Guid.NewGuid(),
+            var application = new JobApplication
+            {
+                ApplicationId = Guid.NewGuid(),
 
-                    JobId = job.JobId,
+                JobId = job.JobId,
 
-                    CandidateId = candidateId,
+                CandidateId = candidateId,
 
-                    EmployerId = job.EmployerId,
+                EmployerId = job.EmployerId,
 
-                    AppliedAt = DateTime.UtcNow,
+                AppliedAt = DateTime.UtcNow,
 
-                    ApplicationStatus =
-                        ApplicationStatus.Applied,
+                ApplicationStatus =
+                    ApplicationStatus.Applied,
 
-                    StatusUpdatedAt =
-                        DateTime.UtcNow,
+                StatusUpdatedAt =
+                    DateTime.UtcNow,
 
-                    PassportGatePassed =
-                        request.PassportGatePassed ?? true,
+                PassportGatePassed =
+                    request.PassportGatePassed ?? true,
 
-                    WithdrawalAllowed = true,
+                WithdrawalAllowed = true,
 
-                    RejectionAutoNotify = true
-                };
+                RejectionAutoNotify = true,
+
+                // Uncomment if column exists
+                // ScreeningAnswers = answersJson
+            };
 
             _context.JobApplications.Add(application);
 
-            // ─────────────────────────────────────────────
-            // Update Job Analytics
-            // ─────────────────────────────────────────────
+            // =====================================================
+            // Analytics
+            // =====================================================
 
             job.AppliedCount++;
 
-            // ─────────────────────────────────────────────
-            // Update Candidate
-            // ─────────────────────────────────────────────
-
             candidate.LastAppliedAt =
                 DateTime.UtcNow;
-
-            // ─────────────────────────────────────────────
-            // Save
-            // ─────────────────────────────────────────────
 
             await _context.SaveChangesAsync();
 
@@ -1528,9 +1926,9 @@ public class CandidateJobService : ICandidateJobService
                 job.JobId,
                 candidateId);
 
-            // ─────────────────────────────────────────────
+            // =====================================================
             // Response
-            // ─────────────────────────────────────────────
+            // =====================================================
 
             return new ApplyJobResponseDto
             {
@@ -1549,10 +1947,9 @@ public class CandidateJobService : ICandidateJobService
                     job.JobTitle,
 
                 CompanyName =
-                    job.CompanyVisibility ==
-                    CompanyVisibility.ShowName
-                        ? null
-                        : job.EmployerProfile.CompanyDisplayName,
+                    job.CompanyVisibility == CompanyVisibility.ShowName
+                        ? job.EmployerProfile?.CompanyDisplayName
+                        : "Confidential Company",
 
                 ApplicationStatus =
                     application.ApplicationStatus.ToString(),
@@ -1563,11 +1960,7 @@ public class CandidateJobService : ICandidateJobService
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "ApplyJobAsync error. JobId={JobId}, CandidateId={CandidateId}",
-                jobId,
-                candidateId);
+            _logger.LogError(ex, ex.Message);
 
             return ApplyFail(
                 "An unexpected error occurred. Please try again.");

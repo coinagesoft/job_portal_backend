@@ -1,23 +1,7 @@
-﻿// ============================================================
-//  JobPortal.API/Controllers/Candidate/CandidateJobController.cs
-//
-//  Base route : api/candidate/jobs
-//
-//  Endpoints:
-//    GET    api/candidate/jobs                          → job list + search + filters
-//    GET    api/candidate/jobs/filter-options           → sidebar dropdown values
-//    GET    api/candidate/jobs/{jobId}                  → job detail
-//    POST   api/candidate/jobs/{jobId}/save             → toggle save/unsave
-//
-//    GET    api/candidate/jobs/saved                    → saved jobs list
-//    POST   api/candidate/jobs/{jobId}/apply            → apply now (with screening answers)
-//
-//    GET    api/candidate/jobs/my-applications          → my application history
-//    DELETE api/candidate/jobs/applications/{appId}     → withdraw application
-// ============================================================
-
+﻿
 using JobPortal.Application.DTOs.Candidate.Jobs;
 using JobPortal.Services.IImplement.ICandidate;
+using JobPortal.Services.Implement.Candidate;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -49,35 +33,51 @@ public class CandidateJobController : ControllerBase
         return Guid.TryParse(claim, out var id) ? id : Guid.Empty;
     }
 
-    // ════════════════════════════════════════════════════════
-    // GET  api/candidate/jobs
-    // ════════════════════════════════════════════════════════
-    /// <summary>
-    /// Jobs-list page — paginated, filtered, sorted active job cards.
-    /// All query params optional. Public (no auth needed).
-    /// Filters: keyword, location, state, locationType, tradeCategory, role,
-    /// experienceYearsMin/Max, salaryMin/Max, salaryCurrency, gender, educationLevel,
-    /// disabilityEligible, passportRequired, employmentType, jobType, postedWithinDays,
-    /// page (default 1), pageSize (default 12, max 50),
-    /// sort: newest | oldest | salary_high | salary_low
-    /// </summary>
-    [HttpGet]
+    [HttpGet("All_Jobs")]
     [AllowAnonymous]
-    [ProducesResponseType(typeof(CandidateJobListResponseDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetJobs([FromQuery] CandidateJobSearchRequestDto request)
+    public async Task<IActionResult> GetAllJobs()
     {
-        var result = await _jobService.GetJobsAsync(request);
-        return result.Success ? Ok(result) : BadRequest(result);
+        var result =
+            await _jobService.GetAllJobsAsync();
+
+        return Ok(result);
     }
 
-    // ════════════════════════════════════════════════════════
-    // GET  api/candidate/jobs/filter-options
-    // NOTE: declared before {jobId} so the literal isn't treated as a Guid
-    // ════════════════════════════════════════════════════════
-    /// <summary>
-    /// Returns dynamic filter values (cities, trades, roles, etc.) from live jobs.
-    /// Used to populate sidebar dropdowns / checkboxes on the jobs-list page.
-    /// </summary>
+    [HttpGet("job_details/{jobId:guid}")]
+    public async Task<IActionResult> GetJobDetails(Guid jobId)
+    {
+        var result =
+            await _jobService
+                .GetJobDetailsAsync(jobId);
+
+        if (result == null)
+            return NotFound(new
+            {
+                Message = "Job not found."
+            });
+
+        return Ok(result);
+    }
+  
+
+    [HttpGet("company_details/{employerId}")]
+    public async Task<IActionResult> GetCompanyDetail(
+    Guid employerId)
+    {
+        var result =
+            await _jobService
+                .GetCompanyDetailAsync(employerId);
+
+        if (result == null)
+            return NotFound(new
+            {
+                Success = false,
+                Message = "Company not found."
+            });
+
+        return Ok(result);
+    }
+ 
     [HttpGet("filter-options")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(JobFilterOptionsResponseDto), StatusCodes.Status200OK)]
@@ -87,6 +87,16 @@ public class CandidateJobController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+
+  
+    [HttpGet]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(CandidateJobListResponseDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetJobs([FromQuery] CandidateJobSearchRequestDto request)
+    {
+        var result = await _jobService.GetJobsAsync(request);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
     // ════════════════════════════════════════════════════════
     // GET  api/candidate/jobs/saved
     // ════════════════════════════════════════════════════════
@@ -160,18 +170,28 @@ public class CandidateJobController : ControllerBase
     /// Returns isSaved: true when bookmarked, isSaved: false when removed.
     /// </summary>
     [HttpPost("{jobId:guid}/save")]
-    [AllowAnonymous]                        // ← [Authorize(Roles = "Candidate")] in prod
+    [AllowAnonymous]
     [ProducesResponseType(typeof(SaveJobResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> ToggleSaveJob(
-        Guid jobId, [FromQuery] Guid? candidateId = null)
+        Guid jobId,
+        [FromQuery] Guid? candidateId = null)
     {
         var id = ResolveCandidateId(candidateId);
+
         if (id == Guid.Empty)
-            return Unauthorized(new { message = "Please log in to save jobs." });
+        {
+            return Unauthorized(new
+            {
+                message = "Please log in to save jobs."
+            });
+        }
 
         var result = await _jobService.ToggleSaveJobAsync(jobId, id);
-        return result.Success ? Ok(result) : BadRequest(result);
+
+        return result.Success
+            ? Ok(result)
+            : BadRequest(result);
     }
 
     // ════════════════════════════════════════════════════════

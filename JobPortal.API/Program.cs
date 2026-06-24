@@ -1,4 +1,6 @@
 using FirebaseAdmin;
+using Google;
+using Npgsql;
 using Google.Apis.Auth.OAuth2;
 using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Infrastructure.JWT;
@@ -36,11 +38,17 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddLogging();
 
 // REGISTER POSTGRESQL DB CONTEXT
+
+var dataSourceBuilder =
+    new NpgsqlDataSourceBuilder(
+        builder.Configuration.GetConnectionString("DefaultConnection"));
+
+dataSourceBuilder.EnableDynamicJson();
+
+var dataSource = dataSourceBuilder.Build();
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    options.UseNpgsql(connectionString);
-});
+    options.UseNpgsql(dataSource));
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
