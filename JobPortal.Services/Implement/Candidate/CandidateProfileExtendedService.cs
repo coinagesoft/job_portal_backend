@@ -143,6 +143,7 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
         }
     }
 
+
     public async Task<WorkExperienceMutationResponseDto> UpdateWorkExperienceAsync(
         Guid candidateId, Guid workId, UpdateWorkExperienceRequestDto request)
     {
