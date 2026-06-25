@@ -792,8 +792,8 @@ public class AppDbContext : DbContext
                 .HasColumnName("consent_timestamp");
 
             e.Property(x => x.CompanyHighlights)
-                .HasColumnName("tags")
-                .HasColumnType("jsonb"); ;
+                 .HasColumnName("company_highlights")
+                 .HasColumnType("jsonb");
             // INDEX
             e.HasIndex(x => x.Gstin)
                 .IsUnique();

@@ -80,7 +80,6 @@ public class HomepageService : IHomepageService
                     j.JobId,
                     j.JobTitle,
                     j.TradeCategory,
-                    j.Tags,
                     j.KeySkills,
 
                     j.OnshoreCity,
@@ -193,7 +192,6 @@ public class HomepageService : IHomepageService
                         TimeAgo = GetTimeAgo(j.PublishedAt),
 
                         KeySkills = j.KeySkills ?? new List<string>(),
-                        Tags = j.Tags ?? new List<string>(),
 
                         JobType = j.JobType.ToString(),
                         EmploymentType = j.EmploymentType.ToString(),
@@ -254,7 +252,6 @@ public class HomepageService : IHomepageService
                         TimeAgo = GetTimeAgo(j.PublishedAt),
 
                         KeySkills = j.KeySkills ?? new List<string>(),
-                        Tags = j.Tags ?? new List<string>(),
 
                         JobType = j.JobType.ToString(),
                         EmploymentType = j.EmploymentType.ToString(),
