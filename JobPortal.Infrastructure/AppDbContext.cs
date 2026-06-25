@@ -792,8 +792,8 @@ public class AppDbContext : DbContext
                 .HasColumnName("consent_timestamp");
 
             e.Property(x => x.CompanyHighlights)
-                 .HasColumnName("company_highlights")
-                 .HasColumnType("jsonb");
+     .HasColumnName("company_highlights")
+     .HasColumnType("jsonb");
             // INDEX
             e.HasIndex(x => x.Gstin)
                 .IsUnique();
@@ -903,6 +903,7 @@ public class AppDbContext : DbContext
         ? new List<string>()
         : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null)
 );
+
         m.Entity<JobPosting>(e =>
         {
             e.ToTable("job_postings");

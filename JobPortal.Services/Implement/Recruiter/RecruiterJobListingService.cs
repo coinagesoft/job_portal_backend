@@ -152,102 +152,61 @@ namespace JobPortal.Services.Implement.Recruiter
             // Data
             // ==========================================
 
-            var jobs = await query
-                .OrderByDescending(x => x.CreatedAt)
-                .Skip(
-                    (request.PageNumber - 1)
-                    * request.PageSize)
-                .Take(request.PageSize)
-                .Select(x =>
-                    new RecruiterJobListItemDto
-                    {
-                        JobId = x.JobId,
+            var entities = await query
+    .OrderByDescending(x => x.CreatedAt)
+    .Skip((request.PageNumber - 1) * request.PageSize)
+    .Take(request.PageSize)
+    .ToListAsync();
 
-                        // Basic
-                        JobTitle = x.JobTitle,
-                        TradeCategory = x.TradeCategory,
-                        Role = x.Role,
-                        Department = x.Department,
+            var jobs = entities.Select(x => new RecruiterJobListItemDto
+            {
+                JobId = x.JobId,
 
-                        // Type
-                        JobType = x.JobType,
+                JobTitle = x.JobTitle,
+                TradeCategory = x.TradeCategory,
+                Role = x.Role,
+                Department = x.Department,
 
-                        EmploymentType =
-                            x.EmploymentType.ToString(),
+                JobType = x.JobType,
 
-                        EmploymentMode =
-                            x.EmploymentMode.ToString(),
+                EmploymentType = x.EmploymentType.ToString(),
+                EmploymentMode = x.EmploymentMode.ToString(),
 
-                        // Status
-                        JobStatus =
-                            x.JobStatus.ToString(),
+                JobStatus = x.JobStatus.ToString(),
 
-                        IsActive =
-                            x.IsActive,
+                IsActive = x.IsActive,
+                IsFeatured = x.IsFeatured,
+                IsUrgentHiring = x.IsUrgentHiring,
 
-                        IsFeatured =
-                            x.IsFeatured,
+                AppliedCount = x.AppliedCount,
+                ViewCount = x.ViewCount,
+                Vacancies = x.Vacancies,
 
-                        IsUrgentHiring =
-                            x.IsUrgentHiring,
+                ExperienceMinYears = x.ExperienceMinYears,
+                ExperienceMaxYears = x.ExperienceMaxYears,
 
-                        // Counts
-                        AppliedCount =
-                            x.AppliedCount,
+                SalaryMin = x.SalaryMin,
+                SalaryMax = x.SalaryMax,
+                SalaryCurrency = x.SalaryCurrency.ToString(),
+                SalaryDisplayOption = x.SalaryDisplayOption.ToString(),
 
-                        ViewCount =
-                            x.ViewCount,
+                ApplicationDeadline = x.ApplicationDeadline,
+                CreatedAt = x.CreatedAt,
+                PublishedAt = x.PublishedAt,
 
-                        Vacancies =
-                            x.Vacancies,
+                Location = x.LocationType == LocationType.Onshore
+                    ? string.Join(", ",
+                        new[]
+                        {
+                x.OnshoreCity,
+                x.OnshoreState
+                        }
+                        .Where(v => !string.IsNullOrWhiteSpace(v)))
+                    : x.OffshoreRegion ?? string.Empty,
 
-                        // Experience
-                        ExperienceMinYears =
-                            x.ExperienceMinYears,
+                LocationType = x.LocationType.ToString()
 
-                        ExperienceMaxYears =
-                            x.ExperienceMaxYears,
-
-                        // Salary
-                        SalaryMin =
-                            x.SalaryMin,
-
-                        SalaryMax =
-                            x.SalaryMax,
-
-                        SalaryCurrency =
-                            x.SalaryCurrency.ToString(),
-
-                        SalaryDisplayOption =
-                            x.SalaryDisplayOption.ToString(),
-
-                        // Dates
-                        ApplicationDeadline =
-                            x.ApplicationDeadline,
-
-                        CreatedAt =
-                            x.CreatedAt,
-
-                        PublishedAt =
-                            x.PublishedAt,
-
-                        // Location
-                        Location =
-                            x.LocationType == LocationType.Onshore
-                                ? string.Join(", ",
-                                    new[]
-                                    {
-                                x.OnshoreCity,
-                                x.OnshoreState
-                                    }
-                                    .Where(v =>
-                                        !string.IsNullOrWhiteSpace(v)))
-                                : x.OffshoreRegion ?? string.Empty,
-
-                        LocationType =
-                            x.LocationType.ToString()
-                    })
-                .ToListAsync();
+            }).ToList();
 
             return new JobListResponseDto
             {
