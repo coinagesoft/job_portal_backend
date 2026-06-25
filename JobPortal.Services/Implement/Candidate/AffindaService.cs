@@ -197,7 +197,9 @@ public class AffindaService : IAffindaService
                 _logger.LogWarning("Affinda poll attempt {Attempt} failed: {Status}", attempt, response.StatusCode);
                 continue;
             }
-
+            File.WriteAllText(
+     @"C:\Users\ASUS\Downloads\affinda.json",
+     body);
             var doc = JsonSerializer.Deserialize<AffindaSingleDocumentResponse>(body, _jsonOpts);
 
             if (doc?.Meta?.Ready == true || doc?.Meta?.Failed == true)
@@ -219,12 +221,16 @@ public class AffindaService : IAffindaService
 
     // ── Step 3: Map ──────────────────────────────────────────
     private static AffindaParseResult MapToParseResult(
+
         AffindaSingleDocumentResponse document, string identifier)
     {
         var d = document.Data;
 
-        var firstName = d?.CandidateName?.FirstName?.Trim();
-        var familyName = d?.CandidateName?.FamilyName?.Trim();
+        var firstName =
+      d?.CandidateName?.Parsed?.FirstName?.Parsed?.Trim();
+
+        var familyName =
+            d?.CandidateName?.Parsed?.FamilyName?.Parsed?.Trim();
         var fullName = string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(familyName)
             ? null
             : $"{firstName} {familyName}".Trim();
@@ -234,17 +240,23 @@ public class AffindaService : IAffindaService
 
         var email = d?.Email?.FirstOrDefault();
 
-        var primaryTrade = d?.WorkExperience?.FirstOrDefault()?.JobTitle;
+        var primaryTrade =
+     d?.WorkExperience?
+       .FirstOrDefault()?
+       .Parsed?
+       .WorkExperienceJobTitle?
+       .Parsed;
 
-        int? experienceYrs = d?.TotalYearsExperience.HasValue == true
-            ? (int)Math.Round(d.TotalYearsExperience.Value)
-            : null;
-
-        var skills = (d?.Skill ?? new())
-            .Where(s => !string.IsNullOrWhiteSpace(s.Name))
-            .Select(s => s.Name!)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        int? experienceYrs =
+     d?.TotalYearsExperience?.Parsed.HasValue == true
+         ? (int)Math.Round(d.TotalYearsExperience.Parsed.Value)
+         : null;
+        var skills =
+            (d?.Skill ?? new())
+                .Where(s => !string.IsNullOrWhiteSpace(s.Parsed?.Name))
+                .Select(s => s.Parsed!.Name!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
         var rawJson = JsonSerializer.Serialize(document, new JsonSerializerOptions
         {
@@ -269,9 +281,9 @@ public class AffindaService : IAffindaService
             ParsedExperienceYrs = experienceYrs,
             ParsedSkills = skills,
             AiConfidenceScore = document.Meta?.OcrConfidence,
-            City = d?.Location?.City,
-            State = d?.Location?.State,
-            Country = d?.Location?.Country,
+            City = d?.Location?.Parsed?.City,
+            State = d?.Location?.Parsed?.State,
+            Country = d?.Location?.Parsed?.Country,
             WorkExperiences = d?.WorkExperience ?? new(),
             Educations = d?.Education ?? new(),
             Languages = d?.Language ?? new(),

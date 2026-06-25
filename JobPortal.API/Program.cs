@@ -139,6 +139,7 @@ builder.Services.AddHttpClient<IAffindaService, AffindaService>();
 // ── Document service depends on IAffindaService ──────────────
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 builder.Services.AddScoped<IPublicCompanyService, PublicCompanyService>();
+builder.Services.AddHttpClient<IGeminiDocumentParserService, GeminiDocumentParserService>();
 // ── Firebase ─────────────────────────────────────────────────
 FirebaseApp.Create(new AppOptions()
 {

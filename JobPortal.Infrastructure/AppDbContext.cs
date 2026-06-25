@@ -6,7 +6,8 @@ using JobPortal.Domain.Enums.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Reflection.Emit;
-
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace JobPortal.Infrastructure.Persistence;
 
 
@@ -896,7 +897,12 @@ public class AppDbContext : DbContext
                 .WithOne(x => x.NotificationSetting)
                 .HasForeignKey<EmployerNotificationSetting>(x => x.EmployerId);
         });
-
+        var stringListConverter = new ValueConverter<List<string>?, string?>(
+    v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+    v => string.IsNullOrEmpty(v)
+        ? new List<string>()
+        : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null)
+);
         m.Entity<JobPosting>(e =>
         {
             e.ToTable("job_postings");
@@ -964,8 +970,9 @@ public class AppDbContext : DbContext
              .HasColumnName("language_required");
 
             e.Property(x => x.KeySkills)
-             .HasColumnName("key_skills")
-             .HasColumnType("jsonb");
+  .HasColumnName("key_skills")
+  .HasConversion(stringListConverter)
+  .HasColumnType("jsonb");
 
             e.Property(x => x.DisabilityEligible)
              .HasColumnName("disability_eligible");
@@ -1017,12 +1024,14 @@ public class AppDbContext : DbContext
              .HasColumnName("last_completed_step");
 
             e.Property(x => x.ScreeningQuestions)
-             .HasColumnName("screening_questions")
-             .HasColumnType("jsonb");
+   .HasColumnName("screening_questions")
+   .HasConversion(stringListConverter)
+   .HasColumnType("jsonb");
 
             e.Property(x => x.PublishingTags)
-             .HasColumnName("publishing_tags")
-             .HasColumnType("jsonb");
+           .HasColumnName("publishing_tags")
+           .HasConversion(stringListConverter)
+           .HasColumnType("jsonb");
 
             // Relationships
             e.HasOne(x => x.EmployerProfile)
@@ -1095,8 +1104,9 @@ public class AppDbContext : DbContext
                 .HasColumnName("department");
 
             e.Property(x => x.KeyResponsibilities)
-                .HasColumnName("key_responsibilities")
-                .HasColumnType("jsonb");
+ .HasColumnName("key_responsibilities")
+ .HasConversion(stringListConverter)
+ .HasColumnType("jsonb");
 
             // Analytics
             e.Property(x => x.ViewCount)
@@ -1104,8 +1114,9 @@ public class AppDbContext : DbContext
 
             // Benefits
             e.Property(x => x.Benefits)
-                .HasColumnName("benefits")
-                .HasColumnType("jsonb");
+ .HasColumnName("benefits")
+ .HasConversion(stringListConverter)
+ .HasColumnType("jsonb");
 
             // Home Page
             e.Property(x => x.IsFeatured)
@@ -1122,8 +1133,9 @@ public class AppDbContext : DbContext
 
             // Search
             e.Property(x => x.Tags)
-                .HasColumnName("tags")
-                .HasColumnType("jsonb");
+ .HasColumnName("tags")
+ .HasConversion(stringListConverter)
+ .HasColumnType("jsonb");
 
             e.Property(x => x.SearchKeywords)
                 .HasColumnName("search_keywords");
