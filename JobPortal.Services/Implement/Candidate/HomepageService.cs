@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
-namespace JobPortal.Services.Implement.Public;
+namespace JobPortal.Services.Implement.Candidate;
 
 public class HomepageService : IHomepageService
 {

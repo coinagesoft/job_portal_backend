@@ -16,7 +16,6 @@ using JobPortal.Services.Implement;
 using JobPortal.Services.Implement.Admin;
 using JobPortal.Services.Implement.AI;
 using JobPortal.Services.Implement.Candidate;
-using JobPortal.Services.Implement.Public;
 //using JobPortal.Services.IImplement.AI;
 using JobPortal.Services.Implement.Recruiter;
 using JobPortal.Services.Implement.Uploads;
