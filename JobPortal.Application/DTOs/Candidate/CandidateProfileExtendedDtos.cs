@@ -38,6 +38,8 @@ public class WorkExperienceItemDto
     public string JobTitle { get; set; } = string.Empty;
     public string CompanyName { get; set; } = string.Empty;
     public string? WorkLocation { get; set; }
+    public string? NoticePeriod { get; set; }
+
     public DateOnly StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     /// <summary>true = "Currently working here" checkbox is checked.</summary>
@@ -60,6 +62,9 @@ public class AddWorkExperienceRequestDto
 
     [MaxLength(200)]
     public string? WorkLocation { get; set; }
+
+    public string? NoticePeriod { get; set; }
+
 
     [Required]
     public DateOnly StartDate { get; set; }
@@ -89,6 +94,9 @@ public class UpdateWorkExperienceRequestDto
 
     [MaxLength(200)]
     public string? WorkLocation { get; set; }
+
+    public string? NoticePeriod { get; set; }
+
 
     [Required]
     public DateOnly StartDate { get; set; }
@@ -133,19 +141,26 @@ public class EducationListResponseDto
     public List<EducationItemDto> Data { get; set; } = new();
 }
 
-public class EducationItemDto
-{
-    public Guid EducationId { get; set; }
-    /// <summary>e.g. "ITI – Electrician Trade", "SSC – 10th Standard"</summary>
-    public string QualificationDegree { get; set; } = string.Empty;  // maps to EducationLevel
-    public string? InstituteName { get; set; }                      // maps to InstituteName (Board)
-    /// <summary>Free-text year/details, e.g. "Passed: 2014 | Cert No: ITI/2014/PUN/7823"</summary>
-    public string? YearDetails { get; set; }                      // rendered from PassoutYear + MarksPercentage
-    public string? CertificateUrl { get; set; }
-    public string? CertificateNumber { get; set; }
-    /// <summary>True when the certificate has been AI-verified (AI Verified badge).</summary>
-    public bool IsAiVerified { get; set; }
-}
+
+    public class EducationItemDto
+    {
+        public Guid EducationId { get; set; }
+
+        public string QualificationDegree { get; set; } = string.Empty;
+
+        public string? InstituteName { get; set; }
+
+        public short? PassoutYear { get; set; }
+
+        public string? YearDetails { get; set; }
+
+        public string? CertificateUrl { get; set; }
+
+        public string? CertificateNumber { get; set; }
+
+        public bool IsAiVerified { get; set; }
+    }
+
 
 /// <summary>
 /// Request body for adding an education qualification.

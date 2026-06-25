@@ -1510,31 +1510,6 @@ public class CandidateJobService : ICandidateJobService
         return tags.Distinct().ToList();
     }
 
-    // ── JSON deserializers ────────────────────────────────
-    private static List<string> ParseJsonList(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return new List<string>();
-        try { return JsonSerializer.Deserialize<List<string>>(json) ?? new(); }
-        catch { return new List<string>(); }
-    }
-
-    private static List<CandidateScreeningQuestionDto> ParseScreeningQuestions(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-            return new List<CandidateScreeningQuestionDto>();
-
-        try
-        {
-            var raw = JsonSerializer.Deserialize<List<RawScreeningQuestion>>(json);
-            return raw?.Select(q => new CandidateScreeningQuestionDto
-            {
-                QuestionText = q.QuestionText,
-                //AnswerType = q.AnswerType,
-                IsMandatory = q.IsMandatory
-            }).ToList() ?? new();
-        }
-        catch { return new List<CandidateScreeningQuestionDto>(); }
-    }
 
     // Matches the serialized format used by the recruiter service
     private record RawScreeningQuestion(
@@ -1542,19 +1517,6 @@ public class CandidateJobService : ICandidateJobService
         string AnswerType,
         bool IsMandatory);
 
-    // ── Publishing tags helpers ───────────────────────────
-    // JobType and EmploymentType are stored inside PublishingTags JSON
-    private static readonly HashSet<string> KnownJobTypes =
-        new() { "Normal_Job", "Hot_Vacancy", "Classified" };
-
-    private static readonly HashSet<string> KnownEmploymentTypes =
-        new() { "Permanent", "Contract", "Temporary", "Internship" };
-
-    private static string GetJobTypeFromTags(List<string> tags) =>
-        tags.FirstOrDefault(t => KnownJobTypes.Contains(t)) ?? "Normal_Job";
-
-    private static string GetEmploymentTypeFromTags(List<string> tags) =>
-        tags.FirstOrDefault(t => KnownEmploymentTypes.Contains(t)) ?? "Permanent";
 
     // ── Description truncation ────────────────────────────
     private static string TruncateDescription(string? text, int maxLength)

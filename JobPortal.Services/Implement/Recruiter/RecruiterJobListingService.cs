@@ -23,8 +23,7 @@ namespace JobPortal.Services.Implement.Recruiter
             _logger = logger;
         }
 
-        public async Task<JobDashboardResponseDto> GetDashboardAsync(
-       Guid employerId)
+        public async Task<JobDashboardResponseDto> GetDashboardAsync(Guid employerId)
         {
             var jobs = await _context.JobPostings
                 .AsNoTracking()
@@ -87,9 +86,7 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<JobListResponseDto> GetJobsAsync(
-      Guid employerId,
-      JobListRequestDto request)
+        public async Task<JobListResponseDto> GetJobsAsync( Guid employerId,JobListRequestDto request)
         {
             var query = _context.JobPostings
                 .AsNoTracking()
@@ -153,10 +150,10 @@ namespace JobPortal.Services.Implement.Recruiter
             // ==========================================
 
             var entities = await query
-    .OrderByDescending(x => x.CreatedAt)
-    .Skip((request.PageNumber - 1) * request.PageSize)
-    .Take(request.PageSize)
-    .ToListAsync();
+               .OrderByDescending(x => x.CreatedAt)
+               .Skip((request.PageNumber - 1) * request.PageSize)
+               .Take(request.PageSize)
+               .ToListAsync();
 
             var jobs = entities.Select(x => new RecruiterJobListItemDto
             {

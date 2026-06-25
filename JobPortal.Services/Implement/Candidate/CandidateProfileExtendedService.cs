@@ -1,13 +1,4 @@
-﻿// ============================================================
-//  JobPortal.Services/Implement/Candidate/
-//  CandidateProfileExtendedService.cs
-//
-//  Implements sections 3-6 of the candidate profile wizard:
-//   · Work Experience
-//   · Education
-//   · Skills
-//   · Languages
-// ============================================================
+﻿
 
 using JobPortal.Application.DTOs.Candidate.Profile;
 using JobPortal.Domain.Entities;
@@ -15,6 +6,7 @@ using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.ICandidate;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace JobPortal.Services.Implement.Candidate;
 
@@ -39,27 +31,31 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
     {
         try
         {
-            var exists = await _context.CandidateProfiles
-                .AnyAsync(p => p.CandidateId == candidateId);
-            if (!exists)
+            var profile = await _context.CandidateProfiles
+       .AsNoTracking()
+       .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
+            if (profile == null)
                 return WorkListFail("Candidate profile not found.");
 
             var entries = await _context.CandidateWorkHistories
-                .Where(w => w.CandidateId == candidateId)
-                .OrderByDescending(w => w.StartDate)   // most recent first (as noted in UI)
-                .Select(w => new WorkExperienceItemDto
-                {
-                    WorkId = w.WorkId,
-                    JobTitle = w.JobTitle,
-                    CompanyName = w.CompanyName,
-                    WorkLocation = w.WorkLocation,
-                    StartDate = w.StartDate,
-                    EndDate = w.EndDate,
-                    IsCurrent = w.IsCurrent,
-                    JobDescription = w.JobDescription,
-                    IsOffshore = w.IsOffshore
-                })
-                .ToListAsync();
+     .AsNoTracking()
+     .Where(w => w.CandidateId == candidateId)
+     .OrderByDescending(w => w.StartDate)
+     .Select(w => new WorkExperienceItemDto
+     {
+         WorkId = w.WorkId,
+         JobTitle = w.JobTitle,
+         CompanyName = w.CompanyName,
+         WorkLocation = w.WorkLocation,
+         NoticePeriod = profile.NoticePeriod,
+         StartDate = w.StartDate,
+         EndDate = w.EndDate,
+         IsCurrent = w.IsCurrent,
+         JobDescription = w.JobDescription,
+         IsOffshore = w.IsOffshore
+     })
+     .ToListAsync();
 
             return new WorkExperienceListResponseDto
             {
@@ -104,6 +100,9 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
                     prev.IsCurrent = false;
             }
 
+            // Update candidate profile
+            profile.NoticePeriod = request.NoticePeriod;
+
             var entry = new CandidateWorkHistory
             {
                 WorkId = Guid.NewGuid(),
@@ -117,6 +116,8 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
                 JobDescription = request.JobDescription,
                 IsOffshore = request.IsOffshore
             };
+
+         
 
             _context.CandidateWorkHistories.Add(entry);
 
@@ -174,6 +175,7 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             entry.JobTitle = request.JobTitle;
             entry.CompanyName = request.CompanyName;
             entry.WorkLocation = request.WorkLocation;
+            profile.NoticePeriod = request.NoticePeriod;
             entry.StartDate = request.StartDate;
             entry.EndDate = request.IsCurrent ? null : request.EndDate;
             entry.IsCurrent = request.IsCurrent;
@@ -236,10 +238,7 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
         }
     }
 
-    // ════════════════════════════════════════════════════════
-    // SECTION 4 — EDUCATION
-    // ════════════════════════════════════════════════════════
-
+  
     public async Task<EducationListResponseDto> GetEducationAsync(Guid candidateId)
     {
         try
@@ -249,21 +248,28 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             if (!exists)
                 return EduListFail("Candidate profile not found.");
             var entries = await _context.CandidateEducations
-                            .Where(e => e.CandidateId == candidateId)
-                            .OrderByDescending(e => e.PassoutYear)
-                            .Select(e => new EducationItemDto
-                            {
-                                EducationId = e.EducationId,
-                                QualificationDegree = e.EducationLevel,
-                                InstituteName = e.InstituteName,
-                                YearDetails = e.YearDetails,
+       .AsNoTracking()
+       .Where(e => e.CandidateId == candidateId)
+       .OrderByDescending(e => e.PassoutYear)
+       .Select(e => new EducationItemDto
+       {
+           EducationId = e.EducationId,
 
-                                CertificateUrl = e.CertificateUrl,
-                                CertificateNumber = e.CertificateNumber,
+           QualificationDegree = e.EducationLevel,
 
-                                IsAiVerified = e.IsAiVerified
-                            })
-                            .ToListAsync();
+           InstituteName = e.InstituteName,
+
+           PassoutYear = e.PassoutYear,
+
+           YearDetails = e.YearDetails,
+
+           CertificateUrl = e.CertificateUrl,
+
+           CertificateNumber = e.CertificateNumber,
+
+           IsAiVerified = e.IsAiVerified
+       })
+       .ToListAsync();
 
             return new EducationListResponseDto
             {

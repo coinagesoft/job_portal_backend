@@ -1,7 +1,3 @@
-// ============================================================
-//  JobPortal.Services/Implement/Candidate/
-//  CandidateProfileService.cs
-// ============================================================
 
 using JobPortal.Application.DTOs.Candidate.Profile;
 using JobPortal.Domain.Entities;
@@ -44,45 +40,63 @@ public class CandidateProfileService : ICandidateProfileService
         try
         {
             var profile = await _context.CandidateProfiles
-                .Include(p => p.User)
-                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
+                .Include(x => x.User)
+                .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
 
             if (profile == null)
                 return SummaryFail("Candidate profile not found.");
+
+            var completion =
+                await BuildProfileCompletionDataAsync(candidateId);
 
             return new CandidateProfileSummaryResponseDto
             {
                 Success = true,
                 Message = "Profile summary retrieved.",
+
                 Data = new CandidateProfileSummaryData
                 {
-                    CandidateId          = profile.CandidateId,
-                    FullName             = profile.FullName,
-                    Role                 = profile.Role,
-                    ProfilePhotoUrl      = profile.ProfilePhotoUrl,
-                    MobileNumber         = profile.User?.MobileNumber,
-                    CountryCode          = profile.User?.CountryCode,
-                    Email                = profile.User?.Email,
-                    CurrentCity          = profile.CurrentCity,
-                    CurrentState         = profile.CurrentState,
+                    CandidateId = profile.CandidateId,
+
+                    FullName = profile.FullName,
+
+                    Role = profile.Role,
+
+                    ProfilePhotoUrl = profile.ProfilePhotoUrl,
+
+                    MobileNumber = profile.User?.MobileNumber,
+
+                    CountryCode = profile.User?.CountryCode,
+
+                    Email = profile.User?.Email,
+
+                    CurrentCity = profile.CurrentCity,
+
+                    CurrentState = profile.CurrentState,
+
                     TotalExperienceYears = profile.TotalExperienceYears,
-                    NoticePeriod         = profile.PreferredWorkLocation, 
-                    About                = profile.About,
-                    ProfileCompletionPct = CalculateCompletionPct(profile),
-                    AvailabilityStatus   = profile.AvailabilityStatus,
-                    ProfessionalSummary  = profile.ProfessionalSummary
 
+                    NoticePeriod = profile.NoticePeriod,
 
-}
+                    About = profile.About,
+
+                    AvailabilityStatus = profile.AvailabilityStatus,
+
+                    ProfessionalSummary = profile.ProfessionalSummary,
+
+                    ProfileCompletionPct = completion.OverallPct
+                }
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "GetProfileSummaryAsync failed for {CandidateId}", candidateId);
+            _logger.LogError(ex,
+                "GetProfileSummaryAsync failed for {CandidateId}",
+                candidateId);
+
             return SummaryFail("Internal server error.");
         }
     }
-
     // ════════════════════════════════════════════════
     // GET PERSONAL INFO
     // ════════════════════════════════════════════════
@@ -630,6 +644,105 @@ public class CandidateProfileService : ICandidateProfileService
     }
 
     // ── Fail helpers ──────────────────────────────────────────
+
+    private async Task<ProfileCompletionData> BuildProfileCompletionDataAsync(Guid candidateId)
+    {
+        var profile = await _context.CandidateProfiles
+            .Include(x => x.Cvs)
+            .Include(x => x.Educations)
+            .Include(x => x.WorkHistories)
+            .Include(x => x.Skills)
+            .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
+        if (profile == null)
+            return null!;
+
+        var hasAadhaar = await _context.KycVerifications
+            .AnyAsync(x => x.CandidateId == candidateId);
+
+        var hasPassport = await _context.PassportVerifications
+            .AnyAsync(x => x.CandidateId == candidateId);
+
+        var hasPhoto =
+            !string.IsNullOrWhiteSpace(profile.ProfilePhotoUrl);
+
+        var hasPersonal =
+            !string.IsNullOrWhiteSpace(profile.FullName) &&
+            profile.DateOfBirth.HasValue &&
+            !string.IsNullOrWhiteSpace(profile.CurrentCity) &&
+            !string.IsNullOrWhiteSpace(profile.CurrentState);
+
+        var hasSummary =
+            !string.IsNullOrWhiteSpace(profile.About) ||
+            !string.IsNullOrWhiteSpace(profile.ProfessionalSummary);
+
+        var hasResume =
+            profile.Cvs.Any(x =>
+                !string.IsNullOrWhiteSpace(x.CvFileUrl));
+
+        var hasEducation =
+            profile.Educations.Any();
+
+        var hasWorkHistory =
+            profile.WorkHistories.Any();
+
+        var hasSkills =
+            profile.Skills.Any();
+
+        var pending = new List<string>();
+
+        if (!hasPhoto)
+            pending.Add("Upload a profile photo");
+
+        if (!hasPersonal)
+            pending.Add("Complete personal information");
+
+        if (!hasSummary)
+            pending.Add("Add professional summary");
+
+        if (!hasResume)
+            pending.Add("Upload your resume");
+
+        if (!hasEducation)
+            pending.Add("Add education details");
+
+        if (!hasWorkHistory)
+            pending.Add("Add work experience");
+
+        if (!hasSkills)
+            pending.Add("Add your skills");
+
+        if (!hasAadhaar)
+            pending.Add("Upload Aadhaar for KYC verification");
+
+        if (!hasPassport)
+            pending.Add("Upload passport details");
+
+        return new ProfileCompletionData
+        {
+            OverallPct = CalculateCompletionPctDetailed(
+                hasPhoto,
+                hasPersonal,
+                hasSummary,
+                hasResume,
+                hasEducation,
+                hasWorkHistory,
+                hasSkills,
+                hasAadhaar,
+                hasPassport),
+
+            HasPhoto = hasPhoto,
+            HasPersonalInfo = hasPersonal,
+            HasSummary = hasSummary,
+            HasResume = hasResume,
+            HasEducation = hasEducation,
+            HasWorkHistory = hasWorkHistory,
+            HasSkills = hasSkills,
+            HasAadhaar = hasAadhaar,
+            HasPassport = hasPassport,
+            PendingActions = pending
+        };
+    }
 
     private static CandidateProfileSummaryResponseDto SummaryFail(string msg)
         => new() { Success = false, Message = msg };
