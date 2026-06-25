@@ -1710,6 +1710,10 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<Guid>("JobId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("MotivationMessage")
+                        .HasColumnType("text")
+                        .HasColumnName("motivation_message");
+
                     b.Property<bool>("PassportGatePassed")
                         .HasColumnType("boolean");
 
@@ -1719,6 +1723,10 @@ namespace JobPortal.Infrastructure.Migrations
 
                     b.Property<bool>("RejectionAutoNotify")
                         .HasColumnType("boolean");
+
+                    b.Property<List<string>>("ScreeningAnswers")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("screening_answers");
 
                     b.Property<DateTime?>("ShortlistedAt")
                         .HasColumnType("timestamp with time zone")
@@ -2620,28 +2628,24 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.Property<Guid>("SavedJobId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("saved_job_id");
 
                     b.Property<Guid>("CandidateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CandidateProfileCandidateId")
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("candidate_id");
 
                     b.Property<Guid>("JobId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("JobPostingJobId")
-                        .HasColumnType("uuid");
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_id");
 
                     b.Property<DateTime>("SavedAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("saved_at");
 
                     b.HasKey("SavedJobId");
 
-                    b.HasIndex("CandidateProfileCandidateId");
-
-                    b.HasIndex("JobPostingJobId");
+                    b.HasIndex("JobId");
 
                     b.HasIndex("CandidateId", "JobId")
                         .IsUnique();
@@ -3479,13 +3483,13 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.HasOne("JobPortal.Domain.Entities.CandidateProfile", "CandidateProfile")
                         .WithMany()
-                        .HasForeignKey("CandidateProfileCandidateId")
+                        .HasForeignKey("CandidateId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("JobPortal.Domain.Entities.JobPosting", "JobPosting")
                         .WithMany()
-                        .HasForeignKey("JobPostingJobId")
+                        .HasForeignKey("JobId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

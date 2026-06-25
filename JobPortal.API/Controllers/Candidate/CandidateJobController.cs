@@ -27,10 +27,14 @@ public class CandidateJobController : ControllerBase
     // ── Resolve candidate ID from JWT or dev query param ─────
     private Guid ResolveCandidateId(Guid? queryParam = null)
     {
-        if (queryParam.HasValue && queryParam != Guid.Empty) return queryParam.Value;
-        var claim = User.FindFirstValue("candidateId")
-                    ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(claim, out var id) ? id : Guid.Empty;
+        if (queryParam.HasValue && queryParam != Guid.Empty)
+            return queryParam.Value;
+
+        var claim = User.FindFirstValue("CandidateId");
+
+        return Guid.TryParse(claim, out var id)
+            ? id
+            : Guid.Empty;
     }
 
     [HttpGet("All_Jobs")]
@@ -44,6 +48,9 @@ public class CandidateJobController : ControllerBase
     }
 
     [HttpGet("job_details/{jobId:guid}")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(CandidateJobDetailResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetJobDetails(Guid jobId)
     {
         var result =
@@ -59,6 +66,7 @@ public class CandidateJobController : ControllerBase
         return Ok(result);
     }
   
+
 
     [HttpGet("company_details/{employerId}")]
     public async Task<IActionResult> GetCompanyDetail(
@@ -78,6 +86,8 @@ public class CandidateJobController : ControllerBase
         return Ok(result);
     }
  
+
+
     [HttpGet("filter-options")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(JobFilterOptionsResponseDto), StatusCodes.Status200OK)]
@@ -86,7 +96,6 @@ public class CandidateJobController : ControllerBase
         var result = await _jobService.GetFilterOptionsAsync();
         return result.Success ? Ok(result) : BadRequest(result);
     }
-
 
   
     [HttpGet]
@@ -97,19 +106,9 @@ public class CandidateJobController : ControllerBase
         var result = await _jobService.GetJobsAsync(request);
         return result.Success ? Ok(result) : BadRequest(result);
     }
-    // ════════════════════════════════════════════════════════
-    // GET  api/candidate/jobs/saved
-    // ════════════════════════════════════════════════════════
-    /// <summary>
-    /// Returns all bookmarked jobs for the candidate — exactly the Saved Jobs page.
-    /// Each card shows: company, job title, location, salary, employment type,
-    /// experience, short description, tags, application deadline,
-    /// and whether the candidate has already applied.
-    ///
-    /// Pass ?candidateId= during development (remove once JWT is active).
-    /// </summary>
+
     [HttpGet("saved")]
-    [AllowAnonymous]                        // ← swap to [Authorize(Roles = "Candidate")] in prod
+    [AllowAnonymous]                        
     [ProducesResponseType(typeof(SavedJobListResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetSavedJobs([FromQuery] Guid? candidateId = null)
@@ -122,20 +121,12 @@ public class CandidateJobController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
-    // ════════════════════════════════════════════════════════
-    // GET  api/candidate/jobs/my-applications
-    // ════════════════════════════════════════════════════════
-    /// <summary>
-    /// Returns all job applications submitted by the candidate, newest first.
-    /// Includes: job info, company info, application status, applied time, withdrawal flag.
-    ///
-    /// Application statuses: Applied | Viewed | Shortlisted | Interview | Rejected | Hired | Withdrawn
-    /// </summary>
-    [HttpGet("my-applications")]
-    [AllowAnonymous]                        // ← [Authorize(Roles = "Candidate")] in prod
+ 
+    [HttpGet("GetAppliedJobs")]
+    [AllowAnonymous]                        
     [ProducesResponseType(typeof(MyApplicationsResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetMyApplications([FromQuery] Guid? candidateId = null)
+    public async Task<IActionResult> GetAppliedJobs([FromQuery] Guid? candidateId = null)
     {
         var id = ResolveCandidateId(candidateId);
         if (id == Guid.Empty)
@@ -145,30 +136,8 @@ public class CandidateJobController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
-    // ════════════════════════════════════════════════════════
-    // GET  api/candidate/jobs/{jobId}
-    // ════════════════════════════════════════════════════════
-    /// <summary>
-    /// Job details page — full job info, company profile, eligibility, screening
-    /// questions, and similar jobs. Public (no auth needed).
-    /// </summary>
-    [HttpGet("{jobId:guid}")]
-    [AllowAnonymous]
-    [ProducesResponseType(typeof(CandidateJobDetailResponseDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetJobDetail(Guid jobId)
-    {
-        var result = await _jobService.GetJobDetailAsync(jobId);
-        return result.Success ? Ok(result) : NotFound(result);
-    }
 
-    // ════════════════════════════════════════════════════════
-    // POST  api/candidate/jobs/{jobId}/save
-    // ════════════════════════════════════════════════════════
-    /// <summary>
-    /// Toggle save/bookmark state for a job.
-    /// Returns isSaved: true when bookmarked, isSaved: false when removed.
-    /// </summary>
+
     [HttpPost("{jobId:guid}/save")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(SaveJobResponseDto), StatusCodes.Status200OK)]
@@ -194,34 +163,25 @@ public class CandidateJobController : ControllerBase
             : BadRequest(result);
     }
 
-    // ════════════════════════════════════════════════════════
-    // POST  api/candidate/jobs/{jobId}/apply
-    // ════════════════════════════════════════════════════════
-    /// <summary>
-    /// Apply Now — submits a job application.
-    ///
-    /// Request body (JSON):
-    /// {
-    ///   "passportGatePassed": true,          // required when job.passportRequired = true
-    ///   "screeningAnswers": [
-    ///     { "questionIndex": 0, "answer": "Yes" },
-    ///     { "questionIndex": 1, "answer": "5 years on cargo vessels" },
-    ///     { "questionIndex": 2, "answer": "Yes" }
-    ///   ]
-    /// }
-    ///
-    /// Validates:
-    ///   ✓ Job is Active and deadline not passed
-    ///   ✓ Candidate profile exists and is Active
-    ///   ✓ Not already applied to this job
-    ///   ✓ Passport gate (if job requires passport)
-    ///   ✓ All mandatory screening questions answered
-    ///
-    /// On success: creates JobApplication, increments job.AppliedCount,
-    /// updates candidate.LastAppliedAt.
-    /// </summary>
+
+    [HttpGet("{jobId:guid}/apply")]
+    public async Task<IActionResult> GetApplyJobDetails(Guid jobId)
+    {
+        var candidateId = ResolveCandidateId();
+
+        var result =
+            await _jobService.GetApplyJobDetailsAsync(
+                jobId,
+                candidateId);
+
+        return Ok(result);
+    }
+
+
+
+
     [HttpPost("{jobId:guid}/apply")]
-    [AllowAnonymous]                        // ← [Authorize(Roles = "Candidate")] in prod
+    [AllowAnonymous]                        
     [ProducesResponseType(typeof(ApplyJobResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -246,14 +206,7 @@ public class CandidateJobController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
-    // ════════════════════════════════════════════════════════
-    // DELETE  api/candidate/jobs/applications/{applicationId}
-    // ════════════════════════════════════════════════════════
-    /// <summary>
-    /// Withdraw a submitted application.
-    /// Only allowed when: withdrawalAllowed = true AND status is not Hired or Rejected.
-    /// Sets status to "Withdrawn" and decrements job's applied count.
-    /// </summary>
+   
     [HttpDelete("applications/{applicationId:guid}")]
     [AllowAnonymous]                        // ← [Authorize(Roles = "Candidate")] in prod
     [ProducesResponseType(typeof(WithdrawApplicationResponseDto), StatusCodes.Status200OK)]

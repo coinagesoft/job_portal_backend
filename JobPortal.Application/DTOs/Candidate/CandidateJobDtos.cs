@@ -185,19 +185,23 @@ public class CandidateJobCardDto
 public class CandidateJobListResponseDto
 {
     public bool Success { get; set; }
+
     public string Message { get; set; } = string.Empty;
 
-    public List<CandidateJobCardDto> Jobs { get; set; } = new();
+    public List<CandidateJobListItemDto> Jobs { get; set; } = new();
 
-    // ── Pagination metadata ───────────────────────────────────
     public int TotalCount { get; set; }
+
     public int Page { get; set; }
+
     public int PageSize { get; set; }
+
     public int TotalPages { get; set; }
+
     public bool HasNextPage { get; set; }
+
     public bool HasPreviousPage { get; set; }
 
-    // ── Active filters echo ───────────────────────────────────
     public CandidateJobSearchRequestDto AppliedFilters { get; set; } = default!;
 }
 
@@ -391,7 +395,7 @@ public class CandidateJobDetailResponseDto
     // Similar Jobs
     // ─────────────────────────────────────────────
 
-    public List<CandidateJobCardDto> SimilarJobs { get; set; } = new();
+    public List<CandidateJobListItemDto> SimilarJobs { get; set; } = new();
 }
 // ─────────────────────────────────────────────────────────────
 // 5.  SCREENING QUESTION (readonly — displayed to candidate)
@@ -402,7 +406,7 @@ public class CandidateScreeningQuestionDto
     public string QuestionText { get; set; } = default!;
 
     /// <summary>Yes_No | Text</summary>
-    public string AnswerType { get; set; } = "Yes_No";
+    //public string AnswerType { get; set; } = "Yes_No";
 
     public bool IsMandatory { get; set; }
 }
@@ -565,23 +569,24 @@ public class SavedJobListResponseDto
 /// </summary>
 public class ApplyJobRequestDto
 {
-    /// <summary>Candidate full name (pre-filled from profile, editable).</summary>
-    public string FullName { get; set; } = string.Empty;
-
-    /// <summary>Phone shown in the modal.</summary>
-    public string? Phone { get; set; }
-
-    /// <summary>Email shown in the modal.</summary>
-    public string? Email { get; set; }
-
-    /// <summary>
-    /// One entry per employer screening question.
-    /// Must include all mandatory questions.
-    /// </summary>
-    /// <summary>Set to true to confirm passport requirement is met.</summary>
     public bool? PassportGatePassed { get; set; }
 
-    public List<ScreeningAnswerDto> ScreeningAnswers { get; set; } = new();
+    public bool? AgeConfirmed { get; set; }
+
+    public string? MotivationMessage { get; set; }
+
+    public List<RequirementConfirmationDto>? LanguageConfirmations { get; set; }
+
+    public List<RequirementConfirmationDto>? CertificateConfirmations { get; set; }
+
+    public List<ScreeningAnswerDto>? ScreeningAnswers { get; set; }
+}
+
+public class RequirementConfirmationDto
+{
+    public string Name { get; set; } = string.Empty;
+
+    public bool Confirmed { get; set; }
 }
 
 public class ScreeningAnswerDto
@@ -622,20 +627,41 @@ public class MyApplicationCardDto
     public bool IsConfidentialCompany { get; set; }
 
     public string JobTitle { get; set; } = default!;
-    public string EmploymentType { get; set; } = default!;
-    public string ExperienceDisplay { get; set; } = default!;
-    public string LocationDisplay { get; set; } = default!;
-    public string? SalaryDisplay { get; set; }
-    public List<string> Tags { get; set; } = new();
-    public string? City { get; set; }
-    public string? State { get; set; }
 
     public string? TradeCategory { get; set; }
-    /// <summary>Applied | Viewed | Shortlisted | Interview | Rejected | Hired | Withdrawn</summary>
+
+    public string? Department { get; set; }
+
+    public string EmploymentType { get; set; } = default!;
+
+    public string? EmploymentMode { get; set; }
+
+    public string? JobType { get; set; }
+
+    public string ExperienceDisplay { get; set; } = default!;
+
+    public string? JobLocation { get; set; }
+
+    public string? SalaryDisplay { get; set; }
+
+    public List<string> Tags { get; set; } = new();
+
+    public int ApplicationsCount { get; set; }
+
+    public int ViewCount { get; set; }
+
+    public bool IsFeatured { get; set; }
+
+    public bool IsUrgentHiring { get; set; }
+
     public string ApplicationStatus { get; set; } = default!;
+
     public DateTime AppliedAt { get; set; }
+
     public string AppliedTimeAgo { get; set; } = default!;
+
     public DateTime StatusUpdatedAt { get; set; }
+
     public bool WithdrawalAllowed { get; set; }
 }
 

@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260624122241_jobsaved")]
+    [Migration("20260625050911_jobsaved")]
     partial class jobsaved
     {
         /// <inheritdoc />
@@ -2640,9 +2640,10 @@ namespace JobPortal.Infrastructure.Migrations
 
                     b.HasKey("SavedJobId");
 
-                    b.HasIndex("CandidateId");
-
                     b.HasIndex("JobId");
+
+                    b.HasIndex("CandidateId", "JobId")
+                        .IsUnique();
 
                     b.ToTable("saved_jobs", (string)null);
                 });

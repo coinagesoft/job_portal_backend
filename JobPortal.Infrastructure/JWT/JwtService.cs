@@ -80,10 +80,11 @@ namespace JobPortal.Infrastructure.JWT
 
 
         public string GenerateToken(
-       Guid userId,
-       string role,
-       string? mobileNumber = null,
-       Guid? employerId = null)
+     Guid userId,
+     string role,
+     string? mobileNumber = null,
+     Guid? employerId = null,
+     Guid? candidateId = null)
         {
             var claims = new List<Claim>
     {
@@ -104,13 +105,22 @@ namespace JobPortal.Infrastructure.JWT
                         mobileNumber));
             }
 
-            // NEW
+            // Employer Id
             if (employerId.HasValue)
             {
                 claims.Add(
                     new Claim(
                         "EmployerId",
                         employerId.Value.ToString()));
+            }
+
+            // Candidate Id
+            if (candidateId.HasValue)
+            {
+                claims.Add(
+                    new Claim(
+                        "CandidateId",
+                        candidateId.Value.ToString()));
             }
 
             var key = new SymmetricSecurityKey(

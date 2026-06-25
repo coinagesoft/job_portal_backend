@@ -613,10 +613,7 @@
         // ════════════════════════════════════════════════
         // STEP 5 — Location
         // ════════════════════════════════════════════════
-        public async Task<BaseJobResponseDto> SaveLocationAsync(
-     LocationRequestDto request,
-     Guid jobId,
-     Guid employerId)
+        public async Task<BaseJobResponseDto> SaveLocationAsync(LocationRequestDto request,Guid jobId,Guid employerId)
         {
             try
             {

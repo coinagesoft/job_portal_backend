@@ -928,6 +928,7 @@ public class RecruiterAuthService : IRecruiterAuthService
     private async Task<(string token, DateTime expiry)> GenerateUserTokenAsync(User user)
     {
         Guid? employerId = null;
+        Guid? candidateId = null;
 
         if (user.UserType == UserType.Recruiter)
         {
@@ -937,15 +938,23 @@ public class RecruiterAuthService : IRecruiterAuthService
                 .FirstOrDefaultAsync();
         }
 
+        if (user.UserType == UserType.Candidate)
+        {
+            candidateId = await _context.CandidateProfiles
+                .Where(x => x.UserId == user.UserId)
+                .Select(x => (Guid?)x.CandidateId)
+                .FirstOrDefaultAsync();
+        }
+
         var token = _jwtService.GenerateToken(
-        user.UserId,
-        user.UserType.ToString(),
-        user.MobileNumber,
-        employerId);
+            user.UserId,
+            user.UserType.ToString(),
+            user.MobileNumber,
+            employerId,
+            candidateId);
 
         return (token, _jwtService.GetExpiry());
     }
-
     private async Task<string> GetProfileStatusAsync(User user)
     {
         if (user.UserType == UserType.Candidate)

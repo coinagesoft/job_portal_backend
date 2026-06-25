@@ -607,6 +607,7 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.ReviewedBy)
                 .OnDelete(DeleteBehavior.SetNull);
         });
+
         m.Entity<ItiCertificateReview>(e => {
             e.ToTable("iti_certificate_reviews");
             e.HasKey(x => x.ItiReviewId);
@@ -789,8 +790,9 @@ public class AppDbContext : DbContext
             e.Property(x => x.ConsentTimestamp)
                 .HasColumnName("consent_timestamp");
 
-            e.Property(x => x.Tags)
-                .HasColumnName("tags");
+            e.Property(x => x.CompanyHighlights)
+                .HasColumnName("tags")
+                .HasColumnType("jsonb"); ;
             // INDEX
             e.HasIndex(x => x.Gstin)
                 .IsUnique();
@@ -1151,6 +1153,13 @@ public class AppDbContext : DbContext
             e.Property(x => x.RejectedAt)
                 .HasColumnName("rejected_at");
 
+            e.Property(x => x.ScreeningAnswers)
+                .HasColumnName("screening_answers")
+                .HasColumnType("jsonb");
+
+            e.Property(x => x.MotivationMessage)
+                .HasColumnName("motivation_message");
+
             e.HasOne(x => x.JobPosting)
                 .WithMany(x => x.Applications)
                 .HasForeignKey(x => x.JobId);
@@ -1164,10 +1173,36 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.EmployerId);
         });
 
-        m.Entity<SavedJob>(e => {
+        m.Entity<SavedJob>(e =>
+        {
             e.ToTable("saved_jobs");
+
             e.HasKey(x => x.SavedJobId);
-            e.HasIndex(x => new { x.CandidateId, x.JobId }).IsUnique();
+
+            e.Property(x => x.SavedJobId)
+                .HasColumnName("saved_job_id");
+
+            e.Property(x => x.CandidateId)
+                .HasColumnName("candidate_id");
+
+            e.Property(x => x.JobId)
+                .HasColumnName("job_id");
+
+            e.Property(x => x.SavedAt)
+                .HasColumnName("saved_at");
+
+            e.HasIndex(x => new { x.CandidateId, x.JobId })
+                .IsUnique();
+
+            e.HasOne(x => x.CandidateProfile)
+                .WithMany()
+                .HasForeignKey(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(x => x.JobPosting)
+                .WithMany()
+                .HasForeignKey(x => x.JobId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         m.Entity<SavedSearch>(e => {

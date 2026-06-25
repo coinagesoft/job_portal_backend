@@ -122,14 +122,11 @@ builder.Services.Configure<CloudinarySettingsDto>(
 builder.Services.AddScoped<ICloudinaryService,
     CloudinaryService>();
 
-builder.Services.AddScoped<IEmbeddingService,
+builder.Services.AddScoped<IEmbeddingService,OpenAIEmbeddingService>();
+builder.Services.AddScoped<IEmbeddingStorageService,EmbeddingStorageService>();
+builder.Services.AddScoped<IEmbeddingService,  OpenAIEmbeddingService>();
 
-
-    OpenAIEmbeddingService>();
-builder.Services.AddScoped<IEmbeddingStorageService,    EmbeddingStorageService>();
-builder.Services.AddScoped<IEmbeddingService,    OpenAIEmbeddingService>();
-
-builder.Services.AddScoped<IEmbeddingStorageService,    EmbeddingStorageService>();
+builder.Services.AddScoped<IEmbeddingStorageService,EmbeddingStorageService>();
 builder.Services.AddScoped<IJobMatchingService, JobMatchingService>();
 
 builder.Services.AddScoped<IAiJobDescriptionService, AiJobDescriptionService>();
@@ -141,7 +138,7 @@ builder.Services.AddHttpClient<IAffindaService, AffindaService>();
 
 // ── Document service depends on IAffindaService ──────────────
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
-
+builder.Services.AddScoped<IPublicCompanyService, PublicCompanyService>();
 // ── Firebase ─────────────────────────────────────────────────
 FirebaseApp.Create(new AppOptions()
 {

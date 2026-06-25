@@ -35,6 +35,7 @@ public interface ICandidateJobService
     /// </summary>
     Task<ApplyJobResponseDto> ApplyJobAsync(Guid jobId, Guid candidateId, ApplyJobRequestDto request);
 
+   Task<ApplyJobDetailsResponseDto> GetApplyJobDetailsAsync( Guid jobId,Guid candidateId);
     // ── My Applications ───────────────────────────────────────
     /// <summary>Returns all applications submitted by this candidate, newest first.</summary>
     Task<MyApplicationsResponseDto> GetMyApplicationsAsync(Guid candidateId);

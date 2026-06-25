@@ -30,8 +30,11 @@ public class JobApplication
 
     public DateTime? RejectedAt { get; set; }
 
+    // NEW
+    public string? MotivationMessage { get; set; }
 
-
+    // NEW
+    public List<string>? ScreeningAnswers { get; set; }
     // Navigation
     public JobPosting JobPosting { get; set; } = default!;
     public CandidateProfile CandidateProfile { get; set; } = default!;
