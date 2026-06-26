@@ -801,8 +801,6 @@ public class CandidateJobService : ICandidateJobService
             };
         }
     }
-
-
     // ════════════════════════════════════════════════════════
     // 2. JOB DETAIL — single job, full data
     // ════════════════════════════════════════════════════════
@@ -1931,6 +1929,7 @@ public class CandidateJobService : ICandidateJobService
             };
         }
     }
+
 
     public async Task<ApplyJobResponseDto> ApplyJobAsync(
         Guid jobId,

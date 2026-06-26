@@ -1352,6 +1352,54 @@ public class AppDbContext : DbContext
              .OnDelete(DeleteBehavior.SetNull);
         });
 
+        m.Entity<EmployerPlanPurchase>(e =>
+        {
+            e.ToTable("EmployerPlanPurchase");
+
+            e.HasKey(x => x.EmployerCreditPlanId);
+
+            e.Property(x => x.EmployerCreditPlanId)
+                .HasColumnName("EmployerCreditPlanId");
+
+            e.Property(x => x.EmployerId)
+                .HasColumnName("EmployerId");
+
+            e.Property(x => x.PlanId)
+                .HasColumnName("PlanId");
+
+            e.Property(x => x.PlanName)
+                .HasColumnName("PlanName");
+
+            e.Property(x => x.Credits)
+                .HasColumnName("Credits");
+
+            e.Property(x => x.Price)
+                .HasColumnName("Price");
+
+            e.Property(x => x.AssignedAt)
+                .HasColumnName("AssignedAt");
+
+            e.Property(x => x.ExpiresAt)
+                .HasColumnName("ExpiresAt");
+
+            e.Property(x => x.IsActive)
+                .HasColumnName("IsActive");
+
+            e.Property(x => x.AssignedBy)
+                .HasColumnName("AssignedBy");
+
+            e.HasOne(x => x.Employer)
+                .WithMany()
+                .HasForeignKey(x => x.EmployerId)
+                .HasPrincipalKey(x => x.EmployerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.CreditPlan)
+                .WithMany()
+                .HasForeignKey(x => x.PlanId)
+                .HasPrincipalKey(x => x.PlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
 
         m.Entity<RegistrationSession>(e =>
         {
