@@ -149,8 +149,8 @@ public class CandidateProfileService : ICandidateProfileService
     // UPDATE PERSONAL INFO
     // ════════════════════════════════════════════════
     public async Task<UpdateCandidatePersonalInfoResponseDto> UpdatePersonalInfoAsync(
-        Guid candidateId,
-        UpdateCandidatePersonalInfoRequestDto request)
+     Guid candidateId,
+     UpdateCandidatePersonalInfoRequestDto request)
     {
         try
         {
@@ -161,52 +161,80 @@ public class CandidateProfileService : ICandidateProfileService
             if (profile == null)
                 return UpdateFail("Candidate profile not found.");
 
-            // Update fields
-            profile.FullName             = request.FullName;
-            profile.Role                 = request.Role;
-            profile.DateOfBirth          = request.DateOfBirth;
-            profile.Gender               = request.Gender;
-            profile.CurrentCity          = request.CurrentCity;
-            profile.CurrentState         = request.CurrentState;
+            // ===========================
+            // Candidate Profile
+            // ===========================
+
+            profile.FullName = request.FullName;
+            profile.Role = request.Role;
+            profile.DateOfBirth = request.DateOfBirth;
+            profile.Gender = request.Gender;
+            profile.CurrentCity = request.CurrentCity;
+            profile.CurrentState = request.CurrentState;
+            profile.Pincode = request.Pincode;
+            profile.ProfessionalSummary = request.ProfessionalSummary;
+            profile.About = request.About;
+            profile.NoticePeriod = request.NoticePeriod;
             profile.TotalExperienceYears = request.TotalExperienceYears;
-            profile.NewsletterOptIn      = request.NewsletterOptIn;
-            profile.UpdatedAt            = DateTime.UtcNow;
+            profile.NewsletterOptIn = request.NewsletterOptIn;
+            profile.UpdatedAt = DateTime.UtcNow;
 
-            // Update email on User entity if provided
-            if (!string.IsNullOrWhiteSpace(request.Email) && profile.User != null)
+            // ===========================
+            // User Entity
+            // ===========================
+
+            if (profile.User != null)
             {
-                // Check uniqueness
-                var emailInUse = await _context.Users.AnyAsync(u =>
-                    u.Email == request.Email && u.UserId != profile.UserId);
-                if (emailInUse)
-                    return UpdateFail("This email is already in use by another account.");
+                // Email
+                if (!string.IsNullOrWhiteSpace(request.Email))
+                {
+                    var emailInUse = await _context.Users.AnyAsync(u =>
+                        u.Email == request.Email &&
+                        u.UserId != profile.UserId);
 
-                profile.User.Email     = request.Email;
+                    if (emailInUse)
+                        return UpdateFail("This email is already in use by another account.");
+
+                    profile.User.Email = request.Email;
+                }
+
+                // Mobile Number
+                if (!string.IsNullOrWhiteSpace(request.MobileNumber))
+                {
+                    profile.User.MobileNumber = request.MobileNumber;
+                }
+
+                // Country Code
+                if (!string.IsNullOrWhiteSpace(request.CountryCode))
+                {
+                    profile.User.CountryCode = request.CountryCode;
+                }
+
                 profile.User.UpdatedAt = DateTime.UtcNow;
             }
 
-            // NOTE: Pincode, ProfessionalSummary, About, NoticePeriod require new columns
-            //       on CandidateProfile entity. Once the migration is added, uncomment:
-             profile.Pincode             = request.Pincode;
-             profile.ProfessionalSummary = request.ProfessionalSummary;
-             profile.About               = request.About;
-             profile.NoticePeriod        = request.NoticePeriod;
+            // ===========================
+            // Completion %
+            // ===========================
 
-            // Recalculate completion %
             profile.ProfileCompletionPct = CalculateCompletionPct(profile);
 
             await _context.SaveChangesAsync();
 
             return new UpdateCandidatePersonalInfoResponseDto
             {
-                Success              = true,
-                Message              = "Personal info updated successfully.",
+                Success = true,
+                Message = "Personal information updated successfully.",
                 ProfileCompletionPct = profile.ProfileCompletionPct
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "UpdatePersonalInfoAsync failed for {CandidateId}", candidateId);
+            _logger.LogError(
+                ex,
+                "UpdatePersonalInfoAsync failed for {CandidateId}",
+                candidateId);
+
             return UpdateFail("Internal server error.");
         }
     }
@@ -482,8 +510,8 @@ public class CandidateProfileService : ICandidateProfileService
     }
 
     public async Task<CreateCandidateProfileResponseDto> CreateProfileAsync(
-    Guid userId,
-    CreateCandidateProfileRequestDto request)
+       Guid userId,
+       CreateCandidateProfileRequestDto request)
     {
         try
         {
@@ -495,7 +523,7 @@ public class CandidateProfileService : ICandidateProfileService
                 return new CreateCandidateProfileResponseDto
                 {
                     Success = false,
-                    Message = "User not found"
+                    Message = "User not found."
                 };
             }
 
@@ -507,64 +535,134 @@ public class CandidateProfileService : ICandidateProfileService
                 return new CreateCandidateProfileResponseDto
                 {
                     Success = false,
-                    Message = "Profile already exists"
+                    Message = "Profile already exists."
                 };
             }
+
+            // ============================================
+            // Validate Email
+            // ============================================
+
+            if (!string.IsNullOrWhiteSpace(request.Email))
+            {
+                var emailExists = await _context.Users.AnyAsync(x =>
+                    x.Email == request.Email &&
+                    x.UserId != userId);
+
+                if (emailExists)
+                {
+                    return new CreateCandidateProfileResponseDto
+                    {
+                        Success = false,
+                        Message = "Email already exists."
+                    };
+                }
+
+                user.Email = request.Email;
+            }
+
+            // ============================================
+            // Update User Table
+            // ============================================
+
+            if (!string.IsNullOrWhiteSpace(request.MobileNumber))
+                user.MobileNumber = request.MobileNumber;
+
+            if (!string.IsNullOrWhiteSpace(request.CountryCode))
+                user.CountryCode = request.CountryCode;
+
+            user.UpdatedAt = DateTime.UtcNow;
+
+            // ============================================
+            // Create Candidate Profile
+            // ============================================
 
             var profile = new CandidateProfile
             {
                 CandidateId = Guid.NewGuid(),
                 UserId = user.UserId,
 
-                FullName = user.Email ?? "Candidate",
+                FullName = string.IsNullOrWhiteSpace(request.FullName)
+                    ? (user.Email ?? "Candidate")
+                    : request.FullName,
+
+                Role = request.Role,
 
                 DateOfBirth = request.DateOfBirth,
                 Gender = request.Gender,
                 Nationality = request.Nationality,
+
                 CurrentCity = request.CurrentCity,
                 CurrentState = request.CurrentState,
+                Pincode = request.Pincode,
+
                 PreferredWorkLocation = request.PreferredWorkLocation,
                 PreferredSalary = request.PreferredSalary,
+
+                NoticePeriod = request.NoticePeriod,
+
+                About = request.About,
+                ProfessionalSummary = request.ProfessionalSummary,
+
                 DisabilityStatus = request.DisabilityStatus,
                 DisabilityNote = request.DisabilityNote,
+
                 PrimaryTrade = request.PrimaryTrade,
+
                 TotalExperienceYears = request.TotalExperienceYears,
+
                 ItiCertified = request.ItiCertified,
                 ItiTrade = request.ItiTrade,
                 ItiMarks = request.ItiMarks,
                 ItiCollege = request.ItiCollege,
+
                 NewsletterOptIn = request.NewsletterOptIn,
 
-                Pincode = request.Pincode,
-                About = request.About,
-                NoticePeriod = request.NoticePeriod,
-                ProfessionalSummary = request.ProfessionalSummary,
+                AvailabilityStatus = "Available",
+                ProfileStatus = "Active",
 
                 CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                ProfileCompletionPct = 25
+                UpdatedAt = DateTime.UtcNow
             };
 
             _context.CandidateProfiles.Add(profile);
+
+            // First save so CandidateId exists in DB
+            await _context.SaveChangesAsync();
+
+            // ============================================
+            // Calculate Profile Completion
+            // (Common Helper used everywhere)
+            // ============================================
+
+            var completion = await BuildProfileCompletionDataAsync(profile.CandidateId);
+
+            profile.ProfileCompletionPct = completion.OverallPct;
+            profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
             return new CreateCandidateProfileResponseDto
             {
                 Success = true,
-                Message = "Profile created successfully",
+                Message = "Profile created successfully.",
+
                 CandidateId = profile.CandidateId,
-                ProfileCompletionPct = profile.ProfileCompletionPct
+
+                ProfileCompletionPct = completion.OverallPct
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "CreateProfileAsync");
+            _logger.LogError(
+                ex,
+                "CreateProfileAsync failed for UserId {UserId}",
+                userId);
 
             return new CreateCandidateProfileResponseDto
             {
                 Success = false,
-                Message = "Internal server error"
+                Message = "Internal server error."
             };
         }
     }

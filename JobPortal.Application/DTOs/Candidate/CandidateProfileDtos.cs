@@ -98,6 +98,12 @@ public class UpdateCandidatePersonalInfoRequestDto
     [EmailAddress, MaxLength(200)]
     public string? Email { get; set; }
 
+
+    public string? MobileNumber { get; set; }
+
+    public string? CountryCode { get; set; }
+
+
     [MaxLength(100)]
     public string? CurrentCity { get; set; }
 
