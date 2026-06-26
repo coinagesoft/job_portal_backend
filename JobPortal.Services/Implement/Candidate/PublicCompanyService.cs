@@ -1,4 +1,5 @@
 ﻿using JobPortal.Application.DTOs.Candidate;
+using JobPortal.Application.DTOs.Candidate.Jobs;
 using JobPortal.Application.DTOs.Public;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums.RecruiterEnums;
@@ -13,6 +14,7 @@ public class PublicCompanyService : IPublicCompanyService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<PublicCompanyService> _logger;
+    private const int MaxPageSize = 50;
 
     public PublicCompanyService(
         AppDbContext context,
@@ -20,6 +22,690 @@ public class PublicCompanyService : IPublicCompanyService
     {
         _context = context;
         _logger = logger;
+    }
+    public async Task<List<CandidateJobListItemDto>> GetAllJobsAsync()
+    {
+        var today =
+            DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var jobs =
+            await _context.JobPostings
+                .AsNoTracking()
+                .Include(x => x.EmployerProfile)
+                    .ThenInclude(x => x.Badges)
+                .Where(x =>
+                    x.JobStatus == JobStatus.Active &&
+                      x.IsActive &&
+                    !x.IsDeleted &&
+                    x.ApplicationDeadline >= today)
+                .OrderByDescending(x => x.IsFeatured)
+                .ThenByDescending(x => x.PublishedAt)
+                .ToListAsync();
+
+        return jobs.Select(job =>
+        {
+            string experienceDisplay;
+
+            if (job.ExperienceMinYears == 0 &&
+                job.ExperienceMaxYears == 0)
+            {
+                experienceDisplay = "Fresher";
+            }
+            else if (job.ExperienceMaxYears == 0)
+            {
+                experienceDisplay =
+                    $"{job.ExperienceMinYears}+ Years";
+            }
+            else
+            {
+                experienceDisplay =
+                    $"{job.ExperienceMinYears}-{job.ExperienceMaxYears} Years";
+            }
+
+            string jobLocation =
+                job.LocationType == LocationType.Offshore
+                    ? job.OffshoreRegion ?? "Offshore"
+                    : string.Join(", ",
+                        new[]
+                        {
+                        job.OnshoreCity,
+                        job.OnshoreState
+                        }
+                        .Where(x =>
+                            !string.IsNullOrWhiteSpace(x)));
+
+            string companyLocation =
+                string.Join(", ",
+                    new[]
+                    {
+                    job.EmployerProfile?.City,
+                    job.EmployerProfile?.State
+                    }
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x)));
+
+            return new CandidateJobListItemDto
+            {
+                JobId = job.JobId,
+                EmployerId = job.EmployerId,
+                CompanyLogoUrl =
+                    job.EmployerProfile?.CompanyLogoUrl,
+
+                CompanyName =
+                    job.CompanyVisibility ==
+                    CompanyVisibility.ShowName
+                        ? job.EmployerProfile?.CompanyDisplayName
+                        : "Confidential Company",
+
+                JobTitle = job.JobTitle,
+
+                TradeCategory = job.TradeCategory,
+
+                Department = job.Department,
+
+                EmploymentType =
+                    job.EmploymentType.ToString(),
+
+                EmploymentMode =
+                    job.EmploymentMode.ToString(),
+
+                JobType =
+                    job.JobType.ToString(),
+
+                JobLocation = jobLocation,
+
+                CompanyLocation = companyLocation,
+
+                SalaryRange =
+                    FormatSalary(job) ?? "Confidential",
+
+                SalaryVisibility = job.SalaryDisplayOption.ToString(),
+
+                ExperienceDisplay =
+                    experienceDisplay,
+
+                Vacancies =
+                    job.Vacancies,
+
+                ApplicationsCount =
+                    job.AppliedCount,
+
+                ViewCount =
+                    job.ViewCount,
+
+                PostedOn =
+                    job.PublishedAt,
+
+                TimeAgo =
+                    GetTimeAgo(job.PublishedAt),
+
+                Description =
+                    job.JobDescription.Length > 150
+                        ? job.JobDescription.Substring(0, 150) + "..."
+                        : job.JobDescription,
+
+                Skills =
+                    job.KeySkills?.Take(5).ToList()
+                    ?? new List<string>(),
+
+                IsFeatured =
+                    job.IsFeatured,
+
+                IsUrgentHiring =
+                    job.IsUrgentHiring,
+
+                PassportRequired =
+                    job.PassportRequired,
+
+                IsInternational =
+                    job.IsInternational,
+
+                AiMatchPercentage = null,
+
+                CompanyVerified =
+                    job.EmployerProfile?.Badges?.Any() == true,
+
+                ApplicationDeadline =
+                    job.ApplicationDeadline
+            };
+        }).ToList();
+    }
+
+    public async Task<CandidateJobDetailsDto?> GetJobDetailsAsync(Guid jobId)
+    {
+        var job = await _context.JobPostings
+            .AsNoTracking()
+            .Include(x => x.EmployerProfile)
+                .ThenInclude(x => x.Badges)
+            .FirstOrDefaultAsync(x =>
+                x.JobId == jobId &&
+                x.JobStatus == JobStatus.Active &&
+                x.IsActive &&
+                !x.IsDeleted);
+
+        if (job == null)
+            return null;
+
+        var employer = job.EmployerProfile;
+
+        var companyLocation = string.Join(", ",
+            new[]
+            {
+            employer?.City,
+            employer?.State,
+            employer?.Country
+            }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        var jobLocation =
+            job.LocationType == LocationType.Offshore
+                ? string.Join(", ",
+                    new[]
+                    {
+                    job.OffshoreRegion,
+                    job.OffshoreCountry
+                    }
+                    .Where(x => !string.IsNullOrWhiteSpace(x)))
+                : string.Join(", ",
+                    new[]
+                    {
+                    job.OnshoreCity,
+                    job.OnshoreState,
+                    job.OnshoreCountry
+                    }
+                    .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        return new CandidateJobDetailsDto
+        {
+            JobId = job.JobId,
+
+            CompanyLogoUrl = employer?.CompanyLogoUrl,
+
+            CompanyName =
+                job.CompanyVisibility == CompanyVisibility.ShowName
+                    ? employer?.CompanyDisplayName
+                    : "Confidential Company",
+
+            CompanyLocation = companyLocation,
+
+            CompanyLocationMapLink =
+                !string.IsNullOrWhiteSpace(employer?.AddressLine1)
+                    ? $"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(employer.AddressLine1)}"
+                    : null,
+
+            VerificationBadges =
+                employer?.Badges?
+                    .Where(x => x.BadgeStatus == BadgeStatus.Approved)
+                    .Select(x => x.BadgeType.ToString())
+                    .ToList()
+                    ?? new List<string>(),
+
+            AiMatchPercentage = null,
+
+            JobTitle = job.JobTitle,
+
+            JobLevel = job.TradeCategory,
+
+            Department = job.Department,
+
+            IndustryType = employer?.IndustryType.ToString(),
+
+            EmploymentType = job.EmploymentType.ToString(),
+
+            EmploymentMode = job.EmploymentMode.ToString(),
+
+            JobType = job.JobType.ToString(),
+
+            IsOilField = job.IsOilField,
+
+
+            JobLocation = jobLocation,
+
+            LocationType = job.LocationType.ToString(),
+
+            SalaryRange = FormatSalary(job) ?? "Confidential",
+
+            SalaryVisibility = job.SalaryDisplayOption.ToString(),
+
+
+            ApplicationCount = job.AppliedCount,
+
+            OpeningCount = job.Vacancies,
+
+            PostedOn = job.PublishedAt,
+
+            ApplicationDeadline = job.ApplicationDeadline,
+
+            ExperienceMinYears = job.ExperienceMinYears,
+
+            ExperienceMaxYears = job.ExperienceMaxYears,
+
+            EducationRequired = job.EducationRequired,
+
+            AgeMin = job.AgeMin,
+
+            AgeMax = job.AgeMax,
+
+            GenderPreferred = job.GenderPreferred.ToString(),
+
+            DisabilityFriendly = job.DisabilityEligible,
+
+            IsInternational = job.IsInternational,
+
+            PassportRequired = job.PassportRequired,
+
+            DutyHoursPerDay = job.DutyHoursPerDay,
+
+            PaidOvertime = job.PaidOvertime,
+
+            LanguagePreferred = job.LanguageRequired,
+
+            RequiredLicencesCertificates =
+             string.IsNullOrWhiteSpace(job.LicenceDocsRequired)
+             ? new List<string>()
+             : job.LicenceDocsRequired
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .ToList(),
+
+            JobDescription = job.JobDescription,
+
+            KeyResponsibilities =
+                job.KeyResponsibilities ??
+                new List<string>(),
+
+            ProfessionalSkills =
+                job.KeySkills ??
+                new List<string>(),
+
+            PerksAndBenefits =
+                job.Benefits ??
+                new List<string>()
+        };
+    }
+
+    public async Task<CandidateJobListResponseDto> GetJobsAsync(
+     CandidateJobSearchRequestDto request)
+    {
+        try
+        {
+            request.Page = Math.Max(1, request.Page);
+            request.PageSize = Math.Clamp(request.PageSize, 1, MaxPageSize);
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            var query = _context.JobPostings
+                .AsNoTracking()
+                .Include(x => x.EmployerProfile)
+                    .ThenInclude(x => x.Badges)
+                .Where(x =>
+                    x.JobStatus == JobStatus.Active &&
+                    x.IsActive &&
+                    !x.IsDeleted &&
+                    x.ApplicationDeadline >= today);
+
+            //------------------------------------------------
+            // Keyword
+            //------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(request.Keyword))
+            {
+                var keyword = request.Keyword.Trim().ToLower();
+
+                query = query.Where(j =>
+
+                    j.JobTitle.ToLower().Contains(keyword)
+
+                    ||
+
+                    j.TradeCategory.ToLower().Contains(keyword)
+
+                    ||
+
+                    (j.Role != null &&
+                     j.Role.ToLower().Contains(keyword))
+
+                    ||
+
+                    (j.Department != null &&
+                     j.Department.ToLower().Contains(keyword))
+
+                    ||
+
+                    j.JobDescription.ToLower().Contains(keyword)
+
+                    ||
+
+                    (j.SearchKeywords != null &&
+                     j.SearchKeywords.ToLower().Contains(keyword))
+
+                    ||
+
+                    (j.KeySkills != null &&
+                     j.KeySkills.Any(s =>
+                        s.ToLower().Contains(keyword)))
+
+                    ||
+
+                    j.EmployerProfile.CompanyDisplayName
+                        .ToLower()
+                        .Contains(keyword));
+            }
+
+            //------------------------------------------------
+            // Trade Category
+            //------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(request.TradeCategory))
+            {
+                var trade = request.TradeCategory.Trim().ToLower();
+
+                query = query.Where(j =>
+                    j.TradeCategory.ToLower().Contains(trade));
+            }
+
+            //------------------------------------------------
+            // Role
+            //------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(request.Role))
+            {
+                var role = request.Role.Trim().ToLower();
+
+                query = query.Where(j =>
+                    j.Role != null &&
+                    j.Role.ToLower().Contains(role));
+            }
+
+            //------------------------------------------------
+            // Location
+            //------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(request.Location))
+            {
+                var location = request.Location.Trim().ToLower();
+
+                query = query.Where(j =>
+
+                    (j.OnshoreCity != null &&
+                     j.OnshoreCity.ToLower().Contains(location))
+
+                    ||
+
+                    (j.OnshoreState != null &&
+                     j.OnshoreState.ToLower().Contains(location))
+
+                    ||
+
+                    (j.OnshoreCountry != null &&
+                     j.OnshoreCountry.ToLower().Contains(location))
+
+                    ||
+
+                    (j.OffshoreRegion != null &&
+                     j.OffshoreRegion.ToLower().Contains(location))
+
+                    ||
+
+                    (j.OffshoreCountry != null &&
+                     j.OffshoreCountry.ToLower().Contains(location)));
+            }
+
+            //------------------------------------------------
+            // State
+            //------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(request.State))
+            {
+                var state = request.State.Trim().ToLower();
+
+                query = query.Where(j =>
+                    j.OnshoreState != null &&
+                    j.OnshoreState.ToLower().Contains(state));
+            }
+
+            //------------------------------------------------
+            // Location Type
+            //------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(request.LocationType))
+            {
+                if (Enum.TryParse<LocationType>(
+                    request.LocationType,
+                    true,
+                    out var locationType))
+                {
+                    query = query.Where(j =>
+                        j.LocationType == locationType);
+                }
+            }
+
+            //------------------------------------------------
+            // Employment Type
+            //------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(request.EmploymentType))
+            {
+                if (Enum.TryParse<EmploymentType>(
+                    request.EmploymentType,
+                    true,
+                    out var employmentType))
+                {
+                    query = query.Where(j =>
+                        j.EmploymentType == employmentType);
+                }
+            }
+
+            //------------------------------------------------
+            // Experience
+            //------------------------------------------------
+
+            if (request.ExperienceYearsMin.HasValue)
+            {
+                query = query.Where(j =>
+                    j.ExperienceMaxYears >=
+                    request.ExperienceYearsMin.Value);
+            }
+
+            if (request.ExperienceYearsMax.HasValue)
+            {
+                query = query.Where(j =>
+                    j.ExperienceMinYears <=
+                    request.ExperienceYearsMax.Value);
+            }
+
+            //------------------------------------------------
+            // Salary
+            //------------------------------------------------
+
+            if (request.SalaryMin.HasValue)
+            {
+                query = query.Where(j =>
+                    j.SalaryMax >= request.SalaryMin.Value);
+            }
+
+            if (request.SalaryMax.HasValue)
+            {
+                query = query.Where(j =>
+                    j.SalaryMin <= request.SalaryMax.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.SalaryCurrency))
+            {
+                if (Enum.TryParse<SalaryCurrency>(
+                    request.SalaryCurrency,
+                    true,
+                    out var currency))
+                {
+                    query = query.Where(j =>
+                        j.SalaryCurrency == currency);
+                }
+            }
+
+            //------------------------------------------------
+            // Gender
+            //------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(request.Gender) &&
+                request.Gender != "Any")
+            {
+                if (Enum.TryParse<GenderPreferred>(
+                    request.Gender,
+                    true,
+                    out var gender))
+                {
+                    query = query.Where(j =>
+                        j.GenderPreferred == gender ||
+                        j.GenderPreferred == GenderPreferred.Any);
+                }
+            }
+
+            //------------------------------------------------
+            // Education
+            //------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(request.EducationLevel))
+            {
+                query = query.Where(j =>
+                    j.EducationRequired == request.EducationLevel);
+            }
+
+            //------------------------------------------------
+            // Disability
+            //------------------------------------------------
+
+            if (request.DisabilityEligible.HasValue)
+            {
+                query = query.Where(j =>
+                    j.DisabilityEligible ==
+                    request.DisabilityEligible.Value);
+            }
+
+            //------------------------------------------------
+            // Passport
+            //------------------------------------------------
+
+            if (request.PassportRequired.HasValue)
+            {
+                query = query.Where(j =>
+                    j.PassportRequired ==
+                    request.PassportRequired.Value);
+            }
+
+            //------------------------------------------------
+            // Posted Within
+            //------------------------------------------------
+
+            if (request.PostedWithinDays.HasValue)
+            {
+                var cutoff =
+                    DateTime.UtcNow.AddDays(
+                        -request.PostedWithinDays.Value);
+
+                query = query.Where(j =>
+                    j.PublishedAt != null &&
+                    j.PublishedAt >= cutoff);
+            }
+
+            //------------------------------------------------
+            // Sorting
+            //------------------------------------------------
+
+            query = request.Sort switch
+            {
+                "oldest" =>
+                    query.OrderBy(j => j.PublishedAt),
+
+                "salary_high" =>
+                    query.OrderByDescending(j => j.SalaryMax),
+
+                "salary_low" =>
+                    query.OrderBy(j => j.SalaryMin),
+
+                _ =>
+                    query.OrderByDescending(j => j.IsFeatured)
+                         .ThenByDescending(j => j.PublishedAt)
+            };
+
+            //------------------------------------------------
+            // Count
+            //------------------------------------------------
+
+            var totalCount =
+                await query.CountAsync();
+
+            //------------------------------------------------
+            // Pagination
+            //------------------------------------------------
+
+            var jobs = await query
+                .Skip((request.Page - 1) * request.PageSize)
+                .Take(request.PageSize)
+                .ToListAsync();
+
+            var totalPages =
+                (int)Math.Ceiling(
+                    (double)totalCount /
+                    request.PageSize);
+
+            //------------------------------------------------
+            // Map Jobs
+            //------------------------------------------------
+
+            var jobCards = jobs
+                .Select(job => MapToCard(job))
+                .ToList();
+
+            //------------------------------------------------
+            // Response
+            //------------------------------------------------
+
+            return new CandidateJobListResponseDto
+            {
+                Success = true,
+
+                Message =
+                    $"{totalCount} job(s) found.",
+
+                Jobs =
+                    jobCards,
+
+                TotalCount =
+                    totalCount,
+
+                Page =
+                    request.Page,
+
+                PageSize =
+                    request.PageSize,
+
+                TotalPages =
+                    totalPages,
+
+                HasNextPage =
+                    request.Page < totalPages,
+
+                HasPreviousPage =
+                    request.Page > 1,
+
+                AppliedFilters =
+                    request
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "CandidateJobService.GetJobsAsync error.");
+
+            return new CandidateJobListResponseDto
+            {
+                Success = false,
+                Message =
+                    ex.InnerException?.Message ??
+                    ex.Message
+            };
+        }
     }
 
     public async Task<PublicCompanyListResponseDto> GetCompaniesAsync()

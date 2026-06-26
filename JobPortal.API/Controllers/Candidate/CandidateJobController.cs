@@ -11,6 +11,8 @@ namespace JobPortal.API.Controllers.Candidate;
 [ApiController]
 [Route("api/candidate/jobs")]
 [Produces("application/json")]
+[Authorize(Roles = "Candidate")]
+
 public class CandidateJobController : ControllerBase
 {
     private readonly ICandidateJobService _jobService;
@@ -37,54 +39,27 @@ public class CandidateJobController : ControllerBase
             : Guid.Empty;
     }
 
-    [HttpGet("All_Jobs")]
-    [AllowAnonymous]
-    public async Task<IActionResult> GetAllJobs()
-    {
-        var result =
-            await _jobService.GetAllJobsAsync();
 
-        return Ok(result);
-    }
-
-    [HttpGet("job_details/{jobId:guid}")]
-    [AllowAnonymous]
-    [ProducesResponseType(typeof(CandidateJobDetailResponseDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetJobDetails(Guid jobId)
-    {
-        var result =
-            await _jobService
-                .GetJobDetailsAsync(jobId);
-
-        if (result == null)
-            return NotFound(new
-            {
-                Message = "Job not found."
-            });
-
-        return Ok(result);
-    }
   
 
 
-    [HttpGet("company_details/{employerId}")]
-    public async Task<IActionResult> GetCompanyDetail(
-    Guid employerId)
-    {
-        var result =
-            await _jobService
-                .GetCompanyDetailAsync(employerId);
+    //[HttpGet("company_details/{employerId}")]
+    //public async Task<IActionResult> GetCompanyDetail(
+    //Guid employerId)
+    //{
+    //    var result =
+    //        await _jobService
+    //            .GetCompanyDetailAsync(employerId);
 
-        if (result == null)
-            return NotFound(new
-            {
-                Success = false,
-                Message = "Company not found."
-            });
+    //    if (result == null)
+    //        return NotFound(new
+    //        {
+    //            Success = false,
+    //            Message = "Company not found."
+    //        });
 
-        return Ok(result);
-    }
+    //    return Ok(result);
+    //}
  
 
 
@@ -98,17 +73,9 @@ public class CandidateJobController : ControllerBase
     }
 
   
-    [HttpGet]
-    [AllowAnonymous]
-    [ProducesResponseType(typeof(CandidateJobListResponseDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetJobs([FromQuery] CandidateJobSearchRequestDto request)
-    {
-        var result = await _jobService.GetJobsAsync(request);
-        return result.Success ? Ok(result) : BadRequest(result);
-    }
+
 
     [HttpGet("saved")]
-    [AllowAnonymous]                        
     [ProducesResponseType(typeof(SavedJobListResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetSavedJobs([FromQuery] Guid? candidateId = null)
@@ -123,7 +90,6 @@ public class CandidateJobController : ControllerBase
 
  
     [HttpGet("GetAppliedJobs")]
-    [AllowAnonymous]                        
     [ProducesResponseType(typeof(MyApplicationsResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetAppliedJobs([FromQuery] Guid? candidateId = null)
@@ -139,7 +105,6 @@ public class CandidateJobController : ControllerBase
 
 
     [HttpPost("{jobId:guid}/save")]
-    [AllowAnonymous]
     [ProducesResponseType(typeof(SaveJobResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> ToggleSaveJob(
@@ -164,7 +129,7 @@ public class CandidateJobController : ControllerBase
     }
 
 
-    [HttpGet("{jobId:guid}/apply")]
+    [HttpGet("{jobId:guid}/questions_apply_jobs")]
     public async Task<IActionResult> GetApplyJobDetails(Guid jobId)
     {
         var candidateId = ResolveCandidateId();
@@ -181,7 +146,6 @@ public class CandidateJobController : ControllerBase
 
 
     [HttpPost("{jobId:guid}/apply")]
-    [AllowAnonymous]                        
     [ProducesResponseType(typeof(ApplyJobResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -208,7 +172,6 @@ public class CandidateJobController : ControllerBase
 
    
     [HttpDelete("applications/{applicationId:guid}")]
-    [AllowAnonymous]                        // ← [Authorize(Roles = "Candidate")] in prod
     [ProducesResponseType(typeof(WithdrawApplicationResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

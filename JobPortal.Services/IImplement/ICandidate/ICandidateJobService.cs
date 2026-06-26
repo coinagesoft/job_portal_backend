@@ -10,13 +10,10 @@ namespace JobPortal.Services.IImplement.ICandidate;
 public interface ICandidateJobService
 {
 
-    Task<List<CandidateJobListItemDto>> GetAllJobsAsync();
-    Task<CandidateJobDetailsDto?> GetJobDetailsAsync(Guid jobId);
 
-    Task<CandidateCompanyDetailResponseDto?> GetCompanyDetailAsync(
-        Guid employerId);
+    //Task<CandidateCompanyDetailResponseDto?> GetCompanyDetailAsync(
+    //    Guid employerId);
     // ── Job Listing & Search ──────────────────────────────────
-    Task<CandidateJobListResponseDto> GetJobsAsync(CandidateJobSearchRequestDto request);
     Task<CandidateJobDetailResponseDto> GetJobDetailAsync(Guid jobId);
     Task<JobFilterOptionsResponseDto> GetFilterOptionsAsync();
 

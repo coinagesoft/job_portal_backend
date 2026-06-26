@@ -491,7 +491,7 @@ public class SavedJobCardDto
     public string? CompanyName { get; set; }
     public string? CompanyLogoUrl { get; set; }
     public bool IsConfidentialCompany { get; set; }
-
+    public int? AiMatchPercentage { get; set; }
     // ── Job basics ────────────────────────────────────────────
     public string JobTitle { get; set; } = default!;
     public string TradeCategory { get; set; } = default!;
