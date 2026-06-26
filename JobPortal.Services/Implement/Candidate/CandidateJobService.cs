@@ -5,6 +5,7 @@
 using JobPortal.Application.DTOs.Candidate;
 using JobPortal.Application.DTOs.Candidate.Jobs;
 using JobPortal.Domain.Entities;
+using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.ICandidate;
@@ -122,8 +123,10 @@ public class CandidateJobService : ICandidateJobService
 
                 CompanyLocation = companyLocation,
 
-                SalaryDisplay =
+                SalaryRange =
                     FormatSalary(job) ?? "Confidential",
+
+                 SalaryVisibility = job.SalaryDisplayOption.ToString(),
 
                 ExperienceDisplay =
                     experienceDisplay,
@@ -248,9 +251,11 @@ public class CandidateJobService : ICandidateJobService
 
             JobTitle = job.JobTitle,
 
-            TradeCategory = job.TradeCategory,
+            JobLevel = job.TradeCategory,
 
             Department = job.Department,
+
+            IndustryType = employer?.IndustryType.ToString(),
 
             EmploymentType = job.EmploymentType.ToString(),
 
@@ -258,11 +263,17 @@ public class CandidateJobService : ICandidateJobService
 
             JobType = job.JobType.ToString(),
 
+            IsOilField = job.IsOilField,
+
+
             JobLocation = jobLocation,
 
             LocationType = job.LocationType.ToString(),
 
             SalaryRange = FormatSalary(job) ?? "Confidential",
+
+            SalaryVisibility = job.SalaryDisplayOption.ToString(),
+
 
             ApplicationCount = job.AppliedCount,
 
@@ -297,7 +308,12 @@ public class CandidateJobService : ICandidateJobService
             LanguagePreferred = job.LanguageRequired,
 
             RequiredLicencesCertificates =
-                job.LicenceDocsRequired,
+             string.IsNullOrWhiteSpace(job.LicenceDocsRequired)
+             ? new List<string>()
+             : job.LicenceDocsRequired
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .ToList(),
 
             JobDescription = job.JobDescription,
 
@@ -1406,7 +1422,7 @@ public class CandidateJobService : ICandidateJobService
                 job.EmployerProfile?.State
               }.Where(x => !string.IsNullOrWhiteSpace(x))),
 
-            SalaryDisplay = FormatSalary(job),
+            SalaryRange = FormatSalary(job),
 
             ExperienceDisplay =
           job.ExperienceMinYears == 0 &&
@@ -1452,11 +1468,7 @@ public class CandidateJobService : ICandidateJobService
     // ── Salary formatting ─────────────────────────────────
     private static string? FormatSalary(JobPosting job)
     {
-        if (job.SalaryDisplayOption ==
-            SalaryDisplayOption.Show_Range)
-        {
-            return null;
-        }
+      
 
         var symbol = job.SalaryCurrency switch
         {
@@ -1564,7 +1576,7 @@ public class CandidateJobService : ICandidateJobService
 
                 var isConfidential =
                     job.CompanyVisibility ==
-                    CompanyVisibility.ShowName;
+                    CompanyVisibility.HideName;
 
                 var publishingTags =
                     job.PublishingTags ?? new List<string>();
@@ -1591,21 +1603,21 @@ public class CandidateJobService : ICandidateJobService
                             }
                             .Where(x => !string.IsNullOrWhiteSpace(x)));
 
-                string experienceDisplay;
+                string experience;
 
                 if (job.ExperienceMinYears == 0 &&
                     job.ExperienceMaxYears == 0)
                 {
-                    experienceDisplay = "Fresher";
+                    experience = "Fresher";
                 }
                 else if (job.ExperienceMaxYears == 0)
                 {
-                    experienceDisplay =
+                    experience =
                         $"{job.ExperienceMinYears}+ Years";
                 }
                 else
                 {
-                    experienceDisplay =
+                    experience =
                         $"{job.ExperienceMinYears}-{job.ExperienceMaxYears} Years";
                 }
 
@@ -1626,7 +1638,7 @@ public class CandidateJobService : ICandidateJobService
                         : job.EmployerProfile?.CompanyLogoUrl,
 
                     IsConfidentialCompany = isConfidential,
-
+                    JobDescription = job.JobDescription,
                     // Job
                     JobTitle = job.JobTitle,
 
@@ -1635,7 +1647,7 @@ public class CandidateJobService : ICandidateJobService
                     City = job.OnshoreCity,
 
                     State = job.OnshoreState,
-
+                    PostedOn = job.PublishedAt,
                     LocationDisplay = locationDisplay,
 
                     EmploymentType =
@@ -1650,11 +1662,11 @@ public class CandidateJobService : ICandidateJobService
                     Department =
                         job.Department,
 
-                    ExperienceDisplay =
-                        experienceDisplay,
+                    Experience =
+                        experience,
 
                     // Salary
-                    SalaryDisplay =
+                    SalaryRange =
                         FormatSalary(job),
 
                     SalaryMin =

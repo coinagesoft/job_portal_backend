@@ -978,7 +978,10 @@ public class AppDbContext : DbContext
             e.Property(x => x.DisabilityEligible)
              .HasColumnName("disability_eligible");
 
-       
+            e.Property(x => x.IsOilField)
+          .HasColumnName("isOil_field");
+
+
 
             e.Property(x => x.OnshoreCity)
              .HasColumnName("onshore_city");

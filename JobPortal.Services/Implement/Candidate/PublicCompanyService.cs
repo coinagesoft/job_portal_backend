@@ -311,7 +311,7 @@ public class PublicCompanyService : IPublicCompanyService
             CompanyLocation =
                 GetCompanyLocation(job),
 
-            SalaryDisplay =
+            SalaryRange =
                 FormatSalary(job),
 
             ExperienceDisplay =
@@ -422,6 +422,7 @@ public class PublicCompanyService : IPublicCompanyService
             }
             .Where(x => !string.IsNullOrWhiteSpace(x)));
     }
+
     private static string GetCompanyLocation(JobPosting job)
     {
         return string.Join(", ",

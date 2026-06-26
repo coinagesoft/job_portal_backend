@@ -30,7 +30,9 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public string CompanyLocation { get; set; } = string.Empty;
 
-        public string SalaryDisplay { get; set; } = string.Empty;
+        public string SalaryRange { get; set; } = string.Empty;
+
+        public string SalaryVisibility { get; set; } = string.Empty;
 
         public string ExperienceDisplay { get; set; } = string.Empty;
 
@@ -64,4 +66,5 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public Guid EmployerId { get; set; }
     }
+
 }

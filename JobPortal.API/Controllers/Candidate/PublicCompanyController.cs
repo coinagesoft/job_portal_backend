@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace JobPortal.API.Controllers.Public;
 
 [ApiController]
-[Route("api/public/companies")]
+[Route("api/candidate/public/companies")]
 public class PublicCompanyController : ControllerBase
 {
     private readonly IPublicCompanyService _companyService;

@@ -485,7 +485,8 @@ public class SavedJobCardDto
     public Guid SavedJobId { get; set; }
     public Guid JobId { get; set; }
     public DateTime SavedAt { get; set; }
-
+    public DateTime? PostedOn { get; set; }
+    public string? JobDescription { get; set; }
     // ── Company ───────────────────────────────────────────────
     public string? CompanyName { get; set; }
     public string? CompanyLogoUrl { get; set; }
@@ -504,10 +505,10 @@ public class SavedJobCardDto
     public string LocationDisplay { get; set; } = default!;
 
     // ── Experience ───────────────────────────────────────────
-    public string ExperienceDisplay { get; set; } = default!;
+    public string Experience { get; set; } = default!;
 
     // ── Salary ───────────────────────────────────────────────
-    public string? SalaryDisplay { get; set; }
+    public string? SalaryRange { get; set; }
     public int? SalaryMin { get; set; }
     public int? SalaryMax { get; set; }
     public string SalaryCurrency { get; set; } = "INR";
