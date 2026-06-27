@@ -80,20 +80,36 @@ public class DeleteResumeResponseDto
 public class EducationCertificateDto
 {
     public Guid EducationId { get; set; }
-    public string EducationLevel { get; set; } = string.Empty;  // 10th|12th|ITI|Diploma|Graduate|Other
+
+    public string EducationLevel { get; set; } = string.Empty;
+
     public string? InstituteName { get; set; }
+
     public string? MarksPercentage { get; set; }
+
     public short? PassoutYear { get; set; }
+
     public string? CertificateUrl { get; set; }
+
     public string? CertificateNumber { get; set; }
-    public string VerificationStatus { get; set; } = "Pending";  // Pending|Verified|Rejected
+
+    public bool IsAiVerified { get; set; }
+
+    public string VerificationStatus { get; set; } = "Pending";
+
     public DateTime CreatedAt { get; set; }
 }
 
 public class UploadEducationCertificateRequestDto
 {
+    /// <summary>
+    /// Null = Create new education
+    /// Value = Update existing education
+    /// </summary>
+    public Guid? EducationId { get; set; }
+
     [Required]
-    public string EducationLevel { get; set; } = string.Empty;   // 10th|12th|ITI|Diploma|Graduate|Other
+    public string EducationLevel { get; set; } = string.Empty;
 
     [MaxLength(200)]
     public string? InstituteName { get; set; }
@@ -104,20 +120,25 @@ public class UploadEducationCertificateRequestDto
     [Range(1950, 2100)]
     public short? PassoutYear { get; set; }
 
-    /// <summary>Certificate / Roll number printed on the certificate, e.g. "ITI/2014/PUN/7823"</summary>
     [MaxLength(100)]
     public string? CertificateNumber { get; set; }
 
-    // IFormFile passed separately in [FromForm]
+    // IFormFile comes separately via [FromForm]
 }
 
 public class UploadEducationCertificateResponseDto
 {
     public bool Success { get; set; }
+
     public string Message { get; set; } = string.Empty;
+
     public Guid? EducationId { get; set; }
+
     public string? CertificateUrl { get; set; }
+
     public byte ProfileCompletionPct { get; set; }
+
+    public bool IsAiVerified { get; set; }
 }
 
 public class DeleteEducationCertificateResponseDto

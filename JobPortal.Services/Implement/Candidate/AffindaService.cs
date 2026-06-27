@@ -198,8 +198,8 @@ public class AffindaService : IAffindaService
                 continue;
             }
             File.WriteAllText(
-     @"C:\Users\ASUS\Downloads\affinda.json",
-     body);
+          @"E:\Affinda\affinda.json",
+          body);
             var doc = JsonSerializer.Deserialize<AffindaSingleDocumentResponse>(body, _jsonOpts);
 
             if (doc?.Meta?.Ready == true || doc?.Meta?.Failed == true)
@@ -238,7 +238,9 @@ public class AffindaService : IAffindaService
         var phone = d?.PhoneNumber?.FirstOrDefault()?.FormattedNumber
                  ?? d?.PhoneNumber?.FirstOrDefault()?.RawText;
 
-        var email = d?.Email?.FirstOrDefault();
+        var email =
+            d?.Email?.FirstOrDefault()?.Parsed
+            ?? d?.Email?.FirstOrDefault()?.RawText;
 
         var primaryTrade =
      d?.WorkExperience?
@@ -279,6 +281,7 @@ public class AffindaService : IAffindaService
             ParsedEmail = email,
             ParsedTrade = primaryTrade,
             ParsedExperienceYrs = experienceYrs,
+            ProfessionalSummary = d?.Summary?.Parsed,
             ParsedSkills = skills,
             AiConfidenceScore = document.Meta?.OcrConfidence,
             City = d?.Location?.Parsed?.City,

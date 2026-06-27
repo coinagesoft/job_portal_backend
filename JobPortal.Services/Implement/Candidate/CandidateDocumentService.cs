@@ -550,86 +550,322 @@ public class CandidateDocumentService : ICandidateDocumentService
     {
         try
         {
-            var cvs = await _context.CandidateCvs
-                .Where(c => c.CandidateId == candidateId)
-                .ToListAsync();
+            // =====================================================
+            // 1. Load Candidate Profile
+            // =====================================================
 
-            if (!cvs.Any())
-                return new DeleteResumeResponseDto { Success = false, Message = "No resume found." };
+            var profile = await _context.CandidateProfiles
+                .Include(x => x.Cvs)
+                .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
 
-            _context.CandidateCvs.RemoveRange(cvs);
+            if (profile == null)
+            {
+                return new DeleteResumeResponseDto
+                {
+                    Success = false,
+                    Message = "Candidate profile not found."
+                };
+            }
+
+            // =====================================================
+            // 2. Find Latest Resume
+            // =====================================================
+
+            var resume = profile.Cvs
+                .OrderByDescending(x => x.GeneratedAt)
+                .FirstOrDefault();
+
+            if (resume == null)
+            {
+                return new DeleteResumeResponseDto
+                {
+                    Success = false,
+                    Message = "Resume not found."
+                };
+            }
+
+            // Store PublicId before removing entity
+            var publicId = resume.CvPublicId;
+
+            // =====================================================
+            // 3. Remove Resume From Database
+            // =====================================================
+
+            _context.CandidateCvs.Remove(resume);
+
+            // =====================================================
+            // 4. Update Profile Completion
+            // =====================================================
+
+            var completion =
+                await BuildProfileCompletionDataAsync(candidateId);
+
+            profile.ProfileCompletionPct =
+                completion?.OverallPct ?? 0;
+
+            profile.UpdatedAt = DateTime.UtcNow;
+
+            // =====================================================
+            // 5. Save Changes
+            // =====================================================
+
             await _context.SaveChangesAsync();
 
-            return new DeleteResumeResponseDto { Success = true, Message = "Resume deleted." };
+            // =====================================================
+            // 6. Delete Resume From Cloudinary
+            // Only after successful database save
+            // =====================================================
+
+            if (!string.IsNullOrWhiteSpace(publicId))
+            {
+                try
+                {
+                    await _fileStorage.DeleteFileAsync(publicId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Failed to delete resume from Cloudinary for Candidate {CandidateId}",
+                        candidateId);
+                }
+            }
+
+            // =====================================================
+            // 7. Logging
+            // =====================================================
+
+            _logger.LogInformation(
+                "Resume deleted successfully for Candidate {CandidateId}",
+                candidateId);
+
+            // =====================================================
+            // 8. Response
+            // =====================================================
+
+            return new DeleteResumeResponseDto
+            {
+                Success = true,
+                Message = "Resume deleted successfully."
+            };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "DeleteResumeAsync failed for {CandidateId}", candidateId);
-            return new DeleteResumeResponseDto { Success = false, Message = "Internal server error." };
+            _logger.LogError(
+                ex,
+                "DeleteResumeAsync failed for Candidate {CandidateId}",
+                candidateId);
+
+            return new DeleteResumeResponseDto
+            {
+                Success = false,
+                Message = "Unable to delete resume. Please try again later."
+            };
         }
     }
 
-    // ════════════════════════════════════════════════
-    // EDUCATION CERTIFICATE
-    // ════════════════════════════════════════════════
 
     public async Task<UploadEducationCertificateResponseDto> UploadEducationCertificateAsync(
-        Guid candidateId,
-        UploadEducationCertificateRequestDto request,
-        IFormFile file)
+     Guid candidateId,
+     UploadEducationCertificateRequestDto request,
+     IFormFile file)
     {
+        FileUploadResult? uploadResult = null;
+
         try
         {
-            var validationError = ValidateFile(file, AllowedDocTypes, MaxDocFileSizeBytes);
+            // =====================================================
+            // 1. Validate Certificate
+            // =====================================================
+
+            var validationError = ValidateFile(
+                file,
+                AllowedDocTypes,
+                MaxDocFileSizeBytes);
+
             if (validationError != null)
-                return new UploadEducationCertificateResponseDto { Success = false, Message = validationError };
-
-            var profileExists = await _context.CandidateProfiles
-                .AnyAsync(p => p.CandidateId == candidateId);
-            if (!profileExists)
-                return new UploadEducationCertificateResponseDto { Success = false, Message = "Candidate not found." };
-
-            var fileUrl = $"{_configuration["Storage:BaseUrl"]}/education/{candidateId}/cert_{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-
-            var edu = new CandidateEducation
             {
-                EducationId = Guid.NewGuid(),
-                CandidateId = candidateId,
-                EducationLevel = request.EducationLevel,
-                InstituteName = request.InstituteName,
-                YearDetails = request.MarksPercentage,
-                PassoutYear = request.PassoutYear,
-                CertificateUrl = fileUrl,
-                CertificateNumber = request.CertificateNumber,
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.CandidateEducations.Add(edu);
-
-            var profile = await _context.CandidateProfiles
-                .Include(p => p.Educations)
-                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
-
-            if (profile != null)
-            {
-                profile.ProfileCompletionPct = RecalcPct(profile);
-                profile.UpdatedAt = DateTime.UtcNow;
+                return new UploadEducationCertificateResponseDto
+                {
+                    Success = false,
+                    Message = validationError
+                };
             }
 
+            // =====================================================
+            // 2. Load Candidate Profile
+            // =====================================================
+
+            var profile = await _context.CandidateProfiles
+                .Include(x => x.Educations)
+                .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
+            if (profile == null)
+            {
+                return new UploadEducationCertificateResponseDto
+                {
+                    Success = false,
+                    Message = "Candidate profile not found."
+                };
+            }
+
+            // =====================================================
+            // 3. Find Existing Education Record
+            // =====================================================
+
+            CandidateEducation? existingEducation = null;
+
+            if (request.EducationId.HasValue)
+            {
+                existingEducation = await _context.CandidateEducations
+                    .FirstOrDefaultAsync(x =>
+                        x.EducationId == request.EducationId.Value &&
+                        x.CandidateId == candidateId);
+            }
+
+            // =====================================================
+            // 4. Upload Certificate to Cloudinary
+            // =====================================================
+
+            uploadResult = await _fileStorage.SaveFileAsync(
+                file,
+                "education");
+
+
+            // =====================================================
+            // 5. Create or Update Education
+            // =====================================================
+
+            CandidateEducation education;
+
+            if (existingEducation == null)
+            {
+                education = new CandidateEducation
+                {
+                    EducationId = Guid.NewGuid(),
+
+                    CandidateId = candidateId,
+
+                    EducationLevel = request.EducationLevel,
+
+                    InstituteName = request.InstituteName,
+
+                    YearDetails = request.MarksPercentage,
+
+                    PassoutYear = request.PassoutYear,
+
+                    CertificateNumber = request.CertificateNumber,
+
+                    CertificateUrl = uploadResult.Url,
+
+                    CertificatePublicId = uploadResult.PublicId,
+
+                    IsAiVerified = false,
+
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.CandidateEducations.Add(education);
+            }
+            else
+            {
+                education = existingEducation;
+
+                education.EducationLevel = request.EducationLevel;
+
+                education.InstituteName = request.InstituteName;
+
+                education.YearDetails = request.MarksPercentage;
+
+                education.PassoutYear = request.PassoutYear;
+
+                education.CertificateNumber = request.CertificateNumber;
+
+                education.CertificateUrl = uploadResult.Url;
+
+                education.CertificatePublicId = uploadResult.PublicId;
+            }
+
+            // =====================================================
+            // 6. Update Profile Completion
+            // =====================================================
+
+            var completion =
+                await BuildProfileCompletionDataAsync(candidateId);
+
+            profile.ProfileCompletionPct =
+                completion?.OverallPct ?? 0;
+
+            profile.UpdatedAt = DateTime.UtcNow;
+
+            // =====================================================
+            // 7. Save Changes
+            // =====================================================
+
             await _context.SaveChangesAsync();
+
+            // =====================================================
+            // 8. Delete Previous Certificate From Cloudinary
+            // Only after successful database save
+            // =====================================================
+
+            if (existingEducation != null &&
+                !string.IsNullOrWhiteSpace(existingEducation.CertificatePublicId) &&
+                existingEducation.CertificatePublicId != uploadResult.PublicId)
+            {
+                try
+                {
+                    await _fileStorage.DeleteFileAsync(
+                        existingEducation.CertificatePublicId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Failed to delete previous education certificate for Candidate {CandidateId}",
+                        candidateId);
+                }
+            }
+
+            // =====================================================
+            // 9. Logging
+            // =====================================================
+
+            _logger.LogInformation(
+                "Education certificate uploaded successfully for Candidate {CandidateId}",
+                candidateId);
+
+            // =====================================================
+            // 10. Response
+            // =====================================================
 
             return new UploadEducationCertificateResponseDto
             {
                 Success = true,
-                Message = "Education certificate uploaded.",
-                EducationId = edu.EducationId,
-                CertificateUrl = fileUrl,
-                ProfileCompletionPct = profile?.ProfileCompletionPct ?? 0
+
+                Message = existingEducation == null
+                    ? "Education certificate uploaded successfully."
+                    : "Education certificate updated successfully.",
+
+                EducationId = education.EducationId,
+
+                CertificateUrl = education.CertificateUrl,
+
+                ProfileCompletionPct = profile.ProfileCompletionPct
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "UploadEducationCertificateAsync failed for {CandidateId}", candidateId);
-            return new UploadEducationCertificateResponseDto { Success = false, Message = "Internal server error." };
+            _logger.LogError(
+                ex,
+                "UploadEducationCertificateAsync failed for Candidate {CandidateId}",
+                candidateId);
+
+            return new UploadEducationCertificateResponseDto
+            {
+                Success = false,
+                Message = "Unable to upload education certificate. Please try again later."
+            };
         }
     }
 
@@ -654,26 +890,121 @@ public class CandidateDocumentService : ICandidateDocumentService
 
 
     public async Task<DeleteEducationCertificateResponseDto> DeleteEducationCertificateAsync(
-        Guid candidateId, Guid educationId)
+      Guid candidateId,
+      Guid educationId)
     {
         try
         {
-            var edu = await _context.CandidateEducations
-                .FirstOrDefaultAsync(e => e.EducationId == educationId && e.CandidateId == candidateId);
+            // =====================================================
+            // 1. Load Candidate Profile
+            // =====================================================
 
-            if (edu == null)
+            var profile = await _context.CandidateProfiles
+                .Include(x => x.Educations)
+                .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
+            if (profile == null)
+            {
                 return new DeleteEducationCertificateResponseDto
-                { Success = false, Message = "Education record not found." };
+                {
+                    Success = false,
+                    Message = "Candidate profile not found."
+                };
+            }
 
-            _context.CandidateEducations.Remove(edu);
+            // =====================================================
+            // 2. Find Education Record
+            // =====================================================
+
+            var education = profile.Educations
+                .FirstOrDefault(x => x.EducationId == educationId);
+
+            if (education == null)
+            {
+                return new DeleteEducationCertificateResponseDto
+                {
+                    Success = false,
+                    Message = "Education record not found."
+                };
+            }
+
+            // Store PublicId before removing entity
+            var publicId = education.CertificatePublicId;
+
+            // =====================================================
+            // 3. Remove Education Record
+            // =====================================================
+
+            _context.CandidateEducations.Remove(education);
+
+            // =====================================================
+            // 4. Update Profile Completion
+            // =====================================================
+
+            var completion =
+                await BuildProfileCompletionDataAsync(candidateId);
+
+            profile.ProfileCompletionPct =
+                completion?.OverallPct ?? 0;
+
+            profile.UpdatedAt = DateTime.UtcNow;
+
+            // =====================================================
+            // 5. Save Changes
+            // =====================================================
+
             await _context.SaveChangesAsync();
 
-            return new DeleteEducationCertificateResponseDto { Success = true, Message = "Certificate deleted." };
+            // =====================================================
+            // 6. Delete Certificate From Cloudinary
+            // Only after successful database save
+            // =====================================================
+
+            if (!string.IsNullOrWhiteSpace(publicId))
+            {
+                try
+                {
+                    await _fileStorage.DeleteFileAsync(publicId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Failed to delete education certificate from Cloudinary for Candidate {CandidateId}",
+                        candidateId);
+                }
+            }
+
+            // =====================================================
+            // 7. Logging
+            // =====================================================
+
+            _logger.LogInformation(
+                "Education certificate deleted successfully for Candidate {CandidateId}",
+                candidateId);
+
+            // =====================================================
+            // 8. Response
+            // =====================================================
+
+            return new DeleteEducationCertificateResponseDto
+            {
+                Success = true,
+                Message = "Education certificate deleted successfully."
+            };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "DeleteEducationCertificateAsync failed for {CandidateId}", candidateId);
-            return new DeleteEducationCertificateResponseDto { Success = false, Message = "Internal server error." };
+            _logger.LogError(
+                ex,
+                "DeleteEducationCertificateAsync failed for Candidate {CandidateId}",
+                candidateId);
+
+            return new DeleteEducationCertificateResponseDto
+            {
+                Success = false,
+                Message = "Unable to delete education certificate. Please try again later."
+            };
         }
     }
 
@@ -1044,28 +1375,129 @@ public class CandidateDocumentService : ICandidateDocumentService
     }
 
 
-    public async Task<DeletePassportResponseDto> DeletePassportAsync(Guid candidateId)
+    public async Task<DeletePassportResponseDto> DeletePassportAsync(
+        Guid candidateId)
     {
         try
         {
-            var records = await _context.Set<PassportVerification>()
-                .Where(p => p.CandidateId == candidateId).ToListAsync();
+            // =====================================================
+            // 1. Load Candidate Profile
+            // =====================================================
 
-            if (!records.Any())
-                return new DeletePassportResponseDto { Success = false, Message = "No passport record found." };
+            var profile = await _context.CandidateProfiles
+                .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
 
-            _context.Set<PassportVerification>().RemoveRange(records);
+            if (profile == null)
+            {
+                return new DeletePassportResponseDto
+                {
+                    Success = false,
+                    Message = "Candidate profile not found."
+                };
+            }
+
+            // =====================================================
+            // 2. Find Latest Passport
+            // =====================================================
+
+            var passport = await _context.PassportVerifications
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
+            if (passport == null)
+            {
+                return new DeletePassportResponseDto
+                {
+                    Success = false,
+                    Message = "Passport record not found."
+                };
+            }
+
+            // Store Cloudinary Public IDs before deleting
+            var frontPublicId = passport.FrontPublicId;
+            var backPublicId = passport.BackPublicId;
+
+            // =====================================================
+            // 3. Remove Passport Record
+            // =====================================================
+
+            _context.PassportVerifications.Remove(passport);
+
+            // =====================================================
+            // 4. Update Profile Completion
+            // =====================================================
+
+            var completion =
+                await BuildProfileCompletionDataAsync(candidateId);
+
+            profile.ProfileCompletionPct =
+                completion?.OverallPct ?? 0;
+
+            profile.UpdatedAt = DateTime.UtcNow;
+
+            // =====================================================
+            // 5. Save Changes
+            // =====================================================
+
             await _context.SaveChangesAsync();
 
-            return new DeletePassportResponseDto { Success = true, Message = "Passport document deleted." };
+            // =====================================================
+            // 6. Delete Cloudinary Images
+            // Only after successful database save
+            // =====================================================
+
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(frontPublicId))
+                {
+                    await _fileStorage.DeleteFileAsync(frontPublicId);
+                }
+
+                if (!string.IsNullOrWhiteSpace(backPublicId))
+                {
+                    await _fileStorage.DeleteFileAsync(backPublicId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to delete Passport images from Cloudinary for Candidate {CandidateId}",
+                    candidateId);
+            }
+
+            // =====================================================
+            // 7. Logging
+            // =====================================================
+
+            _logger.LogInformation(
+                "Passport deleted successfully for Candidate {CandidateId}",
+                candidateId);
+
+            // =====================================================
+            // 8. Response
+            // =====================================================
+
+            return new DeletePassportResponseDto
+            {
+                Success = true,
+                Message = "Passport deleted successfully."
+            };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "DeletePassportAsync failed for {CandidateId}", candidateId);
-            return new DeletePassportResponseDto { Success = false, Message = "Internal server error." };
+            _logger.LogError(
+                ex,
+                "DeletePassportAsync failed for Candidate {CandidateId}",
+                candidateId);
+
+            return new DeletePassportResponseDto
+            {
+                Success = false,
+                Message = "Unable to delete passport. Please try again later."
+            };
         }
     }
-
     // ════════════════════════════════════════════════
     // AADHAAR
     // ════════════════════════════════════════════════
@@ -1378,25 +1810,129 @@ public class CandidateDocumentService : ICandidateDocumentService
         }
     }
 
-    public async Task<DeleteAadhaarResponseDto> DeleteAadhaarAsync(Guid candidateId)
+    public async Task<DeleteAadhaarResponseDto> DeleteAadhaarAsync(
+     Guid candidateId)
     {
         try
         {
-            var records = await _context.KycVerifications
-                .Where(k => k.CandidateId == candidateId).ToListAsync();
+            // =====================================================
+            // 1. Load Candidate Profile
+            // =====================================================
 
-            if (!records.Any())
-                return new DeleteAadhaarResponseDto { Success = false, Message = "No Aadhaar record found." };
+            var profile = await _context.CandidateProfiles
+                .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
 
-            _context.KycVerifications.RemoveRange(records);
+            if (profile == null)
+            {
+                return new DeleteAadhaarResponseDto
+                {
+                    Success = false,
+                    Message = "Candidate profile not found."
+                };
+            }
+
+            // =====================================================
+            // 2. Find Latest Aadhaar
+            // =====================================================
+
+            var aadhaar = await _context.KycVerifications
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync(x =>
+                    x.CandidateId == candidateId &&
+                    x.IdType == "Aadhaar");
+
+            if (aadhaar == null)
+            {
+                return new DeleteAadhaarResponseDto
+                {
+                    Success = false,
+                    Message = "Aadhaar record not found."
+                };
+            }
+
+            // Store Cloudinary PublicIds before deleting
+            var frontPublicId = aadhaar.IdFrontPublicId;
+            var backPublicId = aadhaar.IdBackPublicId;
+
+            // =====================================================
+            // 3. Remove Aadhaar Record
+            // =====================================================
+
+            _context.KycVerifications.Remove(aadhaar);
+
+            // =====================================================
+            // 4. Update Profile Completion
+            // =====================================================
+
+            var completion =
+                await BuildProfileCompletionDataAsync(candidateId);
+
+            profile.ProfileCompletionPct =
+                completion?.OverallPct ?? 0;
+
+            profile.UpdatedAt = DateTime.UtcNow;
+
+            // =====================================================
+            // 5. Save Changes
+            // =====================================================
+
             await _context.SaveChangesAsync();
 
-            return new DeleteAadhaarResponseDto { Success = true, Message = "Aadhaar document deleted." };
+            // =====================================================
+            // 6. Delete Cloudinary Images
+            // Only after successful database save
+            // =====================================================
+
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(frontPublicId))
+                {
+                    await _fileStorage.DeleteFileAsync(frontPublicId);
+                }
+
+                if (!string.IsNullOrWhiteSpace(backPublicId))
+                {
+                    await _fileStorage.DeleteFileAsync(backPublicId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to delete Aadhaar images from Cloudinary for Candidate {CandidateId}",
+                    candidateId);
+            }
+
+            // =====================================================
+            // 7. Logging
+            // =====================================================
+
+            _logger.LogInformation(
+                "Aadhaar deleted successfully for Candidate {CandidateId}",
+                candidateId);
+
+            // =====================================================
+            // 8. Response
+            // =====================================================
+
+            return new DeleteAadhaarResponseDto
+            {
+                Success = true,
+                Message = "Aadhaar deleted successfully."
+            };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "DeleteAadhaarAsync failed for {CandidateId}", candidateId);
-            return new DeleteAadhaarResponseDto { Success = false, Message = "Internal server error." };
+            _logger.LogError(
+                ex,
+                "DeleteAadhaarAsync failed for Candidate {CandidateId}",
+                candidateId);
+
+            return new DeleteAadhaarResponseDto
+            {
+                Success = false,
+                Message = "Unable to delete Aadhaar. Please try again later."
+            };
         }
     }
 

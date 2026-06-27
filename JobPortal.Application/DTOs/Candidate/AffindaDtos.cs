@@ -84,6 +84,17 @@ public class AffindaError
 //======================================================
 // Resume Data
 //======================================================
+public class AffindaEmail
+{
+    [JsonPropertyName("parsed")]
+    public string? Parsed { get; set; }
+
+    [JsonPropertyName("rawText")]
+    public string? RawText { get; set; }
+
+    [JsonPropertyName("confidence")]
+    public decimal? Confidence { get; set; }
+}
 
 public class AffindaResumeData
 {
@@ -91,7 +102,7 @@ public class AffindaResumeData
     public AffindaCandidateName? CandidateName { get; set; }
 
     [JsonPropertyName("email")]
-    public List<string>? Email { get; set; }
+    public List<AffindaEmail>? Email { get; set; }
 
     [JsonPropertyName("phoneNumber")]
     public List<AffindaPhoneNumber>? PhoneNumber { get; set; }

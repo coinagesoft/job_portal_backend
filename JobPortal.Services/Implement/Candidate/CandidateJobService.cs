@@ -5,13 +5,11 @@
 using JobPortal.Application.DTOs.Candidate;
 using JobPortal.Application.DTOs.Candidate.Jobs;
 using JobPortal.Domain.Entities;
-using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.ICandidate;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace JobPortal.Services.Implement.Candidate;
 
@@ -664,10 +662,7 @@ public class CandidateJobService : ICandidateJobService
             };
         }
     }
-    // ════════════════════════════════════════════════════════
-    // ── Private helpers ──────────────────────────────────────
-    // ════════════════════════════════════════════════════════
-
+ 
     /// <summary>Map a <see cref="JobPosting"/> to a compact card DTO.</summary>
     private CandidateJobListItemDto MapToCard(JobPosting job)
     {
@@ -839,7 +834,6 @@ public class CandidateJobService : ICandidateJobService
 
         return tags.Distinct().ToList();
     }
-
 
     // Matches the serialized format used by the recruiter service
     private record RawScreeningQuestion(
