@@ -61,6 +61,12 @@ public class UploadResumeResponseDto
     public string? CvFileUrl { get; set; }
     public byte ProfileCompletionPct { get; set; }
 
+    /// <summary>Name detected on the resume (for transparency / debugging).</summary>
+    public string? ParsedName { get; set; }
+
+    /// <summary>True only when the parsed resume name matched the profile name.</summary>
+    public bool NameMatched { get; set; }
+
     public AiParsedResumeDto? AiParsed { get; set; }
 }
 

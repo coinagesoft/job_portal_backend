@@ -240,6 +240,8 @@ public class PublicCompanyService : IPublicCompanyService
                     .ToList()
                     ?? new List<string>(),
 
+            ReviewCount = employer?.ReviewCount ?? 0,
+
             AiMatchPercentage = null,
 
             JobTitle = job.JobTitle,
@@ -1225,6 +1227,9 @@ public class PublicCompanyService : IPublicCompanyService
                                 x.BadgeStatus ==
                                 BadgeStatus.Approved),
 
+                        ReviewCount =
+                            company.ReviewCount,
+
                         OpenJobsCount =
                             openJobs
                     };
@@ -1378,6 +1383,9 @@ public class PublicCompanyService : IPublicCompanyService
 
                 OpenJobsCount =
                     jobs.Count,
+
+                ReviewCount =
+                    company.ReviewCount,
 
                 Jobs =
                     jobs.Select(MapToCard)
@@ -1610,5 +1618,3 @@ public class PublicCompanyService : IPublicCompanyService
 
 
 }
-
-

@@ -15,7 +15,7 @@ public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options)
         : base(options) { }
-    
+
 
     // Section 1 — Auth
     public DbSet<User> Users => Set<User>();
@@ -62,7 +62,7 @@ public class AppDbContext : DbContext
     public DbSet<SavedJob> SavedJobs => Set<SavedJob>();
     public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
     public DbSet<CandidateUnlock> CandidateUnlocks => Set<CandidateUnlock>();
-  
+
     // Section 6 — Payments
     public DbSet<CreditWallet> CreditWallets => Set<CreditWallet>();
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
@@ -78,7 +78,7 @@ public class AppDbContext : DbContext
     public DbSet<CountryVerificationConfig> CountryVerificationConfigs => Set<CountryVerificationConfig>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ConsentLog> ConsentLogs => Set<ConsentLog>();
-    public DbSet<Dispute> Disputes => Set<Dispute>(); 
+    public DbSet<Dispute> Disputes => Set<Dispute>();
     public DbSet<RegistrationSession> RegistrationSessions => Set<RegistrationSession>();
 
     public DbSet<RecruiterNote> RecruiterNotes { get; set; }
@@ -88,6 +88,7 @@ public class AppDbContext : DbContext
 
     public DbSet<CandidateLogoutSession> CandidateLogoutSessions => Set<CandidateLogoutSession>();
     public DbSet<CandidateEmbedding> CandidateEmbeddings { get; set; }
+    public DbSet<CandidateDocument> CandidateDocuments => Set<CandidateDocument>();
 
     //public DbSet<JobEmbedding> JobEmbeddings { get; set; }
     public DbSet<JobEmbedding> JobEmbeddings =>
@@ -164,6 +165,34 @@ public class AppDbContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder m)
     {
+
+        // ── Candidate Documents (unified, OCR-parsed) ─────────
+        m.Entity<CandidateDocument>(e =>
+        {
+            e.ToTable("candidate_documents");
+
+            e.HasKey(x => x.DocumentId);
+
+            e.Property(x => x.DocumentId).HasColumnName("document_id");
+            e.Property(x => x.CandidateId).HasColumnName("candidate_id");
+            e.Property(x => x.DocumentType).HasColumnName("document_type").HasMaxLength(100);
+            e.Property(x => x.FileUrl).HasColumnName("file_url");
+            e.Property(x => x.FilePublicId).HasColumnName("file_public_id");
+            e.Property(x => x.ParsedName).HasColumnName("parsed_name");
+            e.Property(x => x.ParsedDataJson).HasColumnName("parsed_data_json").HasColumnType("text");
+            e.Property(x => x.VerificationStatus).HasColumnName("verification_status").HasMaxLength(20);
+            e.Property(x => x.UploadedAt).HasColumnName("uploaded_at");
+            e.Property(x => x.CreatedAt).HasColumnName("created_at");
+            e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+
+            e.HasIndex(x => new { x.CandidateId, x.DocumentType });
+
+            e.HasOne(x => x.Candidate)
+                .WithMany()
+                .HasForeignKey(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
 
         // ── AI Embeddings ─────────────────────────────
 
@@ -945,13 +974,13 @@ public class AppDbContext : DbContext
                 .HasConversion<string>();
             // ✅ string properties — no HasDefaultValue needed
             // defaults are set on the entity itself
-           
+
 
 
             e.Property(x => x.Vacancies)
              .HasColumnName("vacancies");
 
-        
+
 
             e.Property(x => x.AgeMin)
              .HasColumnName("age_min");
@@ -959,7 +988,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.AgeMax)
              .HasColumnName("age_max");
 
-           
+
 
             e.Property(x => x.EducationRequired)
              .HasColumnName("education_required");
@@ -1004,7 +1033,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.PassportValidityMonths)
              .HasColumnName("passport_validity_months");
 
-       
+
 
             e.Property(x => x.ApplicationDeadline)
              .HasColumnName("application_deadline");

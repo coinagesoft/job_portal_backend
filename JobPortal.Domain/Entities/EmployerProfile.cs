@@ -56,6 +56,12 @@ public class EmployerProfile
     public bool SecurityDepositPaid { get; set; } = false;
     public string? SecurityDepositStatus { get; set; }
     public byte ProfileCompletionScore { get; set; } = 0;
+
+    /// <summary>
+    /// Number of reviews candidates have given this company.
+    /// Surfaced read-only on candidate-facing company/job views.
+    /// </summary>
+    public int ReviewCount { get; set; } = 0;
     // POE
     public string? PoeLicenceUrl { get; set; }
     public string? PoeLicenceNumber { get; set; }

@@ -7,6 +7,16 @@ public interface ICandidateDocumentService
 {
     Task<CandidateDocumentsResponseDto> GetAllDocumentsAsync(Guid candidateId);
 
+    /// <summary>
+    /// Unified upload: OCR-parses any document, verifies the parsed name
+    /// matches the candidate's profile name, and (only on match) stores the
+    /// file in Cloudinary + the parsed data in the DB, keyed by documentType.
+    /// </summary>
+    Task<JobPortal.Application.DTOs.Candidate.UploadDocumentResponse> UploadAndVerifyDocumentAsync(
+        Guid candidateId,
+        string documentType,
+        IFormFile file);
+
     // Resume
     Task<UploadResumeResponseDto> UploadResumeAsync(
         Guid candidateId,

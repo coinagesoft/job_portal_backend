@@ -25,6 +25,8 @@ namespace JobPortal.Application.DTOs.Candidate
         public bool IsVerified { get; set; }
 
         public int OpenJobsCount { get; set; }
+
+        public int ReviewCount { get; set; }
     }
     public class PublicCompanyListResponseDto
     {
@@ -104,6 +106,8 @@ namespace JobPortal.Application.DTOs.Candidate
         public int TotalEmployees { get; set; }
 
         public int OpenJobsCount { get; set; }
+
+        public int ReviewCount { get; set; }
 
         // Open Jobs
 

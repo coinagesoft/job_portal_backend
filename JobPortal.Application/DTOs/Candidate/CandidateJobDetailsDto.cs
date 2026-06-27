@@ -20,6 +20,8 @@ namespace JobPortal.Application.DTOs.Candidate
         // Verification
         public List<string> VerificationBadges { get; set; } = new();
 
+        public int ReviewCount { get; set; }
+
         // AI
         public int? AiMatchPercentage { get; set; }
 

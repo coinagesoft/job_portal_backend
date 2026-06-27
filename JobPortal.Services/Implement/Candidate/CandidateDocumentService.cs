@@ -1,5 +1,3 @@
-
-
 // ============================================================
 //  JobPortal.Services/Implement/Candidate/CandidateDocumentService.cs
 //  ALL GIT MERGE CONFLICTS RESOLVED
@@ -292,16 +290,66 @@ public class CandidateDocumentService : ICandidateDocumentService
             // 6. Handle Parsing Result
             // =====================================================
 
-            // We DO NOT fail the upload if parsing fails.
-            // Resume has already been uploaded to Cloudinary.
-            // Candidate can still continue using the portal.
-
+            // =====================================================
+            // 6. Verify parse result + candidate name match
+            //    The resume is accepted ONLY if it parsed successfully
+            //    AND the name on the resume matches the candidate's
+            //    profile name. Otherwise the just-uploaded Cloudinary
+            //    file is deleted and the upload is rejected.
+            // =====================================================
             if (!parseResult.Success)
             {
                 _logger.LogWarning(
                     "Resume parsing failed for Candidate {CandidateId}. Error: {Error}",
                     candidateId,
                     parseResult.ErrorMessage);
+
+                await SafeDeleteUploadAsync(uploadResult?.PublicId);
+
+                return new UploadResumeResponseDto
+                {
+                    Success = false,
+                    Message = "We couldn't read this resume. Please upload a clear PDF or DOC file and try again.",
+                    ParsedName = parseResult.ParsedName,
+                    NameMatched = false
+                };
+            }
+
+            if (string.IsNullOrWhiteSpace(parseResult.ParsedName))
+            {
+                _logger.LogWarning(
+                    "Resume parsed but no name detected for Candidate {CandidateId}.",
+                    candidateId);
+
+                await SafeDeleteUploadAsync(uploadResult?.PublicId);
+
+                return new UploadResumeResponseDto
+                {
+                    Success = false,
+                    Message = "We couldn't detect a name on this resume, so we can't verify it belongs to you. Please upload a resume that clearly shows your name.",
+                    NameMatched = false
+                };
+            }
+
+            if (!NamesMatch(profile.FullName, parseResult.ParsedName))
+            {
+                _logger.LogWarning(
+                    "Resume name mismatch for Candidate {CandidateId}. Profile='{Profile}', Parsed='{Parsed}'",
+                    candidateId,
+                    profile.FullName,
+                    parseResult.ParsedName);
+
+                await SafeDeleteUploadAsync(uploadResult?.PublicId);
+
+                return new UploadResumeResponseDto
+                {
+                    Success = false,
+                    Message =
+                        $"The name on this resume (\"{parseResult.ParsedName}\") does not match your profile name " +
+                        $"(\"{profile.FullName}\"). Please upload your own resume.",
+                    ParsedName = parseResult.ParsedName,
+                    NameMatched = false
+                };
             }
             // =====================================================
             // 7. Create CandidateCv Snapshot
@@ -487,9 +535,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 Success = true,
 
-                Message = parseResult.Success
-                    ? "Resume uploaded and parsed successfully."
-                    : "Resume uploaded successfully. Resume parsing failed, but you can continue updating your profile manually.",
+                Message = "Resume uploaded and verified successfully.",
 
                 CvId = cv.CvId,
 
@@ -497,19 +543,21 @@ public class CandidateDocumentService : ICandidateDocumentService
 
                 ProfileCompletionPct = profile.ProfileCompletionPct,
 
-                AiParsed = parseResult.Success
-                    ? new AiParsedResumeDto
-                    {
-                        Name = parseResult.ParsedName,
-                        Phone = parseResult.ParsedPhone,
-                        Email = parseResult.ParsedEmail,
-                        Trade = parseResult.ParsedTrade,
-                        ExperienceYrs = parseResult.ParsedExperienceYrs,
-                        Skills = parseResult.ParsedSkills,
-                        ConfidenceScore = parseResult.AiConfidenceScore,
-                        AffindaDocId = parseResult.AffindaDocId
-                    }
-                    : null
+                ParsedName = parseResult.ParsedName,
+
+                NameMatched = true,
+
+                AiParsed = new AiParsedResumeDto
+                {
+                    Name = parseResult.ParsedName,
+                    Phone = parseResult.ParsedPhone,
+                    Email = parseResult.ParsedEmail,
+                    Trade = parseResult.ParsedTrade,
+                    ExperienceYrs = parseResult.ParsedExperienceYrs,
+                    Skills = parseResult.ParsedSkills,
+                    ConfidenceScore = parseResult.AiConfidenceScore,
+                    AffindaDocId = parseResult.AffindaDocId
+                }
             };
         }
         catch (Exception ex)
@@ -544,7 +592,278 @@ public class CandidateDocumentService : ICandidateDocumentService
         }
     }
 
+    // =====================================================
+    // Resume verification helpers
+    // =====================================================
 
+    /// <summary>Deletes a just-uploaded Cloudinary file, swallowing errors.</summary>
+    private async Task SafeDeleteUploadAsync(string? publicId)
+    {
+        if (string.IsNullOrWhiteSpace(publicId))
+            return;
+
+        try
+        {
+            await _fileStorage.DeleteFileAsync(publicId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to delete rejected Cloudinary resume {PublicId}",
+                publicId);
+        }
+    }
+
+    /// <summary>
+    /// Returns true when the name parsed from the resume is a reasonable
+    /// match for the candidate's stored profile name. Order-insensitive and
+    /// tolerant of middle names/initials, but requires the core name tokens
+    /// to agree so someone can't upload an unrelated person's CV.
+    /// </summary>
+    private static bool NamesMatch(string? storedName, string? parsedName)
+    {
+        var a = NormalizeName(storedName);
+        var b = NormalizeName(parsedName);
+
+        if (a.Length == 0 || b.Length == 0)
+            return false;
+
+        // Fast path: exact normalized match, or one fully contains the other.
+        if (a == b || a.Contains(b) || b.Contains(a))
+            return true;
+
+        var tokensA = a.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                       .Where(t => t.Length >= 2)
+                       .Distinct()
+                       .ToList();
+
+        var tokensB = b.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                       .Where(t => t.Length >= 2)
+                       .Distinct()
+                       .ToList();
+
+        if (tokensA.Count == 0 || tokensB.Count == 0)
+            return false;
+
+        var common = tokensA.Count(t => tokensB.Contains(t));
+        var smaller = Math.Min(tokensA.Count, tokensB.Count);
+
+        // Single-token names need that token to match; multi-token names need
+        // at least two tokens in common (e.g. first + last) to avoid matching
+        // on a shared surname alone.
+        var required = smaller >= 2 ? 2 : 1;
+
+        return common >= required;
+    }
+
+    /// <summary>Lowercases, strips titles/punctuation, and collapses whitespace.</summary>
+    private static string NormalizeName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var lowered = value.Trim().ToLowerInvariant();
+
+        // Keep letters and spaces only (drops dots, commas, digits, etc.)
+        var cleaned = new string(
+            lowered.Select(c => char.IsLetter(c) || char.IsWhiteSpace(c) ? c : ' ')
+                   .ToArray());
+
+        var titles = new HashSet<string> { "mr", "mrs", "ms", "miss", "dr", "shri", "smt", "md" };
+
+        var tokens = cleaned
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => !titles.Contains(t));
+
+        return string.Join(' ', tokens);
+    }
+
+    // =====================================================
+    // Unified document upload: parse → verify name → store
+    // =====================================================
+    public async Task<UploadDocumentResponse> UploadAndVerifyDocumentAsync(
+        Guid candidateId,
+        string documentType,
+        IFormFile file)
+    {
+        FileUploadResult? uploadResult = null;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(documentType))
+                return new UploadDocumentResponse
+                {
+                    Success = false,
+                    Message = "documentType is required."
+                };
+
+            var validationError = ValidateFile(file, AllowedDocTypes, MaxDocFileSizeBytes);
+            if (validationError != null)
+                return new UploadDocumentResponse
+                {
+                    Success = false,
+                    Message = validationError,
+                    DocumentType = documentType
+                };
+
+            var profile = await _context.CandidateProfiles
+                .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
+            if (profile == null)
+                return new UploadDocumentResponse
+                {
+                    Success = false,
+                    Message = "Candidate profile not found.",
+                    DocumentType = documentType
+                };
+
+            // 1. OCR parse (Gemini)
+            var parsed = await _geminiDocumentParserService.ParseDocumentAsync(file);
+
+            if (!parsed.Success)
+                return new UploadDocumentResponse
+                {
+                    Success = false,
+                    Message = parsed.Message ?? "Could not read this document. Please upload a clearer copy.",
+                    DocumentType = documentType
+                };
+
+            // 2. Extract the name from the parsed fields
+            var parsedName = ExtractParsedName(parsed.ParsedData);
+
+            if (string.IsNullOrWhiteSpace(parsedName))
+                return new UploadDocumentResponse
+                {
+                    Success = false,
+                    Message = "We couldn't detect a name on this document, so we can't verify it belongs to you.",
+                    DocumentType = documentType,
+                    ParsedData = parsed.ParsedData,
+                    NameMatched = false
+                };
+
+            // 3. Verify parsed name == candidate profile name
+            if (!NamesMatch(profile.FullName, parsedName))
+            {
+                _logger.LogWarning(
+                    "Document name mismatch for Candidate {CandidateId} ({Type}). Profile='{Profile}', Parsed='{Parsed}'",
+                    candidateId, documentType, profile.FullName, parsedName);
+
+                return new UploadDocumentResponse
+                {
+                    Success = false,
+                    Message =
+                        $"The name on this document (\"{parsedName}\") does not match your profile name " +
+                        $"(\"{profile.FullName}\"). Please upload your own document.",
+                    DocumentType = documentType,
+                    ParsedName = parsedName,
+                    NameMatched = false,
+                    ParsedData = parsed.ParsedData
+                };
+            }
+
+            // 4. Upload to Cloudinary, foldered by document type
+            var safeType = MakeSafeDocumentFolder(documentType);
+            uploadResult = await _fileStorage.SaveFileAsync(file, $"candidate-documents/{safeType}");
+
+            // 5. Replace any existing document of the same type for this candidate
+            var existing = await _context.CandidateDocuments
+                .Where(d => d.CandidateId == candidateId && d.DocumentType == documentType)
+                .ToListAsync();
+
+            var now = DateTime.UtcNow;
+
+            var doc = new CandidateDocument
+            {
+                DocumentId = Guid.NewGuid(),
+                CandidateId = candidateId,
+                DocumentType = documentType,
+                FileUrl = uploadResult.Url,
+                FilePublicId = uploadResult.PublicId,
+                ParsedName = parsedName,
+                ParsedDataJson = parsed.ParsedData.HasValue
+                    ? parsed.ParsedData.Value.GetRawText()
+                    : parsed.RawResponse,
+                VerificationStatus = "Verified",
+                UploadedAt = now,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            _context.CandidateDocuments.Add(doc);
+
+            if (existing.Count > 0)
+                _context.CandidateDocuments.RemoveRange(existing);
+
+            await _context.SaveChangesAsync();
+
+            // Clean up previous Cloudinary files only after a successful save
+            foreach (var old in existing)
+                await SafeDeleteUploadAsync(old.FilePublicId);
+
+            _logger.LogInformation(
+                "Document {Type} stored for Candidate {CandidateId}. DocumentId={DocumentId}",
+                documentType, candidateId, doc.DocumentId);
+
+            return new UploadDocumentResponse
+            {
+                Success = true,
+                Message = $"{documentType} uploaded and verified successfully.",
+                DocumentId = doc.DocumentId,
+                DocumentType = documentType,
+                FileUrl = doc.FileUrl,
+                ParsedName = parsedName,
+                NameMatched = true,
+                ParsedData = parsed.ParsedData
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "UploadAndVerifyDocumentAsync failed for Candidate {CandidateId} ({Type})",
+                candidateId, documentType);
+
+            await SafeDeleteUploadAsync(uploadResult?.PublicId);
+
+            return new UploadDocumentResponse
+            {
+                Success = false,
+                Message = "Unable to upload document. Please try again later.",
+                DocumentType = documentType
+            };
+        }
+    }
+
+    /// <summary>Pulls the candidate name out of the parser's dynamic field set.</summary>
+    private static string? ExtractParsedName(System.Text.Json.JsonElement? data)
+    {
+        if (data is null ||
+            data.Value.ValueKind != System.Text.Json.JsonValueKind.Object)
+            return null;
+
+        foreach (var key in new[] { "name", "Name", "fullName", "FullName", "candidateName" })
+        {
+            if (data.Value.TryGetProperty(key, out var v) &&
+                v.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                var s = v.GetString();
+                if (!string.IsNullOrWhiteSpace(s))
+                    return s;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Turns a document type into a safe Cloudinary folder segment.</summary>
+    private static string MakeSafeDocumentFolder(string documentType)
+    {
+        var cleaned = new string(
+            documentType.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_').ToArray());
+
+        return string.IsNullOrWhiteSpace(cleaned) ? "general" : cleaned.ToLowerInvariant();
+    }
 
     public async Task<DeleteResumeResponseDto> DeleteResumeAsync(Guid candidateId)
     {
@@ -1756,7 +2075,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             // 12. Remove Previous Aadhaar Record
             // =====================================================
 
-          
+
 
             // =====================================================
             // 13. Save Changes
@@ -2509,4 +2828,3 @@ public class CandidateDocumentService : ICandidateDocumentService
     private static CandidateDocumentsResponseDto DocsFail(string msg)
         => new() { Success = false, Message = msg };
 }
-

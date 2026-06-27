@@ -1,5 +1,4 @@
-
-﻿//using JobPortal.Services.IImplement.ICandidate;
+//using JobPortal.Services.IImplement.ICandidate;
 //using Microsoft.AspNetCore.Http;
 //using Microsoft.Extensions.Configuration;
 //using System.Net.Http.Headers;
@@ -60,7 +59,7 @@
 //    }
 //}
 
-﻿// ============================================================
+// ============================================================
 //  JobPortal.Services/Implement/Candidate/AffindaService.cs
 //
 //  REPLACES the old AffindaService.cs (no namespace, returned string)
@@ -197,9 +196,7 @@ public class AffindaService : IAffindaService
                 _logger.LogWarning("Affinda poll attempt {Attempt} failed: {Status}", attempt, response.StatusCode);
                 continue;
             }
-            File.WriteAllText(
-          @"E:\Affinda\affinda.json",
-          body);
+
             var doc = JsonSerializer.Deserialize<AffindaSingleDocumentResponse>(body, _jsonOpts);
 
             if (doc?.Meta?.Ready == true || doc?.Meta?.Failed == true)
@@ -326,4 +323,3 @@ public class AffindaService : IAffindaService
     private static AffindaParseResult Fail(string message) =>
         new() { Success = false, ErrorMessage = message };
 }
-
