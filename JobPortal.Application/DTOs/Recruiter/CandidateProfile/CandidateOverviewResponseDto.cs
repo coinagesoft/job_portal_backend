@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using JobPortal.Application.DTOs.Recruiter.CVSearch;
+using System;
 
 namespace JobPortal.Application.DTOs.Recruiter.CandidateProfile
 {
@@ -29,5 +26,12 @@ namespace JobPortal.Application.DTOs.Recruiter.CandidateProfile
         public byte? AiMatchScore { get; set; }
 
         public bool IsUnlocked { get; set; }
+
+        // ── AI Job Match (populated when jobId query param is provided) ──
+        /// <summary>Title of the job this candidate was scored against.</summary>
+        public string? AiMatchedJobTitle { get; set; }
+
+        /// <summary>Detailed AI score breakdown vs a specific job posting.</summary>
+        public AiScoreBreakdownDto? AiScoreBreakdown { get; set; }
     }
 }

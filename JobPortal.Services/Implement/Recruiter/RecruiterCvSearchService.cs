@@ -1,4 +1,5 @@
 ﻿using JobPortal.Application.DTOs.Recruiter.CVSearch;
+using JobPortal.Application.DTOs.Recruiter.CandidateProfile;
 using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
@@ -233,6 +234,18 @@ namespace JobPortal.Services.Implement.Recruiter
             candidate.CandidateId,
             request.JobId.Value)
     : null;
+
+                // ── Fetch job title once for label display ─────────────
+                string? aiMatchedJobTitle = null;
+                if (request.JobId.HasValue && aiResult != null)
+                {
+                    var job = await _context.JobPostings
+                        .AsNoTracking()
+                        .Where(j => j.JobId == request.JobId.Value)
+                        .Select(j => new { j.JobTitle })
+                        .FirstOrDefaultAsync();
+                    aiMatchedJobTitle = job?.JobTitle;
+                }
                 var isUnlocked =
                     await _context
                         .EmployerCandidateAccesses
@@ -324,7 +337,29 @@ namespace JobPortal.Services.Implement.Recruiter
                             },
 
                         Skills =
-                            skillNames
+                            skillNames,
+
+                        AiMatchedJobTitle = aiMatchedJobTitle,
+
+                        AiScoreBreakdown = aiResult == null ? null : new AiScoreBreakdownDto
+                        {
+                            OverallScore = aiResult.MatchScore,
+                            AiSimilarityScore = aiResult.AiSimilarityScore,
+                            SkillScore = aiResult.SkillScore,
+                            TradeScore = aiResult.TradeScore,
+                            ExperienceScore = aiResult.ExperienceScore,
+                            LocationScore = aiResult.LocationScore,
+                            ScoreLabel = aiResult.MatchScore switch
+                            {
+                                >= 80 => "Excellent",
+                                >= 60 => "Good",
+                                >= 40 => "Fair",
+                                _ => "Low"
+                            },
+                            MatchReason = aiResult.MatchReason ?? string.Empty,
+                            MatchedSkills = new(),
+                            MissingSkills = new()
+                        }
                     });
             }
             candidateCards =
