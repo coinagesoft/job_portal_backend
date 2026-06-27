@@ -898,8 +898,8 @@ public class AppDbContext : DbContext
                 .HasForeignKey<EmployerNotificationSetting>(x => x.EmployerId);
         });
         var stringListConverter = new ValueConverter<List<string>?, string?>(
-    v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
-    v => string.IsNullOrEmpty(v)
+         v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+          v => string.IsNullOrEmpty(v)
         ? new List<string>()
         : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null)
 );

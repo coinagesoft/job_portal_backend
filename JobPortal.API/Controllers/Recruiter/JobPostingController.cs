@@ -135,8 +135,8 @@ public class RecruiterJobPostingController : ControllerBase
     // ── STEP 6 ─────────────────────────────────────────
     [HttpPatch("{jobId}/step6-questions")]
     public async Task<IActionResult> Step6Questions(
-        Guid jobId,
-        [FromForm] QuestionsRequestDto request)
+     Guid jobId,
+     [FromBody] QuestionsRequestDto request)
     {
         var result = await _service.SaveQuestionsAsync(
             request,

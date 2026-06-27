@@ -8,6 +8,6 @@ public class QuestionsRequestDto
 public class ScreeningQuestion
 {
     public string QuestionText { get; set; } = string.Empty;
-    public string AnswerType { get; set; } = "Yes_No";
-    public bool IsMandatory { get; set; } = true;
+    //public string AnswerType { get; set; } = "Yes_No";
+    //public bool IsMandatory { get; set; } = true;
 }

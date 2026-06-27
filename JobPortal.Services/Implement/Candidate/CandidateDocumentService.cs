@@ -664,13 +664,21 @@ public class CandidateDocumentService : ICandidateDocumentService
         }
     }
 
-
     public async Task<UploadEducationCertificateResponseDto> UploadEducationCertificateAsync(
      Guid candidateId,
      UploadEducationCertificateRequestDto request,
      IFormFile file)
     {
         FileUploadResult? uploadResult = null;
+
+        ItiCertificateReview? existingItiReview = null;
+
+        string? oldCertificatePublicId = null;
+
+        bool isItiCertificate =
+            request.EducationLevel.Equals(
+                "ITI",
+                StringComparison.OrdinalIgnoreCase);
 
         try
         {
@@ -721,6 +729,12 @@ public class CandidateDocumentService : ICandidateDocumentService
                     .FirstOrDefaultAsync(x =>
                         x.EducationId == request.EducationId.Value &&
                         x.CandidateId == candidateId);
+
+                if (existingEducation != null)
+                {
+                    oldCertificatePublicId =
+                        existingEducation.CertificatePublicId;
+                }
             }
 
             // =====================================================
@@ -731,6 +745,16 @@ public class CandidateDocumentService : ICandidateDocumentService
                 file,
                 "education");
 
+            // =====================================================
+            // Load Existing ITI Review
+            // =====================================================
+
+            if (isItiCertificate)
+            {
+                existingItiReview = await _context.ItiCertificateReviews
+                    .FirstOrDefaultAsync(x =>
+                        x.CandidateId == candidateId);
+            }
 
             // =====================================================
             // 5. Create or Update Education

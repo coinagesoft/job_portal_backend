@@ -9,11 +9,12 @@ namespace JobPortal.Services.IImplement.IRecruiter
 {
     public interface IRecruiterCandidateProfileService
     {
-        Task<RecruiterCandidateProfileResponseDto?>GetFullProfileAsync(
+        Task<RecruiterCandidateProfileResponseDto?> GetFullProfileAsync(
         Guid employerId,
-        Guid candidateId);
+        Guid candidateId,
+        Guid? jobId = null);
 
-        Task<CandidateUnlockStatusResponseDto>GetUnlockStatusAsync(
+        Task<CandidateUnlockStatusResponseDto> GetUnlockStatusAsync(
                 Guid employerId,
                 Guid candidateId);
     }

@@ -1,5 +1,7 @@
 ﻿using JobPortal.Application.DTOs.Recruiter.CandidateProfile;
+using JobPortal.Application.DTOs.Recruiter.CVSearch;
 using JobPortal.Infrastructure.Persistence;
+using JobPortal.Services.IImplement.AI;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,17 +11,21 @@ namespace JobPortal.Services.Implement.Recruiter
         : IRecruiterCandidateProfileService
     {
         private readonly AppDbContext _context;
+        private readonly IRankedCandidateService _rankedCandidateService;
 
         public RecruiterCandidateProfileService(
-            AppDbContext context)
+            AppDbContext context,
+            IRankedCandidateService rankedCandidateService)
         {
             _context = context;
+            _rankedCandidateService = rankedCandidateService;
         }
 
         public async Task<RecruiterCandidateProfileResponseDto?>
             GetFullProfileAsync(
                 Guid employerId,
-                Guid candidateId)
+                Guid candidateId,
+                Guid? jobId = null)
         {
             var candidate = await _context.CandidateProfiles
                 .AsNoTracking()
@@ -45,6 +51,34 @@ namespace JobPortal.Services.Implement.Recruiter
                     x.ExpiresAt >= DateTime.UtcNow);
 
             var isUnlocked = access != null;
+
+            // ── AI Score (optional – only computed when caller passes a jobId) ──
+            AiScoreBreakdownDto? aiBreakdown = null;
+            string? aiMatchedJobTitle = null;
+
+            if (jobId.HasValue && jobId.Value != Guid.Empty)
+            {
+                var scoreResult = await _rankedCandidateService
+                    .GetCandidateProfileScoreAsync(candidateId, jobId.Value);
+
+                if (scoreResult != null)
+                {
+                    aiMatchedJobTitle = scoreResult.JobTitle;
+                    aiBreakdown = new AiScoreBreakdownDto
+                    {
+                        OverallScore = scoreResult.ScoreBreakdown.OverallScore,
+                        AiSimilarityScore = scoreResult.ScoreBreakdown.AiSimilarityScore,
+                        SkillScore = scoreResult.ScoreBreakdown.SkillScore,
+                        TradeScore = scoreResult.ScoreBreakdown.TradeScore,
+                        ExperienceScore = scoreResult.ScoreBreakdown.ExperienceScore,
+                        LocationScore = scoreResult.ScoreBreakdown.LocationScore,
+                        ScoreLabel = scoreResult.ScoreBreakdown.ScoreLabel,
+                        MatchReason = scoreResult.ScoreBreakdown.MatchReason,
+                        MatchedSkills = scoreResult.MatchedSkills,
+                        MissingSkills = scoreResult.MissingSkills
+                    };
+                }
+            }
 
             var latestCv = candidate.Cvs
                 .OrderByDescending(x => x.GeneratedAt)
@@ -87,7 +121,10 @@ namespace JobPortal.Services.Implement.Recruiter
                                 candidate.AiMatchScore,
 
                             IsUnlocked =
-                                isUnlocked
+                                isUnlocked,
+
+                            AiMatchedJobTitle = aiMatchedJobTitle,
+                            AiScoreBreakdown = aiBreakdown,
                         },
 
                     Summary =
@@ -311,7 +348,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 CvDownloadAllowed = true
             };
         }
-  
-    
+
+
     }
 }

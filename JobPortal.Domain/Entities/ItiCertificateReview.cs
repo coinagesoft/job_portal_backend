@@ -16,6 +16,14 @@ public class ItiCertificateReview
     public string? AiExtractedCertNo { get; set; }
     public decimal? AiConfidenceScore { get; set; }
     public string? AdminNote { get; set; }
+
+    public string? ItiCertPublicId { get; set; }
+
+    public bool IsImportedToProfile { get; set; }
+
+    public DateTime? ImportedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public DateTime CreatedAt { get; set; }
 
     // Navigation

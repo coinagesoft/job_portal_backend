@@ -768,9 +768,9 @@
         // STEP 6 — Screening Questions
         // ════════════════════════════════════════════════
         public async Task<BaseJobResponseDto> SaveQuestionsAsync(
-        QuestionsRequestDto request,
-        Guid jobId,
-        Guid employerId)
+       QuestionsRequestDto request,
+       Guid jobId,
+       Guid employerId)
         {
             try
             {
@@ -798,44 +798,54 @@
                     _context.JobPostings.Add(job);
                 }
 
-                // Validation
+                // =====================================================
+                // Validate Questions
+                // =====================================================
 
-                if (request.Questions != null)
+                var questions = request.Questions?
+                    .Where(x => !string.IsNullOrWhiteSpace(x.QuestionText))
+                    .Select(x => x.QuestionText.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList() ?? new List<string>();
+
+                if (questions.Count > 5)
                 {
-                    if (request.Questions.Count > 5)
-                    {
-                        return Fail(
-                            "Maximum 5 screening questions allowed.");
-                    }
-
-                    // Save questions directly
-                    job.ScreeningQuestions = request.Questions?
-     .Where(x => !string.IsNullOrWhiteSpace(x.QuestionText))
-     .Select(x => x.QuestionText)
-     .Distinct()
-     .ToList();
+                    return Fail("Maximum 5 screening questions allowed.");
                 }
 
-                job.CurrentStep =
-                    Math.Max(job.CurrentStep, 6);
+                if (request.Questions != null && questions.Count == 0)
+                {
+                    return Fail("Please add at least one valid screening question.");
+                }
 
-                job.LastCompletedStep =
-                    Math.Max(job.LastCompletedStep, 6);
+                // =====================================================
+                // Save Questions
+                // =====================================================
 
-                job.UpdatedAt =
-                    DateTime.UtcNow;
+                job.ScreeningQuestions = questions;
+
+                // =====================================================
+                // Update Wizard Progress
+                // =====================================================
+
+                job.CurrentStep = Math.Max(job.CurrentStep, 6);
+
+                job.LastCompletedStep = Math.Max(job.LastCompletedStep, 6);
+
+                job.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
                 return Ok(
                     job,
-                    "Questions saved.");
+                    "Questions saved successfully.");
             }
             catch (Exception ex)
             {
                 _logger.LogError(
                     ex,
-                    "SaveQuestionsAsync error.");
+                    "SaveQuestionsAsync failed for JobId {JobId}",
+                    jobId);
 
                 return Fail(
                     ex.InnerException?.Message ??
