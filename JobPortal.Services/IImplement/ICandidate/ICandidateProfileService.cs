@@ -28,4 +28,6 @@ public interface ICandidateProfileService
     Task<CreateCandidateProfileResponseDto> CreateProfileAsync(
     Guid userId,
     CreateCandidateProfileRequestDto request);
+
+
 }

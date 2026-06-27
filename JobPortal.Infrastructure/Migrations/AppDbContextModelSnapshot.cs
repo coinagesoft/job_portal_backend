@@ -199,17 +199,38 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<Guid>("CandidateId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("CvFileUrl")
                         .HasColumnType("text");
 
                     b.Property<string>("CvPdfUrl")
                         .HasColumnType("text");
 
-                    b.Property<string>("CvS3Url")
+                    b.Property<string>("CvPublicId")
                         .HasColumnType("text");
 
-                    b.Property<DateTime?>("GeneratedAt")
+                    b.Property<DateTime>("GeneratedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ImportedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsImportedToProfile")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ParsedCertificatesJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParsedCity")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParsedCountry")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParsedEducationJson")
+                        .HasColumnType("text");
 
                     b.Property<string>("ParsedEmail")
                         .HasColumnType("text");
@@ -217,17 +238,38 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<int?>("ParsedExperienceYrs")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ParsedLanguagesJson")
+                        .HasColumnType("text");
+
                     b.Property<string>("ParsedName")
                         .HasColumnType("text");
 
                     b.Property<string>("ParsedPhone")
                         .HasColumnType("text");
 
-                    b.Property<string>("ParsedSkills")
+                    b.Property<string>("ParsedProjectsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParsedRawJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParsedSkillsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParsedState")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParsedSummary")
                         .HasColumnType("text");
 
                     b.Property<string>("ParsedTrade")
                         .HasColumnType("text");
+
+                    b.Property<string>("ParsedWorkHistoryJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("CvId");
 
@@ -283,6 +325,9 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("certificate_number");
+
+                    b.Property<string>("CertificatePublicId")
+                        .HasColumnType("text");
 
                     b.Property<string>("CertificateUrl")
                         .HasColumnType("text");
@@ -2070,6 +2115,12 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<DateOnly?>("AiExtractedDob")
                         .HasColumnType("date");
 
+                    b.Property<string>("AiExtractedDocumentNumber")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AiExtractedGender")
+                        .HasColumnType("text");
+
                     b.Property<string>("AiExtractedName")
                         .HasColumnType("text");
 
@@ -2085,8 +2136,14 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("IdBackImageUrl")
                         .HasColumnType("text");
 
+                    b.Property<string>("IdBackPublicId")
+                        .HasColumnType("text");
+
                     b.Property<string>("IdFrontImageUrl")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("IdFrontPublicId")
                         .HasColumnType("text");
 
                     b.Property<string>("IdHash")
@@ -2096,6 +2153,12 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("IdType")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("ImportedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsImportedToProfile")
+                        .HasColumnType("boolean");
 
                     b.Property<decimal?>("OcrConfidence")
                         .HasColumnType("numeric");
@@ -2108,6 +2171,9 @@ namespace JobPortal.Infrastructure.Migrations
 
                     b.Property<Guid?>("ReviewedBy")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("VerificationId");
 
@@ -2254,6 +2320,9 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("numeric")
                         .HasColumnName("ai_confidence_score");
 
+                    b.Property<DateOnly?>("AiExpiryDate")
+                        .HasColumnType("date");
+
                     b.Property<DateOnly?>("AiExtractedDob")
                         .HasColumnType("date")
                         .HasColumnName("ai_extracted_dob");
@@ -2262,9 +2331,18 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("ai_extracted_name");
 
+                    b.Property<string>("AiExtractedNationality")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AiExtractedPassportNumber")
+                        .HasColumnType("text");
+
                     b.Property<string>("BackImageUrl")
                         .HasColumnType("text")
                         .HasColumnName("back_image_url");
+
+                    b.Property<string>("BackPublicId")
+                        .HasColumnType("text");
 
                     b.Property<Guid>("CandidateId")
                         .HasColumnType("uuid")
@@ -2282,6 +2360,15 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("front_image_url");
 
+                    b.Property<string>("FrontPublicId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ImportedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsImportedToProfile")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("RejectionReason")
                         .HasColumnType("text")
                         .HasColumnName("rejection_reason");
@@ -2293,6 +2380,9 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<Guid?>("ReviewedBy")
                         .HasColumnType("uuid")
                         .HasColumnName("reviewed_by");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("VerificationId");
 

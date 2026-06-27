@@ -181,21 +181,38 @@ public class DeletePassportResponseDto
 public class AadhaarDocumentDto
 {
     public Guid VerificationId { get; set; }
+
+    // Uploaded Images
     public string? FrontImageUrl { get; set; }
+
     public string? BackImageUrl { get; set; }
+
+    // OCR Extracted Data
     public string? AiExtractedName { get; set; }
+
     public DateOnly? AiExtractedDob { get; set; }
+
     public string? AiExtractedAddress { get; set; }
+
+    public decimal? AiConfidenceScore { get; set; }
+
     public decimal? OcrConfidence { get; set; }
-    public string AdminDecision { get; set; } = "Pending";  // Pending|Approved|Rejected
+
+    // Verification
+    public string AdminDecision { get; set; } = "Pending";
+
     public string? RejectionReason { get; set; }
+
     public DateTime UploadedAt { get; set; }
+
+    // Useful for UI
+    public bool ParsedSuccessfully { get; set; }
 }
 
 public class UploadAadhaarRequestDto
 {
     [Required]
-    public bool ConsentGiven { get; set; }  // Required: explicit consent to process Aadhaar
+    public bool ConsentGiven { get; set; }
 
     [Required]
     public IFormFile FrontImage { get; set; } = default!;
@@ -206,12 +223,27 @@ public class UploadAadhaarRequestDto
 public class UploadAadhaarResponseDto
 {
     public bool Success { get; set; }
+
     public string Message { get; set; } = string.Empty;
+
     public Guid? VerificationId { get; set; }
+
     public string? FrontImageUrl { get; set; }
+
     public string? BackImageUrl { get; set; }
+
     public string AdminDecision { get; set; } = "Pending";
+
     public byte ProfileCompletionPct { get; set; }
+
+    // OCR Result
+    public bool ParsedSuccessfully { get; set; }
+
+    public string? ExtractedName { get; set; }
+
+    public DateOnly? ExtractedDob { get; set; }
+
+    public string? ExtractedAddress { get; set; }
 }
 
 public class DeleteAadhaarResponseDto

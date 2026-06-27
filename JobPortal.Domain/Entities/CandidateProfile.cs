@@ -51,7 +51,7 @@ public class CandidateProfile
     public string? NoticePeriod { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
-
+   
     // Navigation
     public User User { get; set; } = default!;
     public ICollection<CandidateEducation> Educations { get; set; } = new List<CandidateEducation>();

@@ -394,6 +394,7 @@ public class AffindaParseResult
     public decimal? AiConfidenceScore { get; set; }
 
     public List<string> ParsedSkills { get; set; } = new();
+    public string? ProfessionalSummary { get; set; }
 
     public string? City { get; set; }
 

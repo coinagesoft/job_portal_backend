@@ -470,7 +470,6 @@ namespace JobPortal.Services.Implement.Recruiter
                    unlocked
                         ? latestCv?.CvPdfUrl
                         ?? latestCv?.CvFileUrl
-                        ?? latestCv?.CvS3Url
                         : null
             };
         }

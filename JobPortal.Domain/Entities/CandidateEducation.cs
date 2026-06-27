@@ -15,6 +15,7 @@ public class CandidateEducation
     public string? tage { get; set; }
     public short? PassoutYear { get; set; }
     public string? CertificateUrl { get; set; }
+    public string? CertificatePublicId { get; set; }
     public string? CertificateNumber { get; set; }
     public DateTime CreatedAt { get; set; }
     public string? YearDetails { get; set; }

@@ -1,51 +1,53 @@
-﻿using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
-namespace JobPortal.Services.Implement.Uploads;
-
+﻿using JobPortal.Application.DTOs.Candidate;
+using JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Services.IImplement.IUploads;
+using Microsoft.AspNetCore.Http;
+
+namespace JobPortal.Services.Implement.Uploads;
 
 public class FileStorageService : IFileStorageService
 {
-    private readonly IWebHostEnvironment _environment;
-    private readonly IConfiguration _configuration;
+    private readonly ICloudinaryService _cloudinaryService;
 
     public FileStorageService(
-        IWebHostEnvironment environment,
-        IConfiguration configuration)
+        ICloudinaryService cloudinaryService)
     {
-        _environment = environment;
-        _configuration = configuration;
+        _cloudinaryService = cloudinaryService;
     }
 
-    public async Task<string> SaveFileAsync(
+    public async Task<FileUploadResult> SaveFileAsync(
         IFormFile file,
         string folderName)
     {
-        var uploadPath = Path.Combine(
-            _environment.WebRootPath,
-            "uploads",
-            folderName);
+        if (file == null || file.Length == 0)
+            throw new ArgumentException("File is required.");
 
-        if (!Directory.Exists(uploadPath))
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+        var imageExtensions = new[]
         {
-            Directory.CreateDirectory(uploadPath);
-        }
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+        };
 
-        var fileName =
-            $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        var result = imageExtensions.Contains(extension)
+            ? await _cloudinaryService.UploadImageAsync(file, folderName)
+            : await _cloudinaryService.UploadDocumentAsync(file, folderName);
 
-        var fullPath =
-            Path.Combine(uploadPath, fileName);
+        return new FileUploadResult
+        {
+            Url = result.Url,
+            PublicId = result.PublicId
+        };
+    }
 
-        using var stream =
-            new FileStream(fullPath, FileMode.Create);
+    public async Task DeleteFileAsync(string? publicId)
+    {
+        if (string.IsNullOrWhiteSpace(publicId))
+            return;
 
-        await file.CopyToAsync(stream);
-
-        var baseUrl =
-            _configuration["Storage:BaseUrl"];
-
-        return $"{baseUrl}/uploads/{folderName}/{fileName}";
+        await _cloudinaryService.DeleteAsync(publicId);
     }
 }

@@ -324,8 +324,392 @@ public class PublicCompanyService : IPublicCompanyService
         };
     }
 
+    //public async Task<CandidateJobListResponseDto> GetJobsAsync(
+    // CandidateJobSearchRequestDto request)
+    //{
+    //    try
+    //    {
+    //        request.Page = Math.Max(1, request.Page);
+    //        request.PageSize = Math.Clamp(request.PageSize, 1, MaxPageSize);
+
+    //        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    //        var query = _context.JobPostings
+    //            .AsNoTracking()
+    //            .Include(x => x.EmployerProfile)
+    //                .ThenInclude(x => x.Badges)
+    //            .Where(x =>
+    //                x.JobStatus == JobStatus.Active &&
+    //                x.IsActive &&
+    //                !x.IsDeleted &&
+    //                x.ApplicationDeadline >= today);
+
+    //        //------------------------------------------------
+    //        // Keyword
+    //        //------------------------------------------------
+
+    //        if (!string.IsNullOrWhiteSpace(request.Keyword))
+    //        {
+    //            var keyword = request.Keyword.Trim().ToLower();
+
+    //            query = query.Where(j =>
+
+    //                j.JobTitle.ToLower().Contains(keyword)
+
+    //                ||
+
+    //                j.TradeCategory.ToLower().Contains(keyword)
+
+    //                ||
+
+    //                (j.Role != null &&
+    //                 j.Role.ToLower().Contains(keyword))
+
+    //                ||
+
+    //                (j.Department != null &&
+    //                 j.Department.ToLower().Contains(keyword))
+
+    //                ||
+
+    //                j.JobDescription.ToLower().Contains(keyword)
+
+    //                ||
+
+    //                (j.SearchKeywords != null &&
+    //                 j.SearchKeywords.ToLower().Contains(keyword))
+
+    //                ||
+
+    //                (j.KeySkills != null &&
+    //                 j.KeySkills.Any(s =>
+    //                    s.ToLower().Contains(keyword)))
+
+    //                ||
+
+    //                j.EmployerProfile.CompanyDisplayName
+    //                    .ToLower()
+    //                    .Contains(keyword));
+    //        }
+
+    //        //------------------------------------------------
+    //        // Trade Category
+    //        //------------------------------------------------
+
+    //        if (!string.IsNullOrWhiteSpace(request.TradeCategory))
+    //        {
+    //            var trade = request.TradeCategory.Trim().ToLower();
+
+    //            query = query.Where(j =>
+    //                j.TradeCategory.ToLower().Contains(trade));
+    //        }
+
+    //        //------------------------------------------------
+    //        // Role
+    //        //------------------------------------------------
+
+    //        if (!string.IsNullOrWhiteSpace(request.Role))
+    //        {
+    //            var role = request.Role.Trim().ToLower();
+
+    //            query = query.Where(j =>
+    //                j.Role != null &&
+    //                j.Role.ToLower().Contains(role));
+    //        }
+
+    //        //------------------------------------------------
+    //        // Location
+    //        //------------------------------------------------
+
+    //        if (!string.IsNullOrWhiteSpace(request.Location))
+    //        {
+    //            var location = request.Location.Trim().ToLower();
+
+    //            query = query.Where(j =>
+
+    //                (j.OnshoreCity != null &&
+    //                 j.OnshoreCity.ToLower().Contains(location))
+
+    //                ||
+
+    //                (j.OnshoreState != null &&
+    //                 j.OnshoreState.ToLower().Contains(location))
+
+    //                ||
+
+    //                (j.OnshoreCountry != null &&
+    //                 j.OnshoreCountry.ToLower().Contains(location))
+
+    //                ||
+
+    //                (j.OffshoreRegion != null &&
+    //                 j.OffshoreRegion.ToLower().Contains(location))
+
+    //                ||
+
+    //                (j.OffshoreCountry != null &&
+    //                 j.OffshoreCountry.ToLower().Contains(location)));
+    //        }
+
+    //        //------------------------------------------------
+    //        // State
+    //        //------------------------------------------------
+
+    //        if (!string.IsNullOrWhiteSpace(request.State))
+    //        {
+    //            var state = request.State.Trim().ToLower();
+
+    //            query = query.Where(j =>
+    //                j.OnshoreState != null &&
+    //                j.OnshoreState.ToLower().Contains(state));
+    //        }
+
+    //        //------------------------------------------------
+    //        // Location Type
+    //        //------------------------------------------------
+
+    //        if (!string.IsNullOrWhiteSpace(request.LocationType))
+    //        {
+    //            if (Enum.TryParse<LocationType>(
+    //                request.LocationType,
+    //                true,
+    //                out var locationType))
+    //            {
+    //                query = query.Where(j =>
+    //                    j.LocationType == locationType);
+    //            }
+    //        }
+
+    //        //------------------------------------------------
+    //        // Employment Type
+    //        //------------------------------------------------
+
+    //        if (!string.IsNullOrWhiteSpace(request.EmploymentType))
+    //        {
+    //            if (Enum.TryParse<EmploymentType>(
+    //                request.EmploymentType,
+    //                true,
+    //                out var employmentType))
+    //            {
+    //                query = query.Where(j =>
+    //                    j.EmploymentType == employmentType);
+    //            }
+    //        }
+
+    //        //------------------------------------------------
+    //        // Experience
+    //        //------------------------------------------------
+
+    //        if (request.ExperienceYearsMin.HasValue)
+    //        {
+    //            query = query.Where(j =>
+    //                j.ExperienceMaxYears >=
+    //                request.ExperienceYearsMin.Value);
+    //        }
+
+    //        if (request.ExperienceYearsMax.HasValue)
+    //        {
+    //            query = query.Where(j =>
+    //                j.ExperienceMinYears <=
+    //                request.ExperienceYearsMax.Value);
+    //        }
+
+    //        //------------------------------------------------
+    //        // Salary
+    //        //------------------------------------------------
+
+    //        if (request.SalaryMin.HasValue)
+    //        {
+    //            query = query.Where(j =>
+    //                j.SalaryMax >= request.SalaryMin.Value);
+    //        }
+
+    //        if (request.SalaryMax.HasValue)
+    //        {
+    //            query = query.Where(j =>
+    //                j.SalaryMin <= request.SalaryMax.Value);
+    //        }
+
+    //        if (!string.IsNullOrWhiteSpace(request.SalaryCurrency))
+    //        {
+    //            if (Enum.TryParse<SalaryCurrency>(
+    //                request.SalaryCurrency,
+    //                true,
+    //                out var currency))
+    //            {
+    //                query = query.Where(j =>
+    //                    j.SalaryCurrency == currency);
+    //            }
+    //        }
+
+    //        //------------------------------------------------
+    //        // Gender
+    //        //------------------------------------------------
+
+    //        if (!string.IsNullOrWhiteSpace(request.Gender) &&
+    //            request.Gender != "Any")
+    //        {
+    //            if (Enum.TryParse<GenderPreferred>(
+    //                request.Gender,
+    //                true,
+    //                out var gender))
+    //            {
+    //                query = query.Where(j =>
+    //                    j.GenderPreferred == gender ||
+    //                    j.GenderPreferred == GenderPreferred.Any);
+    //            }
+    //        }
+
+    //        //------------------------------------------------
+    //        // Education
+    //        //------------------------------------------------
+
+    //        if (!string.IsNullOrWhiteSpace(request.EducationLevel))
+    //        {
+    //            query = query.Where(j =>
+    //                j.EducationRequired == request.EducationLevel);
+    //        }
+
+    //        //------------------------------------------------
+    //        // Disability
+    //        //------------------------------------------------
+
+    //        if (request.DisabilityEligible.HasValue)
+    //        {
+    //            query = query.Where(j =>
+    //                j.DisabilityEligible ==
+    //                request.DisabilityEligible.Value);
+    //        }
+
+    //        //------------------------------------------------
+    //        // Passport
+    //        //------------------------------------------------
+
+    //        if (request.PassportRequired.HasValue)
+    //        {
+    //            query = query.Where(j =>
+    //                j.PassportRequired ==
+    //                request.PassportRequired.Value);
+    //        }
+
+    //        //------------------------------------------------
+    //        // Posted Within
+    //        //------------------------------------------------
+
+    //        if (request.PostedWithinDays.HasValue)
+    //        {
+    //            var cutoff =
+    //                DateTime.UtcNow.AddDays(
+    //                    -request.PostedWithinDays.Value);
+
+    //            query = query.Where(j =>
+    //                j.PublishedAt != null &&
+    //                j.PublishedAt >= cutoff);
+    //        }
+
+    //        //------------------------------------------------
+    //        // Sorting
+    //        //------------------------------------------------
+
+    //        query = request.Sort switch
+    //        {
+    //            "oldest" =>
+    //                query.OrderBy(j => j.PublishedAt),
+
+    //            "salary_high" =>
+    //                query.OrderByDescending(j => j.SalaryMax),
+
+    //            "salary_low" =>
+    //                query.OrderBy(j => j.SalaryMin),
+
+    //            _ =>
+    //                query.OrderByDescending(j => j.IsFeatured)
+    //                     .ThenByDescending(j => j.PublishedAt)
+    //        };
+
+    //        //------------------------------------------------
+    //        // Count
+    //        //------------------------------------------------
+
+    //        var totalCount =
+    //            await query.CountAsync();
+
+    //        //------------------------------------------------
+    //        // Pagination
+    //        //------------------------------------------------
+
+    //        var jobs = await query
+    //            .Skip((request.Page - 1) * request.PageSize)
+    //            .Take(request.PageSize)
+    //            .ToListAsync();
+
+    //        var totalPages =
+    //            (int)Math.Ceiling(
+    //                (double)totalCount /
+    //                request.PageSize);
+
+    //        //------------------------------------------------
+    //        // Map Jobs
+    //        //------------------------------------------------
+
+    //        var jobCards = jobs
+    //            .Select(job => MapToCard(job))
+    //            .ToList();
+
+    //        //------------------------------------------------
+    //        // Response
+    //        //------------------------------------------------
+
+    //        return new CandidateJobListResponseDto
+    //        {
+    //            Success = true,
+
+    //            Message =
+    //                $"{totalCount} job(s) found.",
+
+    //            Jobs =
+    //                jobCards,
+
+    //            TotalCount =
+    //                totalCount,
+
+    //            Page =
+    //                request.Page,
+
+    //            PageSize =
+    //                request.PageSize,
+
+    //            TotalPages =
+    //                totalPages,
+
+    //            HasNextPage =
+    //                request.Page < totalPages,
+
+    //            HasPreviousPage =
+    //                request.Page > 1,
+
+    //            AppliedFilters =
+    //                request
+    //        };
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        _logger.LogError(
+    //            ex,
+    //            "CandidateJobService.GetJobsAsync error.");
+
+    //        return new CandidateJobListResponseDto
+    //        {
+    //            Success = false,
+    //            Message =
+    //                ex.InnerException?.Message ??
+    //                ex.Message
+    //        };
+    //    }
+    //}
+
     public async Task<CandidateJobListResponseDto> GetJobsAsync(
-     CandidateJobSearchRequestDto request)
+    CandidateJobSearchRequestDto request)
     {
         try
         {
@@ -350,46 +734,40 @@ public class PublicCompanyService : IPublicCompanyService
 
             if (!string.IsNullOrWhiteSpace(request.Keyword))
             {
-                var keyword = request.Keyword.Trim().ToLower();
+                var keyword = $"%{request.Keyword.Trim()}%";
 
                 query = query.Where(j =>
 
-                    j.JobTitle.ToLower().Contains(keyword)
+                    EF.Functions.ILike(j.JobTitle, keyword)
 
                     ||
 
-                    j.TradeCategory.ToLower().Contains(keyword)
+                    EF.Functions.ILike(j.TradeCategory, keyword)
 
                     ||
 
                     (j.Role != null &&
-                     j.Role.ToLower().Contains(keyword))
+                     EF.Functions.ILike(j.Role, keyword))
 
                     ||
 
                     (j.Department != null &&
-                     j.Department.ToLower().Contains(keyword))
+                     EF.Functions.ILike(j.Department, keyword))
 
                     ||
 
-                    j.JobDescription.ToLower().Contains(keyword)
+                    EF.Functions.ILike(j.JobDescription, keyword)
 
                     ||
 
                     (j.SearchKeywords != null &&
-                     j.SearchKeywords.ToLower().Contains(keyword))
+                     EF.Functions.ILike(j.SearchKeywords, keyword))
 
                     ||
 
-                    (j.KeySkills != null &&
-                     j.KeySkills.Any(s =>
-                        s.ToLower().Contains(keyword)))
-
-                    ||
-
-                    j.EmployerProfile.CompanyDisplayName
-                        .ToLower()
-                        .Contains(keyword));
+                    EF.Functions.ILike(
+                        j.EmployerProfile.CompanyDisplayName,
+                        keyword));
             }
 
             //------------------------------------------------
@@ -398,10 +776,10 @@ public class PublicCompanyService : IPublicCompanyService
 
             if (!string.IsNullOrWhiteSpace(request.TradeCategory))
             {
-                var trade = request.TradeCategory.Trim().ToLower();
+                var trade = $"%{request.TradeCategory.Trim()}%";
 
                 query = query.Where(j =>
-                    j.TradeCategory.ToLower().Contains(trade));
+                    EF.Functions.ILike(j.TradeCategory, trade));
             }
 
             //------------------------------------------------
@@ -410,11 +788,11 @@ public class PublicCompanyService : IPublicCompanyService
 
             if (!string.IsNullOrWhiteSpace(request.Role))
             {
-                var role = request.Role.Trim().ToLower();
+                var role = $"%{request.Role.Trim()}%";
 
                 query = query.Where(j =>
                     j.Role != null &&
-                    j.Role.ToLower().Contains(role));
+                    EF.Functions.ILike(j.Role, role));
             }
 
             //------------------------------------------------
@@ -423,32 +801,32 @@ public class PublicCompanyService : IPublicCompanyService
 
             if (!string.IsNullOrWhiteSpace(request.Location))
             {
-                var location = request.Location.Trim().ToLower();
+                var location = $"%{request.Location.Trim()}%";
 
                 query = query.Where(j =>
 
                     (j.OnshoreCity != null &&
-                     j.OnshoreCity.ToLower().Contains(location))
+                     EF.Functions.ILike(j.OnshoreCity, location))
 
                     ||
 
                     (j.OnshoreState != null &&
-                     j.OnshoreState.ToLower().Contains(location))
+                     EF.Functions.ILike(j.OnshoreState, location))
 
                     ||
 
                     (j.OnshoreCountry != null &&
-                     j.OnshoreCountry.ToLower().Contains(location))
+                     EF.Functions.ILike(j.OnshoreCountry, location))
 
                     ||
 
                     (j.OffshoreRegion != null &&
-                     j.OffshoreRegion.ToLower().Contains(location))
+                     EF.Functions.ILike(j.OffshoreRegion, location))
 
                     ||
 
                     (j.OffshoreCountry != null &&
-                     j.OffshoreCountry.ToLower().Contains(location)));
+                     EF.Functions.ILike(j.OffshoreCountry, location)));
             }
 
             //------------------------------------------------
@@ -457,11 +835,11 @@ public class PublicCompanyService : IPublicCompanyService
 
             if (!string.IsNullOrWhiteSpace(request.State))
             {
-                var state = request.State.Trim().ToLower();
+                var state = $"%{request.State.Trim()}%";
 
                 query = query.Where(j =>
                     j.OnshoreState != null &&
-                    j.OnshoreState.ToLower().Contains(state));
+                    EF.Functions.ILike(j.OnshoreState, state));
             }
 
             //------------------------------------------------
@@ -626,13 +1004,11 @@ public class PublicCompanyService : IPublicCompanyService
                     query.OrderByDescending(j => j.IsFeatured)
                          .ThenByDescending(j => j.PublishedAt)
             };
-
             //------------------------------------------------
             // Count
             //------------------------------------------------
 
-            var totalCount =
-                await query.CountAsync();
+            var totalCount = await query.CountAsync();
 
             //------------------------------------------------
             // Pagination
@@ -642,6 +1018,78 @@ public class PublicCompanyService : IPublicCompanyService
                 .Skip((request.Page - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToListAsync();
+
+            //------------------------------------------------
+            // KeySkills Filter (Client Side)
+            //------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(request.Keyword))
+            {
+                var keyword = request.Keyword.Trim();
+
+                jobs = jobs
+                    .Where(j =>
+
+                        (j.KeySkills != null &&
+                         j.KeySkills.Any(s =>
+                             s.Contains(
+                                 keyword,
+                                 StringComparison.OrdinalIgnoreCase)))
+
+                        ||
+
+                        j.JobTitle.Contains(
+                            keyword,
+                            StringComparison.OrdinalIgnoreCase)
+
+                        ||
+
+                        j.TradeCategory.Contains(
+                            keyword,
+                            StringComparison.OrdinalIgnoreCase)
+
+                        ||
+
+                        (j.Role != null &&
+                         j.Role.Contains(
+                             keyword,
+                             StringComparison.OrdinalIgnoreCase))
+
+                        ||
+
+                        (j.Department != null &&
+                         j.Department.Contains(
+                             keyword,
+                             StringComparison.OrdinalIgnoreCase))
+
+                        ||
+
+                        j.JobDescription.Contains(
+                            keyword,
+                            StringComparison.OrdinalIgnoreCase)
+
+                        ||
+
+                        (j.SearchKeywords != null &&
+                         j.SearchKeywords.Contains(
+                             keyword,
+                             StringComparison.OrdinalIgnoreCase))
+
+                        ||
+
+                        j.EmployerProfile.CompanyDisplayName.Contains(
+                            keyword,
+                            StringComparison.OrdinalIgnoreCase)
+
+                    )
+                    .ToList();
+
+                totalCount = jobs.Count;
+            }
+
+            //------------------------------------------------
+            // Total Pages
+            //------------------------------------------------
 
             var totalPages =
                 (int)Math.Ceiling(
@@ -653,7 +1101,7 @@ public class PublicCompanyService : IPublicCompanyService
             //------------------------------------------------
 
             var jobCards = jobs
-                .Select(job => MapToCard(job))
+                .Select(MapToCard)
                 .ToList();
 
             //------------------------------------------------
@@ -664,23 +1112,17 @@ public class PublicCompanyService : IPublicCompanyService
             {
                 Success = true,
 
-                Message =
-                    $"{totalCount} job(s) found.",
+                Message = $"{totalCount} job(s) found.",
 
-                Jobs =
-                    jobCards,
+                Jobs = jobCards,
 
-                TotalCount =
-                    totalCount,
+                TotalCount = totalCount,
 
-                Page =
-                    request.Page,
+                Page = request.Page,
 
-                PageSize =
-                    request.PageSize,
+                PageSize = request.PageSize,
 
-                TotalPages =
-                    totalPages,
+                TotalPages = totalPages,
 
                 HasNextPage =
                     request.Page < totalPages,
@@ -688,8 +1130,7 @@ public class PublicCompanyService : IPublicCompanyService
                 HasPreviousPage =
                     request.Page > 1,
 
-                AppliedFilters =
-                    request
+                AppliedFilters = request
             };
         }
         catch (Exception ex)
