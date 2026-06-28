@@ -44,21 +44,23 @@ public class AiJobDescriptionService : IAiJobDescriptionService
         {
             var systemPrompt =
                 """
-                You are an expert HR copywriter for maritime, offshore, and skilled-trades recruitment
-                in India and the Middle East.
-                
-                Write a single, professional job description (180–250 words).
-                Structure it exactly as:
-                  1. Opening paragraph — role overview (2–3 sentences)
-                  2. Key Responsibilities — 5 bullet points starting with action verbs
-                  3. Requirements — 4–5 bullet points (experience, certs, education)
-                  4. What We Offer — 2–3 short benefit bullets
-                
-                Also return 8–12 key skill strings relevant to the role.
-                
-                Return ONLY valid JSON — no markdown, no preamble:
+                You are an expert HR copywriter for maritime, offshore, and skilled-trades
+                recruitment in India and the Middle East.
+
+                Produce a concise, professional job description split into clear parts.
+                Keep it brief and skimmable. Use these rules:
+                  - summary: 2-3 sentence role overview.
+                  - responsibilities: 5 short bullet strings, each starting with an action verb.
+                  - requirements: 4-5 short bullet strings (experience, certifications, education).
+                  - benefits: 2-3 short bullet strings (what the company offers).
+                  - suggestedSkills: 8-12 short skill strings relevant to the role.
+
+                Return ONLY valid JSON - no markdown, no preamble:
                 {
-                  "description": "...",
+                  "summary": "...",
+                  "responsibilities": ["...", "..."],
+                  "requirements": ["...", "..."],
+                  "benefits": ["...", "..."],
                   "suggestedSkills": ["skill1", "skill2"]
                 }
                 """;
@@ -70,25 +72,60 @@ public class AiJobDescriptionService : IAiJobDescriptionService
             using var doc = JsonDocument.Parse(raw);
             var root = doc.RootElement;
 
-            var description = root.TryGetProperty("description", out var d)
-                ? d.GetString() ?? string.Empty
-                : string.Empty;
+            string GetStr(string name) =>
+                root.TryGetProperty(name, out var v) ? v.GetString() ?? string.Empty : string.Empty;
 
-            var skills = root.TryGetProperty("suggestedSkills", out var s)
-                ? s.EnumerateArray()
-                    .Select(x => x.GetString() ?? string.Empty)
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .ToList()
-                : new List<string>();
+            List<string> GetArr(string name) =>
+                root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Array
+                    ? v.EnumerateArray()
+                        .Select(x => x.GetString() ?? string.Empty)
+                        .Where(x => !string.IsNullOrWhiteSpace(x))
+                        .ToList()
+                    : new List<string>();
 
-            if (string.IsNullOrWhiteSpace(description))
+            var summary = GetStr("summary");
+            var responsibilities = GetArr("responsibilities");
+            var requirements = GetArr("requirements");
+            var benefits = GetArr("benefits");
+            var skills = GetArr("suggestedSkills");
+
+            if (string.IsNullOrWhiteSpace(summary) && responsibilities.Count == 0)
                 return AutoGenFailure("AI returned an empty description.");
+
+            // Main JD (Step 1): summary + key responsibilities.
+            var main = new System.Text.StringBuilder();
+            if (!string.IsNullOrWhiteSpace(summary))
+                main.AppendLine(summary).AppendLine();
+            if (responsibilities.Count > 0)
+            {
+                main.AppendLine("Key Responsibilities:");
+                foreach (var r in responsibilities) main.AppendLine($"• {r}");
+            }
+
+            // Additional JD (Step 3): requirements + what we offer.
+            var extra = new System.Text.StringBuilder();
+            if (requirements.Count > 0)
+            {
+                extra.AppendLine("Requirements:");
+                foreach (var r in requirements) extra.AppendLine($"• {r}");
+            }
+            if (benefits.Count > 0)
+            {
+                if (extra.Length > 0) extra.AppendLine();
+                extra.AppendLine("What We Offer:");
+                foreach (var b in benefits) extra.AppendLine($"• {b}");
+            }
 
             return new AutoGenerateJdResponseDto
             {
                 Success = true,
                 Message = "Job description generated successfully.",
-                GeneratedDescription = description,
+                GeneratedDescription = main.ToString().Trim(),
+                AdditionalDescription = extra.ToString().Trim(),
+                Summary = summary,
+                Responsibilities = responsibilities,
+                Requirements = requirements,
+                Benefits = benefits,
                 SuggestedSkills = skills
             };
         }

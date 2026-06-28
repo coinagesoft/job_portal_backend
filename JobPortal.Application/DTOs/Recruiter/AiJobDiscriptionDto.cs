@@ -31,6 +31,16 @@ public class AutoGenerateJdResponseDto
     /// </summary>
     public string GeneratedDescription { get; set; } = string.Empty;
 
+    /// <summary>Requirements + "What We Offer", formatted for the Step-3 additional JD field.</summary>
+    public string AdditionalDescription { get; set; } = string.Empty;
+
+    /// <summary>Short 2-3 sentence role overview.</summary>
+    public string Summary { get; set; } = string.Empty;
+
+    public List<string> Responsibilities { get; set; } = new();
+    public List<string> Requirements { get; set; } = new();
+    public List<string> Benefits { get; set; } = new();
+
     /// <summary>
     /// Skill chips to pre-populate the Step-3 skills field.
     /// </summary>
