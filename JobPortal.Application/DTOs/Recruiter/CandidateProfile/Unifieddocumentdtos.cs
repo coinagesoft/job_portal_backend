@@ -33,3 +33,13 @@ public class UploadDocumentResponse
     /// <summary>Full parsed field set from the OCR parser.</summary>
     public JsonElement? ParsedData { get; set; }
 }
+/// <summary>A stored, OCR-verified candidate document (row in candidate_documents).</summary>
+public class CandidateUploadedDocumentDto
+{
+    public Guid DocumentId { get; set; }
+    public string DocumentType { get; set; } = string.Empty;
+    public string? FileUrl { get; set; }
+    public string? ParsedName { get; set; }
+    public string VerificationStatus { get; set; } = "Verified";
+    public DateTime UploadedAt { get; set; }
+}

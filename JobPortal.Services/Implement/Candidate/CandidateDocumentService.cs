@@ -2858,6 +2858,44 @@ public class CandidateDocumentService : ICandidateDocumentService
         ParsedSuccessfully = !string.IsNullOrWhiteSpace(k.AiExtractedName)
     };
 
+    public async Task<List<CandidateUploadedDocumentDto>> GetUploadedDocumentsAsync(
+        Guid candidateId)
+    {
+        return await _context.CandidateDocuments
+            .AsNoTracking()
+            .Where(d => d.CandidateId == candidateId)
+            .OrderByDescending(d => d.UploadedAt)
+            .Select(d => new CandidateUploadedDocumentDto
+            {
+                DocumentId = d.DocumentId,
+                DocumentType = d.DocumentType,
+                FileUrl = d.FileUrl,
+                ParsedName = d.ParsedName,
+                VerificationStatus = d.VerificationStatus,
+                UploadedAt = d.UploadedAt
+            })
+            .ToListAsync();
+    }
+
+    public async Task<bool> DeleteUploadedDocumentAsync(
+        Guid candidateId,
+        Guid documentId)
+    {
+        var doc = await _context.CandidateDocuments
+            .FirstOrDefaultAsync(d =>
+                d.DocumentId == documentId &&
+                d.CandidateId == candidateId);
+
+        if (doc == null)
+            return false;
+
+        _context.CandidateDocuments.Remove(doc);
+        await _context.SaveChangesAsync();
+
+        await SafeDeleteUploadAsync(doc.FilePublicId);
+        return true;
+    }
+
     private static CandidateDocumentsResponseDto DocsFail(string msg)
         => new() { Success = false, Message = msg };
 }

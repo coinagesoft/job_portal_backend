@@ -16,6 +16,15 @@ public interface ICandidateDocumentService
         Guid candidateId,
         IFormFile file);
 
+    /// <summary>Lists the candidate's stored, OCR-verified documents (candidate_documents).</summary>
+    Task<List<JobPortal.Application.DTOs.Candidate.CandidateUploadedDocumentDto>> GetUploadedDocumentsAsync(
+        Guid candidateId);
+
+    /// <summary>Deletes one stored document (DB row + Cloudinary file).</summary>
+    Task<bool> DeleteUploadedDocumentAsync(
+        Guid candidateId,
+        Guid documentId);
+
     // Resume
     Task<UploadResumeResponseDto> UploadResumeAsync(
         Guid candidateId,

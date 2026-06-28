@@ -134,4 +134,37 @@ public class CandidateDocumentController : ControllerBase
 
         return result.Success ? Ok(result) : BadRequest(result);
     }
+
+    // ════════════════════════════════════════════════
+    // GET /api/candidate/profile/documents/uploaded
+    // Lists the candidate's stored, OCR-verified documents.
+    // ════════════════════════════════════════════════
+    [HttpGet("uploaded")]
+    public async Task<IActionResult> GetUploadedDocuments([FromQuery] Guid? candidateId = null)
+    {
+        var id = candidateId ?? GetCandidateId();
+        if (id == Guid.Empty)
+            return BadRequest(new { message = "Unable to resolve candidate identity." });
+
+        var documents = await _docService.GetUploadedDocumentsAsync(id);
+        return Ok(new { success = true, documents });
+    }
+
+    // ════════════════════════════════════════════════
+    // DELETE /api/candidate/profile/documents/{documentId}
+    // ════════════════════════════════════════════════
+    [HttpDelete("{documentId:guid}")]
+    public async Task<IActionResult> DeleteUploadedDocument(
+        Guid documentId,
+        [FromQuery] Guid? candidateId = null)
+    {
+        var id = candidateId ?? GetCandidateId();
+        if (id == Guid.Empty)
+            return BadRequest(new { message = "Unable to resolve candidate identity." });
+
+        var deleted = await _docService.DeleteUploadedDocumentAsync(id, documentId);
+        return deleted
+            ? Ok(new { success = true, message = "Document deleted." })
+            : NotFound(new { success = false, message = "Document not found." });
+    }
 }
