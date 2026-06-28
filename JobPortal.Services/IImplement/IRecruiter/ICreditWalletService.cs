@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace JobPortal.Services.IImplement.IRecruiter
 {
-   
+
     public interface ICreditWalletService
     {
         // ==========================================
@@ -21,11 +21,11 @@ namespace JobPortal.Services.IImplement.IRecruiter
         // Credit Allocation
         // ==========================================
 
-        Task<AllocateCreditsResponseDto>AllocateCreditsAsync(
+        Task<AllocateCreditsResponseDto> AllocateCreditsAsync(
                 Guid employerId,
                 AllocateCreditsRequestDto request);
 
-        Task<SubUserCreditBalanceDto?>GetSubUserCreditBalanceAsync(Guid subUserId);
+        Task<SubUserCreditBalanceDto?> GetSubUserCreditBalanceAsync(Guid subUserId);
 
         // ==========================================
         // Candidate Unlock
@@ -55,19 +55,28 @@ namespace JobPortal.Services.IImplement.IRecruiter
                 bool isSubUser,
                 DownloadCvRequestDto request);
 
+        /// <summary>
+        /// Streams the candidate's CV with a per-employer watermark
+        /// (company name + download date) applied in memory. Only succeeds
+        /// when the profile is unlocked for the employer. Nothing is stored.
+        /// </summary>
+        Task<WatermarkedCvResult> DownloadWatermarkedCvAsync(
+                Guid employerId,
+                Guid candidateId);
 
-        Task<List<CreditUsageHistoryDto>>GetCreditUsageHistoryAsync(Guid employerId);
 
-        Task<List<PurchaseHistoryDto>>GetPurchaseHistoryAsync(Guid employerId);
+        Task<List<CreditUsageHistoryDto>> GetCreditUsageHistoryAsync(Guid employerId);
 
-        Task<List<AllocationHistoryDto>>GetAllocationHistoryAsync(Guid employerId);
+        Task<List<PurchaseHistoryDto>> GetPurchaseHistoryAsync(Guid employerId);
 
-        Task<List<CvDownloadHistoryDto>>GetCvDownloadHistoryAsync(Guid employerId);
+        Task<List<AllocationHistoryDto>> GetAllocationHistoryAsync(Guid employerId);
 
-        Task<List<UnlockedCandidateDto>>GetUnlockedCandidatesAsync(Guid employerId);
-        
-        Task<List<EmployerTransactionHistoryDto>>GetEmployerTransactionHistoryAsync(Guid employerId);
+        Task<List<CvDownloadHistoryDto>> GetCvDownloadHistoryAsync(Guid employerId);
 
-        Task<CreditWalletDashboardDto>GetCreditWalletDashboardAsync(Guid employerId);
+        Task<List<UnlockedCandidateDto>> GetUnlockedCandidatesAsync(Guid employerId);
+
+        Task<List<EmployerTransactionHistoryDto>> GetEmployerTransactionHistoryAsync(Guid employerId);
+
+        Task<CreditWalletDashboardDto> GetCreditWalletDashboardAsync(Guid employerId);
     }
 }

@@ -13,12 +13,14 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task<CloudinaryUploadResult>
         UploadImageAsync(
             IFormFile file,
-            string folder);
+            string folder,
+            string? publicId = null);
 
         Task<CloudinaryUploadResult>
             UploadDocumentAsync(
                 IFormFile file,
-                string folder);
+                string folder,
+                string? publicId = null);
 
         Task DeleteAsync(string? publicId);
     }

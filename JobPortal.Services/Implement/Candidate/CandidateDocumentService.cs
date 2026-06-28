@@ -684,27 +684,19 @@ public class CandidateDocumentService : ICandidateDocumentService
     // =====================================================
     public async Task<UploadDocumentResponse> UploadAndVerifyDocumentAsync(
         Guid candidateId,
-        string documentType,
         IFormFile file)
     {
         FileUploadResult? uploadResult = null;
+        string? documentType = null;
 
         try
         {
-            if (string.IsNullOrWhiteSpace(documentType))
-                return new UploadDocumentResponse
-                {
-                    Success = false,
-                    Message = "documentType is required."
-                };
-
             var validationError = ValidateFile(file, AllowedDocTypes, MaxDocFileSizeBytes);
             if (validationError != null)
                 return new UploadDocumentResponse
                 {
                     Success = false,
-                    Message = validationError,
-                    DocumentType = documentType
+                    Message = validationError
                 };
 
             var profile = await _context.CandidateProfiles
@@ -714,20 +706,24 @@ public class CandidateDocumentService : ICandidateDocumentService
                 return new UploadDocumentResponse
                 {
                     Success = false,
-                    Message = "Candidate profile not found.",
-                    DocumentType = documentType
+                    Message = "Candidate profile not found."
                 };
 
-            // 1. OCR parse (Gemini)
+            // 1. OCR parse (Gemini) — the document type is detected here,
+            //    not supplied by the client.
             var parsed = await _geminiDocumentParserService.ParseDocumentAsync(file);
 
             if (!parsed.Success)
                 return new UploadDocumentResponse
                 {
                     Success = false,
-                    Message = parsed.Message ?? "Could not read this document. Please upload a clearer copy.",
-                    DocumentType = documentType
+                    Message = parsed.Message ?? "Could not read this document. Please upload a clearer copy."
                 };
+
+            // Document type comes straight from the parser.
+            documentType = string.IsNullOrWhiteSpace(parsed.DocumentType)
+                ? "Document"
+                : parsed.DocumentType.Trim();
 
             // 2. Extract the name from the parsed fields
             var parsedName = ExtractParsedName(parsed.ParsedData);
@@ -762,11 +758,18 @@ public class CandidateDocumentService : ICandidateDocumentService
                 };
             }
 
-            // 4. Upload to Cloudinary, foldered by document type
-            var safeType = MakeSafeDocumentFolder(documentType);
-            uploadResult = await _fileStorage.SaveFileAsync(file, $"candidate-documents/{safeType}");
+            // 4. Upload to Cloudinary. The stored file name is built from the
+            //    detected type + candidate name + short id, e.g.
+            //    "aadhaar_card_shrinath_dandekar_ec52be6d".
+            var shortId = candidateId.ToString("N").Substring(0, 8);
+            var fileName = $"{Slugify(documentType)}_{Slugify(profile.FullName)}_{shortId}";
 
-            // 5. Replace any existing document of the same type for this candidate
+            uploadResult = await _fileStorage.SaveFileAsync(
+                file,
+                "candidate-documents",
+                fileName);
+
+            // 5. Replace any existing document of the same (detected) type
             var existing = await _context.CandidateDocuments
                 .Where(d => d.CandidateId == candidateId && d.DocumentType == documentType)
                 .ToListAsync();
@@ -802,8 +805,8 @@ public class CandidateDocumentService : ICandidateDocumentService
                 await SafeDeleteUploadAsync(old.FilePublicId);
 
             _logger.LogInformation(
-                "Document {Type} stored for Candidate {CandidateId}. DocumentId={DocumentId}",
-                documentType, candidateId, doc.DocumentId);
+                "Document {Type} stored for Candidate {CandidateId} as '{FileName}'. DocumentId={DocumentId}",
+                documentType, candidateId, fileName, doc.DocumentId);
 
             return new UploadDocumentResponse
             {
@@ -863,6 +866,36 @@ public class CandidateDocumentService : ICandidateDocumentService
             documentType.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_').ToArray());
 
         return string.IsNullOrWhiteSpace(cleaned) ? "general" : cleaned.ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Lowercases a value and replaces every run of non-alphanumeric characters
+    /// with a single underscore, e.g. "Aadhaar Card" -> "aadhaar_card".
+    /// </summary>
+    private static string Slugify(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "doc";
+
+        var sb = new System.Text.StringBuilder();
+        var lastUnderscore = false;
+
+        foreach (var ch in value.Trim().ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(ch))
+            {
+                sb.Append(ch);
+                lastUnderscore = false;
+            }
+            else if (!lastUnderscore)
+            {
+                sb.Append('_');
+                lastUnderscore = true;
+            }
+        }
+
+        var slug = sb.ToString().Trim('_');
+        return string.IsNullOrWhiteSpace(slug) ? "doc" : slug;
     }
 
     public async Task<DeleteResumeResponseDto> DeleteResumeAsync(Guid candidateId)

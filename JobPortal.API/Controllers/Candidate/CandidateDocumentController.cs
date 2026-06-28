@@ -125,15 +125,12 @@ public class CandidateDocumentController : ControllerBase
         if (request?.Document == null || request.Document.Length == 0)
             return BadRequest(new { success = false, message = "Please upload a document." });
 
-        if (string.IsNullOrWhiteSpace(request.DocumentType))
-            return BadRequest(new { success = false, message = "documentType is required." });
-
         var id = candidateId ?? GetCandidateId();
         if (id == Guid.Empty)
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
         var result = await _docService.UploadAndVerifyDocumentAsync(
-            id, request.DocumentType, request.Document);
+            id, request.Document);
 
         return result.Success ? Ok(result) : BadRequest(result);
     }

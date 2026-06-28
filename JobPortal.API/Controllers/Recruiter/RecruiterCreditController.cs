@@ -96,6 +96,30 @@ public class RecruiterCreditController : ControllerBase
         return Ok(result);
     }
 
+    // ════════════════════════════════════════════════════════════
+    // GET /api/recruiter/candidate/{candidateId}/cv/download
+    //
+    // Streams the candidate's CV as a watermarked PDF (company name +
+    // download date). The watermark is applied in memory and the bytes
+    // are discarded after the response — nothing is stored. Only works
+    // when the profile is unlocked for this employer.
+    // ════════════════════════════════════════════════════════════
+    [HttpGet("candidate/{candidateId:guid}/cv/download")]
+    public async Task<IActionResult> DownloadWatermarkedCv(
+        Guid candidateId,
+        [FromHeader(Name = "EmployerId")] Guid employerId)
+    {
+        var result =
+            await _service.DownloadWatermarkedCvAsync(
+                employerId,
+                candidateId);
+
+        if (!result.Success || result.FileBytes == null)
+            return BadRequest(new { success = false, message = result.Message });
+
+        return File(result.FileBytes, "application/pdf", result.FileName);
+    }
+
 
     [HttpGet("credit-usage-history")]
     public async Task<IActionResult> GetCreditUsageHistory(
@@ -143,7 +167,7 @@ public class RecruiterCreditController : ControllerBase
     public async Task<IActionResult> GetUnlockedCandidates(
     [FromHeader(Name = "EmployerId")] Guid employerId)
     {
-        var result = await _service.GetUnlockedCandidatesAsync( employerId);
+        var result = await _service.GetUnlockedCandidatesAsync(employerId);
 
         return Ok(result);
     }
@@ -159,8 +183,8 @@ public class RecruiterCreditController : ControllerBase
 
 
     [HttpGet("credit-wallet-dashboard")]
-    public async Task<IActionResult>GetCreditWalletDashboard(
-        [FromHeader(Name = "EmployerId")]Guid employerId)
+    public async Task<IActionResult> GetCreditWalletDashboard(
+        [FromHeader(Name = "EmployerId")] Guid employerId)
     {
         var result = await _service.GetCreditWalletDashboardAsync(employerId);
 

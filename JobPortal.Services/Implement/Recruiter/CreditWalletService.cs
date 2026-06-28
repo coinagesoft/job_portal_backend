@@ -6,6 +6,7 @@ using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using JobPortal.Services.IImplement.IRecruiter;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,20 +15,23 @@ using System.Threading.Tasks;
 
 namespace JobPortal.Services.Implement.Recruiter
 {
-    public class CreditWalletService:ICreditWalletService
+    public class CreditWalletService : ICreditWalletService
     {
         private readonly IConfiguration _configuration;
         private readonly AppDbContext _context;
+        private readonly IResumeWatermarkService _watermark;
 
         public CreditWalletService(
             IConfiguration configuration,
-            AppDbContext context)
+            AppDbContext context,
+            IResumeWatermarkService watermark)
         {
             _configuration = configuration;
             _context = context;
+            _watermark = watermark;
         }
 
-        public async Task<WalletSummaryDto?>GetEmployerWalletAsync(Guid employerId)
+        public async Task<WalletSummaryDto?> GetEmployerWalletAsync(Guid employerId)
         {
             var wallet =
                 await GetEmployerWalletEntityAsync(employerId);
@@ -64,7 +68,7 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<AllocateCreditsResponseDto>AllocateCreditsAsync(Guid employerId,AllocateCreditsRequestDto request)
+        public async Task<AllocateCreditsResponseDto> AllocateCreditsAsync(Guid employerId, AllocateCreditsRequestDto request)
         {
             var wallet =
                 await GetEmployerWalletEntityAsync(
@@ -79,7 +83,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            var subUser =await GetSubUserAsync( request.SubUserId);
+            var subUser = await GetSubUserAsync(request.SubUserId);
 
             if (subUser == null)
             {
@@ -183,7 +187,7 @@ namespace JobPortal.Services.Implement.Recruiter
                             availableCredits -
                             request.Credits,
 
-                       
+
 
                         CreatedAt =
                             DateTime.UtcNow
@@ -212,7 +216,7 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<SubUserCreditBalanceDto?>GetSubUserCreditBalanceAsync(Guid subUserId)
+        public async Task<SubUserCreditBalanceDto?> GetSubUserCreditBalanceAsync(Guid subUserId)
         {
             var allocation =
                 await GetSubUserAllocationAsync(
@@ -236,7 +240,7 @@ namespace JobPortal.Services.Implement.Recruiter
                     allocation.RemainingCredits
             };
         }
-        public async Task<UnlockCandidateResponseDto>UnlockCandidateAsync(
+        public async Task<UnlockCandidateResponseDto> UnlockCandidateAsync(
         Guid employerId,
         Guid actionUserId,
         bool isSubUser,
@@ -400,7 +404,7 @@ namespace JobPortal.Services.Implement.Recruiter
                         config.CandidateAccessDays)
             };
         }
-        public async Task<EmployerCandidateProfileDto?>GetCandidateProfileAsync(
+        public async Task<EmployerCandidateProfileDto?> GetCandidateProfileAsync(
         Guid employerId,
         Guid candidateId)
         {
@@ -474,7 +478,7 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<DownloadCvResponseDto>DownloadCvAsync(
+        public async Task<DownloadCvResponseDto> DownloadCvAsync(
         Guid employerId,
         Guid actionUserId,
         bool isSubUser,
@@ -640,7 +644,7 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<List<CreditUsageHistoryDto>>GetCreditUsageHistoryAsync(Guid employerId)
+        public async Task<List<CreditUsageHistoryDto>> GetCreditUsageHistoryAsync(Guid employerId)
         {
             var monthCredits =
     await _context.CreditUsageTransactions
@@ -682,7 +686,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 .ToListAsync();
         }
 
-        public async Task<List<PurchaseHistoryDto>>GetPurchaseHistoryAsync(Guid employerId)
+        public async Task<List<PurchaseHistoryDto>> GetPurchaseHistoryAsync(Guid employerId)
         {
             return await _context.EmployerPlanPurchase
                 .Where(x =>
@@ -719,7 +723,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 .ToListAsync();
         }
 
-        public async Task<List<AllocationHistoryDto>>GetAllocationHistoryAsync(Guid employerId)
+        public async Task<List<AllocationHistoryDto>> GetAllocationHistoryAsync(Guid employerId)
         {
             return await _context.CreditAllocationHistory
                 .Where(x =>
@@ -750,7 +754,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 .ToListAsync();
         }
 
-        public async Task<List<CvDownloadHistoryDto>>GetCvDownloadHistoryAsync(Guid employerId)
+        public async Task<List<CvDownloadHistoryDto>> GetCvDownloadHistoryAsync(Guid employerId)
         {
             return await _context.CandidateCvDownloads
                 .Where(x =>
@@ -784,7 +788,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 .ToListAsync();
         }
 
-        public async Task<List<UnlockedCandidateDto>>GetUnlockedCandidatesAsync(Guid employerId)
+        public async Task<List<UnlockedCandidateDto>> GetUnlockedCandidatesAsync(Guid employerId)
         {
             return await
                 (
@@ -830,7 +834,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 .ToListAsync();
         }
 
-        public async Task<List<EmployerTransactionHistoryDto>>GetEmployerTransactionHistoryAsync(Guid employerId)
+        public async Task<List<EmployerTransactionHistoryDto>> GetEmployerTransactionHistoryAsync(Guid employerId)
         {
             var creditTransactions =
                 await
@@ -920,7 +924,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 .OrderByDescending(x => x.CreatedAt)
                 .ToList();
         }
-        public async Task<CreditWalletDashboardDto>GetCreditWalletDashboardAsync(Guid employerId)
+        public async Task<CreditWalletDashboardDto> GetCreditWalletDashboardAsync(Guid employerId)
         {
             var wallet =
                 await _context.CreditWallets
@@ -978,14 +982,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 .FirstOrDefaultAsync(x => x.IsActive);
         }
 
-        private async Task<CreditWallet?>GetEmployerWalletEntityAsync(Guid employerId)
+        private async Task<CreditWallet?> GetEmployerWalletEntityAsync(Guid employerId)
         {
             return await _context.CreditWallets
                 .FirstOrDefaultAsync(x =>
                     x.EmployerId == employerId);
         }
 
-        private async Task<SubUserCreditAllocation?>GetSubUserAllocationAsync(Guid subUserId)
+        private async Task<SubUserCreditAllocation?> GetSubUserAllocationAsync(Guid subUserId)
         {
             return await _context.SubUserCreditAllocation
                 .FirstOrDefaultAsync(x =>
@@ -1008,7 +1012,75 @@ namespace JobPortal.Services.Implement.Recruiter
             return candidate;
         }
 
-        private async Task<bool>HasCandidateAccessAsync(Guid employerId,Guid candidateId)
+        public async Task<WatermarkedCvResult> DownloadWatermarkedCvAsync(
+            Guid employerId,
+            Guid candidateId)
+        {
+            // 1. Profile must be unlocked (active access, not expired)
+            var hasAccess = await _context.EmployerCandidateAccesses
+                .AnyAsync(x =>
+                    x.EmployerId == employerId &&
+                    x.CandidateId == candidateId &&
+                    x.IsActive &&
+                    x.ExpiresAt > DateTime.UtcNow);
+
+            if (!hasAccess)
+                return new WatermarkedCvResult
+                {
+                    Success = false,
+                    Message = "Profile is locked. Unlock this candidate to download their CV."
+                };
+
+            // 2. Latest CV with a stored file
+            var cv = await _context.CandidateCvs
+                .Where(c => c.CandidateId == candidateId && c.CvFileUrl != null)
+                .OrderByDescending(c => c.GeneratedAt)
+                .FirstOrDefaultAsync();
+
+            if (cv == null || string.IsNullOrWhiteSpace(cv.CvFileUrl))
+                return new WatermarkedCvResult
+                {
+                    Success = false,
+                    Message = "No CV is available for this candidate."
+                };
+
+            // 3. Names for the watermark + filename
+            var candidateName = await _context.CandidateProfiles
+                .Where(p => p.CandidateId == candidateId)
+                .Select(p => p.FullName)
+                .FirstOrDefaultAsync() ?? "Candidate";
+
+            var companyName = await _context.EmployerProfiles
+                .Where(e => e.EmployerId == employerId)
+                .Select(e => e.CompanyDisplayName)
+                .FirstOrDefaultAsync() ?? "Company";
+
+            // 4. Build the watermarked PDF entirely in memory.
+            //    Nothing is written to disk or storage — the bytes are
+            //    streamed to the recruiter and then garbage-collected.
+            var bytes = await _watermark.AddWatermarkAsync(
+                cv.CvFileUrl,
+                companyName,
+                employerId,
+                DateTime.UtcNow);
+
+            var safeName = new string(
+                candidateName.Where(ch => char.IsLetterOrDigit(ch) || ch == ' ').ToArray())
+                .Trim()
+                .Replace(' ', '_');
+
+            if (string.IsNullOrWhiteSpace(safeName))
+                safeName = "Candidate";
+
+            return new WatermarkedCvResult
+            {
+                Success = true,
+                FileBytes = bytes,
+                FileName = $"{safeName}_CV.pdf"
+            };
+        }
+
+        private async Task<bool> HasCandidateAccessAsync(Guid employerId, Guid candidateId)
         {
             return await _context.EmployerCandidateAccesses
                 .AnyAsync(x =>
@@ -1017,7 +1089,7 @@ namespace JobPortal.Services.Implement.Recruiter
                     x.IsActive &&
                     x.ExpiresAt > DateTime.UtcNow);
         }
-        private async Task<EmployerCandidateAccess?>GetCandidateAccessAsync(Guid employerId,Guid candidateId)
+        private async Task<EmployerCandidateAccess?> GetCandidateAccessAsync(Guid employerId, Guid candidateId)
         {
             return await _context.EmployerCandidateAccesses
                 .FirstOrDefaultAsync(x =>
@@ -1026,7 +1098,7 @@ namespace JobPortal.Services.Implement.Recruiter
                     x.IsActive &&
                     x.ExpiresAt > DateTime.UtcNow);
         }
-        private async Task<EmployerSubUser?>GetSubUserAsync(Guid subUserId)
+        private async Task<EmployerSubUser?> GetSubUserAsync(Guid subUserId)
         {
             return await _context.EmployerSubUsers
                 .FirstOrDefaultAsync(x =>
@@ -1034,7 +1106,7 @@ namespace JobPortal.Services.Implement.Recruiter
                     x.SubUserStatus == "Active");
         }
 
-        private async Task<(bool Success,string Message,int BalanceBefore,int BalanceAfter)>DeductEmployerCreditsAsync(
+        private async Task<(bool Success, string Message, int BalanceBefore, int BalanceAfter)> DeductEmployerCreditsAsync(
         Guid employerId,
         int credits)
         {
@@ -1276,12 +1348,12 @@ namespace JobPortal.Services.Implement.Recruiter
                 .FirstOrDefaultAsync();
         }
 
-    private async Task CreateCvDownloadRecordAsync(
-    Guid candidateId,
-    Guid cvId,
-    Guid employerId,
-    Guid? subUserId,
-    int creditsUsed)
+        private async Task CreateCvDownloadRecordAsync(
+        Guid candidateId,
+        Guid cvId,
+        Guid employerId,
+        Guid? subUserId,
+        int creditsUsed)
         {
             var download =
                 new CandidateCvDownload

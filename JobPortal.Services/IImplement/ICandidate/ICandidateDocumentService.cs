@@ -14,7 +14,6 @@ public interface ICandidateDocumentService
     /// </summary>
     Task<JobPortal.Application.DTOs.Candidate.UploadDocumentResponse> UploadAndVerifyDocumentAsync(
         Guid candidateId,
-        string documentType,
         IFormFile file);
 
     // Resume

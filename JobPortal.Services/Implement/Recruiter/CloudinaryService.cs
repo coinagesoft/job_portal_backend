@@ -34,7 +34,8 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public async Task<CloudinaryUploadResult> UploadImageAsync(
             IFormFile file,
-            string folder)
+            string folder,
+            string? publicId = null)
         {
             await using var stream = file.OpenReadStream();
 
@@ -43,6 +44,12 @@ namespace JobPortal.Services.Implement.Recruiter
                 File = new FileDescription(file.FileName, stream),
                 Folder = folder
             };
+
+            if (!string.IsNullOrWhiteSpace(publicId))
+            {
+                uploadParams.PublicId = publicId;
+                uploadParams.Overwrite = true;
+            }
 
             var result = await _cloudinary.UploadAsync(uploadParams);
 
@@ -66,7 +73,8 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public async Task<CloudinaryUploadResult> UploadDocumentAsync(
             IFormFile file,
-            string folder)
+            string folder,
+            string? publicId = null)
         {
             await using var stream = file.OpenReadStream();
 
@@ -75,6 +83,12 @@ namespace JobPortal.Services.Implement.Recruiter
                 File = new FileDescription(file.FileName, stream),
                 Folder = folder
             };
+
+            if (!string.IsNullOrWhiteSpace(publicId))
+            {
+                uploadParams.PublicId = publicId;
+                uploadParams.Overwrite = true;
+            }
 
             var result = await _cloudinary.UploadAsync(uploadParams);
             if (result.Error != null)

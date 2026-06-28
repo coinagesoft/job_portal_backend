@@ -4,14 +4,11 @@ using Microsoft.AspNetCore.Http;
 namespace JobPortal.Application.DTOs.Candidate;
 
 /// <summary>
-/// One endpoint for every document type. The client identifies the document
-/// via <see cref="DocumentType"/> and sends the file in <see cref="Document"/>.
+/// One endpoint for every document type. The document type is detected
+/// automatically by the OCR parser — the client only sends the file.
 /// </summary>
 public class UploadDocumentRequest
 {
-    /// <summary>e.g. "Aadhaar", "Passport", "EducationCertificate".</summary>
-    public string DocumentType { get; set; } = string.Empty;
-
     public IFormFile Document { get; set; } = default!;
 }
 

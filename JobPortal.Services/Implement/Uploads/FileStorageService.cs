@@ -17,7 +17,8 @@ public class FileStorageService : IFileStorageService
 
     public async Task<FileUploadResult> SaveFileAsync(
         IFormFile file,
-        string folderName)
+        string folderName,
+        string? fileName = null)
     {
         if (file == null || file.Length == 0)
             throw new ArgumentException("File is required.");
@@ -33,8 +34,8 @@ public class FileStorageService : IFileStorageService
         };
 
         var result = imageExtensions.Contains(extension)
-            ? await _cloudinaryService.UploadImageAsync(file, folderName)
-            : await _cloudinaryService.UploadDocumentAsync(file, folderName);
+            ? await _cloudinaryService.UploadImageAsync(file, folderName, fileName)
+            : await _cloudinaryService.UploadDocumentAsync(file, folderName, fileName);
 
         return new FileUploadResult
         {

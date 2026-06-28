@@ -7,7 +7,8 @@ public interface IFileStorageService
 {
     Task<FileUploadResult> SaveFileAsync(
         IFormFile file,
-        string folderName);
+        string folderName,
+        string? fileName = null);
 
     Task DeleteFileAsync(string? publicId);
 }
