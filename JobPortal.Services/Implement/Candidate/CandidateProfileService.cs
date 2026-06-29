@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using JobPortal.Application.DTOs.Recruiter.CVSearch;
 
-namespace JobPortal.Application.DTOs.Recruiter.CandidateProfile
+namespace JobPortal.Application.Implement.Candidate
 {
    
 }

@@ -8,19 +8,20 @@ namespace JobPortal.API.Controllers.Recruiter;
 
 [ApiController]
 [Route("api/admin/credit-configuration")]
-[Authorize]
-public class CreditConfigurationController
+//[Authorize]
+public class AdminCreditConfigurationController
     : ControllerBase
 {
     private readonly ICreditConfigurationService _service;
 
-    public CreditConfigurationController(
+    public AdminCreditConfigurationController(
         ICreditConfigurationService service)
     {
         _service = service;
     }
 
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult>
         GetConfiguration()
     {
@@ -44,13 +45,15 @@ public class CreditConfigurationController
     public async Task<IActionResult>
         UpdateConfiguration(
             [FromBody]
-            UpdateCreditConfigurationRequestDto request,
+            UpdateCreditConfigurationRequestDto request)
 
-            [FromHeader(Name = "AdminId")]
-            Guid adminId)
+            //[FromHeader(Name = "AdminId")]
+            //Guid adminId)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
+
+        Guid adminId = Guid.Parse("5c1ecae1-543d-11f1-9571-3448ed0f248a");
 
         var result =
             await _service.UpdateConfigurationAsync(

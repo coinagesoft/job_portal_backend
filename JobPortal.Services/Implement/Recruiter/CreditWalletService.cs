@@ -240,6 +240,7 @@ namespace JobPortal.Services.Implement.Recruiter
                     allocation.RemainingCredits
             };
         }
+
         public async Task<UnlockCandidateResponseDto> UnlockCandidateAsync(
         Guid employerId,
         Guid actionUserId,
