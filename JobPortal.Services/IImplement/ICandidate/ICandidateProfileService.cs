@@ -29,5 +29,11 @@ public interface ICandidateProfileService
     Guid userId,
     CreateCandidateProfileRequestDto request);
 
+    Task<UpdateDisabilityResponseDto> UpdateDisabilityAsync(
+        Guid candidateId,
+        UpdateDisabilityRequestDto request);
 
+    Task<UpdateProfileAvailabilityResponseDto> UpdateAvailabilityAsync(
+        Guid candidateId,
+        UpdateProfileAvailabilityRequestDto request);
 }

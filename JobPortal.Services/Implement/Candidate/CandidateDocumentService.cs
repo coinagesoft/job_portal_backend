@@ -798,6 +798,53 @@ public class CandidateDocumentService : ICandidateDocumentService
             if (existing.Count > 0)
                 _context.CandidateDocuments.RemoveRange(existing);
 
+            // 5b. If this is an ITI certificate, also persist/refresh the
+            //     ITI certificate review row (iti_certificate_reviews) with the
+            //     AI-extracted fields, so it shows up in the review/import flow.
+            if (IsItiCertificate(documentType))
+            {
+                var trade = GetParsedField(parsed.ParsedData, "trade");
+                var institute = GetParsedField(parsed.ParsedData,
+                    "institute", "college", "iti", "institution");
+                var certNo = GetParsedField(parsed.ParsedData,
+                    "certificate no", "certificate number", "certno",
+                    "registration", "reg no", "roll");
+                short? year = TryExtractYear(GetParsedField(parsed.ParsedData,
+                    "year", "passing", "session"));
+
+                var existingReview = await _context.ItiCertificateReviews
+                    .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
+                if (existingReview == null)
+                {
+                    _context.ItiCertificateReviews.Add(new ItiCertificateReview
+                    {
+                        ItiReviewId = Guid.NewGuid(),
+                        CandidateId = candidateId,
+                        ItiCertImageUrl = uploadResult.Url,
+                        ItiCertPublicId = uploadResult.PublicId,
+                        AiExtractedTrade = trade,
+                        AiExtractedInstitute = institute,
+                        AiExtractedYear = year,
+                        AiExtractedCertNo = certNo,
+                        AiConfidenceScore = 95m,
+                        IsImportedToProfile = false,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    });
+                }
+                else
+                {
+                    existingReview.ItiCertImageUrl = uploadResult.Url;
+                    existingReview.ItiCertPublicId = uploadResult.PublicId;
+                    existingReview.AiExtractedTrade = trade;
+                    existingReview.AiExtractedInstitute = institute;
+                    existingReview.AiExtractedYear = year;
+                    existingReview.AiExtractedCertNo = certNo;
+                    existingReview.UpdatedAt = now;
+                }
+            }
+
             await _context.SaveChangesAsync();
 
             // Clean up previous Cloudinary files only after a successful save
@@ -836,6 +883,43 @@ public class CandidateDocumentService : ICandidateDocumentService
                 DocumentType = documentType
             };
         }
+    }
+
+    private static bool IsItiCertificate(string? documentType)
+        => !string.IsNullOrWhiteSpace(documentType) &&
+           documentType.Replace("-", " ").Replace("_", " ")
+               .IndexOf("iti", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    /// <summary>Finds the first parsed field whose key contains any of the given substrings.</summary>
+    private static string? GetParsedField(System.Text.Json.JsonElement? data, params string[] keyContains)
+    {
+        if (data is not { ValueKind: System.Text.Json.JsonValueKind.Object } el)
+            return null;
+
+        foreach (var prop in el.EnumerateObject())
+        {
+            var name = prop.Name.Replace("_", " ").Replace("-", " ").ToLowerInvariant();
+            foreach (var k in keyContains)
+            {
+                if (name.IndexOf(k, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    var v = prop.Value.ValueKind == System.Text.Json.JsonValueKind.String
+                        ? prop.Value.GetString()
+                        : prop.Value.ToString();
+                    if (!string.IsNullOrWhiteSpace(v))
+                        return v.Trim();
+                }
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Pulls a 4-digit year out of a free-text value (e.g. "Aug 2018").</summary>
+    private static short? TryExtractYear(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        var m = System.Text.RegularExpressions.Regex.Match(s, @"(19|20)\d{2}");
+        return m.Success && short.TryParse(m.Value, out var y) ? y : (short?)null;
     }
 
     /// <summary>Pulls the candidate name out of the parser's dynamic field set.</summary>

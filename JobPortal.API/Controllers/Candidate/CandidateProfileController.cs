@@ -26,7 +26,7 @@ public class CandidateProfileController : ControllerBase
         ILogger<CandidateProfileController> logger)
     {
         _profileService = profileService;
-        _logger         = logger;
+        _logger = logger;
     }
 
     /// <summary>Extracts CandidateId from JWT claim; falls back to route/query param for dev.</summary>
@@ -186,6 +186,52 @@ public class CandidateProfileController : ControllerBase
     }
 
     // ════════════════════════════════════════════════
+    // DISABILITY
+    // PATCH /api/candidate/profile/disability
+    // ════════════════════════════════════════════════
+    /// <summary>Updates the candidate's disability status and optional note.</summary>
+    [HttpPatch("disability")]
+    [ProducesResponseType(typeof(UpdateDisabilityResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UpdateDisability(
+        [FromBody] UpdateDisabilityRequestDto request,
+        [FromQuery] Guid? candidateId = null)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var id = candidateId ?? GetCandidateId();
+        if (id == Guid.Empty)
+            return BadRequest(new { message = "Unable to resolve candidate identity." });
+
+        var result = await _profileService.UpdateDisabilityAsync(id, request);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    // ════════════════════════════════════════════════
+    // AVAILABILITY FOR WORK
+    // PATCH /api/candidate/profile/availability
+    // ════════════════════════════════════════════════
+    /// <summary>Updates the candidate's availability for work.</summary>
+    [HttpPatch("availability")]
+    [ProducesResponseType(typeof(UpdateProfileAvailabilityResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UpdateAvailability(
+        [FromBody] UpdateProfileAvailabilityRequestDto request,
+        [FromQuery] Guid? candidateId = null)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var id = candidateId ?? GetCandidateId();
+        if (id == Guid.Empty)
+            return BadRequest(new { message = "Unable to resolve candidate identity." });
+
+        var result = await _profileService.UpdateAvailabilityAsync(id, request);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    // ════════════════════════════════════════════════
     // ENUM OPTIONS
     // GET /api/candidate/profile/enum-options
     // ════════════════════════════════════════════════
@@ -196,10 +242,10 @@ public class CandidateProfileController : ControllerBase
     {
         return Ok(new CandidateProfileEnumOptionsDto
         {
-            GenderOptions       = new[] { "Male", "Female", "Prefer_Not_To_Say" },
+            GenderOptions = new[] { "Male", "Female", "Prefer_Not_To_Say" },
             NoticePeriodOptions = new[] { "Immediate", "15 Days", "30 Days", "60 Days", "90 Days" },
             AvailabilityOptions = new[] { "Available", "Open_To_Opportunities", "Not_Looking" },
-            DocumentTypes       = new[] { "Resume", "EducationCertificate", "Passport", "Aadhaar" }
+            DocumentTypes = new[] { "Resume", "EducationCertificate", "Passport", "Aadhaar" }
         });
     }
 }
