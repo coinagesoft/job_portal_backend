@@ -78,7 +78,7 @@ builder.Services.AddScoped<ICreditConfigurationService, CreditConfigurationServi
 builder.Services.AddScoped<ISubUserEmailService, SubUserEmailService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICandidateAuthService, CandidateAuthService>();
-builder.Services.AddScoped<ICandidateProfileService, CandidateProfileService>();
+//builder.Services.AddScoped<ICandidateProfileService, CandidateProfileService>();
 builder.Services.AddScoped<IRecruiterInvoiceService, RecruiterInvoiceService>();
 builder.Services.AddScoped<ICompanyProfileService, CompanyProfileService>();
 builder.Services.AddScoped<IVerificationService, VerificationService>();
@@ -156,7 +156,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "JobPortal API",
         Version = "v1",
-        Description = "SkillBridge Job Portal — Admin, Recruiter & Candidate APIs"
+        Description = "Job Portal — Admin, Recruiter & Candidate APIs"
     });
 
     c.UseInlineDefinitionsForEnums();

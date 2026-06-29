@@ -417,8 +417,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
             session.CompanyDescription = request.CompanyDescription;
 
-            session.MobileVerified = false;
-            session.CompanyEmailVerified = false;
+            session.MobileVerified = session.MobileVerified;
+            session.CompanyEmailVerified = session.CompanyEmailVerified;
 
             session.CurrentStep = 3;
 
@@ -838,6 +838,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             };
         }
     }
+
     // ════════════════════════════════════════════════
     // STEP 4 — Upload Licences → update DB
     // ════════════════════════════════════════════════
