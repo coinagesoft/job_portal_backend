@@ -78,7 +78,7 @@ builder.Services.AddScoped<ICreditConfigurationService, CreditConfigurationServi
 builder.Services.AddScoped<ISubUserEmailService, SubUserEmailService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICandidateAuthService, CandidateAuthService>();
-//builder.Services.AddScoped<ICandidateProfileService, CandidateProfileService>();
+builder.Services.AddScoped<ICandidateProfileService, CandidateProfileService>();
 builder.Services.AddScoped<IRecruiterInvoiceService, RecruiterInvoiceService>();
 builder.Services.AddScoped<ICompanyProfileService, CompanyProfileService>();
 builder.Services.AddScoped<IVerificationService, VerificationService>();
@@ -89,7 +89,7 @@ builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExt
 //builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
 builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
-builder.Services.AddScoped<IHomepageService, HomepageService>(); 
+builder.Services.AddScoped<IHomepageService, HomepageService>();
 
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
 builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
@@ -104,7 +104,7 @@ builder.Services.AddScoped<IRecruiterApplicantService, RecruiterApplicantService
 builder.Services.AddScoped<ICandidateNotificationService, CandidateNotificationService>();
 builder.Services.AddScoped<IResumeWatermarkService, ResumeWatermarkService>();
 
-builder.Services.AddScoped<IRecruiterCvSearchService,RecruiterCvSearchService>();
+builder.Services.AddScoped<IRecruiterCvSearchService, RecruiterCvSearchService>();
 builder.Services.AddScoped<IHomepageService, HomepageService>();
 
 builder.Services.AddScoped<IRecruiterCvSearchService, RecruiterCvSearchService>();
@@ -122,16 +122,16 @@ builder.Services.Configure<CloudinarySettingsDto>(
 builder.Services.AddScoped<ICloudinaryService,
     CloudinaryService>();
 
-builder.Services.AddScoped<IEmbeddingService,OpenAIEmbeddingService>();
-builder.Services.AddScoped<IEmbeddingStorageService,EmbeddingStorageService>();
-builder.Services.AddScoped<IEmbeddingService,  OpenAIEmbeddingService>();
+builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
+builder.Services.AddScoped<IEmbeddingStorageService, EmbeddingStorageService>();
+builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
 
-builder.Services.AddScoped<IEmbeddingStorageService,EmbeddingStorageService>();
+builder.Services.AddScoped<IEmbeddingStorageService, EmbeddingStorageService>();
 builder.Services.AddScoped<IJobMatchingService, JobMatchingService>();
 
 builder.Services.AddScoped<IAiJobDescriptionService, AiJobDescriptionService>();
 builder.Services.AddScoped<IRankedCandidateService, RankedCandidateService>();
-builder.Services.AddScoped<IFileStorageService,  FileStorageService>();
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 // ── Affinda AI — resume parsing ──────────────────────────────
 // Uses typed HttpClient so each instance gets its own HttpClient
 builder.Services.AddHttpClient<IAffindaService, AffindaService>();
@@ -200,16 +200,16 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
-    policy
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials()
-        .WithOrigins(
-            "http://localhost:3000",
-            "https://localhost:3000",
+        policy
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()
+            .WithOrigins(
+                "http://localhost:3000",
+                "https://localhost:3000",
 
-            "https://job-portal-dev-phi.vercel.app",
-            "https://job-portal-web-phi.vercel.app");
+                "https://job-portal-dev-phi.vercel.app",
+                "https://job-portal-web-phi.vercel.app");
 
     });
 });

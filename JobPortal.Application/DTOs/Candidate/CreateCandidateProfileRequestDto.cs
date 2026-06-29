@@ -79,4 +79,8 @@ public class CreateCandidateProfileRequestDto
     // ==========================
 
     public bool NewsletterOptIn { get; set; }
+
+    /// <summary>Whether the candidate is currently available for work.
+    /// Maps to AvailabilityStatus ("Available" / "Not Available"). Defaults to true.</summary>
+    public bool? CurrentlyAvailableForWork { get; set; }
 }
