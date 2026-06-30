@@ -29,7 +29,7 @@ public class CandidateDocumentService : ICandidateDocumentService
     private readonly IFileStorageService _fileStorage;
     private const long MaxDocFileSizeBytes = 10 * 1024 * 1024;
     private const long MaxImageSizeBytes = 5 * 1024 * 1024;
-    private static readonly string[] AllowedDocTypes = { "application/pdf", "image/jpeg", "image/png" };
+    private static readonly string[] AllowedDocTypes = { "application/pdf", "image/jpeg", "image/png", "application/zip" };
     private static readonly string[] AllowedImgTypes = { "image/jpeg", "image/png", "image/webp" };
 
     public CandidateDocumentService(

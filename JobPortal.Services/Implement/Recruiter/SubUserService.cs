@@ -173,7 +173,7 @@ public class SubUserService : ISubUserService
             await _context.SaveChangesAsync();
 
             var inviteLink =
-    $"https://localhost:7011/accept-invite?token={inviteToken}";
+    $"https://jobportal.coinage.in/accept-invite?token={inviteToken}";
 
             await _subUserEmailService.SendSubUserInviteAsync(
                 request.SubUserEmail,

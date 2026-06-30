@@ -1310,8 +1310,8 @@ public class CandidateJobService : ICandidateJobService
             var candidate = await _context.CandidateProfiles
                 .Include(x => x.Cvs)
                 .FirstOrDefaultAsync(x =>
-                    x.CandidateId == candidateId &&
-                    x.ProfileStatus == "Active");
+                    x.CandidateId == candidateId);
+                    //x.ProfileStatus == "Active");
 
             if (candidate == null)
                 return ApplyFail("Candidate profile not found.");
