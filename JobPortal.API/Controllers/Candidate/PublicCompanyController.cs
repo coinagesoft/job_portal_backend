@@ -58,9 +58,9 @@ public class PublicCompanyController : ControllerBase
     [HttpGet("filter_by_keywords")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(CandidateJobListResponseDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetJobs([FromQuery] CandidateJobSearchRequestDto request)
+    public async Task<IActionResult> GetJobs([FromQuery] CandidateJobSearchRequestDto request, [FromQuery] Guid? candidateId = null)
     {
-        var result = await _companyService.GetJobsAsync(request);
+        var result = await _companyService.GetJobsAsync(request, candidateId);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 

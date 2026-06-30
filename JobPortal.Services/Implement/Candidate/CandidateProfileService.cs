@@ -258,6 +258,22 @@ public class CandidateProfileService : ICandidateProfileService
 
         var pct = PctFromFlags(flags);
 
+        // Itemised checklist so the UI can guide the candidate to 100%.
+        // 9 sections, each weighted equally (~11% each).
+        int w = (int)Math.Round(100.0 / 9.0);
+        var items = new List<ProfileCompletionItemDto>
+        {
+            new() { Key = "photo",        Label = "Profile photo",         Completed = flags.HasPhoto,       WeightPct = w, ActionHint = "Add a profile photo",                 Endpoint = "POST /api/candidate/profile/profile-photo" },
+            new() { Key = "personalInfo", Label = "Personal information",   Completed = flags.HasPersonalInfo,WeightPct = w, ActionHint = "Complete your personal information",     Endpoint = "PUT /api/candidate/profile/personal-info" },
+            new() { Key = "summary",      Label = "Professional summary",   Completed = flags.HasSummary,     WeightPct = w, ActionHint = "Write a professional summary",          Endpoint = "PUT /api/candidate/profile/personal-info" },
+            new() { Key = "resume",       Label = "CV / Resume",            Completed = flags.HasResume,      WeightPct = w, ActionHint = "Upload your CV / resume",               Endpoint = "POST /api/candidate/profile/documents/resume" },
+            new() { Key = "education",    Label = "Education",              Completed = flags.HasEducation,   WeightPct = w, ActionHint = "Add your education",                    Endpoint = "POST /api/candidate/profile/education" },
+            new() { Key = "workHistory",  Label = "Work experience",        Completed = flags.HasWorkHistory, WeightPct = w, ActionHint = "Add your work experience",              Endpoint = "POST /api/candidate/profile/work-experience" },
+            new() { Key = "skills",       Label = "Skills",                 Completed = flags.HasSkills,      WeightPct = w, ActionHint = "Add your skills",                       Endpoint = "POST /api/candidate/profile/skills" },
+            new() { Key = "aadhaar",      Label = "Aadhaar verification",   Completed = flags.HasAadhaar,     WeightPct = w, ActionHint = "Verify your Aadhaar",                    Endpoint = "POST /api/candidate/profile/documents" },
+            new() { Key = "passport",     Label = "Passport",               Completed = flags.HasPassport,    WeightPct = w, ActionHint = "Add your passport (for international roles)", Endpoint = "POST /api/candidate/profile/documents" },
+        };
+
         // keep the stored value in sync
         if (c.ProfileCompletionPct != pct)
         {
@@ -282,7 +298,9 @@ public class CandidateProfileService : ICandidateProfileService
                 HasSkills = flags.HasSkills,
                 HasAadhaar = flags.HasAadhaar,
                 HasPassport = flags.HasPassport,
-                PendingActions = pending
+                PendingActions = pending,
+                RemainingPct = Math.Max(0, 100 - pct),
+                Items = items
             }
         };
     }

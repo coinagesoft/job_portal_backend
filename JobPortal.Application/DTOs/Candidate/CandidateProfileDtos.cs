@@ -186,6 +186,22 @@ public class ProfileCompletionData
 
     /// <summary>Ordered list of next actions the candidate should take.</summary>
     public List<string> PendingActions { get; set; } = new();
+
+    /// <summary>Percentage still required to reach 100%.</summary>
+    public int RemainingPct { get; set; }
+
+    /// <summary>Full itemised checklist (done + pending), each with its weight and how to complete it.</summary>
+    public List<ProfileCompletionItemDto> Items { get; set; } = new();
+}
+
+public class ProfileCompletionItemDto
+{
+    public string Key { get; set; } = string.Empty;       // photo, personalInfo, ...
+    public string Label { get; set; } = string.Empty;     // human-readable section name
+    public bool Completed { get; set; }
+    public int WeightPct { get; set; }                    // how much this section adds
+    public string ActionHint { get; set; } = string.Empty; // what to do
+    public string Endpoint { get; set; } = string.Empty;  // API the UI can call to complete it
 }
 
 // ─────────────────────────────────────────────────────────────

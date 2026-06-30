@@ -14,14 +14,17 @@ public class PublicCompanyService : IPublicCompanyService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<PublicCompanyService> _logger;
+    private readonly JobPortal.Services.IImplement.AI.IJobMatchingService _jobMatching;
     private const int MaxPageSize = 50;
 
     public PublicCompanyService(
         AppDbContext context,
-        ILogger<PublicCompanyService> logger)
+        ILogger<PublicCompanyService> logger,
+        JobPortal.Services.IImplement.AI.IJobMatchingService jobMatching)
     {
         _context = context;
         _logger = logger;
+        _jobMatching = jobMatching;
     }
     public async Task<List<CandidateJobListItemDto>> GetAllJobsAsync()
     {
@@ -711,7 +714,8 @@ public class PublicCompanyService : IPublicCompanyService
     //}
 
     public async Task<CandidateJobListResponseDto> GetJobsAsync(
-    CandidateJobSearchRequestDto request)
+    CandidateJobSearchRequestDto request,
+    Guid? candidateId = null)
     {
         try
         {
@@ -1105,6 +1109,25 @@ public class PublicCompanyService : IPublicCompanyService
             var jobCards = jobs
                 .Select(MapToCard)
                 .ToList();
+
+            // Per-candidate AI match: score each job against the logged-in
+            // candidate's profile. Anonymous visitors get no score.
+            if (candidateId.HasValue && candidateId.Value != Guid.Empty)
+            {
+                foreach (var card in jobCards)
+                {
+                    try
+                    {
+                        var match = await _jobMatching
+                            .CalculateMatchAsync(candidateId.Value, card.JobId);
+                        card.AiMatchPercentage = match.MatchScore;
+                    }
+                    catch
+                    {
+                        card.AiMatchPercentage = null;
+                    }
+                }
+            }
 
             //------------------------------------------------
             // Response
