@@ -495,7 +495,8 @@ public class SubUserService : ISubUserService
             return new BaseSubUserResponseDto
             {
                 Success = true,
-                Message = "Invite accepted. You can now log in."
+                Message = "Invite accepted. You can now log in.",
+                Email = subUser.SubUserEmail
             };
         }
         catch (Exception ex)
