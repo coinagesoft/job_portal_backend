@@ -17,7 +17,7 @@ namespace JobPortal.Services.IImplement.ICandidate
         Task<List<CandidateJobListItemDto>> GetAllJobsAsync();
         Task<CandidateJobDetailsDto?> GetJobDetailsAsync(Guid jobId);
 
-        Task<CandidateJobListResponseDto> GetJobsAsync(CandidateJobSearchRequestDto request);
+        Task<CandidateJobListResponseDto> GetJobsAsync(CandidateJobSearchRequestDto request, Guid? candidateId = null);
 
         Task<PublicCompanyListResponseDto> GetCompaniesAsync();
 
