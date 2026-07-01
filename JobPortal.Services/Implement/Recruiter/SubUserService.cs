@@ -173,7 +173,7 @@ public class SubUserService : ISubUserService
             await _context.SaveChangesAsync();
 
             var inviteLink =
-    $"https://jobportal.coinage.in/accept-invite?token={inviteToken}";
+    $"https://job-portal-web-phi.vercel.app/employeer/accept-invite?token={inviteToken}"; ;
 
             await _subUserEmailService.SendSubUserInviteAsync(
                 request.SubUserEmail,

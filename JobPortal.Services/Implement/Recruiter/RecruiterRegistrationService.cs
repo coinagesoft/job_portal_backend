@@ -472,6 +472,19 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
+            // Check email already exists
+            var emailExists = await _context.Users
+                .AnyAsync(x => x.Email == request.CompanyEmail);
+
+            if (emailExists)
+            {
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "This email is already registered."
+                };
+            }
+
             var otp = GenerateOtp();
 
             await _emailService.SendOtpEmailAsync(
@@ -682,16 +695,40 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     }
 
     public async Task<OtpResponseDto> SendMobileOtpAsync(
-    SendMobileOtpRequestDto request,
-    string sessionId)
+     SendMobileOtpRequestDto request,
+     string sessionId)
     {
         try
         {
-            var fullPhone =
-                $"{request.CountryCode}{request.MobileNumber}";
+            // Optional: Validate session
+            var session = await GetValidSessionAsync(sessionId);
 
-            var sent =
-                await _twilioOtpService.SendOtpAsync(fullPhone);
+            if (session == null)
+            {
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "Session expired."
+                };
+            }
+
+            // Check if mobile number already exists
+            var mobileExists = await _context.Users.AnyAsync(x =>
+                x.CountryCode == request.CountryCode &&
+                x.MobileNumber == request.MobileNumber);
+
+            if (mobileExists)
+            {
+                return new OtpResponseDto
+                {
+                    Success = false,
+                    Message = "This mobile number is already registered."
+                };
+            }
+
+            var fullPhone = $"{request.CountryCode}{request.MobileNumber}";
+
+            var sent = await _twilioOtpService.SendOtpAsync(fullPhone);
 
             if (!sent)
             {

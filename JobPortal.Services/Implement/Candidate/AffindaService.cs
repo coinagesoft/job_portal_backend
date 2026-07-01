@@ -193,7 +193,7 @@ public class AffindaService : IAffindaService
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Affinda poll attempt {Attempt} failed: {Status}", attempt, response.StatusCode);
+                _logger.LogWarning("Affinda poll attempt {Attempt} failed: {Status}", attempt, response.StatusCode, body);
                 continue;
             }
 

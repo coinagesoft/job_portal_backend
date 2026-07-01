@@ -24,60 +24,104 @@ public class SubUserEmailService : ISubUserEmailService
     }
 
     public async Task SendSubUserInviteAsync(
-        string email,
-        string name,
-        string companyName,
-        string role,
-        string inviteLink,
-        DateTime expiresAt)
+       string email,
+       string name,
+       string companyName,
+       string role,
+       string inviteLink,
+       DateTime expiresAt)
     {
         var subject = $"Invitation to join {companyName}";
 
         var body = $@"
-        <html>
-        <body>
-            <h2>You're Invited!</h2>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+</head>
 
-            <p>Hello <strong>{name}</strong>,</p>
+<body style='margin:0;padding:30px;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;'>
 
-            <p>
-                You have been invited to join
-                <strong>{companyName}</strong>
-                as a <strong>{role}</strong>.
-            </p>
+<table width='100%' cellpadding='0' cellspacing='0'>
+<tr>
+<td align='center'>
 
-            <p>
-                Click the button below to accept your invitation:
-            </p>
+<table width='600' cellpadding='0' cellspacing='0'
+style='background:#ffffff;border-radius:8px;padding:40px;'>
 
-            <p>
-                <a href='{inviteLink}'
-                   style='padding:10px 20px;
-                          background:#007bff;
-                          color:white;
-                          text-decoration:none;
-                          border-radius:5px;'>
-                    Accept Invitation
-                </a>
-            </p>
+<tr>
+<td>
 
-            <p>
-                This invitation expires on
-                <strong>{expiresAt:dd MMM yyyy hh:mm tt} UTC</strong>.
-            </p>
+<h2 style='margin-top:0;color:#333333;'>
+You're Invited!
+</h2>
 
-            <p>
-                If the button doesn't work, use:
-                <br/>
-                {inviteLink}
-            </p>
+<p>Hello <strong>{name}</strong>,</p>
 
-            <br/>
+<p>
+You have been invited to join
+<strong>{companyName}</strong>
+as a
+<strong>{role}</strong>.
+</p>
 
-            <p>Regards,</p>
-            <p><strong>Job Portal Team</strong></p>
-        </body>
-        </html>";
+<p>
+Click the button below to accept your invitation.
+</p>
+
+<p style='margin:35px 0;'>
+
+<a href='{inviteLink}'
+style='
+background:#0d6efd;
+color:#ffffff;
+text-decoration:none;
+padding:12px 28px;
+border-radius:6px;
+display:inline-block;
+font-weight:bold;'>
+
+Accept Invitation
+
+</a>
+
+</p>
+
+<p>
+<b>Invitation Expiry:</b><br/>
+{expiresAt:dd MMM yyyy hh:mm tt} UTC
+</p>
+
+<hr style='margin:30px 0;'>
+
+<p>
+If the button doesn't work, copy and paste this link into your browser:
+</p>
+
+<p style='word-break:break-all;'>
+
+<a href='{inviteLink}'>{inviteLink}</a>
+
+</p>
+
+<br/>
+
+<p>
+Regards,<br/>
+<strong>Job Portal Team</strong>
+</p>
+
+</td>
+</tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>";
 
         await _emailService.SendEmailAsync(
             email,

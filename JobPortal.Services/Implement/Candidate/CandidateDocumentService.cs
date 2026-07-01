@@ -309,7 +309,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 return new UploadResumeResponseDto
                 {
                     Success = false,
-                    Message = "We couldn't read this resume. Please upload a clear PDF or DOC file and try again.",
+                    Message = parseResult.ErrorMessage,
                     ParsedName = parseResult.ParsedName,
                     NameMatched = false
                 };
@@ -326,7 +326,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 return new UploadResumeResponseDto
                 {
                     Success = false,
-                    Message = "We couldn't detect a name on this resume, so we can't verify it belongs to you. Please upload a resume that clearly shows your name.",
+                    Message = parseResult.ErrorMessage,
                     NameMatched = false
                 };
             }
