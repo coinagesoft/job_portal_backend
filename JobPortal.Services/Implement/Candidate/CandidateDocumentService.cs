@@ -481,6 +481,11 @@ public class CandidateDocumentService : ICandidateDocumentService
                         parseResult.Educations,
                         candidateId);
                 }
+
+                // Languages (previously parsed but never persisted anywhere queryable)
+                await UpsertLanguagesAsync(
+                    parseResult.Languages,
+                    candidateId);
             }
             // =====================================================
             // 10. Recalculate Profile Completion
@@ -556,7 +561,15 @@ public class CandidateDocumentService : ICandidateDocumentService
                     ExperienceYrs = parseResult.ParsedExperienceYrs,
                     Skills = parseResult.ParsedSkills,
                     ConfidenceScore = parseResult.AiConfidenceScore,
-                    AffindaDocId = parseResult.AffindaDocId
+                    AffindaDocId = parseResult.AffindaDocId,
+
+                    City = parseResult.City,
+                    State = parseResult.State,
+                    Country = parseResult.Country,
+
+                    Languages = MapLanguagesForResponse(parseResult.Languages),
+                    Education = MapEducationForResponse(parseResult.Educations),
+                    WorkExperience = MapWorkExperienceForResponse(parseResult.WorkExperiences)
                 }
             };
         }
@@ -2570,6 +2583,108 @@ public class CandidateDocumentService : ICandidateDocumentService
         }
     }
 
+    private static List<string> MapLanguagesForResponse(List<AffindaLanguage>? languages)
+    {
+        if (languages == null || !languages.Any()) return new();
+
+        return languages
+            .Select(l => l.Parsed?.Parsed)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static List<AiParsedEducationDto> MapEducationForResponse(List<AffindaEducation>? educations)
+    {
+        if (educations == null || !educations.Any()) return new();
+
+        return educations.Select(edu =>
+        {
+            var accreditation = edu.Parsed?.EducationAccreditation?.Parsed;
+            var levelLabel = edu.Parsed?.EducationLevel?.Value ?? edu.Parsed?.EducationLevel?.Label;
+
+            var grade =
+                edu.Parsed?.EducationGrade?.EducationGradeScore?.ToString()
+                ?? edu.Parsed?.EducationGrade?.GradeScore?.ToString();
+            var gradeUnit = edu.Parsed?.EducationGrade?.GradeUnit?.Label;
+
+            return new AiParsedEducationDto
+            {
+                Qualification = accreditation,
+                Level = levelLabel,
+                InstituteName = edu.Parsed?.EducationOrganization?.Parsed,
+                StartYear = edu.Parsed?.EducationDates?.Start?.Year,
+                EndYear = edu.Parsed?.EducationDates?.End?.Year,
+                Grade = string.IsNullOrWhiteSpace(grade)
+                    ? null
+                    : string.IsNullOrWhiteSpace(gradeUnit) ? grade : $"{grade} {gradeUnit}"
+            };
+        })
+        .Where(e => !string.IsNullOrWhiteSpace(e.Qualification)
+                 || !string.IsNullOrWhiteSpace(e.InstituteName)
+                 || !string.IsNullOrWhiteSpace(e.Level))
+        .ToList();
+    }
+
+    private static List<AiParsedWorkExperienceDto> MapWorkExperienceForResponse(List<AffindaWorkExp>? workExperiences)
+    {
+        if (workExperiences == null || !workExperiences.Any()) return new();
+
+        return workExperiences
+            .Where(exp => !string.IsNullOrWhiteSpace(exp.Parsed?.WorkExperienceJobTitle?.Parsed))
+            .Select(exp => new AiParsedWorkExperienceDto
+            {
+                JobTitle = exp.Parsed?.WorkExperienceJobTitle?.Parsed,
+                CompanyName = exp.Parsed?.WorkExperienceOrganization?.Parsed,
+                Location = exp.Parsed?.WorkExperienceLocation?.Formatted,
+                StartDate = ParseDatePoint(exp.Parsed?.WorkExperienceDates?.Start),
+                EndDate = exp.Parsed?.WorkExperienceDates?.End?.IsCurrent == true
+                    ? null
+                    : ParseDatePoint(exp.Parsed?.WorkExperienceDates?.End),
+                IsCurrent = exp.Parsed?.WorkExperienceDates?.End?.IsCurrent ?? false,
+                Description = exp.Parsed?.WorkExperienceDescription?.Parsed
+            })
+            .ToList();
+    }
+
+    private async Task UpsertLanguagesAsync(
+        List<AffindaLanguage> affindaLanguages,
+        Guid candidateId)
+    {
+        if (affindaLanguages == null || !affindaLanguages.Any())
+            return;
+
+        // Candidate already has language entries — do not overwrite.
+        if (await _context.CandidateSkills
+            .AnyAsync(x => x.CandidateId == candidateId && x.SkillType == "Language"))
+        {
+            return;
+        }
+
+        var distinctLanguages = affindaLanguages
+            .Select(l => l.Parsed?.Parsed)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var languageName in distinctLanguages)
+        {
+            _context.CandidateSkills.Add(new CandidateSkill
+            {
+                SkillId = Guid.NewGuid(),
+                CandidateId = candidateId,
+                SkillName = languageName,
+                SkillType = "Language",
+                SkillRole = "Affinda",
+                YearsOfExperience = null,
+                CanRead = null,
+                CanWrite = null,
+                CanSpeak = null
+            });
+        }
+    }
+
     private async Task UpsertEducationsAsync(
         List<AffindaEducation> affindaEducations,
         Guid candidateId)
@@ -2587,16 +2702,26 @@ public class CandidateDocumentService : ICandidateDocumentService
 
         foreach (var edu in affindaEducations)
         {
-            // Skip invalid education records
-            if (string.IsNullOrWhiteSpace(
-                edu.Parsed?.EducationAccreditation?.Parsed))
+            var accreditation = edu.Parsed?.EducationAccreditation?.Parsed;
+            var organization = edu.Parsed?.EducationOrganization?.Parsed;
+            var levelLabel = edu.Parsed?.EducationLevel?.Value ?? edu.Parsed?.EducationLevel?.Label;
+
+            // Previously this skipped the ENTIRE record (institute, year, everything)
+            // whenever Affinda didn't confidently extract a degree/accreditation title.
+            // That silently dropped vocational / trade / school-board entries (e.g.
+            // "ITI - Electrician Trade", "SSC (10th Standard)") where Affinda's resume
+            // model is less reliable at naming the qualification but still correctly
+            // extracts the institute and dates. Only skip if we have NOTHING usable —
+            // no accreditation, no organization, and no level — since at that point
+            // there's nothing meaningful to save anyway.
+            if (string.IsNullOrWhiteSpace(accreditation) &&
+                string.IsNullOrWhiteSpace(organization) &&
+                string.IsNullOrWhiteSpace(levelLabel))
             {
                 continue;
             }
 
-            var level = MapEducationLevel(
-                edu.Parsed?.EducationLevel?.Value
-                ?? edu.Parsed?.EducationLevel?.Label);
+            var level = MapEducationLevel(levelLabel);
 
             short? passoutYear = null;
 
@@ -2619,11 +2744,13 @@ public class CandidateDocumentService : ICandidateDocumentService
 
                 CandidateId = candidateId,
 
-                EducationLevel = level,
+                // Fall back to the accreditation text itself, or the level label,
+                // rather than losing the qualification name entirely.
+                EducationLevel = !string.IsNullOrWhiteSpace(accreditation)
+                    ? accreditation
+                    : level,
 
-                InstituteName =
-                    edu.Parsed?.EducationOrganization?.Parsed
-                    ?? "Unknown Institute",
+                InstituteName = organization ?? "Unknown Institute",
 
                 PassoutYear = passoutYear,
 

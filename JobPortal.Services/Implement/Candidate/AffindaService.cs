@@ -197,7 +197,20 @@ public class AffindaService : IAffindaService
                 continue;
             }
 
-            var doc = JsonSerializer.Deserialize<AffindaSingleDocumentResponse>(body, _jsonOpts);
+            AffindaSingleDocumentResponse? doc;
+            try
+            {
+                doc = JsonSerializer.Deserialize<AffindaSingleDocumentResponse>(body, _jsonOpts);
+            }
+            catch (JsonException jex)
+            {
+                // Log the raw body so we can see exactly what shape Affinda sent for whatever
+                // field broke the deserializer, instead of just the byte offset.
+                _logger.LogError(jex,
+                    "Affinda document {Id}: failed to deserialize poll response. Raw body: {Body}",
+                    identifier, body);
+                throw;
+            }
 
             if (doc?.Meta?.Ready == true || doc?.Meta?.Failed == true)
             {
@@ -232,8 +245,9 @@ public class AffindaService : IAffindaService
             ? null
             : $"{firstName} {familyName}".Trim();
 
-        var phone = d?.PhoneNumber?.FirstOrDefault()?.FormattedNumber
-                 ?? d?.PhoneNumber?.FirstOrDefault()?.RawText;
+        var phone = d?.PhoneNumber?.FirstOrDefault()?.Parsed?.FormattedNumber
+                 ?? d?.PhoneNumber?.FirstOrDefault()?.Parsed?.RawText
+                 ?? d?.PhoneNumber?.FirstOrDefault()?.Raw;
 
         var email =
             d?.Email?.FirstOrDefault()?.Parsed

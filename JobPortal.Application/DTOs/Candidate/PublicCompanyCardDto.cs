@@ -73,6 +73,10 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public string? FacebookUrl { get; set; }
 
+        public string? Phone { get; set; }
+
+        public string? Email { get; set; }
+
         // Address
 
         public string? AddressLine1 { get; set; }
@@ -86,6 +90,12 @@ namespace JobPortal.Application.DTOs.Candidate
         public string? Country { get; set; }
 
         public string? Pincode { get; set; }
+
+        /// <summary>Full "AddressLine1, City, State, Country" string for display.</summary>
+        public string? FullLocation { get; set; }
+
+        /// <summary>Google Maps embeddable URL built from the company's real address — no API key required.</summary>
+        public string? MapEmbedUrl { get; set; }
 
         // Verification
 

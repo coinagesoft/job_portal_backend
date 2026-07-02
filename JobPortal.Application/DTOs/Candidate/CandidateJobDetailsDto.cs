@@ -28,6 +28,7 @@ namespace JobPortal.Application.DTOs.Candidate
         // Job
         public string JobTitle { get; set; } = string.Empty;
         public string JobLevel { get; set; } = string.Empty;
+        public string TradeCategory { get; set; } = string.Empty;
         public string? Department { get; set; }
         public string IndustryType { get; set; } = default!;
         public bool? IsOilField { get; set; }

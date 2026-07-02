@@ -251,6 +251,8 @@ public class PublicCompanyService : IPublicCompanyService
 
             JobLevel = job.TradeCategory,
 
+            TradeCategory = job.TradeCategory,
+
             Department = job.Department,
 
             IndustryType = employer?.IndustryType.ToString(),
@@ -1374,6 +1376,10 @@ public class PublicCompanyService : IPublicCompanyService
 
                 FacebookUrl = company.FacebookUrl,
 
+                Phone = company.ContactPhone,
+
+                Email = company.ContactEmailPublic,
+
                 AddressLine1 = company.AddressLine1,
 
                 AddressLine2 = company.AddressLine2,
@@ -1385,6 +1391,20 @@ public class PublicCompanyService : IPublicCompanyService
                 Country = company.Country,
 
                 Pincode = company.Pincode,
+
+                FullLocation =
+                    string.Join(", ",
+                        new[]
+                        {
+                            company.AddressLine1,
+                            company.City,
+                            company.State,
+                            company.Country
+                        }
+                        .Where(x => !string.IsNullOrWhiteSpace(x))),
+
+                MapEmbedUrl =
+                    BuildMapEmbedUrl(company),
 
                 GstRegistered = company.GstRegistered,
 
@@ -1639,5 +1659,31 @@ public class PublicCompanyService : IPublicCompanyService
         return $"{(int)(span.TotalDays / 365)} year(s) ago";
     }
 
+    /// <summary>
+    /// Builds a Google Maps embed URL from the company's real address using the
+    /// keyless "output=embed" query format. Returns null when there's no usable
+    /// address, so the frontend can hide the map instead of showing a
+    /// hardcoded location that doesn't belong to this company.
+    /// </summary>
+    private static string? BuildMapEmbedUrl(JobPortal.Domain.Entities.EmployerProfile? company)
+    {
+        if (company == null)
+            return null;
 
+        var addressParts = new[]
+            {
+                company.AddressLine1,
+                company.City,
+                company.State,
+                company.Country
+            }
+            .Where(x => !string.IsNullOrWhiteSpace(x));
+
+        var query = string.Join(", ", addressParts);
+
+        if (string.IsNullOrWhiteSpace(query))
+            return null;
+
+        return $"https://www.google.com/maps?q={Uri.EscapeDataString(query)}&output=embed";
+    }
 }

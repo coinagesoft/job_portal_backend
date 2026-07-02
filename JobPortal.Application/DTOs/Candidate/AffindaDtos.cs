@@ -148,6 +148,7 @@ public class AffindaParsedValue
     public string? Parsed { get; set; }
 }
 
+[JsonConverter(typeof(AffindaTextFieldConverter))]
 public class AffindaTextField
 {
     [JsonPropertyName("parsed")]
@@ -159,6 +160,8 @@ public class AffindaTextField
     [JsonPropertyName("confidence")]
     public decimal? Confidence { get; set; }
 }
+
+[JsonConverter(typeof(AffindaDecimalFieldConverter))]
 public class AffindaDecimalField
 {
     [JsonPropertyName("parsed")]
@@ -167,6 +170,190 @@ public class AffindaDecimalField
     [JsonPropertyName("rawText")]
     public string? RawText { get; set; }
 }
+
+// ======================================================
+// Tolerant converters
+//
+// Affinda does not always return these fields as the full
+// {"parsed": ..., "rawText": ..., "confidence": ...} object.
+// For low-confidence / unrecognized values it can send a bare
+// string, a number, an empty array, or (as seen with "nationality"
+// on some resumes) a whole array of these objects instead of a
+// single one. The default System.Text.Json object converter throws
+// on anything other than an exact shape match (or null), which
+// previously aborted the ENTIRE resume parse over a single field.
+// These converters degrade gracefully instead of throwing.
+// ======================================================
+
+public class AffindaTextFieldConverter : JsonConverter<AffindaTextField?>
+{
+    public override AffindaTextField? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Null:
+                return null;
+
+            case JsonTokenType.String:
+                return new AffindaTextField { Parsed = reader.GetString() };
+
+            case JsonTokenType.Number:
+                return new AffindaTextField
+                {
+                    Parsed = reader.TryGetDecimal(out var numVal)
+                        ? numVal.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        : null
+                };
+
+            case JsonTokenType.StartArray:
+                {
+                    // e.g. "nationality": [ { "parsed": "Indian", ... } ] instead of a single object.
+                    // Take the first element's "parsed" value if present, otherwise skip harmlessly.
+                    using var arrDoc = JsonDocument.ParseValue(ref reader);
+                    var firstElement = arrDoc.RootElement.EnumerateArray().FirstOrDefault();
+                    if (firstElement.ValueKind == JsonValueKind.Object)
+                    {
+                        string? parsed = TryGetString(firstElement, "parsed");
+                        string? rawText = TryGetString(firstElement, "rawText") ?? TryGetString(firstElement, "raw");
+                        decimal? confidence = TryGetDecimal(firstElement, "confidence");
+                        return new AffindaTextField { Parsed = parsed, RawText = rawText, Confidence = confidence };
+                    }
+                    if (firstElement.ValueKind == JsonValueKind.String)
+                        return new AffindaTextField { Parsed = firstElement.GetString() };
+                    return null;
+                }
+
+            case JsonTokenType.StartObject:
+                {
+                    using var doc = JsonDocument.ParseValue(ref reader);
+                    var root = doc.RootElement;
+
+                    string? parsed = TryGetString(root, "parsed");
+                    string? rawText = TryGetString(root, "rawText");
+                    decimal? confidence = TryGetDecimal(root, "confidence");
+
+                    return new AffindaTextField { Parsed = parsed, RawText = rawText, Confidence = confidence };
+                }
+
+            default:
+                reader.Skip();
+                return null;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, AffindaTextField? value, JsonSerializerOptions options)
+    {
+        if (value is null) { writer.WriteNullValue(); return; }
+        writer.WriteStartObject();
+        writer.WriteString("parsed", value.Parsed);
+        writer.WriteString("rawText", value.RawText);
+        if (value.Confidence.HasValue) writer.WriteNumber("confidence", value.Confidence.Value);
+        writer.WriteEndObject();
+    }
+
+    private static string? TryGetString(JsonElement obj, string name)
+    {
+        if (!obj.TryGetProperty(name, out var prop)) return null;
+        return prop.ValueKind switch
+        {
+            JsonValueKind.String => prop.GetString(),
+            JsonValueKind.Number => prop.GetRawText(),
+            JsonValueKind.True or JsonValueKind.False => prop.GetRawText(),
+            _ => null
+        };
+    }
+
+    private static decimal? TryGetDecimal(JsonElement obj, string name)
+    {
+        if (!obj.TryGetProperty(name, out var prop)) return null;
+        if (prop.ValueKind == JsonValueKind.Number && prop.TryGetDecimal(out var d)) return d;
+        if (prop.ValueKind == JsonValueKind.String && decimal.TryParse(prop.GetString(), out var d2)) return d2;
+        return null;
+    }
+}
+
+public class AffindaDecimalFieldConverter : JsonConverter<AffindaDecimalField?>
+{
+    public override AffindaDecimalField? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Null:
+                return null;
+
+            case JsonTokenType.Number:
+                reader.TryGetDecimal(out var num);
+                return new AffindaDecimalField { Parsed = num };
+
+            case JsonTokenType.String:
+                var s = reader.GetString();
+                return new AffindaDecimalField { Parsed = decimal.TryParse(s, out var d) ? d : null, RawText = s };
+
+            case JsonTokenType.StartArray:
+                reader.Skip();
+                return null;
+
+            case JsonTokenType.StartObject:
+                {
+                    using var doc = JsonDocument.ParseValue(ref reader);
+                    var root = doc.RootElement;
+                    decimal? parsed = null;
+                    if (root.TryGetProperty("parsed", out var p))
+                    {
+                        if (p.ValueKind == JsonValueKind.Number && p.TryGetDecimal(out var pd)) parsed = pd;
+                        else if (p.ValueKind == JsonValueKind.String && decimal.TryParse(p.GetString(), out var pd2)) parsed = pd2;
+                    }
+                    string? rawText = root.TryGetProperty("rawText", out var rt) && rt.ValueKind == JsonValueKind.String ? rt.GetString() : null;
+                    return new AffindaDecimalField { Parsed = parsed, RawText = rawText };
+                }
+
+            default:
+                reader.Skip();
+                return null;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, AffindaDecimalField? value, JsonSerializerOptions options)
+    {
+        if (value is null) { writer.WriteNullValue(); return; }
+        writer.WriteStartObject();
+        if (value.Parsed.HasValue) writer.WriteNumber("parsed", value.Parsed.Value); else writer.WriteNull("parsed");
+        writer.WriteString("rawText", value.RawText);
+        writer.WriteEndObject();
+    }
+}
+
+public class AffindaPhoneNumber
+{
+    // Affinda nests the actual phone fields under "parsed" (matching the same
+    // raw/parsed pattern used for candidateName, location, etc.) — flattening
+    // this meant FormattedNumber/RawText/CountryCode always read as null even
+    // when Affinda correctly extracted the number.
+    [JsonPropertyName("raw")]
+    public string? Raw { get; set; }
+
+    [JsonPropertyName("parsed")]
+    public AffindaPhoneNumberParsed? Parsed { get; set; }
+}
+
+public class AffindaPhoneNumberParsed
+{
+    [JsonPropertyName("formattedNumber")]
+    public string? FormattedNumber { get; set; }
+
+    [JsonPropertyName("rawText")]
+    public string? RawText { get; set; }
+
+    [JsonPropertyName("countryCode")]
+    public string? CountryCode { get; set; }
+
+    [JsonPropertyName("nationalNumber")]
+    public string? NationalNumber { get; set; }
+
+    [JsonPropertyName("internationalCountryCode")]
+    public int? InternationalCountryCode { get; set; }
+}
+
 //
 // Candidate Name
 //
@@ -190,25 +377,6 @@ public class AffindaCandidateNameParsed
 
     [JsonPropertyName("title")]
     public AffindaParsedValue? Title { get; set; }
-}
-
-//
-// Phone Number
-//
-
-public class AffindaPhoneNumber
-{
-    [JsonPropertyName("formattedNumber")]
-    public string? FormattedNumber { get; set; }
-
-    [JsonPropertyName("rawText")]
-    public string? RawText { get; set; }
-
-    [JsonPropertyName("countryCode")]
-    public string? CountryCode { get; set; }
-
-    [JsonPropertyName("internationalCountryCode")]
-    public int? InternationalCountryCode { get; set; }
 }
 
 //

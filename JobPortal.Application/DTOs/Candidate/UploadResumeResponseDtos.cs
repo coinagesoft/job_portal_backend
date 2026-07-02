@@ -31,4 +31,36 @@ public class AiParsedResumeDto
     public List<string> Skills { get; set; } = new();
     public decimal? ConfidenceScore { get; set; }
     public string? AffindaDocId { get; set; }
+
+    // ── Newly surfaced fields ──────────────────────────────
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? Country { get; set; }
+
+    public List<string> Languages { get; set; } = new();
+
+    public List<AiParsedEducationDto> Education { get; set; } = new();
+
+    public List<AiParsedWorkExperienceDto> WorkExperience { get; set; } = new();
+}
+
+public class AiParsedEducationDto
+{
+    public string? Qualification { get; set; }
+    public string? Level { get; set; }
+    public string? InstituteName { get; set; }
+    public int? StartYear { get; set; }
+    public int? EndYear { get; set; }
+    public string? Grade { get; set; }
+}
+
+public class AiParsedWorkExperienceDto
+{
+    public string? JobTitle { get; set; }
+    public string? CompanyName { get; set; }
+    public string? Location { get; set; }
+    public DateOnly? StartDate { get; set; }
+    public DateOnly? EndDate { get; set; }
+    public bool IsCurrent { get; set; }
+    public string? Description { get; set; }
 }
