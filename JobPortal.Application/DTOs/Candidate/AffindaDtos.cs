@@ -177,12 +177,12 @@ public class AffindaDecimalField
 // Affinda does not always return these fields as the full
 // {"parsed": ..., "rawText": ..., "confidence": ...} object.
 // For low-confidence / unrecognized values it can send a bare
-// string, a number, an empty array, or omit sub-fields with
-// mismatched types. The default System.Text.Json object
-// converter throws on anything other than an exact shape match
-// (or null), which previously aborted the ENTIRE resume parse
-// over a single low-value field like "nationality". These
-// converters degrade gracefully instead of throwing.
+// string, a number, an empty array, or (as seen with "nationality"
+// on some resumes) a whole array of these objects instead of a
+// single one. The default System.Text.Json object converter throws
+// on anything other than an exact shape match (or null), which
+// previously aborted the ENTIRE resume parse over a single field.
+// These converters degrade gracefully instead of throwing.
 // ======================================================
 
 public class AffindaTextFieldConverter : JsonConverter<AffindaTextField?>
@@ -206,8 +206,22 @@ public class AffindaTextFieldConverter : JsonConverter<AffindaTextField?>
                 };
 
             case JsonTokenType.StartArray:
-                reader.Skip();
-                return null;
+                {
+                    // e.g. "nationality": [ { "parsed": "Indian", ... } ] instead of a single object.
+                    // Take the first element's "parsed" value if present, otherwise skip harmlessly.
+                    using var arrDoc = JsonDocument.ParseValue(ref reader);
+                    var firstElement = arrDoc.RootElement.EnumerateArray().FirstOrDefault();
+                    if (firstElement.ValueKind == JsonValueKind.Object)
+                    {
+                        string? parsed = TryGetString(firstElement, "parsed");
+                        string? rawText = TryGetString(firstElement, "rawText") ?? TryGetString(firstElement, "raw");
+                        decimal? confidence = TryGetDecimal(firstElement, "confidence");
+                        return new AffindaTextField { Parsed = parsed, RawText = rawText, Confidence = confidence };
+                    }
+                    if (firstElement.ValueKind == JsonValueKind.String)
+                        return new AffindaTextField { Parsed = firstElement.GetString() };
+                    return null;
+                }
 
             case JsonTokenType.StartObject:
                 {
@@ -308,6 +322,38 @@ public class AffindaDecimalFieldConverter : JsonConverter<AffindaDecimalField?>
         writer.WriteEndObject();
     }
 }
+
+public class AffindaPhoneNumber
+{
+    // Affinda nests the actual phone fields under "parsed" (matching the same
+    // raw/parsed pattern used for candidateName, location, etc.) — flattening
+    // this meant FormattedNumber/RawText/CountryCode always read as null even
+    // when Affinda correctly extracted the number.
+    [JsonPropertyName("raw")]
+    public string? Raw { get; set; }
+
+    [JsonPropertyName("parsed")]
+    public AffindaPhoneNumberParsed? Parsed { get; set; }
+}
+
+public class AffindaPhoneNumberParsed
+{
+    [JsonPropertyName("formattedNumber")]
+    public string? FormattedNumber { get; set; }
+
+    [JsonPropertyName("rawText")]
+    public string? RawText { get; set; }
+
+    [JsonPropertyName("countryCode")]
+    public string? CountryCode { get; set; }
+
+    [JsonPropertyName("nationalNumber")]
+    public string? NationalNumber { get; set; }
+
+    [JsonPropertyName("internationalCountryCode")]
+    public int? InternationalCountryCode { get; set; }
+}
+
 //
 // Candidate Name
 //
@@ -331,25 +377,6 @@ public class AffindaCandidateNameParsed
 
     [JsonPropertyName("title")]
     public AffindaParsedValue? Title { get; set; }
-}
-
-//
-// Phone Number
-//
-
-public class AffindaPhoneNumber
-{
-    [JsonPropertyName("formattedNumber")]
-    public string? FormattedNumber { get; set; }
-
-    [JsonPropertyName("rawText")]
-    public string? RawText { get; set; }
-
-    [JsonPropertyName("countryCode")]
-    public string? CountryCode { get; set; }
-
-    [JsonPropertyName("internationalCountryCode")]
-    public int? InternationalCountryCode { get; set; }
 }
 
 //

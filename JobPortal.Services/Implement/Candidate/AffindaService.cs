@@ -245,8 +245,9 @@ public class AffindaService : IAffindaService
             ? null
             : $"{firstName} {familyName}".Trim();
 
-        var phone = d?.PhoneNumber?.FirstOrDefault()?.FormattedNumber
-                 ?? d?.PhoneNumber?.FirstOrDefault()?.RawText;
+        var phone = d?.PhoneNumber?.FirstOrDefault()?.Parsed?.FormattedNumber
+                 ?? d?.PhoneNumber?.FirstOrDefault()?.Parsed?.RawText
+                 ?? d?.PhoneNumber?.FirstOrDefault()?.Raw;
 
         var email =
             d?.Email?.FirstOrDefault()?.Parsed
