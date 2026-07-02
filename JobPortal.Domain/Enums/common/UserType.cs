@@ -1,11 +1,25 @@
-namespace JobPortal.Domain.Enums;
+using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
+using JobPortal.Domain.Common;
 
-public enum UserType
+namespace JobPortal.Domain.Enums.common
 {
-    Candidate = 1,
-    Recruiter = 2,
-    Admin = 3,
-    SubAdmin=4,
-        Both=5
-   
+    [JsonConverter(typeof(EnumMemberJsonConverter<UserType>))]
+    public enum UserType
+    {
+        [EnumMember(Value = "Candidate")]
+        Candidate = 1,
+
+        [EnumMember(Value = "Recruiter")]
+        Recruiter = 2,
+
+        [EnumMember(Value = "Admin")]
+        Admin = 3,
+
+        [EnumMember(Value = "Sub Admin")]
+        SubAdmin = 4,
+
+        [EnumMember(Value = "Both")]
+        Both = 5
+    }
 }

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using JobPortal.Domain.Enums;
+using JobPortal.Domain.Enums.common;
 
 namespace JobPortal.Application.DTOs.Recruiter.Auth;
 

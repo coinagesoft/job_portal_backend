@@ -129,7 +129,7 @@ public class SubUserService : ISubUserService
                 user = new User
                 {
                     UserId = Guid.NewGuid(),
-                    UserType = Domain.Enums.UserType.Recruiter,
+                    UserType = Domain.Enums.common.UserType.Recruiter,
                     MobileNumber = request.SubUserMobile,
                     CountryCode = request.CountryCode,
                     Email = request.SubUserEmail,

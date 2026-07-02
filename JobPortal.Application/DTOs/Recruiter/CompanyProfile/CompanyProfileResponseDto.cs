@@ -44,8 +44,9 @@ namespace JobPortal.Application.DTOs.Recruiter.CompanyProfile
         public string Country { get; set; } = default!;
         public string? OfficeAddress { get; set; }                // NEW
 
-        public string ContactPhone { get; set; } = default!;
-        public string? ContactEmailPublic { get; set; }
+        public string? CompanyPhoneNo { get; set; }
+
+        public string? CompanyEmail { get; set; }
         public string ContactPersonName { get; set; } = default!;
         public string Designation { get; set; } = default!;
         public string? OperatingHours { get; set; }

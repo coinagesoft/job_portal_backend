@@ -1,5 +1,6 @@
 ﻿using JobPortal.Application.DTOs.Recruiter.Auth;
 using JobPortal.Domain.Enums;
+using JobPortal.Domain.Enums.common;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;

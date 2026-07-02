@@ -20,7 +20,7 @@ namespace JobPortal.Services.Implement.Recruiter
         }
 
         public async Task<CompanyProfileResponseDto?> GetCompanyProfileAsync(
-      Guid employerId)
+        Guid employerId)
         {
             return await _context.EmployerProfiles
                 .AsNoTracking()
@@ -61,8 +61,8 @@ namespace JobPortal.Services.Implement.Recruiter
                     Country = x.Country,
                     OfficeAddress = x.OfficeAddress,
 
-                    ContactPhone = x.ContactPhone,
-                    ContactEmailPublic = x.ContactEmailPublic,
+                    CompanyPhoneNo = x.ContactPhone,
+                    CompanyEmail = x.ContactEmailPublic,
                     ContactPersonName = x.ContactPersonName,
                     Designation = x.Designation,
                     OperatingHours = x.OperatingHours,
@@ -81,9 +81,10 @@ namespace JobPortal.Services.Implement.Recruiter
                 .FirstOrDefaultAsync();
         }
 
+
         public async Task<bool> UpdateCompanyProfileAsync(
-     Guid employerId,
-     UpdateCompanyProfileDto request)
+        Guid employerId,
+        UpdateCompanyProfileDto request)
         {
             var profile = await _context.EmployerProfiles
                 .FirstOrDefaultAsync(x => x.EmployerId == employerId);
@@ -168,11 +169,11 @@ namespace JobPortal.Services.Implement.Recruiter
             if (!string.IsNullOrWhiteSpace(request.OfficeAddress))
                 profile.OfficeAddress = request.OfficeAddress;
 
-            if (!string.IsNullOrWhiteSpace(request.ContactPhone))
-                profile.ContactPhone = request.ContactPhone;
+            if (!string.IsNullOrWhiteSpace(request.CompanyPhoneNo))
+                profile.ContactPhone = request.CompanyPhoneNo;
 
-            if (!string.IsNullOrWhiteSpace(request.ContactEmailPublic))
-                profile.ContactEmailPublic = request.ContactEmailPublic;
+            if (!string.IsNullOrWhiteSpace(request.CompanyEmail))
+                profile.ContactEmailPublic = request.CompanyEmail;
 
             if (!string.IsNullOrWhiteSpace(request.ContactPersonName))
                 profile.ContactPersonName = request.ContactPersonName;
