@@ -1,6 +1,7 @@
 ﻿using JobPortal.Application.DTOs.Recruiter.CompanyProfile;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
+using JobPortal.Services.IImplement.IUploads;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobPortal.Services.Implement.Recruiter
@@ -8,14 +9,18 @@ namespace JobPortal.Services.Implement.Recruiter
     public class CompanyProfileService : ICompanyProfileService
     {
         private readonly AppDbContext _context;
+        private readonly IFileStorageService _fileStorageService;
 
-        public CompanyProfileService(AppDbContext context)
+
+        public CompanyProfileService(AppDbContext context, IFileStorageService fileStorageService)
         {
             _context = context;
+            _fileStorageService = fileStorageService;
+
         }
 
         public async Task<CompanyProfileResponseDto?> GetCompanyProfileAsync(
-            Guid employerId)
+      Guid employerId)
         {
             return await _context.EmployerProfiles
                 .AsNoTracking()
@@ -29,11 +34,16 @@ namespace JobPortal.Services.Implement.Recruiter
                     CompanyDisplayName = x.CompanyDisplayName,
                     CompanyDescription = x.CompanyDescription,
                     CompanyLogoUrl = x.CompanyLogoUrl,
+                    CoverImageUrl = x.CoverImageUrl,
 
                     WebsiteUrl = x.WebsiteUrl,
+                    LinkedInUrl = x.LinkedInUrl,
+                    InstagramUrl = x.InstagramUrl,
+                    FacebookUrl = x.FacebookUrl,
 
                     CompanySize = x.CompanySize,
                     YearEstablished = x.YearEstablished,
+                    TotalEmployees = x.TotalEmployees,
 
                     BusinessType = x.BusinessType,
                     IndustryType = x.IndustryType,
@@ -49,6 +59,7 @@ namespace JobPortal.Services.Implement.Recruiter
                     State = x.State,
                     Pincode = x.Pincode,
                     Country = x.Country,
+                    OfficeAddress = x.OfficeAddress,
 
                     ContactPhone = x.ContactPhone,
                     ContactEmailPublic = x.ContactEmailPublic,
@@ -56,23 +67,32 @@ namespace JobPortal.Services.Implement.Recruiter
                     Designation = x.Designation,
                     OperatingHours = x.OperatingHours,
 
+                    CompanyHighlights = x.CompanyHighlights,
+                    TimeZone = x.TimeZone,
+
                     AccountStatus = x.AccountStatus,
                     ProfileCompletionScore = x.ProfileCompletionScore,
-                    TrialExpiresAt = x.TrialExpiresAt
+                    TrialExpiresAt = x.TrialExpiresAt,
+                    ReviewCount = x.ReviewCount,
+
+                    CreatedAt = x.CreatedAt,
+                    UpdatedAt = x.UpdatedAt
                 })
                 .FirstOrDefaultAsync();
         }
 
-
         public async Task<bool> UpdateCompanyProfileAsync(
-            Guid employerId,
-            UpdateCompanyProfileDto request)
+     Guid employerId,
+     UpdateCompanyProfileDto request)
         {
             var profile = await _context.EmployerProfiles
                 .FirstOrDefaultAsync(x => x.EmployerId == employerId);
 
             if (profile == null)
                 return false;
+
+            if (!string.IsNullOrWhiteSpace(request.LegalName))
+                profile.LegalName = request.LegalName;
 
             if (!string.IsNullOrWhiteSpace(request.TradeName))
                 profile.TradeName = request.TradeName;
@@ -83,14 +103,49 @@ namespace JobPortal.Services.Implement.Recruiter
             if (!string.IsNullOrWhiteSpace(request.CompanyDescription))
                 profile.CompanyDescription = request.CompanyDescription;
 
-            if (!string.IsNullOrWhiteSpace(request.WebsiteUrl))
-                profile.WebsiteUrl = request.WebsiteUrl;
 
+            if (request.CompanyLogo != null && request.CompanyLogo.Length > 0)
+            {
+                var logoResult = await _fileStorageService.SaveFileAsync(
+                    request.CompanyLogo, "company-logos");
+
+                profile.CompanyLogoUrl = logoResult.Url;
+                profile.CompanyLogoPublicId = logoResult.PublicId;
+            }
+
+            if (request.CoverImage != null && request.CoverImage.Length > 0)
+            {
+                var coverResult = await _fileStorageService.SaveFileAsync(
+                    request.CoverImage, "company-covers");
+
+                profile.CoverImageUrl = coverResult.Url;
+            }
             if (request.CompanySize.HasValue)
                 profile.CompanySize = request.CompanySize;
 
             if (request.YearEstablished.HasValue)
                 profile.YearEstablished = request.YearEstablished;
+
+            if (!string.IsNullOrWhiteSpace(request.WebsiteUrl))
+                profile.WebsiteUrl = request.WebsiteUrl;
+
+            if (!string.IsNullOrWhiteSpace(request.LinkedInUrl))
+                profile.LinkedInUrl = request.LinkedInUrl;
+
+            if (!string.IsNullOrWhiteSpace(request.InstagramUrl))
+                profile.InstagramUrl = request.InstagramUrl;
+
+            if (!string.IsNullOrWhiteSpace(request.FacebookUrl))
+                profile.FacebookUrl = request.FacebookUrl;
+
+            if (request.TotalEmployees.HasValue)
+                profile.TotalEmployees = request.TotalEmployees.Value;
+
+            if (request.BusinessType.HasValue)
+                profile.BusinessType = request.BusinessType.Value;
+
+            if (request.IndustryType.HasValue)
+                profile.IndustryType = request.IndustryType.Value;
 
             if (!string.IsNullOrWhiteSpace(request.AddressLine1))
                 profile.AddressLine1 = request.AddressLine1;
@@ -110,6 +165,9 @@ namespace JobPortal.Services.Implement.Recruiter
             if (!string.IsNullOrWhiteSpace(request.Country))
                 profile.Country = request.Country;
 
+            if (!string.IsNullOrWhiteSpace(request.OfficeAddress))
+                profile.OfficeAddress = request.OfficeAddress;
+
             if (!string.IsNullOrWhiteSpace(request.ContactPhone))
                 profile.ContactPhone = request.ContactPhone;
 
@@ -125,11 +183,19 @@ namespace JobPortal.Services.Implement.Recruiter
             if (!string.IsNullOrWhiteSpace(request.OperatingHours))
                 profile.OperatingHours = request.OperatingHours;
 
+            if (request.CompanyHighlights != null)
+                profile.CompanyHighlights = request.CompanyHighlights;
+
+            if (!string.IsNullOrWhiteSpace(request.TimeZone))
+                profile.TimeZone = request.TimeZone;
+
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
 
             return true;
         }
+
+
     }
 }

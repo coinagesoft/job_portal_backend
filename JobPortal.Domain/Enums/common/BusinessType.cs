@@ -1,20 +1,28 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
+using JobPortal.Domain.Common;
 
-namespace JobPortal.Domain.Enums.common
+namespace JobPortal.Domain.Enums.Common
 {
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(EnumMemberJsonConverter<BusinessType>))]
     public enum BusinessType
     {
+        [EnumMember(Value = "Proprietorship")]
         Proprietorship,
+
+        [EnumMember(Value = "Partnership")]
         Partnership,
+
+        [EnumMember(Value = "Private Ltd")]
         Private_Ltd,
+
+        [EnumMember(Value = "Public Ltd")]
         Public_Ltd,
+
+        [EnumMember(Value = "LLP")]
         LLP,
+
+        [EnumMember(Value = "Other")]
         Other
     }
 }

@@ -1,9 +1,10 @@
 ﻿using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
+using JobPortal.Domain.Common;
 
 namespace JobPortal.Domain.Enums.Common
 {
-    [JsonConverter(typeof(JsonStringEnumConverter))]
+    [JsonConverter(typeof(EnumMemberJsonConverter<CompanySize>))]
     public enum CompanySize
     {
         [EnumMember(Value = "1-10")]

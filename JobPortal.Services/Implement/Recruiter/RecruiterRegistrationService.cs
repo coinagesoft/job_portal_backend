@@ -240,9 +240,222 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             };
         }
     }
+
+
     // ════════════════════════════════════════════════
     // STEP 3A — Contact + Send OTP → update DB
     // ════════════════════════════════════════════════
+    //public async Task<ContactDetailsResponseDto> SaveContactDetailsAsync(
+    // ContactDetailsRequestDto request,
+    // string sessionId)
+    //{
+    //    try
+    //    {
+    //        var session = await GetValidSessionAsync(sessionId);
+
+    //        if (session == null)
+    //        {
+    //            return new ContactDetailsResponseDto
+    //            {
+    //                Success = false,
+    //                Message = "Session expired. Please start again."
+    //            };
+    //        }
+
+    //        if (session.LastCompletedStep < 2)
+    //        {
+    //            return new ContactDetailsResponseDto
+    //            {
+    //                Success = false,
+    //                Message = "Please complete Step 2 (Company Details) first."
+    //            };
+    //        }
+
+    //        // Mobile duplicate
+    //        var mobileExists = await _context.Users
+    //            .AnyAsync(u =>
+    //                u.MobileNumber == request.MobileNumber &&
+    //                u.CountryCode == request.CountryCode &&
+    //                u.UserType == UserType.Recruiter);
+
+    //        if (mobileExists)
+    //        {
+    //            return new ContactDetailsResponseDto
+    //            {
+    //                Success = false,
+    //                Message = "This mobile number is already registered."
+    //            };
+    //        }
+
+    //        // Email duplicate
+    //        var emailExists = await _context.Users
+    //            .AnyAsync(u => u.Email == request.CompanyEmail);
+
+    //        if (emailExists)
+    //        {
+    //            return new ContactDetailsResponseDto
+    //            {
+    //                Success = false,
+    //                Message = "This email is already registered."
+    //            };
+    //        }
+
+    //        //------------------------------------------------
+    //        // MOBILE OTP
+    //        //------------------------------------------------
+
+    //        var fullPhone =
+    //            $"{request.CountryCode}{request.MobileNumber}";
+
+    //        var smsSent =
+    //            await _twilioOtpService.SendOtpAsync(fullPhone);
+
+    //        if (!smsSent)
+    //        {
+    //            return new ContactDetailsResponseDto
+    //            {
+    //                Success = false,
+    //                Message = "Failed to send mobile OTP."
+    //            };
+    //        }
+
+    //        //------------------------------------------------
+    //        // EMAIL OTP
+    //        //------------------------------------------------
+
+    //        var emailOtp = GenerateOtp();
+
+    //        await _emailService.SendOtpEmailAsync(
+    //            request.CompanyEmail,
+    //            emailOtp);
+
+    //        //------------------------------------------------
+    //        // Invalidate old records
+    //        //------------------------------------------------
+
+    //        var oldOtps = await _context.OtpVerifications
+    //            .Where(o =>
+    //                (
+    //                    o.MobileNumber == request.MobileNumber ||
+    //                    o.Email == request.CompanyEmail
+    //                )
+    //                &&
+    //                !o.IsVerified
+    //            )
+    //            .ToListAsync();
+
+    //        foreach (var old in oldOtps)
+    //        {
+    //            old.IsVerified = true;
+    //        }
+
+    //        //------------------------------------------------
+    //        // Mobile OTP metadata
+    //        //------------------------------------------------
+
+    //        _context.OtpVerifications.Add(
+    //            new OtpVerification
+    //            {
+    //                OtpId = Guid.NewGuid(),
+    //                MobileNumber = request.MobileNumber,
+    //                CountryCode = request.CountryCode,
+    //                Email = request.CompanyEmail,
+
+    //                OtpCode = "TWILIO_VERIFY",
+
+    //                OtpSentAt = DateTime.UtcNow,
+    //                OtpExpiresAt = DateTime.UtcNow.AddMinutes(10),
+
+    //                IsVerified = false,
+
+    //                Purpose = "RecruiterRegistration",
+
+    //                ResendCooldownSec = 60,
+
+    //                OtpAttempts = 0
+    //            });
+
+    //        //------------------------------------------------
+    //        // Email OTP
+    //        //------------------------------------------------
+
+    //        _context.OtpVerifications.Add(
+    //            new OtpVerification
+    //            {
+    //                OtpId = Guid.NewGuid(),
+
+    //                Email = request.CompanyEmail,
+
+    //                MobileNumber = request.MobileNumber,
+
+    //                CountryCode = request.CountryCode,
+
+    //                OtpCode = BCrypt.Net.BCrypt.HashPassword(emailOtp),
+
+    //                OtpSentAt = DateTime.UtcNow,
+
+    //                OtpExpiresAt = DateTime.UtcNow.AddMinutes(10),
+
+    //                IsVerified = false,
+
+    //                Purpose = "RecruiterRegistrationEmail",
+
+    //                ResendCooldownSec = 60,
+
+    //                OtpAttempts = 0
+    //            });
+
+    //        //------------------------------------------------
+    //        // Update Session
+    //        //------------------------------------------------
+
+    //        session.ContactPersonName = request.ContactPersonName;
+    //        session.Designation = request.Designation;
+    //        session.ContactPersonEmail = request.ContactPersonEmail;
+    //        session.CompanyEmail = request.CompanyEmail;
+
+    //        session.MobileNumber = request.MobileNumber;
+    //        session.CountryCode = request.CountryCode;
+
+    //        session.CompanyDescription = request.CompanyDescription;
+
+    //        session.MobileVerified = session.MobileVerified;
+    //        session.CompanyEmailVerified = session.CompanyEmailVerified;
+
+    //        session.CurrentStep = 3;
+
+    //        await _context.SaveChangesAsync();
+
+    //        _logger.LogInformation(
+    //            "Step3A saved — Mobile + Email OTP sent. Session:{Id}",
+    //            session.SessionId);
+
+    //        return new ContactDetailsResponseDto
+    //        {
+    //            Success = true,
+
+    //            MaskedMobile = MaskMobile(request.MobileNumber),
+
+    //            OtpExpiresInSeconds = 600,
+
+    //            StepStatus = BuildStepStatus(session)
+    //        };
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        _logger.LogError(ex, "Save contact error.");
+
+    //        return new ContactDetailsResponseDto
+    //        {
+    //            Success = false,
+    //            Message =
+    //                ex.InnerException?.InnerException?.Message
+    //                ?? ex.InnerException?.Message
+    //                ?? ex.Message
+    //        };
+    //    }
+    //}
+
     public async Task<ContactDetailsResponseDto> SaveContactDetailsAsync(
      ContactDetailsRequestDto request,
      string sessionId)
@@ -269,147 +482,68 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
-            // Mobile duplicate
-            var mobileExists = await _context.Users
-                .AnyAsync(u =>
+            //------------------------------------------------
+            // Detect changes
+            //------------------------------------------------
+
+            bool mobileChanged =
+                session.MobileNumber != request.MobileNumber ||
+                session.CountryCode != request.CountryCode;
+
+            bool emailChanged =
+                !string.Equals(
+                    session.CompanyEmail,
+                    request.CompanyEmail,
+                    StringComparison.OrdinalIgnoreCase);
+
+            //------------------------------------------------
+            // Duplicate check only when mobile changed
+            //------------------------------------------------
+
+            if (mobileChanged)
+            {
+                var mobileExists = await _context.Users.AnyAsync(u =>
                     u.MobileNumber == request.MobileNumber &&
                     u.CountryCode == request.CountryCode &&
                     u.UserType == UserType.Recruiter);
 
-            if (mobileExists)
-            {
-                return new ContactDetailsResponseDto
+                if (mobileExists)
                 {
-                    Success = false,
-                    Message = "This mobile number is already registered."
-                };
-            }
-
-            // Email duplicate
-            var emailExists = await _context.Users
-                .AnyAsync(u => u.Email == request.CompanyEmail);
-
-            if (emailExists)
-            {
-                return new ContactDetailsResponseDto
-                {
-                    Success = false,
-                    Message = "This email is already registered."
-                };
+                    return new ContactDetailsResponseDto
+                    {
+                        Success = false,
+                        Message = "This mobile number is already registered."
+                    };
+                }
             }
 
             //------------------------------------------------
-            // MOBILE OTP
+            // Duplicate check only when email changed
             //------------------------------------------------
 
-            var fullPhone =
-                $"{request.CountryCode}{request.MobileNumber}";
-
-            var smsSent =
-                await _twilioOtpService.SendOtpAsync(fullPhone);
-
-            if (!smsSent)
+            if (emailChanged)
             {
-                return new ContactDetailsResponseDto
+                var emailExists = await _context.Users.AnyAsync(u =>
+                    u.Email == request.CompanyEmail);
+
+                if (emailExists)
                 {
-                    Success = false,
-                    Message = "Failed to send mobile OTP."
-                };
+                    return new ContactDetailsResponseDto
+                    {
+                        Success = false,
+                        Message = "This email is already registered."
+                    };
+                }
             }
 
             //------------------------------------------------
-            // EMAIL OTP
-            //------------------------------------------------
-
-            var emailOtp = GenerateOtp();
-
-            await _emailService.SendOtpEmailAsync(
-                request.CompanyEmail,
-                emailOtp);
-
-            //------------------------------------------------
-            // Invalidate old records
-            //------------------------------------------------
-
-            var oldOtps = await _context.OtpVerifications
-                .Where(o =>
-                    (
-                        o.MobileNumber == request.MobileNumber ||
-                        o.Email == request.CompanyEmail
-                    )
-                    &&
-                    !o.IsVerified
-                )
-                .ToListAsync();
-
-            foreach (var old in oldOtps)
-            {
-                old.IsVerified = true;
-            }
-
-            //------------------------------------------------
-            // Mobile OTP metadata
-            //------------------------------------------------
-
-            _context.OtpVerifications.Add(
-                new OtpVerification
-                {
-                    OtpId = Guid.NewGuid(),
-                    MobileNumber = request.MobileNumber,
-                    CountryCode = request.CountryCode,
-                    Email = request.CompanyEmail,
-
-                    OtpCode = "TWILIO_VERIFY",
-
-                    OtpSentAt = DateTime.UtcNow,
-                    OtpExpiresAt = DateTime.UtcNow.AddMinutes(10),
-
-                    IsVerified = false,
-
-                    Purpose = "RecruiterRegistration",
-
-                    ResendCooldownSec = 60,
-
-                    OtpAttempts = 0
-                });
-
-            //------------------------------------------------
-            // Email OTP
-            //------------------------------------------------
-
-            _context.OtpVerifications.Add(
-                new OtpVerification
-                {
-                    OtpId = Guid.NewGuid(),
-
-                    Email = request.CompanyEmail,
-
-                    MobileNumber = request.MobileNumber,
-
-                    CountryCode = request.CountryCode,
-
-                    OtpCode = BCrypt.Net.BCrypt.HashPassword(emailOtp),
-
-                    OtpSentAt = DateTime.UtcNow,
-
-                    OtpExpiresAt = DateTime.UtcNow.AddMinutes(10),
-
-                    IsVerified = false,
-
-                    Purpose = "RecruiterRegistrationEmail",
-
-                    ResendCooldownSec = 60,
-
-                    OtpAttempts = 0
-                });
-
-            //------------------------------------------------
-            // Update Session
+            // Save contact details
             //------------------------------------------------
 
             session.ContactPersonName = request.ContactPersonName;
             session.Designation = request.Designation;
             session.ContactPersonEmail = request.ContactPersonEmail;
+
             session.CompanyEmail = request.CompanyEmail;
 
             session.MobileNumber = request.MobileNumber;
@@ -417,24 +551,50 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
             session.CompanyDescription = request.CompanyDescription;
 
-            session.MobileVerified = session.MobileVerified;
-            session.CompanyEmailVerified = session.CompanyEmailVerified;
+            //------------------------------------------------
+            // Reset verification ONLY if values changed
+            //------------------------------------------------
 
-            session.CurrentStep = 3;
+            if (mobileChanged)
+            {
+                session.MobileVerified = false;
+            }
+
+            if (emailChanged)
+            {
+                session.CompanyEmailVerified = false;
+            }
+
+            //------------------------------------------------
+            // Step tracking
+            //------------------------------------------------
+
+            if (session.MobileVerified && session.CompanyEmailVerified)
+            {
+                session.LastCompletedStep =
+                    Math.Max(session.LastCompletedStep, 3);
+
+                session.CurrentStep = 4;
+            }
+            else
+            {
+                session.CurrentStep = 3;
+            }
 
             await _context.SaveChangesAsync();
 
             _logger.LogInformation(
-                "Step3A saved — Mobile + Email OTP sent. Session:{Id}",
+                "Step3 saved successfully. Session:{SessionId}",
                 session.SessionId);
 
             return new ContactDetailsResponseDto
             {
                 Success = true,
+                Message = "Contact details saved successfully.",
 
                 MaskedMobile = MaskMobile(request.MobileNumber),
 
-                OtpExpiresInSeconds = 600,
+                OtpExpiresInSeconds = 0,
 
                 StepStatus = BuildStepStatus(session)
             };
@@ -454,7 +614,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         }
     }
 
- 
+
     public async Task<OtpResponseDto> SendEmailOtpAsync(
     SendEmailOtpRequestDto request,
     string sessionId)
@@ -695,8 +855,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     }
 
     public async Task<OtpResponseDto> SendMobileOtpAsync(
-     SendMobileOtpRequestDto request,
-     string sessionId)
+        SendMobileOtpRequestDto request,
+        string sessionId)
     {
         try
         {
@@ -714,8 +874,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
             // Check if mobile number already exists
             var mobileExists = await _context.Users.AnyAsync(x =>
-                x.CountryCode == request.CountryCode &&
-                x.MobileNumber == request.MobileNumber);
+      x.MobileNumber == request.MobileNumber);
 
             if (mobileExists)
             {
@@ -1059,6 +1218,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             };
         }
     }
+
 
     // ════════════════════════════════════════════════
     // STEP 5 — Submit → read from DB session
