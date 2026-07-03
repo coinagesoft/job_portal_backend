@@ -16,7 +16,6 @@ public class LocationRequestDto
     public string? OffshoreVesselName { get; set; }
     public string? OffshoreRegion { get; set; }
 
-    public string Country { get; set; } = "India";
 
     public string? WorkAddressLine { get; set; }
     public string? OnshoreCountry { get; set; }

@@ -13,7 +13,7 @@ namespace JobPortal.Application.DTOs.Recruiter.JobListing
 
         public string? Status { get; set; }
 
-        public JobType? JobType { get; set; }
+        public string? JobType { get; set; }
 
         public int PageNumber { get; set; } = 1;
 

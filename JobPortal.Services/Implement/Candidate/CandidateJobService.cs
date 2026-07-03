@@ -282,16 +282,14 @@ public class CandidateJobService : ICandidateJobService
           FormatSalary(job),
 
                 SalaryMin =
-          job.SalaryDisplayOption ==
-          SalaryDisplayOption.Show_Min_Only
-              ? null
-              : job.SalaryMin,
+    string.Equals(job.SalaryDisplayOption, "Show Min Only", StringComparison.OrdinalIgnoreCase)
+        ? null
+        : job.SalaryMin,
 
                 SalaryMax =
-          job.SalaryDisplayOption ==
-          SalaryDisplayOption.Show_Max_Only
-              ? null
-              : job.SalaryMax,
+    string.Equals(job.SalaryDisplayOption, "Show Max Only", StringComparison.OrdinalIgnoreCase)
+        ? null
+        : job.SalaryMax,
 
                 SalaryCurrency =
           job.SalaryCurrency.ToString(),
@@ -611,20 +609,16 @@ public class CandidateJobService : ICandidateJobService
 
                 // Salary
                 MaxSalary = activeJobs
-                    .Where(j =>
-                        j.SalaryDisplayOption !=
-                        SalaryDisplayOption.Show_Max_Only)
-                    .Select(j => j.SalaryMax)
-                    .DefaultIfEmpty(0)
-                    .Max(),
+    .Where(j => j.SalaryDisplayOption != "Show Max Only")
+    .Select(j => j.SalaryMax)
+    .DefaultIfEmpty(0)
+    .Max(),
 
                 MinSalary = activeJobs
-                    .Where(j =>
-                        j.SalaryDisplayOption !=
-                        SalaryDisplayOption.Show_Min_Only)
-                    .Select(j => j.SalaryMin)
-                    .DefaultIfEmpty(0)
-                    .Min(),
+    .Where(j => j.SalaryDisplayOption != "Show Min Only")
+    .Select(j => j.SalaryMin)
+    .DefaultIfEmpty(0)
+    .Min(),
 
                 // Experience
                 MaxExperienceYears = activeJobs
@@ -795,13 +789,13 @@ public class CandidateJobService : ICandidateJobService
 
         return job.SalaryDisplayOption switch
         {
-            SalaryDisplayOption.Show_Min_Only =>
-                $"{symbol}{job.SalaryMin:N0}+",
+            "Show Min Only" =>
+            $"{symbol}{job.SalaryMin:N0}+",
 
-            SalaryDisplayOption.Show_Max_Only =>
+            "Show Max Only" =>
                 $"{symbol}{job.SalaryMax:N0}",
 
-            SalaryDisplayOption.Show_Range =>
+            "Show Range" =>
                 $"{symbol}{job.SalaryMin:N0} - {symbol}{job.SalaryMax:N0} / month",
 
             _ =>
@@ -990,16 +984,14 @@ public class CandidateJobService : ICandidateJobService
                         FormatSalary(job),
 
                     SalaryMin =
-                        job.SalaryDisplayOption ==
-                        SalaryDisplayOption.Show_Min_Only
-                            ? null
-                            : job.SalaryMin,
+    job.SalaryDisplayOption == "Show Min Only"
+        ? null
+        : job.SalaryMin,
 
                     SalaryMax =
-                        job.SalaryDisplayOption ==
-                        SalaryDisplayOption.Show_Max_Only
-                            ? null
-                            : job.SalaryMax,
+    job.SalaryDisplayOption == "Show Max Only"
+        ? null
+        : job.SalaryMax,
 
                     SalaryCurrency =
                         job.SalaryCurrency.ToString(),

@@ -1,8 +1,9 @@
 using FirebaseAdmin;
 using Google;
-using Npgsql;
 using Google.Apis.Auth.OAuth2;
+using JobPortal.API.ModelBinders;
 using JobPortal.Application.DTOs.Recruiter;
+using JobPortal.Domain.Common;
 using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.AI;
@@ -23,6 +24,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Npgsql;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -187,6 +189,13 @@ builder.Services.AddSwaggerGen(c =>
             Array.Empty<string>()
         }
     });
+});
+
+builder.Services.AddControllers(options =>
+{
+    options.ModelBinderProviders.Insert(
+        0,
+        new EnumMemberModelBinderProvider());
 });
 
 //builder.Services.AddControllers()

@@ -9,7 +9,7 @@ public class EligibilityRequestDto
         ErrorMessage = "Vacancies must be at least 1.")]
     public int? Vacancies { get; set; }
 
-    public EducationLevel? EducationRequired { get; set; }
+    public string? EducationRequired { get; set; }
 
     [Range(16, 99)]
     public int? AgeMin { get; set; }

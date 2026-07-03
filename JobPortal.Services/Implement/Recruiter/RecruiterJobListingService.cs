@@ -57,13 +57,13 @@ namespace JobPortal.Services.Implement.Recruiter
                 // =====================================================
 
                 NormalJobs = jobs.Count(x =>
-                    x.JobType == JobType.Normal_Job),
+                    x.JobType == "Normal Job"),
 
                 ClassifiedJobs = jobs.Count(x =>
-                    x.JobType == JobType.Classified),
+                    x.JobType == "Classified"),
 
                 HotVacancyJobs = jobs.Count(x =>
-                    x.JobType == JobType.Hot_Vacancy),
+                    x.JobType == "Hot Vacancy"),
 
                 // =====================================================
                 // Additional Analytics
@@ -132,12 +132,10 @@ namespace JobPortal.Services.Implement.Recruiter
             // Job Type Filter
             // ==========================================
 
-            if (request.JobType.HasValue)
+            if (!string.IsNullOrWhiteSpace(request.JobType))
             {
-                query = query.Where(x =>
-                    x.JobType == request.JobType.Value);
+                query = query.Where(x => x.JobType == request.JobType);
             }
-
             // ==========================================
             // Total Count
             // ==========================================

@@ -384,12 +384,12 @@ public class HomepageService : IHomepageService
         catch { return new(); }
     }
     private static string BuildSalaryDisplay(
-    int min,
-    int max,
-    SalaryCurrency currency,
-    SalaryDisplayOption displayOption)
+     int min,
+     int max,
+     SalaryCurrency currency,
+     string displayOption)
     {
-        if (displayOption == SalaryDisplayOption.Show_Range)
+        if (string.Equals(displayOption, "Confidential", StringComparison.OrdinalIgnoreCase))
             return "Confidential";
 
         var symbol = currency switch
@@ -400,13 +400,16 @@ public class HomepageService : IHomepageService
             _ => "₹"
         };
 
-        return displayOption switch
+        return displayOption?.ToLowerInvariant() switch
         {
-            SalaryDisplayOption.Show_Min_Only
+            "Show Min Only"
                 => $"{symbol}{min:N0}+",
 
-            SalaryDisplayOption.Show_Max_Only
+            "Show Max Only"
                 => $"{symbol}{max:N0}",
+
+            "Show Range"
+                => $"{symbol}{min:N0} - {symbol}{max:N0}",
 
             _
                 => $"{symbol}{min:N0} - {symbol}{max:N0}"

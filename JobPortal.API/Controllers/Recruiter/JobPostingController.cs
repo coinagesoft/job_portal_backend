@@ -151,7 +151,7 @@ public class RecruiterJobPostingController : ControllerBase
     // ── STEP 7 ─────────────────────────────────────────
     [HttpPatch("step7-publish")]
     public async Task<IActionResult> Step7Publish(
-        [FromForm] PublishingRequestDto request)
+        [FromBody] PublishingRequestDto request)
     {
         var result = await _service.PublishJobAsync(
             request,

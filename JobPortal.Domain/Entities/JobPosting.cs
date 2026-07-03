@@ -18,7 +18,7 @@ public class JobPosting
 
     // ✅ ALL string — no enums on entity
     public SalaryCurrency SalaryCurrency { get; set; } = SalaryCurrency.INR;
-    public SalaryDisplayOption SalaryDisplayOption { get; set; } = SalaryDisplayOption.Show_Range;
+    public string SalaryDisplayOption { get; set; } = default;
     public short Vacancies { get; set; } = 0;
     public byte ExperienceMinYears { get; set; } = 0; 
     public byte ExperienceMaxYears { get; set; } = 0;
@@ -57,15 +57,15 @@ public class JobPosting
     public int LastCompletedStep { get; set; } = 0;
     public List<string>? ScreeningQuestions { get; set; }
     public List<string>? PublishingTags { get; set; }
-    public JobType JobType { get; set; } = JobType.Normal_Job;
+    public string JobType { get; set; } = default;
 
     //new Fields
     // Employment
     public byte? DutyHoursPerDay { get; set; }
     public bool PaidOvertime { get; set; }
     public List<string>? KeyResponsibilities { get; set; }
-    public EmploymentType EmploymentType { get; set; } = EmploymentType.Full_Time;
-    public EmploymentMode EmploymentMode { get; set; } = EmploymentMode.Onsite;
+    public string EmploymentType { get; set; } = default;
+    public string EmploymentMode { get; set; } = default;
     // Department shown on card
     public string? Department { get; set; }
 

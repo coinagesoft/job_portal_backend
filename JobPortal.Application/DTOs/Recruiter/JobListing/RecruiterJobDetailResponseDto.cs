@@ -25,11 +25,11 @@ public class RecruiterJobDetailResponseDto
     // Job Type
     // =====================================================
 
-    public JobType JobType { get; set; }
+    public string JobType { get; set; }
 
-    public EmploymentType EmploymentType { get; set; }
+    public string EmploymentType { get; set; }
 
-    public EmploymentMode EmploymentMode { get; set; }
+    public string EmploymentMode { get; set; }
 
     public string JobStatus { get; set; } = string.Empty;
 
@@ -43,7 +43,7 @@ public class RecruiterJobDetailResponseDto
 
     public SalaryCurrency SalaryCurrency { get; set; }
 
-    public SalaryDisplayOption SalaryDisplayOption { get; set; }
+    public string SalaryDisplayOption { get; set; }
 
     // =====================================================
     // Vacancies & Experience

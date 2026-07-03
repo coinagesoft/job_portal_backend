@@ -111,8 +111,8 @@
 
 
         public async Task<JobDetailsResponseDto> SaveJobDetailsAsync(
-       JobDetailsRequestDto request,
-       Guid employerId)
+        JobDetailsRequestDto request,
+        Guid employerId)
         {
             try
             {
@@ -133,8 +133,7 @@
                 // =====================================================
                 // CREATE
                 // =====================================================
-                if (!request.JobId.HasValue ||
-                    request.JobId == Guid.Empty)
+                if (!request.JobId.HasValue || request.JobId == Guid.Empty)
                 {
                     job = new JobPosting
                     {
@@ -144,30 +143,48 @@
                         JobTitle = request.JobTitle ?? string.Empty,
                         TradeCategory = request.TradeCategory ?? string.Empty,
                         Role = request.Role,
+                        JobDescription = request.JobDescription ?? string.Empty,
+                        SalaryMin = 0,
+                        SalaryMax = 0,
+                        SalaryCurrency = SalaryCurrency.INR,
+                        SalaryDisplayOption = "Show Range",
+                        ExperienceMinYears = (byte)(request.ExperienceMinYears ?? 0),
+                        ExperienceMaxYears = (byte)(request.ExperienceMaxYears ?? 0),
 
-                        JobDescription =
-                            request.JobDescription ?? string.Empty,
+                        // Job
+                        JobType = string.IsNullOrWhiteSpace(request.JobType)
+                            ? "Normal Job"
+                            : request.JobType.Trim(),
 
-                        ExperienceMinYears =
-                            (byte)(request.ExperienceMinYears ?? 0),
+                        // Employment
+                        EmploymentType = string.IsNullOrWhiteSpace(request.EmploymentType)
+                            ? "Full Time"
+                            : request.EmploymentType.Trim(),
 
-                        ExperienceMaxYears =
-                            (byte)(request.ExperienceMaxYears ?? 0),
+                        EmploymentMode = string.IsNullOrWhiteSpace(request.EmploymentMode)
+                            ? "Onsite"
+                            : request.EmploymentMode.Trim(),
 
-                        EmploymentType =
-                            request.EmploymentType,
+                        Department = request.Department,
 
-                        EmploymentMode =
-                            request.EmploymentMode,
+                        DutyHoursPerDay = request.DutyHoursPerDay.HasValue
+                            ? (byte?)request.DutyHoursPerDay.Value
+                            : null,
+
+                        PaidOvertime = request.PaidOvertime ?? false,
+
+                        KeyResponsibilities = request.KeyResponsibilities,
+
+                        // Salary
+                       
 
                         JobStatus = JobStatus.Draft,
 
                         CurrentStep = 1,
                         LastCompletedStep = 1,
 
-                        ApplicationDeadline =
-                            DateOnly.FromDateTime(
-                                DateTime.UtcNow.AddDays(30)),
+                        ApplicationDeadline = DateOnly.FromDateTime(
+                            DateTime.UtcNow.AddDays(30)),
 
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow,
@@ -200,40 +217,60 @@
                         };
                     }
 
-                    job.JobTitle =
-                        request.JobTitle ?? job.JobTitle;
-
-                    job.TradeCategory =
-                        request.TradeCategory ?? job.TradeCategory;
-
-                    job.Role =
-                        request.Role;
-
-                    job.JobDescription =
-                        request.JobDescription ?? job.JobDescription;
+                    job.JobTitle = request.JobTitle ?? job.JobTitle;
+                    job.TradeCategory = request.TradeCategory ?? job.TradeCategory;
+                    job.Role = request.Role;
+                    job.JobDescription = request.JobDescription ?? job.JobDescription;
 
                     job.ExperienceMinYears =
-                        (byte)(request.ExperienceMinYears ??
-                               job.ExperienceMinYears);
+                        (byte)(request.ExperienceMinYears ?? job.ExperienceMinYears);
 
                     job.ExperienceMaxYears =
-                        (byte)(request.ExperienceMaxYears ??
-                               job.ExperienceMaxYears);
+                        (byte)(request.ExperienceMaxYears ?? job.ExperienceMaxYears);
 
-                    job.EmploymentType =
-                        request.EmploymentType;
+                    if (!string.IsNullOrWhiteSpace(request.JobType))
+                    {
+                        job.JobType = request.JobType.Trim();
+                    }
 
-                    job.EmploymentMode =
-                        request.EmploymentMode;
+                    if (!string.IsNullOrWhiteSpace(request.EmploymentType))
+                    {
+                        job.EmploymentType = request.EmploymentType.Trim();
+                    }
 
-                    job.UpdatedAt =
-                        DateTime.UtcNow;
+                    if (!string.IsNullOrWhiteSpace(request.EmploymentMode))
+                    {
+                        job.EmploymentMode = request.EmploymentMode.Trim();
+                    }
 
-                    job.CurrentStep =
-                        Math.Max(job.CurrentStep, 1);
+                    if (!string.IsNullOrWhiteSpace(request.Department))
+                    {
+                        job.Department = request.Department.Trim();
+                    }
 
-                    job.LastCompletedStep =
-                        Math.Max(job.LastCompletedStep, 1);
+                    if (request.DutyHoursPerDay.HasValue)
+                    {
+                        job.DutyHoursPerDay = (byte)request.DutyHoursPerDay.Value;
+                    }
+
+                    if (request.PaidOvertime.HasValue)
+                    {
+                        job.PaidOvertime = request.PaidOvertime.Value;
+                    }
+
+                    if (request.KeyResponsibilities != null)
+                    {
+                        job.KeyResponsibilities = request.KeyResponsibilities;
+                    }
+
+                   
+
+                   
+
+                    job.UpdatedAt = DateTime.UtcNow;
+
+                    job.CurrentStep = Math.Max(job.CurrentStep, 1);
+                    job.LastCompletedStep = Math.Max(job.LastCompletedStep, 1);
                 }
 
                 await _context.SaveChangesAsync();
@@ -241,34 +278,23 @@
                 return new JobDetailsResponseDto
                 {
                     Success = true,
-
-                    Message =
-                        request.JobId.HasValue &&
-                        request.JobId != Guid.Empty
-                            ? "Job details updated successfully."
-                            : "Job details saved as draft.",
+                    Message = request.JobId.HasValue && request.JobId != Guid.Empty
+                        ? "Job details updated successfully."
+                        : "Job details saved as draft.",
 
                     JobId = job.JobId,
-
-                    JobStatus =
-                        job.JobStatus.ToString(),
-
-                    StepStatus =
-                        BuildStepStatus(job)
+                    JobStatus = job.JobStatus.ToString(),
+                    StepStatus = BuildStepStatus(job)
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(
-                    ex,
-                    "SaveJobDetailsAsync error.");
+                _logger.LogError(ex, "SaveJobDetailsAsync error.");
 
                 return new JobDetailsResponseDto
                 {
                     Success = false,
-                    Message =
-                        ex.InnerException?.Message ??
-                        ex.Message
+                    Message = ex.InnerException?.Message ?? ex.Message
                 };
             }
         }
@@ -308,7 +334,7 @@
                         UpdatedAt = DateTime.UtcNow,
 
                         SalaryCurrency = SalaryCurrency.INR,
-                        SalaryDisplayOption = SalaryDisplayOption.Show_Range
+                        SalaryDisplayOption = "Show Range"
                     };
 
                     _context.JobPostings.Add(job);
@@ -346,10 +372,9 @@
                         request.SalaryCurrency.Value;
                 }
 
-                if (request.SalaryDisplayOption.HasValue)
+                if (!string.IsNullOrWhiteSpace(request.SalaryDisplayOption))
                 {
-                    job.SalaryDisplayOption =
-                        request.SalaryDisplayOption.Value;
+                    job.SalaryDisplayOption = request.SalaryDisplayOption;
                 }
 
                 // =====================================================
@@ -418,37 +443,34 @@
                 }
 
                 // PATCH logic
+                // PATCH logic
 
                 if (request.KeySkills != null)
                 {
-                    job.KeySkills =
-                        request.KeySkills;
+                    job.KeySkills = request.KeySkills;
                 }
 
-                if (!string.IsNullOrWhiteSpace(
-                    request.LicenceDocsRequired))
+                if (!string.IsNullOrWhiteSpace(request.LicenceDocsRequired))
                 {
-                    job.LicenceDocsRequired =
-                        request.LicenceDocsRequired;
+                    job.LicenceDocsRequired = request.LicenceDocsRequired;
                 }
 
-                if (!string.IsNullOrWhiteSpace(
-                    request.LanguageRequired))
+                if (!string.IsNullOrWhiteSpace(request.LanguageRequired))
                 {
-                    job.LanguageRequired =
-                        request.LanguageRequired;
+                    job.LanguageRequired = request.LanguageRequired;
                 }
 
-                if (!string.IsNullOrWhiteSpace(
-                    request.AdditionalJobDescription))
+                if (request.Benefits != null)
                 {
-                    job.JobDescription =
-                        string.IsNullOrWhiteSpace(job.JobDescription)
-                            ? request.AdditionalJobDescription
-                            : job.JobDescription +
-                              "\n\n" +
-                              request.AdditionalJobDescription;
+                    job.Benefits = request.Benefits;
                 }
+
+                if (request.Tags != null)
+                {
+                    job.Tags = request.Tags;
+                }
+
+
 
                 job.CurrentStep =
                     Math.Max(job.CurrentStep, 3);
@@ -532,10 +554,9 @@
 
                 // Education
 
-                if (request.EducationRequired.HasValue)
+                if (!string.IsNullOrWhiteSpace(request.EducationRequired))
                 {
-                    job.EducationRequired =
-                        request.EducationRequired.Value.ToString();
+                    job.EducationRequired = request.EducationRequired.Trim();
                 }
 
                 // Age
@@ -613,7 +634,10 @@
         // ════════════════════════════════════════════════
         // STEP 5 — Location
         // ════════════════════════════════════════════════
-        public async Task<BaseJobResponseDto> SaveLocationAsync(LocationRequestDto request,Guid jobId,Guid employerId)
+        public async Task<BaseJobResponseDto> SaveLocationAsync(
+       LocationRequestDto request,
+      Guid jobId,
+      Guid employerId)
         {
             try
             {
@@ -645,106 +669,91 @@
                 // Validation
                 // ==================================================
 
-                if (request.LocationType.HasValue)
+                if (!request.LocationType.HasValue)
+                    return Fail("Location type is required.");
+
+                if (request.LocationType == LocationType.Onshore)
                 {
-                    if (request.LocationType.Value == LocationType.Onshore)
-                    {
-                        if (string.IsNullOrWhiteSpace(request.OnshoreCity))
-                            return Fail("City is required for onshore jobs.");
+                    if (string.IsNullOrWhiteSpace(request.OnshoreCity))
+                        return Fail("City is required for onshore jobs.");
 
-                        if (string.IsNullOrWhiteSpace(request.OnshoreState))
-                            return Fail("State is required for onshore jobs.");
-                    }
+                    if (string.IsNullOrWhiteSpace(request.OnshoreState))
+                        return Fail("State is required for onshore jobs.");
 
-                    if (request.LocationType.Value == LocationType.Offshore)
-                    {
-                        if (string.IsNullOrWhiteSpace(request.OffshoreRegion))
-                            return Fail("Offshore region is required.");
-                    }
+                    if (string.IsNullOrWhiteSpace(request.OnshoreCountry))
+                        return Fail("Country is required for onshore jobs.");
+                }
+
+                if (request.LocationType == LocationType.Offshore)
+                {
+                    if (string.IsNullOrWhiteSpace(request.OffshoreRegion))
+                        return Fail("Offshore region is required.");
+
+                    if (string.IsNullOrWhiteSpace(request.OffshoreCountry))
+                        return Fail("Country is required for offshore jobs.");
                 }
 
                 // ==================================================
-                // Patch Values
+                // Save Location Type
                 // ==================================================
 
-                if (request.LocationType.HasValue)
-                {
-                    job.LocationType =
-                        request.LocationType.Value;
-                }
+                job.LocationType = request.LocationType.Value;
 
+                // ==================================================
                 // Onshore
+                // ==================================================
 
-                if (request.WorkAddressLine != null)
+                if (request.LocationType == LocationType.Onshore)
                 {
-                    job.WorkAddressLine =
-                        request.WorkAddressLine;
-                }
+                    job.WorkAddressLine = request.WorkAddressLine?.Trim();
+                    job.OnshoreCity = request.OnshoreCity?.Trim();
+                    job.OnshoreState = request.OnshoreState?.Trim();
+                    job.OnshoreCountry = request.OnshoreCountry?.Trim();
+                    job.OnshorePincode = request.OnshorePincode?.Trim();
 
-                if (request.OnshoreCity != null)
-                {
-                    job.OnshoreCity =
-                        request.OnshoreCity;
-                }
+                    // Clear offshore fields
+                    job.OffshoreVesselName = null;
+                    job.OffshoreRegion = null;
+                    job.OffshoreCountry = null;
 
-                if (request.OnshoreState != null)
-                {
-                    job.OnshoreState =
-                        request.OnshoreState;
-                }
-
-                if (request.OnshoreCountry != null)
-                {
-                    job.OnshoreCountry =
-                        request.OnshoreCountry;
-                }
-
-                if (request.OnshorePincode != null)
-                {
-                    job.OnshorePincode =
-                        request.OnshorePincode;
-                }
-
-                // Offshore
-
-                if (request.OffshoreVesselName != null)
-                {
-                    job.OffshoreVesselName =
-                        request.OffshoreVesselName;
-                }
-
-                if (request.OffshoreRegion != null)
-                {
-                    job.OffshoreRegion =
-                        request.OffshoreRegion;
-                }
-
-                if (request.OffshoreCountry != null)
-                {
-                    job.OffshoreCountry =
-                        request.OffshoreCountry;
-                }
-
-                // International Flag
-
-                if (request.LocationType.HasValue)
-                {
                     job.IsInternational =
-                        request.LocationType.Value == LocationType.Offshore;
+                        !string.Equals(
+                            job.OnshoreCountry,
+                            "India",
+                            StringComparison.OrdinalIgnoreCase);
+                }
+
+                // ==================================================
+                // Offshore
+                // ==================================================
+
+                if (request.LocationType == LocationType.Offshore)
+                {
+                    job.OffshoreVesselName = request.OffshoreVesselName?.Trim();
+                    job.OffshoreRegion = request.OffshoreRegion?.Trim();
+                    job.OffshoreCountry = request.OffshoreCountry?.Trim();
+
+                    // Clear onshore fields
+                    job.WorkAddressLine = null;
+                    job.OnshoreCity = null;
+                    job.OnshoreState = null;
+                    job.OnshoreCountry = null;
+                    job.OnshorePincode = null;
+
+                    job.IsInternational =
+                        !string.Equals(
+                            job.OffshoreCountry,
+                            "India",
+                            StringComparison.OrdinalIgnoreCase);
                 }
 
                 // ==================================================
                 // Step Tracking
                 // ==================================================
 
-                job.CurrentStep =
-                    Math.Max(job.CurrentStep, 5);
-
-                job.LastCompletedStep =
-                    Math.Max(job.LastCompletedStep, 5);
-
-                job.UpdatedAt =
-                    DateTime.UtcNow;
+                job.CurrentStep = Math.Max(job.CurrentStep, 5);
+                job.LastCompletedStep = Math.Max(job.LastCompletedStep, 5);
+                job.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
 
@@ -763,7 +772,6 @@
                     ex.Message);
             }
         }
-
         // ════════════════════════════════════════════════
         // STEP 6 — Screening Questions
         // ════════════════════════════════════════════════
@@ -945,7 +953,6 @@
                         ? "Job published successfully!"
                         : "Publishing settings saved.",
 
-                    JobId = job.JobId,
                     JobStatus = job.JobStatus.ToString(),
                     PublishedAt = job.PublishedAt,
                     JobUrl = job.JobStatus == JobStatus.Active
@@ -1092,7 +1099,7 @@
 
                         ExperienceMinYears = job.ExperienceMinYears,
                         ExperienceMaxYears = job.ExperienceMaxYears,
-
+                   
                         JobDescription = job.JobDescription,
 
                         EmploymentType = job.EmploymentType,
@@ -1153,13 +1160,7 @@
                     {
                         Vacancies = job.Vacancies,
 
-                        EducationRequired =
-                            Enum.TryParse<EducationLevel>(
-                                job.EducationRequired,
-                                true,
-                                out var education)
-                                    ? education
-                                    : null,
+                        EducationRequired = job.EducationRequired,
 
                         AgeMin = job.AgeMin,
                         AgeMax = job.AgeMax,
@@ -1225,6 +1226,22 @@
                                 })
                                 .ToList()
                             ?? new List<ScreeningQuestion>()
+                    },
+                    Step7Data = new PublishingRequestDto
+                    {
+                        JobId = job.JobId,
+
+                        ApplicationDeadline =
+        job.ApplicationDeadline,
+
+                        CompanyVisibility =
+        job.CompanyVisibility,
+
+                        PublishingTags =
+        job.PublishingTags ?? new List<string>(),
+
+                        PublishNow =
+        job.JobStatus == JobStatus.Active
                     }
                 };
             }

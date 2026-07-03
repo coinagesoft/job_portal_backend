@@ -12,8 +12,6 @@ public class PublishingRequestDto
 
     public CompanyVisibility? CompanyVisibility { get; set; }
 
-    public JobType JobType { get; set; }
-      = JobType.Normal_Job;
     /// <summary>
     /// Hot Job, Urgent Hiring, Premium Listing — optional tags
     /// </summary>
@@ -31,7 +29,6 @@ public class PublishingResponseDto
 {
     public bool Success { get; set; }
     public string Message { get; set; } = string.Empty;
-    public Guid JobId { get; set; }
     public string JobStatus { get; set; } = string.Empty;
     public DateTime? PublishedAt { get; set; }
     public string? JobUrl { get; set; }

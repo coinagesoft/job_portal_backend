@@ -26,21 +26,21 @@ public enum SalaryCurrency
     GBP
 }
 
-[JsonConverter(typeof(EnumMemberJsonConverter<SalaryDisplayOption>))]
-public enum SalaryDisplayOption
-{
-    [EnumMember(Value = "Show Range")]
-    Show_Range,
+//[JsonConverter(typeof(EnumMemberJsonConverter<SalaryDisplayOption>))]
+//public enum SalaryDisplayOption
+//{
+//    [EnumMember(Value = "Show Range")]
+//    Show_Range,
 
-    [EnumMember(Value = "Show Minimum Only")]
-    Show_Min_Only,
+//    [EnumMember(Value = "Show Minimum Only")]
+//    Show_Min_Only,
 
-    [EnumMember(Value = "Show Maximum Only")]
-    Show_Max_Only,
+//    [EnumMember(Value = "Show Maximum Only")]
+//    Show_Max_Only,
 
-    [EnumMember(Value = "Negotiable")]
-    Negotiable
-}
+//    [EnumMember(Value = "Negotiable")]
+//    Negotiable
+//}
 
 [JsonConverter(typeof(EnumMemberJsonConverter<GenderPreferred>))]
 public enum GenderPreferred

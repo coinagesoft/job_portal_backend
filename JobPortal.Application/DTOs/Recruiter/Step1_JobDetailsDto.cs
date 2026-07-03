@@ -23,49 +23,32 @@ public class JobDetailsRequestDto
     [MaxLength(100)]
     public string? Role { get; set; }
 
-    // Experience
-
     [Range(0, 50)]
     public int? ExperienceMinYears { get; set; }
 
     [Range(0, 50)]
     public int? ExperienceMaxYears { get; set; }
 
-    // Employment
+    [Required]
+    public string JobType { get; set; } = "Normal Job";
 
     [Required]
-    public JobType? JobType { get; set; }
+    public string EmploymentType { get; set; } = string.Empty;
 
     [Required]
-    public EmploymentType EmploymentType { get; set; }
+    public string EmploymentMode { get; set; } = string.Empty;
 
-    [Required]
-    public EmploymentMode EmploymentMode { get; set; }
-
-    // Department
-
-    [MaxLength(100)]
     public string? Department { get; set; }
 
-    // Work schedule
-
-    [Range(1, 24)]
     public int? DutyHoursPerDay { get; set; }
 
     public bool? PaidOvertime { get; set; }
 
-    // Responsibilities
-
     public List<string>? KeyResponsibilities { get; set; } = new();
 
-    // Description
-
     [Required(ErrorMessage = "Job description is required.")]
-    [MinLength(50,
-        ErrorMessage = "Description must be at least 50 characters.")]
     public string? JobDescription { get; set; } = string.Empty;
 }
-
 public class JobDetailsResponseDto
 {
     public bool Success { get; set; }

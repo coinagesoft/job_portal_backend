@@ -16,4 +16,5 @@ public class ResumeJobResponseDto : BaseJobResponseDto
     public EligibilityRequestDto? Step4Data { get; set; }
     public LocationRequestDto? Step5Data { get; set; }
     public QuestionsRequestDto? Step6Data { get; set; }
+    public PublishingRequestDto? Step7Data { get; set; }
 }

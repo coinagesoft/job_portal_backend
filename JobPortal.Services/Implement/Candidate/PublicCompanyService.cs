@@ -107,13 +107,13 @@ public class PublicCompanyService : IPublicCompanyService
                 Department = job.Department,
 
                 EmploymentType =
-                    job.EmploymentType.ToString(),
+                    job.EmploymentType,
 
                 EmploymentMode =
-                    job.EmploymentMode.ToString(),
+                    job.EmploymentMode,
 
                 JobType =
-                    job.JobType.ToString(),
+                    job.JobType,
 
                 JobLocation = jobLocation,
 
@@ -872,14 +872,9 @@ public class PublicCompanyService : IPublicCompanyService
 
             if (!string.IsNullOrWhiteSpace(request.EmploymentType))
             {
-                if (Enum.TryParse<EmploymentType>(
-                    request.EmploymentType,
-                    true,
-                    out var employmentType))
-                {
-                    query = query.Where(j =>
-                        j.EmploymentType == employmentType);
-                }
+                query = query.Where(j =>
+                    j.EmploymentType != null &&
+                    j.EmploymentType.Equals(request.EmploymentType, StringComparison.OrdinalIgnoreCase));
             }
 
             //------------------------------------------------
@@ -1542,27 +1537,28 @@ public class PublicCompanyService : IPublicCompanyService
 
     private static string FormatSalary(JobPosting job)
     {
-        if (job.SalaryDisplayOption ==
-            SalaryDisplayOption.Negotiable)
+        if (string.Equals(job.SalaryDisplayOption, "Negotiable", StringComparison.OrdinalIgnoreCase))
         {
             return "Negotiable";
         }
 
         string currency = job.SalaryCurrency.ToString();
 
-        return job.SalaryDisplayOption switch
+        return job.SalaryDisplayOption?.ToLowerInvariant() switch
         {
-            SalaryDisplayOption.Show_Min_Only =>
+            "Show Min Only" =>
                 $"{currency} {job.SalaryMin:N0}+",
 
-            SalaryDisplayOption.Show_Max_Only =>
+            "Show Max Only" =>
                 $"Up to {currency} {job.SalaryMax:N0}",
+
+            "Show Range" =>
+                $"{currency} {job.SalaryMin:N0} - {job.SalaryMax:N0}",
 
             _ =>
                 $"{currency} {job.SalaryMin:N0} - {job.SalaryMax:N0}"
         };
     }
-
     private static string GetExperienceDisplay(JobPosting job)
     {
         if (job.ExperienceMinYears == 0 &&

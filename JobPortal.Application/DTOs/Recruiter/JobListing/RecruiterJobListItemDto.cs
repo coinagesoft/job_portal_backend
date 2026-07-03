@@ -20,7 +20,7 @@ namespace JobPortal.Application.DTOs.Recruiter.JobListing
 
         public string Location { get; set; } = string.Empty;
 
-        public JobType JobType { get; set; }
+        public string JobType { get; set; }
 
         public string JobStatus { get; set; } = string.Empty;
 

@@ -122,7 +122,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 profile.CoverImageUrl = coverResult.Url;
             }
             if (request.CompanySize.HasValue)
-                profile.CompanySize = request.CompanySize;
+                profile.CompanySize = request.CompanySize.Value;
 
             if (request.YearEstablished.HasValue)
                 profile.YearEstablished = request.YearEstablished;

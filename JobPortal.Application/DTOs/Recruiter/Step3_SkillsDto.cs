@@ -7,16 +7,7 @@ public class SkillsRequestDto
     // Main skills shown on job card and used in AI matching
     public List<string>? KeySkills { get; set; } = new();
 
-    // Optional additional notes
-    public string? AdditionalJobDescription { get; set; }
-
-    // Responsibilities shown in job details page
-    public List<string>? KeyResponsibilities { get; set; } = new();
-
-    // Example:
-    // "CDC"
-    // "Passport, Seaman Book"
-    // "Driving Licence"
+    
     public string? LicenceDocsRequired { get; set; }
 
     // Example:

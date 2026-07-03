@@ -14,7 +14,7 @@ public class CompensationRequestDto
     public int? SalaryMax { get; set; }
     public SalaryCurrency? SalaryCurrency { get; set; }
 
-    public SalaryDisplayOption? SalaryDisplayOption { get; set; }
+    public string? SalaryDisplayOption { get; set; }
 
    
 
