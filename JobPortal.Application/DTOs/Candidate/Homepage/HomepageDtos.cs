@@ -1,0 +1,78 @@
+﻿// ============================================================
+//  JobPortal.Application/DTOs/Public/HomepageDtos.cs
+// ============================================================
+
+namespace JobPortal.Application.DTOs.Public;
+
+public class HomepageResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public List<CategoryCardDto> BrowseByCategory { get; set; } = new();
+    public LatestJobsSectionDto LatestJobs { get; set; } = new();
+    public JobsOfTheDaySectionDto JobsOfTheDay { get; set; } = new();
+    public List<JobsByRoleCardDto> JobsByRole { get; set; } = new();
+    public List<string> PopularSearchKeywords { get; set; } = new();
+}
+
+public class CategoryCardDto
+{
+    public string TradeCategory { get; set; } = default!;
+    public int JobCount { get; set; }
+    public string? IconSlug { get; set; }
+}
+
+public class LatestJobsSectionDto
+{
+    public List<string> CountryTabs { get; set; } = new();
+    public Dictionary<string, List<HomepageJobCardDto>> JobsByCountry { get; set; } = new();
+}
+
+public class HomepageJobCardDto
+{
+    public Guid JobId { get; set; }
+    public string? CompanyName { get; set; }
+    public string? CompanyLogoUrl { get; set; }
+    public bool IsConfidentialCompany { get; set; }
+    public string JobTitle { get; set; } = default!;
+    public string TradeCategory { get; set; } = default!;
+    public string? EmploymentType { get; set; } = default!;
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? Country { get; set; }
+    public bool IsInternational { get; set; }
+    public string? SalaryDisplay { get; set; }
+    public string SalaryCurrency { get; set; } = "INR";
+    public List<string> Tags { get; set; } = new();
+    public List<string> KeySkills { get; set; } = new();
+    public string TimeAgo { get; set; } = default!;
+    public DateTime? PublishedAt { get; set; }
+    public bool IsUrgent { get; set; }
+    public string? CoverImageUrl { get; set; }
+
+    public string? JobType { get; set; }
+    public string? EmploymentMode { get; set; }
+
+    public bool IsFeatured { get; set; }
+    public bool IsUrgentHiring { get; set; }
+}
+
+public class JobsOfTheDaySectionDto
+{
+    public List<string> CategoryTabs { get; set; } = new();
+    public Dictionary<string, List<HomepageJobCardDto>> JobsByCategory { get; set; } = new();
+}
+
+public class JobsByRoleCardDto
+{
+    public string RoleGroup { get; set; } = default!;
+    public int JobCount { get; set; }
+    public string? BackgroundImageUrl { get; set; }
+}
+
+public class HomepageRequestDto
+{
+    /// <summary>Defaults to "India". One of: India | UAE | Saudi Arabia | Qatar | Singapore</summary>
+    public string DefaultCountry { get; set; } = "India";
+    public string? DefaultCategory { get; set; }
+}

@@ -1,0 +1,591 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace JobPortal.Application.DTOs.AI;
+
+//======================================================
+// Root Response
+//======================================================
+public class AffindaDatePoint
+{
+    [JsonPropertyName("year")]
+    public int? Year { get; set; }
+
+    [JsonPropertyName("month")]
+    public int? Month { get; set; }
+
+    [JsonPropertyName("day")]
+    public int? Day { get; set; }
+
+    [JsonPropertyName("date")]
+    public string? Date { get; set; }
+
+    [JsonPropertyName("isCurrent")]
+    public bool IsCurrent { get; set; }
+}
+public class AffindaSingleDocumentResponse
+{
+    [JsonPropertyName("data")]
+    public AffindaResumeData? Data { get; set; }
+
+    [JsonPropertyName("meta")]
+    public AffindaMeta? Meta { get; set; }
+
+    [JsonPropertyName("error")]
+    public AffindaError? Error { get; set; }
+}
+
+public class AffindaDocumentListResponse
+{
+    [JsonPropertyName("data")]
+    public AffindaResumeData? Data { get; set; }
+
+    [JsonPropertyName("meta")]
+    public AffindaMeta? Meta { get; set; }
+
+    [JsonPropertyName("error")]
+    public AffindaError? Error { get; set; }
+}
+
+//======================================================
+// Meta
+//======================================================
+
+public class AffindaMeta
+{
+    [JsonPropertyName("identifier")]
+    public string? Identifier { get; set; }
+
+    [JsonPropertyName("ready")]
+    public bool Ready { get; set; }
+
+    [JsonPropertyName("failed")]
+    public bool Failed { get; set; }
+
+    [JsonPropertyName("readyDt")]
+    public DateTime? ReadyDt { get; set; }
+
+    [JsonPropertyName("ocrConfidence")]
+    public decimal? OcrConfidence { get; set; }
+
+    [JsonPropertyName("fileName")]
+    public string? FileName { get; set; }
+}
+
+public class AffindaError
+{
+    [JsonPropertyName("errorCode")]
+    public string? ErrorCode { get; set; }
+
+    [JsonPropertyName("errorDetail")]
+    public string? ErrorDetail { get; set; }
+}
+
+//======================================================
+// Resume Data
+//======================================================
+public class AffindaEmail
+{
+    [JsonPropertyName("parsed")]
+    public string? Parsed { get; set; }
+
+    [JsonPropertyName("rawText")]
+    public string? RawText { get; set; }
+
+    [JsonPropertyName("confidence")]
+    public decimal? Confidence { get; set; }
+}
+
+public class AffindaResumeData
+{
+    [JsonPropertyName("candidateName")]
+    public AffindaCandidateName? CandidateName { get; set; }
+
+    [JsonPropertyName("email")]
+    public List<AffindaEmail>? Email { get; set; }
+
+    [JsonPropertyName("phoneNumber")]
+    public List<AffindaPhoneNumber>? PhoneNumber { get; set; }
+
+    [JsonPropertyName("location")]
+    public AffindaLocation? Location { get; set; }
+
+    [JsonPropertyName("summary")]
+    public AffindaTextField? Summary { get; set; }
+
+    [JsonPropertyName("dateOfBirth")]
+    public AffindaTextField? DateOfBirth { get; set; }
+
+    [JsonPropertyName("nationality")]
+    public AffindaTextField? Nationality { get; set; }
+
+    [JsonPropertyName("totalYearsExperience")]
+    public AffindaDecimalField? TotalYearsExperience { get; set; }
+
+    [JsonPropertyName("skill")]
+    public List<AffindaSkill>? Skill { get; set; }
+
+    [JsonPropertyName("education")]
+    public List<AffindaEducation>? Education { get; set; }
+
+    [JsonPropertyName("workExperience")]
+    public List<AffindaWorkExp>? WorkExperience { get; set; }
+
+    [JsonPropertyName("language")]
+    public List<AffindaLanguage>? Language { get; set; }
+
+    [JsonPropertyName("rawText")]
+    public string? RawText { get; set; }
+}
+
+//======================================================
+// Common Parsed Value
+//======================================================
+
+public class AffindaParsedValue
+{
+    [JsonPropertyName("parsed")]
+    public string? Parsed { get; set; }
+}
+
+[JsonConverter(typeof(AffindaTextFieldConverter))]
+public class AffindaTextField
+{
+    [JsonPropertyName("parsed")]
+    public string? Parsed { get; set; }
+
+    [JsonPropertyName("rawText")]
+    public string? RawText { get; set; }
+
+    [JsonPropertyName("confidence")]
+    public decimal? Confidence { get; set; }
+}
+
+[JsonConverter(typeof(AffindaDecimalFieldConverter))]
+public class AffindaDecimalField
+{
+    [JsonPropertyName("parsed")]
+    public decimal? Parsed { get; set; }
+
+    [JsonPropertyName("rawText")]
+    public string? RawText { get; set; }
+}
+
+// ======================================================
+// Tolerant converters
+//
+// Affinda does not always return these fields as the full
+// {"parsed": ..., "rawText": ..., "confidence": ...} object.
+// For low-confidence / unrecognized values it can send a bare
+// string, a number, an empty array, or (as seen with "nationality"
+// on some resumes) a whole array of these objects instead of a
+// single one. The default System.Text.Json object converter throws
+// on anything other than an exact shape match (or null), which
+// previously aborted the ENTIRE resume parse over a single field.
+// These converters degrade gracefully instead of throwing.
+// ======================================================
+
+public class AffindaTextFieldConverter : JsonConverter<AffindaTextField?>
+{
+    public override AffindaTextField? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Null:
+                return null;
+
+            case JsonTokenType.String:
+                return new AffindaTextField { Parsed = reader.GetString() };
+
+            case JsonTokenType.Number:
+                return new AffindaTextField
+                {
+                    Parsed = reader.TryGetDecimal(out var numVal)
+                        ? numVal.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        : null
+                };
+
+            case JsonTokenType.StartArray:
+                {
+                    // e.g. "nationality": [ { "parsed": "Indian", ... } ] instead of a single object.
+                    // Take the first element's "parsed" value if present, otherwise skip harmlessly.
+                    using var arrDoc = JsonDocument.ParseValue(ref reader);
+                    var firstElement = arrDoc.RootElement.EnumerateArray().FirstOrDefault();
+                    if (firstElement.ValueKind == JsonValueKind.Object)
+                    {
+                        string? parsed = TryGetString(firstElement, "parsed");
+                        string? rawText = TryGetString(firstElement, "rawText") ?? TryGetString(firstElement, "raw");
+                        decimal? confidence = TryGetDecimal(firstElement, "confidence");
+                        return new AffindaTextField { Parsed = parsed, RawText = rawText, Confidence = confidence };
+                    }
+                    if (firstElement.ValueKind == JsonValueKind.String)
+                        return new AffindaTextField { Parsed = firstElement.GetString() };
+                    return null;
+                }
+
+            case JsonTokenType.StartObject:
+                {
+                    using var doc = JsonDocument.ParseValue(ref reader);
+                    var root = doc.RootElement;
+
+                    string? parsed = TryGetString(root, "parsed");
+                    string? rawText = TryGetString(root, "rawText");
+                    decimal? confidence = TryGetDecimal(root, "confidence");
+
+                    return new AffindaTextField { Parsed = parsed, RawText = rawText, Confidence = confidence };
+                }
+
+            default:
+                reader.Skip();
+                return null;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, AffindaTextField? value, JsonSerializerOptions options)
+    {
+        if (value is null) { writer.WriteNullValue(); return; }
+        writer.WriteStartObject();
+        writer.WriteString("parsed", value.Parsed);
+        writer.WriteString("rawText", value.RawText);
+        if (value.Confidence.HasValue) writer.WriteNumber("confidence", value.Confidence.Value);
+        writer.WriteEndObject();
+    }
+
+    private static string? TryGetString(JsonElement obj, string name)
+    {
+        if (!obj.TryGetProperty(name, out var prop)) return null;
+        return prop.ValueKind switch
+        {
+            JsonValueKind.String => prop.GetString(),
+            JsonValueKind.Number => prop.GetRawText(),
+            JsonValueKind.True or JsonValueKind.False => prop.GetRawText(),
+            _ => null
+        };
+    }
+
+    private static decimal? TryGetDecimal(JsonElement obj, string name)
+    {
+        if (!obj.TryGetProperty(name, out var prop)) return null;
+        if (prop.ValueKind == JsonValueKind.Number && prop.TryGetDecimal(out var d)) return d;
+        if (prop.ValueKind == JsonValueKind.String && decimal.TryParse(prop.GetString(), out var d2)) return d2;
+        return null;
+    }
+}
+
+public class AffindaDecimalFieldConverter : JsonConverter<AffindaDecimalField?>
+{
+    public override AffindaDecimalField? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Null:
+                return null;
+
+            case JsonTokenType.Number:
+                reader.TryGetDecimal(out var num);
+                return new AffindaDecimalField { Parsed = num };
+
+            case JsonTokenType.String:
+                var s = reader.GetString();
+                return new AffindaDecimalField { Parsed = decimal.TryParse(s, out var d) ? d : null, RawText = s };
+
+            case JsonTokenType.StartArray:
+                reader.Skip();
+                return null;
+
+            case JsonTokenType.StartObject:
+                {
+                    using var doc = JsonDocument.ParseValue(ref reader);
+                    var root = doc.RootElement;
+                    decimal? parsed = null;
+                    if (root.TryGetProperty("parsed", out var p))
+                    {
+                        if (p.ValueKind == JsonValueKind.Number && p.TryGetDecimal(out var pd)) parsed = pd;
+                        else if (p.ValueKind == JsonValueKind.String && decimal.TryParse(p.GetString(), out var pd2)) parsed = pd2;
+                    }
+                    string? rawText = root.TryGetProperty("rawText", out var rt) && rt.ValueKind == JsonValueKind.String ? rt.GetString() : null;
+                    return new AffindaDecimalField { Parsed = parsed, RawText = rawText };
+                }
+
+            default:
+                reader.Skip();
+                return null;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, AffindaDecimalField? value, JsonSerializerOptions options)
+    {
+        if (value is null) { writer.WriteNullValue(); return; }
+        writer.WriteStartObject();
+        if (value.Parsed.HasValue) writer.WriteNumber("parsed", value.Parsed.Value); else writer.WriteNull("parsed");
+        writer.WriteString("rawText", value.RawText);
+        writer.WriteEndObject();
+    }
+}
+
+public class AffindaPhoneNumber
+{
+    // Affinda nests the actual phone fields under "parsed" (matching the same
+    // raw/parsed pattern used for candidateName, location, etc.) — flattening
+    // this meant FormattedNumber/RawText/CountryCode always read as null even
+    // when Affinda correctly extracted the number.
+    [JsonPropertyName("raw")]
+    public string? Raw { get; set; }
+
+    [JsonPropertyName("parsed")]
+    public AffindaPhoneNumberParsed? Parsed { get; set; }
+}
+
+public class AffindaPhoneNumberParsed
+{
+    [JsonPropertyName("formattedNumber")]
+    public string? FormattedNumber { get; set; }
+
+    [JsonPropertyName("rawText")]
+    public string? RawText { get; set; }
+
+    [JsonPropertyName("countryCode")]
+    public string? CountryCode { get; set; }
+
+    [JsonPropertyName("nationalNumber")]
+    public string? NationalNumber { get; set; }
+
+    [JsonPropertyName("internationalCountryCode")]
+    public int? InternationalCountryCode { get; set; }
+}
+
+//
+// Candidate Name
+//
+
+public class AffindaCandidateName
+{
+    [JsonPropertyName("parsed")]
+    public AffindaCandidateNameParsed? Parsed { get; set; }
+}
+
+public class AffindaCandidateNameParsed
+{
+    [JsonPropertyName("firstName")]
+    public AffindaParsedValue? FirstName { get; set; }
+
+    [JsonPropertyName("middleName")]
+    public AffindaParsedValue? MiddleName { get; set; }
+
+    [JsonPropertyName("familyName")]
+    public AffindaParsedValue? FamilyName { get; set; }
+
+    [JsonPropertyName("title")]
+    public AffindaParsedValue? Title { get; set; }
+}
+
+//
+// Location
+//
+
+public class AffindaLocation
+{
+    [JsonPropertyName("parsed")]
+    public AffindaLocationParsed? Parsed { get; set; }
+}
+
+public class AffindaLocationParsed
+{
+    [JsonPropertyName("formatted")]
+    public string? Formatted { get; set; }
+
+    [JsonPropertyName("city")]
+    public string? City { get; set; }
+
+    [JsonPropertyName("state")]
+    public string? State { get; set; }
+
+    [JsonPropertyName("country")]
+    public string? Country { get; set; }
+
+    [JsonPropertyName("postalCode")]
+    public string? PostalCode { get; set; }
+}
+
+//
+// Skills
+//
+
+public class AffindaSkill
+{
+    [JsonPropertyName("parsed")]
+    public AffindaSkillParsed? Parsed { get; set; }
+}
+
+public class AffindaSkillParsed
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("category")]
+    public string? Category { get; set; }
+
+    [JsonPropertyName("subCategory")]
+    public string? SubCategory { get; set; }
+
+    [JsonPropertyName("isSoftware")]
+    public bool IsSoftware { get; set; }
+
+    [JsonPropertyName("isLanguage")]
+    public bool IsLanguage { get; set; }
+}
+//======================================================
+// Work Experience
+//======================================================
+
+public class AffindaWorkExp
+{
+    [JsonPropertyName("parsed")]
+    public AffindaWorkExpParsed? Parsed { get; set; }
+}
+
+public class AffindaWorkExpParsed
+{
+    [JsonPropertyName("workExperienceJobTitle")]
+    public AffindaParsedValue? WorkExperienceJobTitle { get; set; }
+
+    [JsonPropertyName("workExperienceOrganization")]
+    public AffindaParsedValue? WorkExperienceOrganization { get; set; }
+
+    [JsonPropertyName("workExperienceDescription")]
+    public AffindaParsedValue? WorkExperienceDescription { get; set; }
+
+    [JsonPropertyName("workExperienceLocation")]
+    public AffindaLocationParsed? WorkExperienceLocation { get; set; }
+
+    [JsonPropertyName("workExperienceDates")]
+    public AffindaWorkDates? WorkExperienceDates { get; set; }
+}
+
+public class AffindaWorkDates
+{
+    [JsonPropertyName("start")]
+    public AffindaDatePoint? Start { get; set; }
+
+    [JsonPropertyName("end")]
+    public AffindaDatePoint? End { get; set; }
+
+    [JsonPropertyName("durationInMonths")]
+    public int? DurationInMonths { get; set; }
+}
+
+//======================================================
+// Education
+//======================================================
+
+public class AffindaEducation
+{
+    [JsonPropertyName("parsed")]
+    public AffindaEducationParsed? Parsed { get; set; }
+}
+
+public class AffindaEducationParsed
+{
+    [JsonPropertyName("educationAccreditation")]
+    public AffindaParsedValue? EducationAccreditation { get; set; }
+
+    [JsonPropertyName("educationOrganization")]
+    public AffindaParsedValue? EducationOrganization { get; set; }
+
+    [JsonPropertyName("educationLevel")]
+    public AffindaLabelValue? EducationLevel { get; set; }
+
+    [JsonPropertyName("educationDates")]
+    public AffindaEduDates? EducationDates { get; set; }
+
+    [JsonPropertyName("educationGrade")]
+    public AffindaEduGrade? EducationGrade { get; set; }
+}
+
+public class AffindaEduDates
+{
+    [JsonPropertyName("start")]
+    public AffindaDatePoint? Start { get; set; }
+
+    [JsonPropertyName("end")]
+    public AffindaDatePoint? End { get; set; }
+}
+
+public class AffindaEduGrade
+{
+    [JsonPropertyName("educationGradeScore")]
+    public decimal? EducationGradeScore { get; set; }
+
+    [JsonPropertyName("gradeScore")]
+    public decimal? GradeScore { get; set; }
+
+    [JsonPropertyName("gradeUnit")]
+    public AffindaLabelValue? GradeUnit { get; set; }
+}
+
+//======================================================
+// Language
+//======================================================
+
+public class AffindaLanguage
+{
+    [JsonPropertyName("parsed")]
+    public AffindaParsedValue? Parsed { get; set; }
+}
+
+//======================================================
+// Label / Value
+//======================================================
+
+public class AffindaLabelValue
+{
+    [JsonPropertyName("label")]
+    public string? Label { get; set; }
+
+    [JsonPropertyName("value")]
+    public string? Value { get; set; }
+}
+//======================================================
+// Result returned by AffindaService
+//======================================================
+
+public class AffindaParseResult
+{
+    public bool Success { get; set; }
+
+    public string? ErrorMessage { get; set; }
+
+    public string? AffindaDocId { get; set; }
+
+    public string? ParsedName { get; set; }
+
+    public string? ParsedPhone { get; set; }
+
+    public string? ParsedEmail { get; set; }
+
+    public string? ParsedTrade { get; set; }
+
+    public int? ParsedExperienceYrs { get; set; }
+
+    public decimal? AiConfidenceScore { get; set; }
+
+    public List<string> ParsedSkills { get; set; } = new();
+    public string? ProfessionalSummary { get; set; }
+
+    public string? City { get; set; }
+
+    public string? State { get; set; }
+
+    public string? Country { get; set; }
+
+    public List<AffindaWorkExp> WorkExperiences { get; set; } = new();
+
+    public List<AffindaEducation> Educations { get; set; } = new();
+
+    public List<AffindaLanguage> Languages { get; set; } = new();
+
+    public string? RawAffindaJson { get; set; }
+}
