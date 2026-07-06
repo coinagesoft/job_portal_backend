@@ -107,12 +107,9 @@
         // ════════════════════════════════════════════════
 
 
-
-
-
         public async Task<JobDetailsResponseDto> SaveJobDetailsAsync(
-        JobDetailsRequestDto request,
-        Guid employerId)
+           JobDetailsRequestDto request,
+           Guid employerId)
         {
             try
             {
@@ -133,7 +130,13 @@
                 // =====================================================
                 // CREATE
                 // =====================================================
-                if (!request.JobId.HasValue || request.JobId == Guid.Empty)
+
+                job = await _context.JobPostings
+                     .FirstOrDefaultAsync(x =>
+                      x.JobId == request.JobId &&
+                     x.EmployerId == employerId);
+
+                if (job == null)
                 {
                     job = new JobPosting
                     {
@@ -143,6 +146,7 @@
                         JobTitle = request.JobTitle ?? string.Empty,
                         TradeCategory = request.TradeCategory ?? string.Empty,
                         Role = request.Role,
+                        IsOilField= request.IsOilField,
                         JobDescription = request.JobDescription ?? string.Empty,
                         SalaryMin = 0,
                         SalaryMax = 0,
@@ -222,6 +226,10 @@
                     job.Role = request.Role;
                     job.JobDescription = request.JobDescription ?? job.JobDescription;
 
+                    if (request.IsOilField.HasValue)
+                    {
+                        job.IsOilField = request.IsOilField.Value;
+                    }
                     job.ExperienceMinYears =
                         (byte)(request.ExperienceMinYears ?? job.ExperienceMinYears);
 
@@ -301,9 +309,9 @@
 
 
         public async Task<BaseJobResponseDto> SaveCompensationAsync(
-    CompensationRequestDto request,
-    Guid jobId,
-    Guid employerId)
+           CompensationRequestDto request,
+           Guid jobId,
+           Guid employerId)
         {
             try
             {
@@ -635,9 +643,9 @@
         // STEP 5 — Location
         // ════════════════════════════════════════════════
         public async Task<BaseJobResponseDto> SaveLocationAsync(
-       LocationRequestDto request,
-      Guid jobId,
-      Guid employerId)
+         LocationRequestDto request,
+         Guid jobId,
+         Guid employerId)
         {
             try
             {
@@ -1104,7 +1112,7 @@
 
                         EmploymentType = job.EmploymentType,
                         EmploymentMode = job.EmploymentMode,
-
+                        IsOilField = job.IsOilField,
                         Department = job.Department,
 
                         DutyHoursPerDay = job.DutyHoursPerDay,
@@ -1261,13 +1269,64 @@
             }
         }
 
+        public async Task<BaseJobResponseDto> DeleteJobAsync(
+           Guid jobId,
+           Guid employerId)
+        {
+            try
+            {
+                var job = await _context.JobPostings
+                    .FirstOrDefaultAsync(x =>
+                        x.JobId == jobId &&
+                        x.EmployerId == employerId &&
+                        !x.IsDeleted);
+
+                if (job == null)
+                {
+                    return Fail("Job not found.");
+                }
+
+                job.IsDeleted = true;
+                job.IsActive = false;
+                job.JobStatus = JobStatus.Archived;
+                job.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Job deleted. JobId: {JobId}, EmployerId: {EmployerId}",
+                    jobId,
+                    employerId);
+
+                return new BaseJobResponseDto
+                {
+                    Success = true,
+                    Message = "Job deleted successfully.",
+                    JobId = job.JobId
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, ex.ToString());
+
+                return new ResumeJobResponseDto
+                {
+                    Success = false,
+                    Message = ex.ToString()
+                };
+            }
+        }
+
         // ── Private Helpers ───────────────────────────────────
-        private async Task<JobPosting?> GetJobAsync(Guid jobId, Guid employerId) =>
-      await _context.JobPostings
-          .FirstOrDefaultAsync(j =>
-              j.JobId == jobId &&
-              j.EmployerId == employerId &&
-              j.JobStatus != JobStatus.Archived);
+        private async Task<JobPosting?> GetJobAsync(
+        Guid jobId,
+        Guid employerId) =>
+        await _context.JobPostings
+            .FirstOrDefaultAsync(j =>
+                j.JobId == jobId &&
+                j.EmployerId == employerId &&
+                !j.IsDeleted &&
+                j.JobStatus != JobStatus.Archived);
 
         private static JobStepStatusDto BuildStepStatus(JobPosting job)
         {

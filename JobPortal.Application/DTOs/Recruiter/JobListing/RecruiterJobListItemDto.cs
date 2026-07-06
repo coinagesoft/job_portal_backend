@@ -15,8 +15,10 @@ namespace JobPortal.Application.DTOs.Recruiter.JobListing
         public string JobTitle { get; set; } = string.Empty;
 
         public string TradeCategory { get; set; } = string.Empty;
-
+        
         public string? Role { get; set; }
+
+        public bool? IsOilField { get; set; }
 
         public string Location { get; set; } = string.Empty;
 

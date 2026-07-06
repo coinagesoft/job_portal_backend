@@ -166,7 +166,7 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 EmploymentType = x.EmploymentType.ToString(),
                 EmploymentMode = x.EmploymentMode.ToString(),
-
+                IsOilField = x.IsOilField,
                 JobStatus = x.JobStatus.ToString(),
 
                 IsActive = x.IsActive,
@@ -249,12 +249,13 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 Department = job.Department,
 
+                IsOilField = job.IsOilField,
+
                 // =====================================================
                 // Job Type
                 // =====================================================
 
                 JobType = job.JobType,
-
                 EmploymentType = job.EmploymentType,
 
                 EmploymentMode = job.EmploymentMode,

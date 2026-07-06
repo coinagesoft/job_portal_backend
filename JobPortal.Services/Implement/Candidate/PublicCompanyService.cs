@@ -103,9 +103,9 @@ public class PublicCompanyService : IPublicCompanyService
                 JobTitle = job.JobTitle,
 
                 TradeCategory = job.TradeCategory,
-
+                IsOilField = job.IsOilField,
                 Department = job.Department,
-
+                LocationType = job.LocationType.ToString(),
                 EmploymentType =
                     job.EmploymentType,
 
@@ -114,7 +114,10 @@ public class PublicCompanyService : IPublicCompanyService
 
                 JobType =
                     job.JobType,
+                IndustryType =
+        job.EmployerProfile?.IndustryType.ToString(),
 
+                EducationRequired = job.EducationRequired,
                 JobLocation = jobLocation,
 
                 CompanyLocation = companyLocation,
@@ -1537,22 +1540,20 @@ public class PublicCompanyService : IPublicCompanyService
 
     private static string FormatSalary(JobPosting job)
     {
-        if (string.Equals(job.SalaryDisplayOption, "Negotiable", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Negotiable";
-        }
-
         string currency = job.SalaryCurrency.ToString();
 
         return job.SalaryDisplayOption?.ToLowerInvariant() switch
         {
-            "Show Min Only" =>
+            "negotiable" =>
+                "Negotiable",
+
+            "show min only" =>
                 $"{currency} {job.SalaryMin:N0}+",
 
-            "Show Max Only" =>
+            "show max only" =>
                 $"Up to {currency} {job.SalaryMax:N0}",
 
-            "Show Range" =>
+            "show range" =>
                 $"{currency} {job.SalaryMin:N0} - {job.SalaryMax:N0}",
 
             _ =>

@@ -162,6 +162,17 @@ public class RecruiterJobPostingController : ControllerBase
             : BadRequest(result);
     }
 
+    [HttpDelete("{jobId:guid}")]
+    public async Task<IActionResult> DeleteJob(Guid jobId)
+    {
+        var result = await _service.DeleteJobAsync(
+            jobId,
+            GetEmployerId());
+
+        return result.Success
+            ? Ok(result)
+            : BadRequest(result);
+    }
     // ── SAVE DRAFT (any time) ──────────────────────────
     [HttpPut("{jobId}/save-draft")]
         public async Task<IActionResult> SaveDraft(Guid jobId)

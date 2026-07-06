@@ -19,7 +19,15 @@ namespace JobPortal.Application.DTOs.Candidate
         public string TradeCategory { get; set; } = string.Empty;
 
         public string? Department { get; set; }
+        // NEW
+        public string? IndustryType { get; set; }
+        
+        public string? LocationType { get; set; }
 
+        public bool? IsOilField { get; set; }
+
+        // NEW
+        public string? EducationRequired { get; set; }
         public string EmploymentType { get; set; } = string.Empty;
 
         public string EmploymentMode { get; set; } = string.Empty;

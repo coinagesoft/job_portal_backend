@@ -36,9 +36,9 @@ namespace JobPortal.Services.IImplement.IRecruiter
             QuestionsRequestDto request, Guid jobId, Guid employerId);
 
         // Step 7 — publish or save draft
-        Task<PublishingResponseDto> PublishJobAsync(
-            PublishingRequestDto request, Guid employerId);
+        Task<PublishingResponseDto> PublishJobAsync(PublishingRequestDto request, Guid employerId);
 
+        Task<BaseJobResponseDto> DeleteJobAsync(Guid jobId,Guid employerId);
         // Save draft at any step
         Task<BaseJobResponseDto> SaveDraftAsync(Guid jobId, Guid employerId);
 

@@ -133,7 +133,6 @@ public class CandidateProfileService : ICandidateProfileService
         c.Pincode = r.Pincode ?? c.Pincode;
         c.ProfessionalSummary = r.ProfessionalSummary ?? c.ProfessionalSummary;
         c.About = r.About ?? c.About;
-        c.NoticePeriod = r.NoticePeriod ?? c.NoticePeriod;
         c.TotalExperienceYears = r.TotalExperienceYears;
         if (r.ExpectedSalary.HasValue) c.PreferredSalary = r.ExpectedSalary;
         if (!string.IsNullOrWhiteSpace(r.Nationality)) c.Nationality = r.Nationality;
@@ -397,6 +396,30 @@ public class CandidateProfileService : ICandidateProfileService
             Message = "Disability details updated.",
             DisabilityStatus = c.DisabilityStatus,
             DisabilityNote = c.DisabilityNote
+        };
+    }
+
+    public async Task<UpdateDisabilityResponseDto> GetDisabilityAsync(Guid candidateId)
+    {
+        var candidate = await _context.CandidateProfiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
+        if (candidate == null)
+        {
+            return new UpdateDisabilityResponseDto
+            {
+                Success = false,
+                Message = "Profile not found."
+            };
+        }
+
+        return new UpdateDisabilityResponseDto
+        {
+            Success = true,
+            Message = "Disability details retrieved successfully.",
+            DisabilityStatus = candidate.DisabilityStatus,
+            DisabilityNote = candidate.DisabilityNote
         };
     }
 

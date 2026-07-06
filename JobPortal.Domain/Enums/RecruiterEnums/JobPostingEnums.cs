@@ -75,78 +75,78 @@ public enum CompanyVisibility
     HideName
 }
 
-[JsonConverter(typeof(EnumMemberJsonConverter<JobType>))]
-public enum JobType
-{
-    [EnumMember(Value = "Normal Job")]
-    Normal_Job,
+//[JsonConverter(typeof(EnumMemberJsonConverter<JobType>))]
+//public enum JobType
+//{
+//    [EnumMember(Value = "Normal Job")]
+//    Normal_Job,
 
-    [EnumMember(Value = "Hot Vacancy")]
-    Hot_Vacancy,
+//    [EnumMember(Value = "Hot Vacancy")]
+//    Hot_Vacancy,
 
-    [EnumMember(Value = "Classified")]
-    Classified
-}
+//    [EnumMember(Value = "Classified")]
+//    Classified
+//}
 
-[JsonConverter(typeof(EnumMemberJsonConverter<EmploymentType>))]
-public enum EmploymentType
-{
-    [EnumMember(Value = "Full Time")]
-    Full_Time,
+//[JsonConverter(typeof(EnumMemberJsonConverter<EmploymentType>))]
+//public enum EmploymentType
+//{
+//    [EnumMember(Value = "Full Time")]
+//    Full_Time,
 
-    [EnumMember(Value = "Part Time")]
-    Part_Time,
+//    [EnumMember(Value = "Part Time")]
+//    Part_Time,
 
-    [EnumMember(Value = "Contract")]
-    Contract,
+//    [EnumMember(Value = "Contract")]
+//    Contract,
 
-    [EnumMember(Value = "Internship")]
-    Internship,
+//    [EnumMember(Value = "Internship")]
+//    Internship,
 
-    [EnumMember(Value = "Freelance")]
-    Freelance
-}
+//    [EnumMember(Value = "Freelance")]
+//    Freelance
+//}
 
-[JsonConverter(typeof(EnumMemberJsonConverter<EmploymentMode>))]
-public enum EmploymentMode
-{
-    [EnumMember(Value = "Onsite")]
-    Onsite,
+//[JsonConverter(typeof(EnumMemberJsonConverter<EmploymentMode>))]
+//public enum EmploymentMode
+//{
+//    [EnumMember(Value = "Onsite")]
+//    Onsite,
 
-    [EnumMember(Value = "Remote")]
-    Remote,
+//    [EnumMember(Value = "Remote")]
+//    Remote,
 
-    [EnumMember(Value = "Hybrid")]
-    Hybrid
-}
+//    [EnumMember(Value = "Hybrid")]
+//    Hybrid
+//}
 
-[JsonConverter(typeof(EnumMemberJsonConverter<EducationLevel>))]
-public enum EducationLevel
-{
-    [EnumMember(Value = "Any")]
-    Any,
+//[JsonConverter(typeof(EnumMemberJsonConverter<EducationLevel>))]
+//public enum EducationLevel
+//{
+//    [EnumMember(Value = "Any")]
+//    Any,
 
-    [EnumMember(Value = "10th")]
-    Tenth,
+//    [EnumMember(Value = "10th")]
+//    Tenth,
 
-    [EnumMember(Value = "12th")]
-    Twelfth,
+//    [EnumMember(Value = "12th")]
+//    Twelfth,
 
-    [EnumMember(Value = "ITI")]
-    ITI,
+//    [EnumMember(Value = "ITI")]
+//    ITI,
 
-    [EnumMember(Value = "ITI Diploma")]
-    ITI_Diploma,
+//    [EnumMember(Value = "ITI Diploma")]
+//    ITI_Diploma,
 
-    [EnumMember(Value = "Diploma")]
-    Diploma,
+//    [EnumMember(Value = "Diploma")]
+//    Diploma,
 
-    [EnumMember(Value = "Graduate")]
-    Graduate,
+//    [EnumMember(Value = "Graduate")]
+//    Graduate,
 
-    [EnumMember(Value = "Post Graduate")]
-    Post_Graduate
-}
+//    [EnumMember(Value = "Post Graduate")]
+//    Post_Graduate
+//}
 
 [JsonConverter(typeof(EnumMemberJsonConverter<TransactionType>))]
 public enum TransactionType

@@ -33,6 +33,8 @@ public interface ICandidateProfileService
         Guid candidateId,
         UpdateDisabilityRequestDto request);
 
+    Task<UpdateDisabilityResponseDto> GetDisabilityAsync(Guid candidateId);
+
     Task<UpdateProfileAvailabilityResponseDto> UpdateAvailabilityAsync(
         Guid candidateId,
         UpdateProfileAvailabilityRequestDto request);

@@ -231,6 +231,17 @@ public class CandidateProfileController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
+
+    [HttpGet("disability/{candidateId:guid}")]
+    public async Task<IActionResult> GetDisability(Guid candidateId)
+    {
+        var result = await _profileService.GetDisabilityAsync(candidateId);
+
+        return result.Success
+            ? Ok(result)
+            : NotFound(result);
+    }
+
     // ════════════════════════════════════════════════
     // ENUM OPTIONS
     // GET /api/candidate/profile/enum-options
