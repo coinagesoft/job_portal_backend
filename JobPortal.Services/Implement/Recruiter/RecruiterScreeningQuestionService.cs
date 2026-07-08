@@ -230,8 +230,8 @@ namespace JobPortal.Services.Implement.Recruiter
         }
 
         public async Task<ApplicationScreeningResponseDto> GetApplicationScreeningAsync(
-       Guid applicationId,
-       Guid employerId)
+          Guid applicationId,
+          Guid employerId)
         {
             try
             {
@@ -258,10 +258,22 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 for (int i = 0; i < questions.Count; i++)
                 {
+                    string? answer = i < answers.Count ? answers[i] : null;
+
+                    if (!string.IsNullOrWhiteSpace(answer))
+                    {
+                        var prefix = questions[i] + ":";
+
+                        if (answer.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            answer = answer.Substring(prefix.Length).Trim();
+                        }
+                    }
+
                     screening.Add(new ScreeningQuestionAnswerDto
                     {
                         Question = questions[i],
-                        Answer = i < answers.Count ? answers[i] : null
+                        Answer = answer
                     });
                 }
 
@@ -288,8 +300,8 @@ namespace JobPortal.Services.Implement.Recruiter
         }
 
         public async Task<JobScreeningResponseDto> GetJobScreeningAsync(
-      Guid jobId,
-      Guid employerId)
+         Guid jobId,
+         Guid employerId)
         {
             try
             {
@@ -329,10 +341,22 @@ namespace JobPortal.Services.Implement.Recruiter
 
                     for (int i = 0; i < questions.Count; i++)
                     {
+                        string? answer = i < answers.Count ? answers[i] : null;
+
+                        if (!string.IsNullOrWhiteSpace(answer))
+                        {
+                            var prefix = questions[i] + ":";
+
+                            if (answer.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                            {
+                                answer = answer.Substring(prefix.Length).Trim();
+                            }
+                        }
+
                         screening.Add(new ScreeningQuestionAnswerDto
                         {
                             Question = questions[i],
-                            Answer = i < answers.Count ? answers[i] : null
+                            Answer = answer
                         });
                     }
 
