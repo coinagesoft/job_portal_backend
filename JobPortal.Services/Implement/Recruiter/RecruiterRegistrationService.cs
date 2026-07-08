@@ -174,7 +174,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             session.TradeName = request.TradeName;
             session.CompanyDisplayName = request.CompanyDisplayName;
 
-            session.BusinessType = request.BusinessType;
+            session.BusinessType = request.BusinessType.ToString();
 
             session.CompanySize = request.CompanySize?.ToString();
 
@@ -185,7 +185,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             session.Pan = request.Pan;
             session.GstnRegistrationDate = request.GstnRegistrationDate;
 
-           
+          
 
             // Address
             session.State = request.State;
@@ -752,6 +752,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             otpRecord.IsVerified = true;
 
             session.CompanyEmailVerified = true;
+            session.CompanyEmail = request.CompanyEmail;
 
             // Step 3 completed only when BOTH are verified
             if (session.MobileVerified &&
@@ -962,6 +963,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             }
 
             session.MobileVerified = true;
+            session.MobileNumber = request.MobileNumber;
+            session.CountryCode = request.CountryCode;
 
             if (session.MobileVerified &&
                 session.CompanyEmailVerified)
@@ -1365,8 +1368,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                 BusinessType = session.BusinessType,
 
-
-                IndustryType = session.IndustryType,
+                IndustryType =session.IndustryType,
 
                 CompanySize =
                     !string.IsNullOrWhiteSpace(session.CompanySize)
