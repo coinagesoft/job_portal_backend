@@ -1279,7 +1279,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 return new ReviewSubmitResponseDto
                 {
                     Success = false,
-                    Message = "Mobile number not verified."
+                    Message = "Mobile number not verified.",
+                    StepStatus = BuildStepStatus(session)
                 };
             }
 
@@ -1288,7 +1289,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 return new ReviewSubmitResponseDto
                 {
                     Success = false,
-                    Message = "Company email not verified."
+                    Message = "Company email not verified.",
+                    StepStatus = BuildStepStatus(session)
                 };
             }
 
@@ -1299,7 +1301,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 {
                     Success = false,
                     Message =
-                        $"Please complete all steps. Last completed: Step {session.LastCompletedStep}."
+                        $"Please complete all steps. Last completed: Step {session.LastCompletedStep}.",
+                    StepStatus = BuildStepStatus(session)
                 };
             }
 
@@ -1680,11 +1683,13 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             ? stepNames[nextStepNum]
             : "Submit",
             CanResume = !session.IsCompleted,
-            ExpiresAt = session.ExpiresAt
+            ExpiresAt = session.ExpiresAt,
+            MobileVerified = session.MobileVerified,
+            CompanyEmailVerified = session.CompanyEmailVerified
         };
     }
 
-    
+
 
     private static string MaskMobile(string mobile)
     {
