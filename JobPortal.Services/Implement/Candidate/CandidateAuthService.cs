@@ -63,13 +63,13 @@ public class CandidateAuthService : ICandidateAuthService
                 "Terms and Conditions must be accepted.");
             }
 
-    // Verify OTP token
-    var verifiedOtp =
-        await _context.OtpVerifications
-        .FirstOrDefaultAsync(x =>
-            x.VerificationToken == request.OtpToken &&
-            x.IsVerified &&
-            x.Purpose == "CandidateRegistration");
+            // Verify OTP token
+            var verifiedOtp =
+                await _context.OtpVerifications
+                .FirstOrDefaultAsync(x =>
+                    x.VerificationToken == request.OtpToken &&
+                    x.IsVerified &&
+                    x.Purpose == "CandidateRegistration");
 
             if (verifiedOtp == null)
             {
@@ -183,7 +183,7 @@ public class CandidateAuthService : ICandidateAuthService
                 "An error occurred while registering.");
         }
 
-}
+    }
 
 
     public async Task<SendOtpResponseDto> SendRegistrationOtpAsync(
@@ -531,7 +531,7 @@ public class CandidateAuthService : ICandidateAuthService
             var identifier =
             request.Identifier.Trim().ToLower();
 
-    var isEmail = IsEmail(identifier);
+            var isEmail = IsEmail(identifier);
 
             if (!isEmail)
             {
@@ -656,14 +656,14 @@ public class CandidateAuthService : ICandidateAuthService
             };
         }
 
-}
+    }
 
 
-public async Task<CreateCandidateOrderResponseDto> CreateOrderAsync(
-    CreateCandidateOrderRequestDto request)
-{
-    try
+    public async Task<CreateCandidateOrderResponseDto> CreateOrderAsync(
+        CreateCandidateOrderRequestDto request)
     {
+        try
+        {
 
             _logger.LogInformation(
     "KeyId:{KeyId}",
@@ -677,45 +677,45 @@ public async Task<CreateCandidateOrderResponseDto> CreateOrderAsync(
             _config["Razorpay:KeyId"],
             _config["Razorpay:KeySecret"]);
 
-        var options = new Dictionary<string, object>
+            var options = new Dictionary<string, object>
         {
             { "amount", request.Amount * 100 }, // paisa
             { "currency", "INR" },
             { "receipt", Guid.NewGuid().ToString() }
         };
 
-        Order order = client.Order.Create(options);
+            Order order = client.Order.Create(options);
 
-        return await Task.FromResult(
-            new CreateCandidateOrderResponseDto
-            {
-                Success = true,
-                OrderId = order["id"].ToString(),
-                Amount = request.Amount,
-                Currency = "INR",
-                Message = "Order created successfully."
-            });
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(
-            ex,
-            "CreateOrder Error");
-
-        return new CreateCandidateOrderResponseDto
+            return await Task.FromResult(
+                new CreateCandidateOrderResponseDto
+                {
+                    Success = true,
+                    OrderId = order["id"].ToString(),
+                    Amount = request.Amount,
+                    Currency = "INR",
+                    Message = "Order created successfully."
+                });
+        }
+        catch (Exception ex)
         {
-            Success = false,
-            Message = ex.ToString()
-        };
+            _logger.LogError(
+                ex,
+                "CreateOrder Error");
+
+            return new CreateCandidateOrderResponseDto
+            {
+                Success = false,
+                Message = ex.ToString()
+            };
+        }
     }
-}
 
 
-// =====================================================
-// HELPERS
-// =====================================================
+    // =====================================================
+    // HELPERS
+    // =====================================================
 
-private static bool IsEmail(string value)
+    private static bool IsEmail(string value)
     {
         return value.Contains("@");
     }

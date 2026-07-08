@@ -1247,7 +1247,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
         using var transaction =
             await _context.Database.BeginTransactionAsync();
-    
+
 
 
 
@@ -1370,7 +1370,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 BusinessType =
                     Enum.Parse<BusinessType>(session.BusinessType!, true),
 
-                IndustryType =!string.IsNullOrWhiteSpace(session.IndustryType)
+                IndustryType = !string.IsNullOrWhiteSpace(session.IndustryType)
                 ? Enum.Parse<IndustryType>(session.IndustryType, true)
                 : IndustryType.Other,
 
@@ -1636,7 +1636,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     }
 
 
-   
+
     // ── Private Helpers ───────────────────────────────────
     private async Task<RegistrationSession?> GetValidSessionAsync(string sessionId)
     {

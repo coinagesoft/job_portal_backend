@@ -320,7 +320,7 @@ public class RecruiterAuthService : IRecruiterAuthService
         }
     }
 
-   
+
 
     // ════════════════════════════════════════════════
     // VERIFY OTP
@@ -618,9 +618,9 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             var userType = user.UserType;
 
-           
 
-          
+
+
 
             // Recruiter Validation
             Guid? employerId = null;
@@ -652,7 +652,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 employerId = employer.EmployerId;
             }
-           
+
 
             // Update Login Time
             user.LastLoginAt = DateTime.UtcNow;
@@ -691,7 +691,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 ProfileStatus = profileStatus,
 
-               
+
 
                 ExpiresAt = expiry
             };
@@ -917,7 +917,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 ProfileStatus = profileStatus,
 
-               
+
 
                 ExpiresAt = expiry
             };
