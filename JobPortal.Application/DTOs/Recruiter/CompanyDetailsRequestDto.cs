@@ -31,7 +31,7 @@ public class CompanyDetailsRequestDto
     /// Legal business structure — dropdown in Swagger
     /// </summary>
     [Required(ErrorMessage = "Business type is required.")]
-    public BusinessType BusinessType { get; set; }      // ✅ enum
+    public string BusinessType { get; set; }     
 
     /// <summary>
     /// Company size range — dropdown in Swagger
@@ -47,7 +47,6 @@ public class CompanyDetailsRequestDto
     public string? Gstn { get; set; }
     public string? Pan { get; set; }
     public DateOnly? GstnRegistrationDate { get; set; }
-    public IndustryType? IndustryType { get; set; }
 
     [Required(ErrorMessage = "State is required.")]
     public string State { get; set; } = string.Empty;

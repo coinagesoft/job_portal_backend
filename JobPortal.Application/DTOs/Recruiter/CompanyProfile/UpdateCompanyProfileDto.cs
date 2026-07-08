@@ -34,9 +34,9 @@ namespace JobPortal.Application.DTOs.Recruiter.CompanyProfile
 
         public int? TotalEmployees { get; set; }
 
-        public BusinessType? BusinessType { get; set; }
+        public string? BusinessType { get; set; }
 
-        public IndustryType? IndustryType { get; set; }
+        public string? IndustryType { get; set; }
 
         public string? AddressLine1 { get; set; }
 

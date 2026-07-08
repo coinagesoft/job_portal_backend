@@ -23,7 +23,7 @@ public class GstCheckRequestDto
     /// Select your industry type — dropdown in Swagger
     /// </summary>
     [Required(ErrorMessage = "Industry type is required.")]
-    public IndustryType IndustryType { get; set; }   // ✅ from RecruiterEnums.cs
+    public string IndustryType { get; set; }   // ✅ from RecruiterEnums.cs
 }
 
 public class GstCheckResponseDto

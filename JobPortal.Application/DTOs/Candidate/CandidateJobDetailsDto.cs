@@ -17,6 +17,8 @@ namespace JobPortal.Application.DTOs.Candidate
         public string? CompanyLocation { get; set; }
         public string? CompanyLocationMapLink { get; set; }
 
+        public string CompanyVisibility { get; set; } = string.Empty;
+
         // Verification
         public List<string> VerificationBadges { get; set; } = new();
 

@@ -27,8 +27,8 @@ public class EmployerProfile
 
     public string? FacebookUrl { get; set; }
     public int TotalEmployees { get; set; }
-    public BusinessType BusinessType { get; set; } = default!;
-    public IndustryType IndustryType { get; set; } = default!;
+    public string BusinessType { get; set; } = default!;
+    public string IndustryType { get; set; } = default!;
     // GST
     public bool GstRegistered { get; set; } = false;
     public string? Gstin { get; set; }

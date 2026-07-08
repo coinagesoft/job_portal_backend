@@ -213,7 +213,7 @@ public class CandidateJobService : ICandidateJobService
           : employer.ContactEmailPublic,
 
                 CompanyIndustry =
-          employer.IndustryType.ToString(),
+          employer.IndustryType,
 
                 CompanySize =
           employer.CompanySize?.ToString(),

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using JobPortal.Domain.Enums.RecruiterEnums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,13 +18,14 @@ namespace JobPortal.Application.DTOs.Candidate
         public string JobTitle { get; set; } = string.Empty;
 
         public string TradeCategory { get; set; } = string.Empty;
+        public string CompanyVisibility { get; set; } = string.Empty;
 
         public string? Department { get; set; }
         // NEW
         public string? IndustryType { get; set; }
         
         public string? LocationType { get; set; }
-
+        public List<string> Tags { get; set; } = new();
         public bool? IsOilField { get; set; }
 
         // NEW

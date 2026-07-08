@@ -28,8 +28,8 @@ namespace JobPortal.Application.DTOs.Recruiter.CompanyProfile
         public short? YearEstablished { get; set; }
         public int? TotalEmployees { get; set; }                 // NEW
 
-        public BusinessType BusinessType { get; set; }
-        public IndustryType IndustryType { get; set; }
+        public string BusinessType { get; set; }
+        public string IndustryType { get; set; }
 
         public bool GstRegistered { get; set; }
         public string? Gstn { get; set; }

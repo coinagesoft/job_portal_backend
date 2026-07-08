@@ -174,7 +174,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             session.TradeName = request.TradeName;
             session.CompanyDisplayName = request.CompanyDisplayName;
 
-            session.BusinessType = request.BusinessType.ToString();
+            session.BusinessType = request.BusinessType;
 
             session.CompanySize = request.CompanySize?.ToString();
 
@@ -185,11 +185,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             session.Pan = request.Pan;
             session.GstnRegistrationDate = request.GstnRegistrationDate;
 
-            if (request.IndustryType.HasValue)
-            {
-                session.IndustryType =
-                    request.IndustryType.ToString();
-            }
+           
 
             // Address
             session.State = request.State;
@@ -1367,12 +1363,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 TradeName = session.TradeName,
                 CompanyDisplayName = session.CompanyDisplayName!,
 
-                BusinessType =
-                    Enum.Parse<BusinessType>(session.BusinessType!, true),
+                BusinessType = session.BusinessType,
 
-                IndustryType = !string.IsNullOrWhiteSpace(session.IndustryType)
-                ? Enum.Parse<IndustryType>(session.IndustryType, true)
-                : IndustryType.Other,
+
+                IndustryType = session.IndustryType,
 
                 CompanySize =
                     !string.IsNullOrWhiteSpace(session.CompanySize)

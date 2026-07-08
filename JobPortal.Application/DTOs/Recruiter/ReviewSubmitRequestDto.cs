@@ -34,7 +34,7 @@ public class CompanyDetailsSubmitDto
     public string LegalName { get; set; } = string.Empty;
     public string? TradeName { get; set; }
     public string CompanyDisplayName { get; set; } = string.Empty;
-    public BusinessType BusinessType { get; set; }      // ✅ enum
+    public string BusinessType { get; set; }      // ✅ enum
     public CompanySize? CompanySize { get; set; }       // ✅ enum
     public string? Cin { get; set; }
     public string State { get; set; } = string.Empty;

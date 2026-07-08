@@ -27,16 +27,13 @@ namespace JobPortal.API.Controllers.Recruiter
         [ProducesResponseType(typeof(GstCheckResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GstCheck(
-            [FromBody] GstCheckRequestDto request)
+      [FromBody] GstCheckRequestDto request)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            // Validate IndustryType enum value
-            if (!Enum.IsDefined(typeof(IndustryType), request.IndustryType))
-                return BadRequest(new { message = "Invalid IndustryType value." });
-
             var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
             var result = await _service.CheckGstAsync(request, ip);
 
             return result.Success ? Ok(result) : BadRequest(result);
@@ -66,13 +63,12 @@ namespace JobPortal.API.Controllers.Recruiter
                     message = "X-Session-Id header is required."
                 });
             }
-
             // BusinessType validation
-            if (!Enum.IsDefined(typeof(BusinessType), request.BusinessType))
+            if (string.IsNullOrWhiteSpace(request.BusinessType))
             {
                 return BadRequest(new
                 {
-                    message = "Invalid BusinessType value."
+                    message = "Business Type is required."
                 });
             }
 
@@ -86,15 +82,6 @@ namespace JobPortal.API.Controllers.Recruiter
                 });
             }
 
-            // IndustryType validation
-            if (request.IndustryType.HasValue &&
-                !Enum.IsDefined(typeof(IndustryType), request.IndustryType.Value))
-            {
-                return BadRequest(new
-                {
-                    message = "Invalid IndustryType value."
-                });
-            }
 
             // Logo validation before hitting service
             if (request.CompanyLogo != null)
@@ -441,17 +428,17 @@ namespace JobPortal.API.Controllers.Recruiter
         // GET /api/recruiter/registration/enum-options
         // Frontend can call this once to populate all dropdowns
         // ════════════════════════════════════════════════
-        [HttpGet("enum-options")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        public IActionResult GetEnumOptions()
-        {
-            return Ok(new
-            {
-                industryTypes = Enum.GetNames(typeof(IndustryType)),
-                businessTypes = Enum.GetNames(typeof(BusinessType)),
-                companySizes = Enum.GetNames(typeof(CompanySize)),
-            });
-        }
+        //[HttpGet("enum-options")]
+        //[ProducesResponseType(StatusCodes.Status200OK)]
+        //public IActionResult GetEnumOptions()
+        //{
+        //    return Ok(new
+        //    {
+        //        industryTypes = Enum.GetNames(typeof(IndustryType)),
+        //        businessTypes = Enum.GetNames(typeof(BusinessType)),
+        //        companySizes = Enum.GetNames(typeof(CompanySize)),
+        //    });
+        //}
 
 
         /// <summary>

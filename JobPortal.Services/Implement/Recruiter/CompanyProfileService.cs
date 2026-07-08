@@ -142,11 +142,13 @@ namespace JobPortal.Services.Implement.Recruiter
             if (request.TotalEmployees.HasValue)
                 profile.TotalEmployees = request.TotalEmployees.Value;
 
-            if (request.BusinessType.HasValue)
-                profile.BusinessType = request.BusinessType.Value;
+            if (!string.IsNullOrWhiteSpace(request.BusinessType))
+                profile.BusinessType = request.BusinessType;
 
-            if (request.IndustryType.HasValue)
-                profile.IndustryType = request.IndustryType.Value;
+            if (!string.IsNullOrWhiteSpace(request.IndustryType))
+            {
+                profile.IndustryType = request.IndustryType;
+            }
 
             if (!string.IsNullOrWhiteSpace(request.AddressLine1))
                 profile.AddressLine1 = request.AddressLine1;

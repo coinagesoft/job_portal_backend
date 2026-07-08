@@ -17,9 +17,7 @@ public class PublicCompanyService : IPublicCompanyService
     private readonly JobPortal.Services.IImplement.AI.IJobMatchingService _jobMatching;
     private const int MaxPageSize = 50;
 
-    public PublicCompanyService(
-        AppDbContext context,
-        ILogger<PublicCompanyService> logger,
+    public PublicCompanyService( AppDbContext context, ILogger<PublicCompanyService> logger,
         JobPortal.Services.IImplement.AI.IJobMatchingService jobMatching)
     {
         _context = context;
@@ -101,7 +99,7 @@ public class PublicCompanyService : IPublicCompanyService
                         : "Confidential Company",
 
                 JobTitle = job.JobTitle,
-
+                CompanyVisibility = job.CompanyVisibility.ToString(),
                 TradeCategory = job.TradeCategory,
                 IsOilField = job.IsOilField,
                 Department = job.Department,
@@ -116,7 +114,7 @@ public class PublicCompanyService : IPublicCompanyService
                     job.JobType,
                 IndustryType =
         job.EmployerProfile?.IndustryType.ToString(),
-
+                Tags = job.Tags ?? new List<string>(),
                 EducationRequired = job.EducationRequired,
                 JobLocation = jobLocation,
 
@@ -231,7 +229,7 @@ public class PublicCompanyService : IPublicCompanyService
                 job.CompanyVisibility == CompanyVisibility.ShowName
                     ? employer?.CompanyDisplayName
                     : "Confidential Company",
-
+            CompanyVisibility = job.CompanyVisibility.ToString(),
             CompanyLocation = companyLocation,
 
             CompanyLocationMapLink =

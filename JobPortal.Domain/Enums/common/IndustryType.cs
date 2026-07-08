@@ -9,25 +9,25 @@ using System.Threading.Tasks;
 
 namespace JobPortal.Domain.Enums.common
 {
-    [JsonConverter(typeof(EnumMemberJsonConverter<IndustryType>))]
-    public enum IndustryType
-    {
-        [EnumMember(Value = "Construction")]
-        Construction,
+    //[JsonConverter(typeof(EnumMemberJsonConverter<IndustryType>))]
+    //public enum IndustryType
+    //{
+    //    [EnumMember(Value = "Construction")]
+    //    Construction,
 
-        [EnumMember(Value = "Shipping")]
-        Shipping,
+    //    [EnumMember(Value = "Shipping")]
+    //    Shipping,
 
-        [EnumMember(Value = "Manufacturing")]
-        Manufacturing,
+    //    [EnumMember(Value = "Manufacturing")]
+    //    Manufacturing,
 
-        [EnumMember(Value = "Hospitality")]
-        Hospitality,
+    //    [EnumMember(Value = "Hospitality")]
+    //    Hospitality,
 
-        [EnumMember(Value = "Marine")]
-        Marine,
+    //    [EnumMember(Value = "Marine")]
+    //    Marine,
 
-        [EnumMember(Value = "Other")]
-        Other
-    }
+    //    [EnumMember(Value = "Other")]
+    //    Other
+    //}
 }
