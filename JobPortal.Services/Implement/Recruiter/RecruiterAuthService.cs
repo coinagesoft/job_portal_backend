@@ -213,9 +213,13 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 await _context.SaveChangesAsync();
 
-                await _emailService.SendOtpEmailAsync(
-                    identifier,
-                    otpCode);
+                // ===== QA BYPASS: real email OTP send disabled =====
+                // await _emailService.SendOtpEmailAsync(
+                //     identifier,
+                //     otpCode);
+                _logger.LogInformation(
+                    "QA BYPASS - Login Email OTP send skipped. Static OTP 123456 applies.");
+                // ===== END QA BYPASS =====
             }
             else
             {
@@ -226,9 +230,12 @@ public class RecruiterAuthService : IRecruiterAuthService
                     "TWILIO SEND OTP - Phone:{Phone}",
                     phoneNumber);
 
-                var sent =
-                    await _twilioOtpService
-                        .SendOtpAsync(phoneNumber);
+                // ===== QA BYPASS: real Twilio OTP send disabled =====
+                // var sent =
+                //     await _twilioOtpService
+                //         .SendOtpAsync(phoneNumber);
+                var sent = true;
+                // ===== END QA BYPASS =====
 
                 _logger.LogInformation(
                     "TWILIO RESULT - Sent:{Sent}",
@@ -313,7 +320,7 @@ public class RecruiterAuthService : IRecruiterAuthService
         }
     }
 
-   
+
 
     // ════════════════════════════════════════════════
     // VERIFY OTP
@@ -416,24 +423,27 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             bool isValid;
 
-            if (isEmail)
-            {
-                isValid =
-                    BCrypt.Net.BCrypt.Verify(
-                        request.OtpCode,
-                        otp.OtpCode);
-            }
-            else
-            {
-                var phoneNumber =
-                    $"{request.CountryCode}{identifier}";
-
-                isValid =
-                    await _twilioOtpService
-                        .VerifyOtpAsync(
-                            phoneNumber,
-                            request.OtpCode);
-            }
+            // ===== QA BYPASS: static OTP "123456" accepted, real checks disabled =====
+            // if (isEmail)
+            // {
+            //     isValid =
+            //         BCrypt.Net.BCrypt.Verify(
+            //             request.OtpCode,
+            //             otp.OtpCode);
+            // }
+            // else
+            // {
+            //     var phoneNumber =
+            //         $"{request.CountryCode}{identifier}";
+            //
+            //     isValid =
+            //         await _twilioOtpService
+            //             .VerifyOtpAsync(
+            //                 phoneNumber,
+            //                 request.OtpCode);
+            // }
+            isValid = request.OtpCode == "123456";
+            // ===== END QA BYPASS =====
 
             if (!isValid)
             {
@@ -608,9 +618,9 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             var userType = user.UserType;
 
-           
 
-          
+
+
 
             // Recruiter Validation
             Guid? employerId = null;
@@ -642,7 +652,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 employerId = employer.EmployerId;
             }
-           
+
 
             // Update Login Time
             user.LastLoginAt = DateTime.UtcNow;
@@ -681,7 +691,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 ProfileStatus = profileStatus,
 
-               
+
 
                 ExpiresAt = expiry
             };
@@ -907,7 +917,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 ProfileStatus = profileStatus,
 
-               
+
 
                 ExpiresAt = expiry
             };

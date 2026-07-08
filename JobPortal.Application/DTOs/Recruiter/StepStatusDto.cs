@@ -16,5 +16,7 @@ namespace JobPortal.Application.DTOs.Recruiter
         public string? NextStep { get; set; }
         public bool CanResume { get; set; }
         public DateTime ExpiresAt { get; set; }
+        public bool MobileVerified { get; set; }
+        public bool CompanyEmailVerified { get; set; }
     }
 }

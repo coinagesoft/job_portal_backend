@@ -647,9 +647,11 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
             var otp = GenerateOtp();
 
-            await _emailService.SendOtpEmailAsync(
-                request.CompanyEmail,
-                otp);
+            // ===== QA BYPASS: real email OTP send disabled =====
+            // await _emailService.SendOtpEmailAsync(
+            //     request.CompanyEmail,
+            //     otp);
+            // ===== END QA BYPASS =====
 
             var oldOtp = await _context.OtpVerifications
                 .Where(x =>
@@ -731,9 +733,12 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
-            var valid = BCrypt.Net.BCrypt.Verify(
-                request.EmailOtpCode,
-                otpRecord.OtpCode);
+            // ===== QA BYPASS: static OTP "123456" accepted, real check disabled =====
+            // var valid = BCrypt.Net.BCrypt.Verify(
+            //     request.EmailOtpCode,
+            //     otpRecord.OtpCode);
+            var valid = request.EmailOtpCode == "123456";
+            // ===== END QA BYPASS =====
 
             if (!valid)
             {
@@ -800,9 +805,11 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
             var otp = GenerateOtp();
 
-            await _emailService.SendOtpEmailAsync(
-                session.CompanyEmail!,
-                otp);
+            // ===== QA BYPASS: real email OTP send disabled =====
+            // await _emailService.SendOtpEmailAsync(
+            //     session.CompanyEmail!,
+            //     otp);
+            // ===== END QA BYPASS =====
 
             var oldOtps = await _context.OtpVerifications
                 .Where(x =>
@@ -887,7 +894,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
             var fullPhone = $"{request.CountryCode}{request.MobileNumber}";
 
-            var sent = await _twilioOtpService.SendOtpAsync(fullPhone);
+            // ===== QA BYPASS: real Twilio OTP send disabled =====
+            // var sent = await _twilioOtpService.SendOtpAsync(fullPhone);
+            var sent = true;
+            // ===== END QA BYPASS =====
 
             if (!sent)
             {
@@ -938,10 +948,13 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             var fullPhone =
                 $"{request.CountryCode}{request.MobileNumber}";
 
-            var valid =
-                await _twilioOtpService.VerifyOtpAsync(
-                    fullPhone,
-                    request.MobileOtpCode);
+            // ===== QA BYPASS: static OTP "123456" accepted, real Twilio check disabled =====
+            // var valid =
+            //     await _twilioOtpService.VerifyOtpAsync(
+            //         fullPhone,
+            //         request.MobileOtpCode);
+            var valid = request.MobileOtpCode == "123456";
+            // ===== END QA BYPASS =====
 
             if (!valid)
             {
@@ -1003,8 +1016,11 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             var fullPhone =
                 $"{session.CountryCode}{session.MobileNumber}";
 
-            var sent =
-                await _twilioOtpService.SendOtpAsync(fullPhone);
+            // ===== QA BYPASS: real Twilio OTP send disabled =====
+            // var sent =
+            //     await _twilioOtpService.SendOtpAsync(fullPhone);
+            var sent = true;
+            // ===== END QA BYPASS =====
 
             if (!sent)
             {
@@ -1231,7 +1247,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
         using var transaction =
             await _context.Database.BeginTransactionAsync();
-    
+
 
 
 
@@ -1263,7 +1279,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 return new ReviewSubmitResponseDto
                 {
                     Success = false,
-                    Message = "Mobile number not verified."
+                    Message = "Mobile number not verified.",
+                    StepStatus = BuildStepStatus(session)
                 };
             }
 
@@ -1272,7 +1289,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 return new ReviewSubmitResponseDto
                 {
                     Success = false,
-                    Message = "Company email not verified."
+                    Message = "Company email not verified.",
+                    StepStatus = BuildStepStatus(session)
                 };
             }
 
@@ -1283,7 +1301,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 {
                     Success = false,
                     Message =
-                        $"Please complete all steps. Last completed: Step {session.LastCompletedStep}."
+                        $"Please complete all steps. Last completed: Step {session.LastCompletedStep}.",
+                    StepStatus = BuildStepStatus(session)
                 };
             }
 
@@ -1351,7 +1370,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 BusinessType =
                     Enum.Parse<BusinessType>(session.BusinessType!, true),
 
-                IndustryType =!string.IsNullOrWhiteSpace(session.IndustryType)
+                IndustryType = !string.IsNullOrWhiteSpace(session.IndustryType)
                 ? Enum.Parse<IndustryType>(session.IndustryType, true)
                 : IndustryType.Other,
 
@@ -1617,7 +1636,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     }
 
 
-   
+
     // ── Private Helpers ───────────────────────────────────
     private async Task<RegistrationSession?> GetValidSessionAsync(string sessionId)
     {
@@ -1664,11 +1683,13 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             ? stepNames[nextStepNum]
             : "Submit",
             CanResume = !session.IsCompleted,
-            ExpiresAt = session.ExpiresAt
+            ExpiresAt = session.ExpiresAt,
+            MobileVerified = session.MobileVerified,
+            CompanyEmailVerified = session.CompanyEmailVerified
         };
     }
 
-    
+
 
     private static string MaskMobile(string mobile)
     {
