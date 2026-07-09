@@ -1547,6 +1547,7 @@ public class CandidateJobService : ICandidateJobService
 
                     StatusUpdatedAt =
                         a.StatusUpdatedAt,
+                    Note = a.EmployerInternalNote,
 
                     WithdrawalAllowed =
                         a.WithdrawalAllowed &&

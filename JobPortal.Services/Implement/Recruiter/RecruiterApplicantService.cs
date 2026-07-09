@@ -456,8 +456,9 @@ namespace JobPortal.Services.Implement.Recruiter
         // TODO (Part 3)
         // ==========================================================
         public async Task<UpdateApplicantStatusResponseDto> MoveToReviewAsync(
-      Guid employerId,
-      Guid applicationId)
+         Guid employerId,
+         Guid applicationId,
+         UpdateApplicantNoteRequestDto request)
         {
             var application = await _context.JobApplications
                 .FirstOrDefaultAsync(x =>
@@ -473,11 +474,11 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            application.ApplicationStatus =
-                ApplicationStatus.InReview;
+            application.ApplicationStatus = ApplicationStatus.InReview;
+            application.StatusUpdatedAt = DateTime.UtcNow;
 
-            application.StatusUpdatedAt =
-                DateTime.UtcNow;
+            // Always overwrite old note with new one (or clear if none provided)
+            application.EmployerInternalNote = request?.Note;
 
             await _context.SaveChangesAsync();
 
@@ -486,14 +487,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 Success = true,
                 Message = "Applicant moved to review.",
                 ApplicationId = application.ApplicationId,
-                ApplicationStatus =
-                    application.ApplicationStatus.ToString()
+                ApplicationStatus = application.ApplicationStatus.ToString()
             };
         }
 
         public async Task<UpdateApplicantStatusResponseDto> ShortlistApplicantAsync(
-      Guid employerId,
-      Guid applicationId)
+            Guid employerId,
+            Guid applicationId,
+            UpdateApplicantNoteRequestDto request)
         {
             var application = await _context.JobApplications
                 .FirstOrDefaultAsync(x =>
@@ -510,15 +511,11 @@ namespace JobPortal.Services.Implement.Recruiter
             }
 
             application.IsShortlisted = true;
+            application.ShortlistedAt = DateTime.UtcNow;
+            application.ApplicationStatus = ApplicationStatus.Shortlisted;
+            application.StatusUpdatedAt = DateTime.UtcNow;
 
-            application.ShortlistedAt =
-                DateTime.UtcNow;
-
-            application.ApplicationStatus =
-                ApplicationStatus.Shortlisted;
-
-            application.StatusUpdatedAt =
-                DateTime.UtcNow;
+            application.EmployerInternalNote = request?.Note;
 
             await _context.SaveChangesAsync();
 
@@ -527,15 +524,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 Success = true,
                 Message = "Applicant shortlisted successfully.",
                 ApplicationId = application.ApplicationId,
-                ApplicationStatus =
-                    application.ApplicationStatus.ToString()
+                ApplicationStatus = application.ApplicationStatus.ToString()
             };
         }
 
         public async Task<UpdateApplicantStatusResponseDto> ScheduleInterviewAsync(
-      Guid employerId,
-      Guid applicationId,
-      ScheduleInterviewRequestDto request)
+            Guid employerId,
+            Guid applicationId,
+            ScheduleInterviewRequestDto request)
         {
             var application = await _context.JobApplications
                 .FirstOrDefaultAsync(x =>
@@ -551,14 +547,11 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            application.InterviewScheduledAt =
-                request.InterviewDate;
+            application.InterviewScheduledAt = request.InterviewDate;
+            application.ApplicationStatus = ApplicationStatus.Interview;
+            application.StatusUpdatedAt = DateTime.UtcNow;
 
-            application.ApplicationStatus =
-                ApplicationStatus.Interview;
-
-            application.StatusUpdatedAt =
-                DateTime.UtcNow;
+            application.EmployerInternalNote = request.Note;
 
             await _context.SaveChangesAsync();
 
@@ -567,15 +560,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 Success = true,
                 Message = "Interview scheduled successfully.",
                 ApplicationId = application.ApplicationId,
-                ApplicationStatus =
-                    application.ApplicationStatus.ToString()
+                ApplicationStatus = application.ApplicationStatus.ToString()
             };
         }
 
         public async Task<UpdateApplicantStatusResponseDto> RejectApplicantAsync(
-       Guid employerId,
-       Guid applicationId,
-       RejectApplicantRequestDto request)
+            Guid employerId,
+            Guid applicationId,
+            RejectApplicantRequestDto request)
         {
             var application = await _context.JobApplications
                 .FirstOrDefaultAsync(x =>
@@ -591,20 +583,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            application.ApplicationStatus =
-                ApplicationStatus.Rejected;
+            application.ApplicationStatus = ApplicationStatus.Rejected;
+            application.RejectedAt = DateTime.UtcNow;
+            application.StatusUpdatedAt = DateTime.UtcNow;
 
-            application.RejectedAt =
-                DateTime.UtcNow;
-
-            application.StatusUpdatedAt =
-                DateTime.UtcNow;
-
-            if (!string.IsNullOrWhiteSpace(request.Reason))
-            {
-                application.EmployerInternalNote =
-                    request.Reason;
-            }
+            // Overwrite old note — use Reason if provided, else Note, else clear
+            application.EmployerInternalNote = !string.IsNullOrWhiteSpace(request.Reason)
+                ? request.Reason
+                : request.Note;
 
             await _context.SaveChangesAsync();
 
@@ -613,14 +599,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 Success = true,
                 Message = "Applicant rejected successfully.",
                 ApplicationId = application.ApplicationId,
-                ApplicationStatus =
-                    application.ApplicationStatus.ToString()
+                ApplicationStatus = application.ApplicationStatus.ToString()
             };
         }
 
         public async Task<UpdateApplicantStatusResponseDto> HireApplicantAsync(
-      Guid employerId,
-      Guid applicationId)
+            Guid employerId,
+            Guid applicationId,
+            UpdateApplicantNoteRequestDto request)
         {
             var application = await _context.JobApplications
                 .FirstOrDefaultAsync(x =>
@@ -636,11 +622,10 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            application.ApplicationStatus =
-                ApplicationStatus.Hired;
+            application.ApplicationStatus = ApplicationStatus.Hired;
+            application.StatusUpdatedAt = DateTime.UtcNow;
 
-            application.StatusUpdatedAt =
-                DateTime.UtcNow;
+            application.EmployerInternalNote = request?.Note;
 
             await _context.SaveChangesAsync();
 
@@ -649,8 +634,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 Success = true,
                 Message = "Applicant hired successfully.",
                 ApplicationId = application.ApplicationId,
-                ApplicationStatus =
-                    application.ApplicationStatus.ToString()
+                ApplicationStatus = application.ApplicationStatus.ToString()
             };
         }
 

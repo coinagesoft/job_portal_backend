@@ -107,12 +107,14 @@ namespace JobPortal.API.Controllers.Recruiter
         [HttpPatch("{applicationId}/review")]
         public async Task<IActionResult> MoveToReview(
             Guid applicationId,
-            [FromQuery] Guid employerId)
+            [FromQuery] Guid employerId,
+            [FromBody] UpdateApplicantNoteRequestDto request)
         {
             var result =
                 await _service.MoveToReviewAsync(
                     employerId,
-                    applicationId);
+                    applicationId,
+                    request);
 
             return result.Success
                 ? Ok(result)
@@ -126,12 +128,14 @@ namespace JobPortal.API.Controllers.Recruiter
         [HttpPatch("{applicationId}/shortlist")]
         public async Task<IActionResult> ShortlistApplicant(
             Guid applicationId,
-            [FromQuery] Guid employerId)
+            [FromQuery] Guid employerId,
+            [FromBody] UpdateApplicantNoteRequestDto request)
         {
             var result =
                 await _service.ShortlistApplicantAsync(
                     employerId,
-                    applicationId);
+                    applicationId,
+                    request);
 
             return result.Success
                 ? Ok(result)
@@ -190,12 +194,14 @@ namespace JobPortal.API.Controllers.Recruiter
         [HttpPatch("{applicationId}/hire")]
         public async Task<IActionResult> HireApplicant(
             Guid applicationId,
-            [FromQuery] Guid employerId)
+            [FromQuery] Guid employerId,
+            [FromBody] UpdateApplicantNoteRequestDto request)
         {
             var result =
                 await _service.HireApplicantAsync(
                     employerId,
-                    applicationId);
+                    applicationId,
+                    request);
 
             return result.Success
                 ? Ok(result)

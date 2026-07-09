@@ -662,6 +662,8 @@ public class MyApplicationCardDto
     public string AppliedTimeAgo { get; set; } = default!;
 
     public DateTime StatusUpdatedAt { get; set; }
+    public string? Note { get; set; }
+
 
     public bool WithdrawalAllowed { get; set; }
 }

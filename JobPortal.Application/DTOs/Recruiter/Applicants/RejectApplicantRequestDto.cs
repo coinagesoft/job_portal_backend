@@ -10,5 +10,7 @@ namespace JobPortal.Application.DTOs.Recruiter.Applicants
     public class RejectApplicantRequestDto
     {
         public string? Reason { get; set; }
+        public string? Note { get; set; }
+
     }
 }

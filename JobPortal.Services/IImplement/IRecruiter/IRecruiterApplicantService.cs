@@ -26,11 +26,13 @@ public interface IRecruiterApplicantService
     // Status Updates
     Task<UpdateApplicantStatusResponseDto> MoveToReviewAsync(
         Guid employerId,
-        Guid applicationId);
+        Guid applicationId,
+        UpdateApplicantNoteRequestDto request);
 
     Task<UpdateApplicantStatusResponseDto> ShortlistApplicantAsync(
         Guid employerId,
-        Guid applicationId);
+        Guid applicationId,
+        UpdateApplicantNoteRequestDto request);
 
     Task<UpdateApplicantStatusResponseDto> ScheduleInterviewAsync(
         Guid employerId,
@@ -44,7 +46,8 @@ public interface IRecruiterApplicantService
 
     Task<UpdateApplicantStatusResponseDto> HireApplicantAsync(
         Guid employerId,
-        Guid applicationId);
+        Guid applicationId,
+        UpdateApplicantNoteRequestDto request);
 
     // Recruiter Notes
     Task<UpdateApplicantStatusResponseDto> AddRecruiterNoteAsync(

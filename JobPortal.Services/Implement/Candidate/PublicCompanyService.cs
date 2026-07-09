@@ -1464,11 +1464,20 @@ public class PublicCompanyService : IPublicCompanyService
                     ? job.EmployerProfile?.CompanyDisplayName
                     : "Confidential Company",
 
+            CompanyVisibility =
+                job.CompanyVisibility.ToString(),
+
             JobTitle = job.JobTitle,
 
             TradeCategory = job.TradeCategory,
 
             Department = job.Department,
+
+            IndustryType =
+    job.EmployerProfile?.IndustryType,
+
+            LocationType =
+                job.LocationType.ToString(),
 
             EmploymentType =
                 job.EmploymentType.ToString(),
@@ -1488,8 +1497,14 @@ public class PublicCompanyService : IPublicCompanyService
             SalaryRange =
                 FormatSalary(job),
 
+            SalaryVisibility =
+                job.SalaryDisplayOption,
+
             ExperienceDisplay =
                 GetExperienceDisplay(job),
+
+            EducationRequired =
+                job.EducationRequired,
 
             Vacancies =
                 job.Vacancies,
@@ -1515,11 +1530,18 @@ public class PublicCompanyService : IPublicCompanyService
                     .ToList()
                 ?? new List<string>(),
 
+            Tags =
+                job.Tags
+                ?? new List<string>(),
+
             IsFeatured =
                 job.IsFeatured,
 
             IsUrgentHiring =
                 job.IsUrgentHiring,
+
+            IsOilField =
+                job.IsOilField,
 
             PassportRequired =
                 job.PassportRequired,
