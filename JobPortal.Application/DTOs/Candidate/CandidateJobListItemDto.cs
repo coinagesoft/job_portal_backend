@@ -52,6 +52,7 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public int ViewCount { get; set; }
 
+        public bool IsSaved { get; set; } = false;
         public DateTime? PostedOn { get; set; }
 
         public string TimeAgo { get; set; } = string.Empty;

@@ -3,6 +3,7 @@
 using JobPortal.Application.DTOs.Candidate.Profile;
 using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
+using JobPortal.Services.IImplement.AI;
 using JobPortal.Services.IImplement.ICandidate;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -14,13 +15,18 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<CandidateProfileExtendedService> _logger;
+    private readonly IEmbeddingStorageService _embeddingStorage;   
+
 
     public CandidateProfileExtendedService(
         AppDbContext context,
-        ILogger<CandidateProfileExtendedService> logger)
+        ILogger<CandidateProfileExtendedService> logger,
+         IEmbeddingStorageService embeddingStorage
+        )
     {
         _context = context;
         _logger = logger;
+        _embeddingStorage = embeddingStorage;
     }
 
     // ════════════════════════════════════════════════════════
@@ -127,7 +133,14 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
+            try
+            {
+                await _embeddingStorage.GenerateCandidateEmbeddingAsync(candidateId);
+            }
+            catch (Exception embedEx)
+            {
+                _logger.LogWarning(embedEx, "Embedding refresh failed for CandidateId:{CandidateId}", candidateId);
+            }
             return new WorkExperienceMutationResponseDto
             {
                 Success = true,
@@ -187,7 +200,14 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
+            try
+            {
+                await _embeddingStorage.GenerateCandidateEmbeddingAsync(candidateId);
+            }
+            catch (Exception embedEx)
+            {
+                _logger.LogWarning(embedEx, "Embedding refresh failed for CandidateId:{CandidateId}", candidateId);
+            }
             return new WorkExperienceMutationResponseDto
             {
                 Success = true,
@@ -224,7 +244,14 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
+            try
+            {
+                await _embeddingStorage.GenerateCandidateEmbeddingAsync(candidateId);
+            }
+            catch (Exception embedEx)
+            {
+                _logger.LogWarning(embedEx, "Embedding refresh failed for CandidateId:{CandidateId}", candidateId);
+            }
             return new WorkExperienceMutationResponseDto
             {
                 Success = true,
@@ -316,7 +343,14 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
+            try
+            {
+                await _embeddingStorage.GenerateCandidateEmbeddingAsync(candidateId);
+            }
+            catch (Exception embedEx)
+            {
+                _logger.LogWarning(embedEx, "Embedding refresh failed for CandidateId:{CandidateId}", candidateId);
+            }
             return new EducationMutationResponseDto
             {
                 Success = true,
@@ -357,7 +391,14 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
+            try
+            {
+                await _embeddingStorage.GenerateCandidateEmbeddingAsync(candidateId);
+            }
+            catch (Exception embedEx)
+            {
+                _logger.LogWarning(embedEx, "Embedding refresh failed for CandidateId:{CandidateId}", candidateId);
+            }
             return new EducationMutationResponseDto
             {
                 Success = true,
@@ -394,7 +435,14 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
+            try
+            {
+                await _embeddingStorage.GenerateCandidateEmbeddingAsync(candidateId);
+            }
+            catch (Exception embedEx)
+            {
+                _logger.LogWarning(embedEx, "Embedding refresh failed for CandidateId:{CandidateId}", candidateId);
+            }
             return new EducationMutationResponseDto
             {
                 Success = true,
@@ -488,6 +536,15 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
 
             await _context.SaveChangesAsync();
 
+            try
+            {
+                await _embeddingStorage.GenerateCandidateEmbeddingAsync(candidateId);
+            }
+            catch (Exception embedEx)
+            {
+                _logger.LogWarning(embedEx, "Embedding refresh failed for CandidateId:{CandidateId}", candidateId);
+            }
+
             return new SkillMutationResponseDto
             {
                 Success = true,
@@ -526,7 +583,14 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
+            try
+            {
+                await _embeddingStorage.GenerateCandidateEmbeddingAsync(candidateId);
+            }
+            catch (Exception embedEx)
+            {
+                _logger.LogWarning(embedEx, "Embedding refresh failed for CandidateId:{CandidateId}", candidateId);
+            }
             return new SkillMutationResponseDto
             {
                 Success = true,
@@ -563,7 +627,14 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
+            try
+            {
+                await _embeddingStorage.GenerateCandidateEmbeddingAsync(candidateId);
+            }
+            catch (Exception embedEx)
+            {
+                _logger.LogWarning(embedEx, "Embedding refresh failed for CandidateId:{CandidateId}", candidateId);
+            }
             return new SkillMutationResponseDto
             {
                 Success = true,
@@ -614,7 +685,14 @@ public class CandidateProfileExtendedService : ICandidateProfileExtendedService
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
+            try
+            {
+                await _embeddingStorage.GenerateCandidateEmbeddingAsync(candidateId);
+            }
+            catch (Exception embedEx)
+            {
+                _logger.LogWarning(embedEx, "Embedding refresh failed for CandidateId:{CandidateId}", candidateId);
+            }
             return new BulkSaveSkillsResponseDto
             {
                 Success = true,

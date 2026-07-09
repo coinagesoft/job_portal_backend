@@ -24,7 +24,7 @@ public class PublicCompanyService : IPublicCompanyService
         _logger = logger;
         _jobMatching = jobMatching;
     }
-    public async Task<List<CandidateJobListItemDto>> GetAllJobsAsync()
+    public async Task<List<CandidateJobListItemDto>> GetAllJobsAsync(Guid? candidateId = null)
     {
         var today =
             DateOnly.FromDateTime(DateTime.UtcNow);
@@ -43,7 +43,20 @@ public class PublicCompanyService : IPublicCompanyService
                 .ThenByDescending(x => x.PublishedAt)
                 .ToListAsync();
 
-        return jobs.Select(job =>
+        // Preload saved-job ids for this candidate (only if candidateId passed)
+        HashSet<Guid> savedJobIds = new();
+
+        if (candidateId.HasValue && candidateId.Value != Guid.Empty)
+        {
+            savedJobIds = (await _context.SavedJobs
+                .AsNoTracking()
+                .Where(s => s.CandidateId == candidateId.Value)
+                .Select(s => s.JobId)
+                .ToListAsync())
+                .ToHashSet();
+        }
+
+        var cards = jobs.Select(job =>
         {
             string experienceDisplay;
 
@@ -69,8 +82,8 @@ public class PublicCompanyService : IPublicCompanyService
                     : string.Join(", ",
                         new[]
                         {
-                        job.OnshoreCity,
-                        job.OnshoreState
+                    job.OnshoreCity,
+                    job.OnshoreState
                         }
                         .Where(x =>
                             !string.IsNullOrWhiteSpace(x)));
@@ -79,8 +92,8 @@ public class PublicCompanyService : IPublicCompanyService
                 string.Join(", ",
                     new[]
                     {
-                    job.EmployerProfile?.City,
-                    job.EmployerProfile?.State
+                job.EmployerProfile?.City,
+                job.EmployerProfile?.State
                     }
                     .Where(x =>
                         !string.IsNullOrWhiteSpace(x)));
@@ -113,7 +126,7 @@ public class PublicCompanyService : IPublicCompanyService
                 JobType =
                     job.JobType,
                 IndustryType =
-        job.EmployerProfile?.IndustryType.ToString(),
+                    job.EmployerProfile?.IndustryType,
                 Tags = job.Tags ?? new List<string>(),
                 EducationRequired = job.EducationRequired,
                 JobLocation = jobLocation,
@@ -164,7 +177,12 @@ public class PublicCompanyService : IPublicCompanyService
                 IsInternational =
                     job.IsInternational,
 
-                AiMatchPercentage = null,
+                AiMatchPercentage = null, // set below if candidateId passed
+
+                IsSaved =
+                    candidateId.HasValue &&
+                    candidateId.Value != Guid.Empty &&
+                    savedJobIds.Contains(job.JobId),
 
                 CompanyVerified =
                     job.EmployerProfile?.Badges?.Any() == true,
@@ -173,9 +191,30 @@ public class PublicCompanyService : IPublicCompanyService
                     job.ApplicationDeadline
             };
         }).ToList();
-    }
 
-    public async Task<CandidateJobDetailsDto?> GetJobDetailsAsync(Guid jobId)
+        // AI match % — only computed when candidateId passed, exactly like GetJobsAsync
+        if (candidateId.HasValue && candidateId.Value != Guid.Empty)
+        {
+            foreach (var card in cards)
+            {
+                try
+                {
+                    var match = await _jobMatching
+                        .CalculateMatchAsync(candidateId.Value, card.JobId);
+                    card.AiMatchPercentage = match.MatchScore;
+                }
+                catch
+                {
+                    card.AiMatchPercentage = null;
+                }
+            }
+        }
+
+        return cards;
+    }
+    public async Task<CandidateJobDetailsDto?> GetJobDetailsAsync(
+        Guid jobId,
+        Guid? candidateId = null)
     {
         var job = await _context.JobPostings
             .AsNoTracking()
@@ -195,9 +234,9 @@ public class PublicCompanyService : IPublicCompanyService
         var companyLocation = string.Join(", ",
             new[]
             {
-            employer?.City,
-            employer?.State,
-            employer?.Country
+        employer?.City,
+        employer?.State,
+        employer?.Country
             }
             .Where(x => !string.IsNullOrWhiteSpace(x)));
 
@@ -206,18 +245,41 @@ public class PublicCompanyService : IPublicCompanyService
                 ? string.Join(", ",
                     new[]
                     {
-                    job.OffshoreRegion,
-                    job.OffshoreCountry
+                job.OffshoreRegion,
+                job.OffshoreCountry
                     }
                     .Where(x => !string.IsNullOrWhiteSpace(x)))
                 : string.Join(", ",
                     new[]
                     {
-                    job.OnshoreCity,
-                    job.OnshoreState,
-                    job.OnshoreCountry
+                job.OnshoreCity,
+                job.OnshoreState,
+                job.OnshoreCountry
                     }
                     .Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        int? aiMatch = null;
+        bool isSaved = false;
+
+        if (candidateId.HasValue && candidateId.Value != Guid.Empty)
+        {
+            try
+            {
+                var match = await _jobMatching
+                    .CalculateMatchAsync(candidateId.Value, job.JobId);
+                aiMatch = match.MatchScore;
+            }
+            catch
+            {
+                aiMatch = null;
+            }
+
+            isSaved = await _context.SavedJobs
+                .AsNoTracking()
+                .AnyAsync(s =>
+                    s.CandidateId == candidateId.Value &&
+                    s.JobId == job.JobId);
+        }
 
         return new CandidateJobDetailsDto
         {
@@ -246,7 +308,9 @@ public class PublicCompanyService : IPublicCompanyService
 
             ReviewCount = employer?.ReviewCount ?? 0,
 
-            AiMatchPercentage = null,
+            AiMatchPercentage = aiMatch,
+
+            IsSaved = isSaved,
 
             JobTitle = job.JobTitle,
 
@@ -256,7 +320,7 @@ public class PublicCompanyService : IPublicCompanyService
 
             Department = job.Department,
 
-            IndustryType = employer?.IndustryType.ToString(),
+            IndustryType = employer?.IndustryType,
 
             EmploymentType = job.EmploymentType.ToString(),
 
@@ -266,7 +330,6 @@ public class PublicCompanyService : IPublicCompanyService
 
             IsOilField = job.IsOilField,
 
-
             JobLocation = jobLocation,
 
             LocationType = job.LocationType.ToString(),
@@ -274,7 +337,6 @@ public class PublicCompanyService : IPublicCompanyService
             SalaryRange = FormatSalary(job) ?? "Confidential",
 
             SalaryVisibility = job.SalaryDisplayOption.ToString(),
-
 
             ApplicationCount = job.AppliedCount,
 
@@ -331,7 +393,6 @@ public class PublicCompanyService : IPublicCompanyService
                 new List<string>()
         };
     }
-
     //public async Task<CandidateJobListResponseDto> GetJobsAsync(
     // CandidateJobSearchRequestDto request)
     //{

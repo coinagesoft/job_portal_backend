@@ -1,5 +1,6 @@
 ﻿using JobPortal.Application.DTOs.Candidate;
 using JobPortal.Application.DTOs.Candidate.Jobs;
+using JobPortal.Domain.Entities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,8 +15,8 @@ namespace JobPortal.Services.IImplement.ICandidate
         /// Public list of companies shown before login.
         /// </summary>
         /// 
-        Task<List<CandidateJobListItemDto>> GetAllJobsAsync();
-        Task<CandidateJobDetailsDto?> GetJobDetailsAsync(Guid jobId);
+        Task<List<CandidateJobListItemDto>> GetAllJobsAsync(Guid? candidateId = null);
+        Task<CandidateJobDetailsDto?> GetJobDetailsAsync(Guid jobId, Guid? candidateId = null);
 
         Task<CandidateJobListResponseDto> GetJobsAsync(CandidateJobSearchRequestDto request, Guid? candidateId = null);
 

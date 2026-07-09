@@ -23,27 +23,27 @@ public class PublicCompanyController : ControllerBase
     /// 
 
 
-
     [HttpGet("All_Jobs")]
     [AllowAnonymous]
-    public async Task<IActionResult> GetAllJobs()
+    public async Task<IActionResult> GetAllJobs([FromQuery] Guid? candidateId = null)
     {
         var result =
-            await _companyService.GetAllJobsAsync();
+            await _companyService.GetAllJobsAsync(candidateId);
 
         return Ok(result);
     }
-
 
     [HttpGet("job_details/{jobId:guid}")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(CandidateJobDetailResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetJobDetails(Guid jobId)
+    public async Task<IActionResult> GetJobDetails(
+        Guid jobId,
+        [FromQuery] Guid? candidateId = null)
     {
         var result =
             await _companyService
-                .GetJobDetailsAsync(jobId);
+                .GetJobDetailsAsync(jobId, candidateId);
 
         if (result == null)
             return NotFound(new

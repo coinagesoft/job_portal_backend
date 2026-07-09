@@ -25,6 +25,8 @@ public class EmbeddingStorageService : IEmbeddingStorageService
         var candidate =
             await _db.CandidateProfiles
             .Include(x => x.Skills)
+            .Include(x => x.Educations)
+            .Include(x => x.WorkHistories)
             .FirstOrDefaultAsync(
                 x => x.CandidateId == candidateId);
 

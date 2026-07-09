@@ -5,7 +5,8 @@
     using JobPortal.Application.DTOs.JobPosting;
     using JobPortal.Domain.Enums.common;
     using JobPortal.Domain.Enums.RecruiterEnums;
-    using Microsoft.EntityFrameworkCore;
+using JobPortal.Services.IImplement.AI;
+using Microsoft.EntityFrameworkCore;
     using Microsoft.Extensions.Logging;
     using System.Text.Json;
 
@@ -15,6 +16,8 @@
     {
         private readonly AppDbContext _context;
         private readonly ILogger<JobPostingService> _logger;
+        private readonly IEmbeddingStorageService _embeddingStorage;   // ✅ नवीन
+
 
         private static readonly Dictionary<int, string> StepNames = new()
     {
@@ -29,10 +32,13 @@
 
         public JobPostingService(
             AppDbContext context,
-            ILogger<JobPostingService> logger)
+            ILogger<JobPostingService> logger,
+            IEmbeddingStorageService embeddingStorage)                  // ✅ नवीन param
+
         {
             _context = context;
             _logger = logger;
+            _embeddingStorage = embeddingStorage;
         }
 
         // ════════════════════════════════════════════════
@@ -953,6 +959,22 @@
                     "Job updated — JobId:{JobId} Employer:{EmployerId}",
                     job.JobId,
                     employerId);
+
+
+                if (job.JobStatus == JobStatus.Active)
+                {
+                    try
+                    {
+                        await _embeddingStorage.GenerateJobEmbeddingAsync(job.JobId);
+                    }
+                    catch (Exception embedEx)
+                    {
+                        _logger.LogWarning(
+                            embedEx,
+                            "Embedding generation failed for JobId:{JobId} — publish still succeeded.",
+                            job.JobId);
+                    }
+                }
 
                 return new PublishingResponseDto
                 {

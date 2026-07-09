@@ -7,10 +7,12 @@
 using JobPortal.Application.DTOs.Candidate.Profile;
 using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
+using JobPortal.Services.IImplement.AI;
 using JobPortal.Services.IImplement.ICandidate;
 using JobPortal.Services.IImplement.IUploads;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace JobPortal.Services.Implement.Candidate;
 
@@ -18,13 +20,21 @@ public class CandidateProfileService : ICandidateProfileService
 {
     private readonly AppDbContext _context;
     private readonly IFileStorageService _fileStorage;
+    private readonly ILogger<CandidateProfileService> _logger;
+
+    private readonly IEmbeddingStorageService _embeddingStorage;  
+
 
     public CandidateProfileService(
         AppDbContext context,
-        IFileStorageService fileStorage)
+         ILogger<CandidateProfileService> logger,
+        IFileStorageService fileStorage,
+          IEmbeddingStorageService embeddingStorage)
     {
         _context = context;
+        _logger = logger;
         _fileStorage = fileStorage;
+        _embeddingStorage = embeddingStorage;
     }
 
     // ============================================================
@@ -158,6 +168,19 @@ public class CandidateProfileService : ICandidateProfileService
         c.ProfileCompletionPct = pct;
 
         await _context.SaveChangesAsync();
+
+        try
+        {
+            await _embeddingStorage.GenerateCandidateEmbeddingAsync(candidateId);
+        }
+        catch (Exception embedEx)
+        {
+            _logger.LogError(
+       embedEx,
+       "Failed to generate embedding for CandidateId: {CandidateId}",
+       candidateId);
+
+        }
 
         return new UpdateCandidatePersonalInfoResponseDto
         {
@@ -453,6 +476,7 @@ public class CandidateProfileService : ICandidateProfileService
         c.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
+
 
         return new UpdateProfileAvailabilityResponseDto
         {

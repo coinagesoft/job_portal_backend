@@ -44,7 +44,7 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public string SalaryRange { get; set; } = string.Empty;
         public string SalaryVisibility { get; set; } = string.Empty;
-
+        public bool IsSaved { get; set; } = false;
         public int ApplicationCount { get; set; }
         public short OpeningCount { get; set; }
 
