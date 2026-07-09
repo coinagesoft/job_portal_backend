@@ -13,6 +13,14 @@ namespace JobPortal.Application.DTOs.Recruiter.CandidateProfile
 
         public string? PrimaryTrade { get; set; }
 
+        /// <summary>
+        /// The candidate's self-entered "Trade / Job Title" from their Personal
+        /// tab. PrimaryTrade is often null for older profiles (it's only set at
+        /// registration or via resume parsing), so the frontend should prefer
+        /// Role and fall back to PrimaryTrade.
+        /// </summary>
+        public string? Role { get; set; }
+
         public int TotalExperienceYears { get; set; }
 
         public string? CurrentCity { get; set; }

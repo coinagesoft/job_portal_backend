@@ -125,7 +125,16 @@ public class CandidateProfileService : ICandidateProfileService
             return new() { Success = false, Message = "Profile not found." };
 
         if (!string.IsNullOrWhiteSpace(r.FullName)) c.FullName = r.FullName;
-        c.Role = r.Role ?? c.Role;
+        if (!string.IsNullOrWhiteSpace(r.Role))
+        {
+            c.Role = r.Role;
+            // Employer-facing pages (CV Search, applicant cards, AI matching)
+            // read PrimaryTrade, not Role. Keep them in sync so a candidate's
+            // "Trade / Job Title" edit on the Personal tab is actually reflected
+            // there — otherwise PrimaryTrade stays stuck at whatever value was
+            // set at registration or parsed from an old resume.
+            c.PrimaryTrade = r.Role;
+        }
         c.DateOfBirth = r.DateOfBirth ?? c.DateOfBirth;
         c.Gender = r.Gender ?? c.Gender;
         c.CurrentCity = r.CurrentCity ?? c.CurrentCity;

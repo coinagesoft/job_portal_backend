@@ -102,6 +102,9 @@ namespace JobPortal.Services.Implement.Recruiter
                             PrimaryTrade =
                                 candidate.PrimaryTrade,
 
+                            Role =
+                                candidate.Role,
+
                             TotalExperienceYears =
                                 candidate.TotalExperienceYears,
 
