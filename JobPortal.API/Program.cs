@@ -85,8 +85,7 @@ builder.Services.AddScoped<IVerificationService, VerificationService>();
 builder.Services.AddScoped<ICandidateJobService, CandidateJobService>();
 builder.Services.AddScoped<ITwilioOtpService, TwilioOtpService>();
 builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExtendedService>();
-
-//builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
+builder.Services.AddScoped<ICandidateRegistrationService, CandidateRegistrationService>();
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
 builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
 builder.Services.AddScoped<IHomepageService, HomepageService>();
