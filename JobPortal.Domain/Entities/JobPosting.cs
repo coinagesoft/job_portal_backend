@@ -17,7 +17,7 @@ public class JobPosting
     public int SalaryMax { get; set; }
 
     // ✅ ALL string — no enums on entity
-    public SalaryCurrency SalaryCurrency { get; set; } = SalaryCurrency.INR;
+    public string SalaryCurrency { get; set; } 
     public string SalaryDisplayOption { get; set; } = default;
     public short Vacancies { get; set; } = 0;
     public byte ExperienceMinYears { get; set; } = 0; 

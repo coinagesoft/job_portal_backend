@@ -14,19 +14,19 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<RecruiterRegistrationService> _logger;
-    private readonly ICloudinaryService _cloudinaryService;
+    private readonly IFileStorageService _fileStorageService;
     private readonly ITwilioOtpService _twilioOtpService;
     private readonly IEmailService _emailService;
     public RecruiterRegistrationService(
         AppDbContext context,
         ILogger<RecruiterRegistrationService> logger,
-         ICloudinaryService cloudinaryService,
+         IFileStorageService fileStorageService,
          ITwilioOtpService twilioOtpService,
          IEmailService emailService)
     {
         _context = context;
         _logger = logger;
-        _cloudinaryService = cloudinaryService;
+        _fileStorageService = fileStorageService;
         _twilioOtpService = twilioOtpService;
         _emailService = emailService;
 
@@ -148,11 +148,11 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 }
 
                 // Remove previous logo if re-uploading
-                await _cloudinaryService.DeleteAsync(
+                await _fileStorageService.DeleteAsync(
                     session.CompanyLogoPublicId);
 
                 // Upload new logo
-                var logo = await _cloudinaryService.UploadImageAsync(
+                var logo = await _fileStorageService.UploadImageAsync(
                     request.CompanyLogo,
                     "jobportalrecruiter_logo/company-logos");
 
@@ -1146,12 +1146,12 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             }
 
             // Remove previous uploads if user reuploads
-            await _cloudinaryService.DeleteAsync(session.PoeLicencePublicId);
+            await _fileStorageService.DeleteAsync(session.PoeLicencePublicId);
 
-            await _cloudinaryService.DeleteAsync(session.RpslLicencePublicId);
+            await _fileStorageService.DeleteAsync(session.RpslLicencePublicId);
 
             // Upload POE
-            var poe = await _cloudinaryService.UploadDocumentAsync(
+            var poe = await _fileStorageService.UploadDocumentAsync(
                 request.PoeLicence,
                 "jobportalrecruiter_poe/licences/poe");
 
@@ -1165,14 +1165,14 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             }
 
             // Upload RPSL
-            var rpsl = await _cloudinaryService.UploadDocumentAsync(
+            var rpsl = await _fileStorageService.UploadDocumentAsync(
                 request.RpslLicence,
                 "jobportalrecruiter_rpsl/licences/rpsl");
 
             if (string.IsNullOrWhiteSpace(rpsl.Url))
             {
                 // cleanup POE because RPSL failed
-                await _cloudinaryService.DeleteAsync(poe.PublicId);
+                await _fileStorageService.DeleteAsync(poe.PublicId);
 
                 return new LicencesResponseDto
                 {

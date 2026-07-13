@@ -156,7 +156,7 @@ using Microsoft.EntityFrameworkCore;
                         JobDescription = request.JobDescription ?? string.Empty,
                         SalaryMin = 0,
                         SalaryMax = 0,
-                        SalaryCurrency = SalaryCurrency.INR,
+                        SalaryCurrency = job.SalaryCurrency,
                         SalaryDisplayOption = "Show Range",
                         ExperienceMinYears = (byte)(request.ExperienceMinYears ?? 0),
                         ExperienceMaxYears = (byte)(request.ExperienceMaxYears ?? 0),
@@ -347,7 +347,7 @@ using Microsoft.EntityFrameworkCore;
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow,
 
-                        SalaryCurrency = SalaryCurrency.INR,
+                        SalaryCurrency = job.SalaryCurrency,
                         SalaryDisplayOption = "Show Range"
                     };
 
@@ -380,10 +380,9 @@ using Microsoft.EntityFrameworkCore;
                     job.SalaryMax = request.SalaryMax.Value;
                 }
 
-                if (request.SalaryCurrency.HasValue)
+                if (!string.IsNullOrWhiteSpace(request.SalaryCurrency))
                 {
-                    job.SalaryCurrency =
-                        request.SalaryCurrency.Value;
+                    job.SalaryCurrency = request.SalaryCurrency.Trim().ToUpper();
                 }
 
                 if (!string.IsNullOrWhiteSpace(request.SalaryDisplayOption))

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace JobPortal.Application.DTOs.Recruiter
 {
-    public class CloudinaryUploadResult
+    public class FileUploadResult
     {
         public string Url { get; set; } = string.Empty;
 

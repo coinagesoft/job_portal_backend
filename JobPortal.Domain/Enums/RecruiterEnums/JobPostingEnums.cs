@@ -4,27 +4,27 @@ using System.Text.Json.Serialization;
 
 namespace JobPortal.Domain.Enums.RecruiterEnums;
 
-[JsonConverter(typeof(EnumMemberJsonConverter<SalaryCurrency>))]
-public enum SalaryCurrency
-{
-    [EnumMember(Value = "INR")]
-    INR,
+//[JsonConverter(typeof(EnumMemberJsonConverter<SalaryCurrency>))]
+//public enum SalaryCurrency
+//{
+//    [EnumMember(Value = "INR")]
+//    INR,
 
-    [EnumMember(Value = "USD")]
-    USD,
+//    [EnumMember(Value = "USD")]
+//    USD,
 
-    [EnumMember(Value = "AED")]
-    AED,
+//    [EnumMember(Value = "AED")]
+//    AED,
 
-    [EnumMember(Value = "SAR")]
-    SAR,
+//    [EnumMember(Value = "SAR")]
+//    SAR,
 
-    [EnumMember(Value = "EUR")]
-    EUR,
+//    [EnumMember(Value = "EUR")]
+//    EUR,
 
-    [EnumMember(Value = "GBP")]
-    GBP
-}
+//    [EnumMember(Value = "GBP")]
+//    GBP
+//}
 
 //[JsonConverter(typeof(EnumMemberJsonConverter<SalaryDisplayOption>))]
 //public enum SalaryDisplayOption

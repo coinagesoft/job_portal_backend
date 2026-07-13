@@ -975,14 +975,10 @@ public class PublicCompanyService : IPublicCompanyService
 
             if (!string.IsNullOrWhiteSpace(request.SalaryCurrency))
             {
-                if (Enum.TryParse<SalaryCurrency>(
-                    request.SalaryCurrency,
-                    true,
-                    out var currency))
-                {
-                    query = query.Where(j =>
-                        j.SalaryCurrency == currency);
-                }
+                var currency = request.SalaryCurrency.Trim().ToUpper();
+
+                query = query.Where(j =>
+                    j.SalaryCurrency.ToUpper() == currency);
             }
 
             //------------------------------------------------

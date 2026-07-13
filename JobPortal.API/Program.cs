@@ -12,14 +12,12 @@ using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.ICandidate;
 using JobPortal.Services.IImplement.IPublic;
 using JobPortal.Services.IImplement.IRecruiter;
-using JobPortal.Services.IImplement.IUploads;
 using JobPortal.Services.Implement;
 using JobPortal.Services.Implement.Admin;
 using JobPortal.Services.Implement.AI;
 using JobPortal.Services.Implement.Candidate;
 //using JobPortal.Services.IImplement.AI;
 using JobPortal.Services.Implement.Recruiter;
-using JobPortal.Services.Implement.Uploads;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -122,8 +120,8 @@ builder.Services.AddScoped<CandidatePagedJobService>();
 builder.Services.Configure<CloudinarySettingsDto>(
     builder.Configuration.GetSection("CloudinarySettings"));
 
-builder.Services.AddScoped<ICloudinaryService,
-    CloudinaryService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
 builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
 builder.Services.AddScoped<IEmbeddingStorageService, EmbeddingStorageService>();
@@ -134,7 +132,6 @@ builder.Services.AddScoped<IJobMatchingService, JobMatchingService>();
 
 builder.Services.AddScoped<IAiJobDescriptionService, AiJobDescriptionService>();
 builder.Services.AddScoped<IRankedCandidateService, RankedCandidateService>();
-builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 // ── Affinda AI — resume parsing ──────────────────────────────
 // Uses typed HttpClient so each instance gets its own HttpClient
 builder.Services.AddHttpClient<IAffindaService, AffindaService>();

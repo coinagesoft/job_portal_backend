@@ -14,15 +14,15 @@ using System.Threading.Tasks;
         public class VerificationService : IVerificationService
         {
         private readonly AppDbContext _context;
-        private readonly ICloudinaryService _cloudinaryService;
+        private readonly IFileStorageService _fileStorageService;
         private readonly ILogger<VerificationService> _logger;
         public VerificationService(
      AppDbContext context,
-     ICloudinaryService cloudinaryService,
+     IFileStorageService fileStorageService,
      ILogger<VerificationService> logger)
         {
             _context = context;
-            _cloudinaryService = cloudinaryService;
+            _fileStorageService = fileStorageService;
             _logger = logger;
         }
 
@@ -144,12 +144,12 @@ using System.Threading.Tasks;
                         // Remove old file
                         if (!string.IsNullOrWhiteSpace(profile.PoeLicencePublicId))
                         {
-                            await _cloudinaryService.DeleteAsync(
+                            await _fileStorageService.DeleteAsync(
                                 profile.PoeLicencePublicId);
                         }
 
                         var poeUpload =
-                            await _cloudinaryService.UploadDocumentAsync(
+                            await _fileStorageService.UploadDocumentAsync(
                                 request.File,
                                 "verification-documents");
 
@@ -162,12 +162,12 @@ using System.Threading.Tasks;
 
                         if (!string.IsNullOrWhiteSpace(profile.RpslLicencePublicId))
                         {
-                            await _cloudinaryService.DeleteAsync(
+                            await _fileStorageService.DeleteAsync(
                                 profile.RpslLicencePublicId);
                         }
 
                         var rpslUpload =
-                            await _cloudinaryService.UploadDocumentAsync(
+                            await _fileStorageService.UploadDocumentAsync(
                                 request.File,
                                 "verification-documents");
 
@@ -179,7 +179,7 @@ using System.Threading.Tasks;
                     case DocumentType.BUSINESS_REGISTRATION:
 
                         var businessUpload =
-                            await _cloudinaryService.UploadDocumentAsync(
+                            await _fileStorageService.UploadDocumentAsync(
                                 request.File,
                                 "verification-documents");
 

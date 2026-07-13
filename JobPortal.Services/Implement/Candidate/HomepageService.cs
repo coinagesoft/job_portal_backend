@@ -383,38 +383,41 @@ public class HomepageService : IHomepageService
         try { return JsonSerializer.Deserialize<List<string>>(json) ?? new(); }
         catch { return new(); }
     }
-    private static string BuildSalaryDisplay(
-     int min,
-     int max,
-     SalaryCurrency currency,
-     string displayOption)
+private static string BuildSalaryDisplay(
+    int min,
+    int max,
+    string? currency,
+    string? displayOption)
+{
+    if (string.Equals(displayOption, "Confidential", StringComparison.OrdinalIgnoreCase))
+        return "Confidential";
+
+    var symbol = (currency ?? "INR").ToUpperInvariant() switch
     {
-        if (string.Equals(displayOption, "Confidential", StringComparison.OrdinalIgnoreCase))
-            return "Confidential";
+        "USD" => "$",
+        "AED" => "AED ",
+        "SAR" => "SAR ",
+        "EUR" => "€",
+        "GBP" => "£",
+        "INR" => "₹",
+        _ => "₹"
+    };
 
-        var symbol = currency switch
-        {
-            SalaryCurrency.USD => "$",
-            SalaryCurrency.AED => "AED ",
-            SalaryCurrency.SAR => "SAR ",
-            _ => "₹"
-        };
+    return (displayOption ?? "Show Range") switch
+    {
+        "Show Min Only"
+            => $"{symbol}{min:N0}+",
 
-        return displayOption?.ToLowerInvariant() switch
-        {
-            "Show Min Only"
-                => $"{symbol}{min:N0}+",
+        "Show Max Only"
+            => $"{symbol}{max:N0}",
 
-            "Show Max Only"
-                => $"{symbol}{max:N0}",
+        "Show Range"
+            => $"{symbol}{min:N0} - {symbol}{max:N0}",
 
-            "Show Range"
-                => $"{symbol}{min:N0} - {symbol}{max:N0}",
-
-            _
-                => $"{symbol}{min:N0} - {symbol}{max:N0}"
-        };
-    }
+        _
+            => $"{symbol}{min:N0} - {symbol}{max:N0}"
+    };
+}
 
     private static string GetTimeAgo(DateTime? dateTime)
     {

@@ -43,7 +43,7 @@ public class RecruiterJobDetailResponseDto
 
     public int SalaryMax { get; set; }
 
-    public SalaryCurrency SalaryCurrency { get; set; }
+    public string SalaryCurrency { get; set; }
 
     public string SalaryDisplayOption { get; set; }
 

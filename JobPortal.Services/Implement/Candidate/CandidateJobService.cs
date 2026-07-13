@@ -773,36 +773,34 @@ public class CandidateJobService : ICandidateJobService
         };
     }
     // ── Salary formatting ─────────────────────────────────
-    private static string? FormatSalary(JobPosting job)
+private static string? FormatSalary(JobPosting job)
+{
+    var symbol = (job.SalaryCurrency ?? "INR").ToUpperInvariant() switch
     {
-      
+        "USD" => "$",
+        "AED" => "AED ",
+        "SAR" => "SAR ",
+        "EUR" => "€",
+        "GBP" => "£",
+        "INR" => "₹",
+        _ => job.SalaryCurrency + " "
+    };
 
-        var symbol = job.SalaryCurrency switch
-        {
-            SalaryCurrency.USD => "$",
-            SalaryCurrency.AED => "AED ",
-            SalaryCurrency.SAR => "SAR ",
-            SalaryCurrency.EUR => "€",
-            SalaryCurrency.GBP => "£",
-            _ => "₹"
-        };
-
-        return job.SalaryDisplayOption switch
-        {
-            "Show Min Only" =>
+    return (job.SalaryDisplayOption ?? "Show Range") switch
+    {
+        "Show Min Only" =>
             $"{symbol}{job.SalaryMin:N0}+",
 
-            "Show Max Only" =>
-                $"{symbol}{job.SalaryMax:N0}",
+        "Show Max Only" =>
+            $"{symbol}{job.SalaryMax:N0}",
 
-            "Show Range" =>
-                $"{symbol}{job.SalaryMin:N0} - {symbol}{job.SalaryMax:N0} / month",
+        "Show Range" =>
+            $"{symbol}{job.SalaryMin:N0} - {symbol}{job.SalaryMax:N0} / month",
 
-            _ =>
-                $"{symbol}{job.SalaryMin:N0} - {symbol}{job.SalaryMax:N0} / month"
-        };
-    }
-
+        _ =>
+            $"{symbol}{job.SalaryMin:N0} - {symbol}{job.SalaryMax:N0} / month"
+    };
+}
     // ── Time-ago string ───────────────────────────────────
     private static string GetTimeAgo(DateTime? publishedAt)
     {

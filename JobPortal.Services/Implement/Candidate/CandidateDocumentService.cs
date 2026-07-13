@@ -7,10 +7,11 @@ using CloudinaryDotNet.Actions;
 using JobPortal.Application.DTOs.AI;
 using JobPortal.Application.DTOs.Candidate;
 using JobPortal.Application.DTOs.Candidate.Profile;
+using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.ICandidate;
-using JobPortal.Services.IImplement.IUploads;
+using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -259,8 +260,9 @@ public class CandidateDocumentService : ICandidateDocumentService
             // =====================================================
             // 3. Upload Resume to Cloudinary
             // =====================================================
-            uploadResult = await _fileStorage.SaveFileAsync(file, "resumes");
-
+            uploadResult = await _fileStorage.UploadDocumentAsync(
+                file,
+                "resumes");
 
             // =====================================================
             // 4. Delete Previous Resume From Cloudinary
@@ -514,7 +516,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 try
                 {
-                    await _fileStorage.DeleteFileAsync(existingCv.CvPublicId);
+                    await _fileStorage.DeleteAsync(existingCv.CvPublicId);
                 }
                 catch (Exception ex)
                 {
@@ -586,7 +588,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 try
                 {
-                    await _fileStorage.DeleteFileAsync(uploadResult.PublicId);
+                    await _fileStorage.DeleteAsync(uploadResult.PublicId);
                 }
                 catch (Exception cleanupEx)
                 {
@@ -617,7 +619,7 @@ public class CandidateDocumentService : ICandidateDocumentService
 
         try
         {
-            await _fileStorage.DeleteFileAsync(publicId);
+            await _fileStorage.DeleteAsync(publicId);
         }
         catch (Exception ex)
         {
@@ -777,7 +779,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             var shortId = candidateId.ToString("N").Substring(0, 8);
             var fileName = $"{Slugify(documentType)}_{Slugify(profile.FullName)}_{shortId}";
 
-            uploadResult = await _fileStorage.SaveFileAsync(
+            uploadResult = await _fileStorage.UploadDocumentAsync(
                 file,
                 "candidate-documents",
                 fileName);
@@ -1069,7 +1071,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 try
                 {
-                    await _fileStorage.DeleteFileAsync(publicId);
+                    await _fileStorage.DeleteAsync(publicId);
                 }
                 catch (Exception ex)
                 {
@@ -1190,9 +1192,9 @@ public class CandidateDocumentService : ICandidateDocumentService
             // 4. Upload Certificate to Cloudinary
             // =====================================================
 
-            uploadResult = await _fileStorage.SaveFileAsync(
-                file,
-                "education");
+            uploadResult = await _fileStorage.UploadDocumentAsync(
+       file,
+       "education");
 
             // =====================================================
             // Load Existing ITI Review
@@ -1288,7 +1290,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 try
                 {
-                    await _fileStorage.DeleteFileAsync(
+                    await _fileStorage.DeleteAsync(
                         existingEducation.CertificatePublicId);
                 }
                 catch (Exception ex)
@@ -1437,7 +1439,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 try
                 {
-                    await _fileStorage.DeleteFileAsync(publicId);
+                    await _fileStorage.DeleteAsync(publicId);
                 }
                 catch (Exception ex)
                 {
@@ -1646,7 +1648,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             // 6. Upload Front Image to Cloudinary
             // =====================================================
 
-            frontUpload = await _fileStorage.SaveFileAsync(
+            frontUpload = await _fileStorage.UploadDocumentAsync(
                 frontImage,
                 "passport/front");
 
@@ -1656,7 +1658,7 @@ public class CandidateDocumentService : ICandidateDocumentService
 
             if (backImage != null)
             {
-                backUpload = await _fileStorage.SaveFileAsync(
+                backUpload = await _fileStorage.UploadDocumentAsync(
                     backImage,
                     "passport/back");
             }
@@ -1786,10 +1788,10 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 try
                 {
-                    await _fileStorage.DeleteFileAsync(
+                    await _fileStorage.DeleteAsync(
                         existingPassport.FrontPublicId);
 
-                    await _fileStorage.DeleteFileAsync(
+                    await _fileStorage.DeleteAsync(
                         existingPassport.BackPublicId);
                 }
                 catch (Exception ex)
@@ -1923,12 +1925,12 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 if (!string.IsNullOrWhiteSpace(frontPublicId))
                 {
-                    await _fileStorage.DeleteFileAsync(frontPublicId);
+                    await _fileStorage.DeleteAsync(frontPublicId);
                 }
 
                 if (!string.IsNullOrWhiteSpace(backPublicId))
                 {
-                    await _fileStorage.DeleteFileAsync(backPublicId);
+                    await _fileStorage.DeleteAsync(backPublicId);
                 }
             }
             catch (Exception ex)
@@ -2058,7 +2060,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             // =====================================================
             // 5. Upload Front Image to Cloudinary
             // =====================================================
-            frontUpload = await _fileStorage.SaveFileAsync(
+            frontUpload = await _fileStorage.UploadDocumentAsync(
                 frontImage,
                 "aadhaar/front");
 
@@ -2067,7 +2069,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             // =====================================================
             if (backImage != null)
             {
-                backUpload = await _fileStorage.SaveFileAsync(
+                backUpload = await _fileStorage.UploadDocumentAsync(
                     backImage,
                     "aadhaar/back");
             }
@@ -2222,10 +2224,10 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 try
                 {
-                    await _fileStorage.DeleteFileAsync(
+                    await _fileStorage.DeleteAsync(
       existingKyc.IdFrontPublicId);
 
-                    await _fileStorage.DeleteFileAsync(
+                    await _fileStorage.DeleteAsync(
                         existingKyc.IdBackPublicId);
                 }
                 catch (Exception ex)
@@ -2360,12 +2362,12 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 if (!string.IsNullOrWhiteSpace(frontPublicId))
                 {
-                    await _fileStorage.DeleteFileAsync(frontPublicId);
+                    await _fileStorage.DeleteAsync(frontPublicId);
                 }
 
                 if (!string.IsNullOrWhiteSpace(backPublicId))
                 {
-                    await _fileStorage.DeleteFileAsync(backPublicId);
+                    await _fileStorage.DeleteAsync(backPublicId);
                 }
             }
             catch (Exception ex)

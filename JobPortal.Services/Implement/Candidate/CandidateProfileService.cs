@@ -9,7 +9,7 @@ using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.AI;
 using JobPortal.Services.IImplement.ICandidate;
-using JobPortal.Services.IImplement.IUploads;
+using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -216,11 +216,13 @@ public class CandidateProfileService : ICandidateProfileService
         // remove the previous photo if any
         if (!string.IsNullOrWhiteSpace(c.ProfilePhotoPublicId))
         {
-            try { await _fileStorage.DeleteFileAsync(c.ProfilePhotoPublicId); }
+            try { await _fileStorage.DeleteAsync(c.ProfilePhotoPublicId); }
             catch { /* ignore cleanup failure */ }
         }
 
-        var upload = await _fileStorage.SaveFileAsync(photo, "profile-photos");
+        var upload = await _fileStorage.UploadImageAsync(
+      photo,
+      "profile-photos");
 
         c.ProfilePhotoUrl = upload.Url;
         c.ProfilePhotoPublicId = upload.PublicId;
@@ -246,7 +248,7 @@ public class CandidateProfileService : ICandidateProfileService
 
         if (!string.IsNullOrWhiteSpace(c.ProfilePhotoPublicId))
         {
-            try { await _fileStorage.DeleteFileAsync(c.ProfilePhotoPublicId); }
+            try { await _fileStorage.DeleteAsync(c.ProfilePhotoPublicId); }
             catch { /* ignore */ }
         }
 

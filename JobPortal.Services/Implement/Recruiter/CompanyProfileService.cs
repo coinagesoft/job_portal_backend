@@ -1,7 +1,6 @@
 ﻿using JobPortal.Application.DTOs.Recruiter.CompanyProfile;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
-using JobPortal.Services.IImplement.IUploads;
 using Microsoft.EntityFrameworkCore;
 
 namespace JobPortal.Services.Implement.Recruiter
@@ -107,7 +106,7 @@ namespace JobPortal.Services.Implement.Recruiter
 
             if (request.CompanyLogo != null && request.CompanyLogo.Length > 0)
             {
-                var logoResult = await _fileStorageService.SaveFileAsync(
+                var logoResult = await _fileStorageService.UploadImageAsync(
                     request.CompanyLogo, "company-logos");
 
                 profile.CompanyLogoUrl = logoResult.Url;
@@ -116,7 +115,7 @@ namespace JobPortal.Services.Implement.Recruiter
 
             if (request.CoverImage != null && request.CoverImage.Length > 0)
             {
-                var coverResult = await _fileStorageService.SaveFileAsync(
+                var coverResult = await _fileStorageService.UploadImageAsync(
                     request.CoverImage, "company-covers");
 
                 profile.CoverImageUrl = coverResult.Url;
