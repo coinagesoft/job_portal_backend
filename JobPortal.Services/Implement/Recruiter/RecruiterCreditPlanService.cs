@@ -85,12 +85,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 return Fail<CreatePlanOrderResponseDto>("Plan not found or is no longer active.");
 
             int amountPaise = (int)(plan.Price * 100);   // ₹ → paise
+            int gstAmountPaise = (int)Math.Round(amountPaise * 0.18m, MidpointRounding.AwayFromZero);
+            int totalAmountPaise = amountPaise + gstAmountPaise;
 
             // ── Call Razorpay Orders API ──────────────────────────────
             string razorpayOrderId;
             try
             {
-                razorpayOrderId = await CallRazorpayCreateOrderAsync(amountPaise, plan.PlanId);
+                razorpayOrderId = await CallRazorpayCreateOrderAsync(totalAmountPaise, plan.PlanId);
             }
             catch (Exception ex)
             {
@@ -110,8 +112,8 @@ namespace JobPortal.Services.Implement.Recruiter
                 CreditQuantity = plan.Credits,
                 ValidityMonths = (byte)Math.Min(plan.ValidityMonths, 255),
                 AmountPaise = amountPaise,
-                GstAmountPaise = 0,
-                TotalAmountPaise = amountPaise,
+                GstAmountPaise = gstAmountPaise,
+                TotalAmountPaise = totalAmountPaise,
                 PaymentMethod = "Razorpay",
                 RazorpayOrderId = razorpayOrderId,
                 PaymentStatus = "Pending",
@@ -126,7 +128,9 @@ namespace JobPortal.Services.Implement.Recruiter
                 Success = true,
                 Message = "Order created successfully.",
                 RazorpayOrderId = razorpayOrderId,
-                AmountPaise = amountPaise,
+                AmountPaise = totalAmountPaise,   // GST-inclusive — this is what the Razorpay SDK actually charges
+                BaseAmountPaise = amountPaise,
+                GstAmountPaise = gstAmountPaise,
                 Currency = "INR",
                 RazorpayKeyId = RazorpayKeyId,
                 PlanId = plan.PlanId,

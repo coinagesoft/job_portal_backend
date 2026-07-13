@@ -2489,13 +2489,23 @@ public class CandidateDocumentService : ICandidateDocumentService
         if (affindaSkills == null || !affindaSkills.Any())
             return;
 
-        // Candidate already has skills.
-        // Do not overwrite.
-        if (await _context.CandidateSkills
-            .AnyAsync(x => x.CandidateId == candidateId))
-        {
+        var existingSkills = await _context.CandidateSkills
+            .Where(x => x.CandidateId == candidateId && x.SkillType == "Skill")
+            .ToListAsync();
+
+        // If the candidate has manually added/edited skills (anything not
+        // tagged as Affinda-derived — a real proficiency level like
+        // "Beginner"/"Intermediate"/"Expert" is stored in SkillRole for
+        // those), respect their edits and leave them alone.
+        if (existingSkills.Any(x => x.SkillRole != "Affinda"))
             return;
-        }
+
+        // Otherwise every existing skill here came from a previous resume
+        // parse — replace them with the freshly parsed set so re-uploading
+        // a resume actually refreshes the profile instead of being silently
+        // ignored forever after the first upload.
+        if (existingSkills.Any())
+            _context.CandidateSkills.RemoveRange(existingSkills);
 
         var distinctSkills = affindaSkills
             .Where(x => !string.IsNullOrWhiteSpace(x))
@@ -2528,13 +2538,18 @@ public class CandidateDocumentService : ICandidateDocumentService
         if (affindaWork == null || !affindaWork.Any())
             return;
 
-        // Candidate already has work history.
-        // Do not overwrite.
-        if (await _context.CandidateWorkHistories
-            .AnyAsync(x => x.CandidateId == candidateId))
-        {
+        var existingWork = await _context.CandidateWorkHistories
+            .Where(x => x.CandidateId == candidateId)
+            .ToListAsync();
+
+        // Manually-added work history is never AI-verified — leave it alone.
+        if (existingWork.Any(x => !x.IsAiVerified))
             return;
-        }
+
+        // Otherwise everything here came from a previous resume parse —
+        // replace with the freshly parsed set.
+        if (existingWork.Any())
+            _context.CandidateWorkHistories.RemoveRange(existingWork);
 
         foreach (var exp in affindaWork)
         {
@@ -2545,9 +2560,16 @@ public class CandidateDocumentService : ICandidateDocumentService
             }
 
             var startDate =
-                ParseDatePoint(exp.Parsed?.WorkExperienceDates?.Start)
-                ?? DateOnly.FromDateTime(DateTime.UtcNow);
+                ParseDatePoint(exp.Parsed?.WorkExperienceDates?.Start);
 
+            // Affinda sometimes gives no usable date for an entry at all
+            // (common on resumes with dates in a separate sidebar column
+            // that don't associate cleanly with each role). Previously this
+            // silently defaulted to today's date, which is actively
+            // misleading for a past job — e.g. "started today". StartDate is
+            // now nullable, so we keep the entry (title/company/description
+            // are still valuable) and simply leave the date unset rather
+            // than inventing one.
             var endDate =
                 exp.Parsed?.WorkExperienceDates?.End?.IsCurrent == true
                     ? null
@@ -2580,7 +2602,9 @@ public class CandidateDocumentService : ICandidateDocumentService
                 WorkLocation =
                     exp.Parsed?.WorkExperienceLocation?.Formatted,
 
-                IsOffshore = false
+                IsOffshore = false,
+
+                IsAiVerified = true
             });
         }
     }
@@ -2657,12 +2681,20 @@ public class CandidateDocumentService : ICandidateDocumentService
         if (affindaLanguages == null || !affindaLanguages.Any())
             return;
 
-        // Candidate already has language entries — do not overwrite.
-        if (await _context.CandidateSkills
-            .AnyAsync(x => x.CandidateId == candidateId && x.SkillType == "Language"))
-        {
+        var existingLanguages = await _context.CandidateSkills
+            .Where(x => x.CandidateId == candidateId && x.SkillType == "Language")
+            .ToListAsync();
+
+        // Manually-added languages carry a real proficiency value in
+        // SkillRole (e.g. "Conversational") rather than "Affinda" — leave
+        // those alone.
+        if (existingLanguages.Any(x => x.SkillRole != "Affinda"))
             return;
-        }
+
+        // Otherwise these are all left over from a previous resume parse —
+        // replace with the freshly parsed set.
+        if (existingLanguages.Any())
+            _context.CandidateSkills.RemoveRange(existingLanguages);
 
         var distinctLanguages = affindaLanguages
             .Select(l => l.Parsed?.Parsed)
@@ -2694,13 +2726,19 @@ public class CandidateDocumentService : ICandidateDocumentService
         if (affindaEducations == null || !affindaEducations.Any())
             return;
 
-        // Candidate already has education.
-        // Do not overwrite existing data.
-        if (await _context.CandidateEducations
-            .AnyAsync(x => x.CandidateId == candidateId))
-        {
+        var existingEducations = await _context.CandidateEducations
+            .Where(x => x.CandidateId == candidateId)
+            .ToListAsync();
+
+        // Manually-added education entries are not AI-verified — leave
+        // those alone and don't touch this candidate's education at all.
+        if (existingEducations.Any(x => !x.IsAiVerified))
             return;
-        }
+
+        // Otherwise every existing row here came from a previous resume
+        // parse — replace with the freshly parsed set.
+        if (existingEducations.Any())
+            _context.CandidateEducations.RemoveRange(existingEducations);
 
         foreach (var edu in affindaEducations)
         {
