@@ -2005,10 +2005,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("is_international");
 
-                    b.Property<bool?>("IsOilField")
-                        .HasColumnType("boolean")
-                        .HasColumnName("isOil_field");
-
                     b.Property<bool>("IsUrgentHiring")
                         .HasColumnType("boolean")
                         .HasColumnName("is_urgent_hiring");

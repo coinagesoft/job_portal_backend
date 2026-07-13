@@ -166,8 +166,8 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 EmploymentType = x.EmploymentType.ToString(),
                 EmploymentMode = x.EmploymentMode.ToString(),
-                IsOilField = x.IsOilField,
                 JobStatus = x.JobStatus.ToString(),
+                IndustryType = x.IndustryType.ToString(),
 
                 IsActive = x.IsActive,
                 IsFeatured = x.IsFeatured,
@@ -249,8 +249,7 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 Department = job.Department,
 
-                IsOilField = job.IsOilField,
-
+                IndustryType = job.IndustryType,
                 // =====================================================
                 // Job Type
                 // =====================================================
@@ -366,8 +365,8 @@ namespace JobPortal.Services.Implement.Recruiter
                         .ToList()
                     ?? new List<ScreeningQuestion>(),
 
-                PublishingTags =
-                    job.PublishingTags ?? new List<string>(),
+                //PublishingTags =
+                //    job.PublishingTags ?? new List<string>(),
 
                 // =====================================================
                 // Analytics

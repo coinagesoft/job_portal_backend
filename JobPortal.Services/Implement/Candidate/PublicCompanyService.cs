@@ -114,7 +114,6 @@ public class PublicCompanyService : IPublicCompanyService
                 JobTitle = job.JobTitle,
                 CompanyVisibility = job.CompanyVisibility.ToString(),
                 TradeCategory = job.TradeCategory,
-                IsOilField = job.IsOilField,
                 Department = job.Department,
                 LocationType = job.LocationType.ToString(),
                 EmploymentType =
@@ -328,7 +327,6 @@ public class PublicCompanyService : IPublicCompanyService
 
             JobType = job.JobType.ToString(),
 
-            IsOilField = job.IsOilField,
 
             JobLocation = jobLocation,
 
@@ -1597,8 +1595,7 @@ public class PublicCompanyService : IPublicCompanyService
             IsUrgentHiring =
                 job.IsUrgentHiring,
 
-            IsOilField =
-                job.IsOilField,
+           
 
             PassportRequired =
                 job.PassportRequired,

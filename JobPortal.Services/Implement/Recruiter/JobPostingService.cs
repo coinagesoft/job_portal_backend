@@ -152,11 +152,10 @@ using Microsoft.EntityFrameworkCore;
                         JobTitle = request.JobTitle ?? string.Empty,
                         TradeCategory = request.TradeCategory ?? string.Empty,
                         Role = request.Role,
-                        IsOilField= request.IsOilField,
                         JobDescription = request.JobDescription ?? string.Empty,
                         SalaryMin = 0,
                         SalaryMax = 0,
-                        SalaryCurrency = job.SalaryCurrency,
+                        SalaryCurrency = "INR",
                         SalaryDisplayOption = "Show Range",
                         ExperienceMinYears = (byte)(request.ExperienceMinYears ?? 0),
                         ExperienceMaxYears = (byte)(request.ExperienceMaxYears ?? 0),
@@ -176,7 +175,7 @@ using Microsoft.EntityFrameworkCore;
                             : request.EmploymentMode.Trim(),
 
                         Department = request.Department,
-
+                        IndustryType = request.IndustryType,
                         DutyHoursPerDay = request.DutyHoursPerDay.HasValue
                             ? (byte?)request.DutyHoursPerDay.Value
                             : null,
@@ -232,10 +231,7 @@ using Microsoft.EntityFrameworkCore;
                     job.Role = request.Role;
                     job.JobDescription = request.JobDescription ?? job.JobDescription;
 
-                    if (request.IsOilField.HasValue)
-                    {
-                        job.IsOilField = request.IsOilField.Value;
-                    }
+                  
                     job.ExperienceMinYears =
                         (byte)(request.ExperienceMinYears ?? job.ExperienceMinYears);
 
@@ -260,6 +256,11 @@ using Microsoft.EntityFrameworkCore;
                     if (!string.IsNullOrWhiteSpace(request.Department))
                     {
                         job.Department = request.Department.Trim();
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(request.IndustryType))
+                    {
+                        job.IndustryType = request.IndustryType.Trim();
                     }
 
                     if (request.DutyHoursPerDay.HasValue)
@@ -919,11 +920,7 @@ using Microsoft.EntityFrameworkCore;
                         request.CompanyVisibility.Value;
                 }
 
-                if (request.PublishingTags != null)
-                {
-                    job.PublishingTags =
-                            request.PublishingTags;
-                }
+             
 
                 job.LastCompletedStep =
                     Math.Max(job.LastCompletedStep, 7);
@@ -1128,12 +1125,11 @@ using Microsoft.EntityFrameworkCore;
 
                         ExperienceMinYears = job.ExperienceMinYears,
                         ExperienceMaxYears = job.ExperienceMaxYears,
-                   
+                        IndustryType = job.IndustryType,
                         JobDescription = job.JobDescription,
 
                         EmploymentType = job.EmploymentType,
                         EmploymentMode = job.EmploymentMode,
-                        IsOilField = job.IsOilField,
                         Department = job.Department,
 
                         DutyHoursPerDay = job.DutyHoursPerDay,
@@ -1266,8 +1262,7 @@ using Microsoft.EntityFrameworkCore;
                         CompanyVisibility =
         job.CompanyVisibility,
 
-                        PublishingTags =
-        job.PublishingTags ?? new List<string>(),
+        
 
                         PublishNow =
         job.JobStatus == JobStatus.Active

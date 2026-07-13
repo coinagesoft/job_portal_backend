@@ -18,7 +18,6 @@ namespace JobPortal.Application.DTOs.Recruiter.JobListing
         
         public string? Role { get; set; }
 
-        public bool? IsOilField { get; set; }
 
         public string Location { get; set; } = string.Empty;
 
@@ -33,6 +32,8 @@ namespace JobPortal.Application.DTOs.Recruiter.JobListing
         public int SalaryMin { get; set; }
 
         public int SalaryMax { get; set; }
+        public string IndustryType { get; set; } = default!;
+
         public string? Department { get; set; }
 
         public string? EmploymentType { get; set; }

@@ -32,6 +32,9 @@ public class JobDetailsRequestDto
     [Required]
     public string JobType { get; set; } = "Normal Job";
 
+    public string IndustryType { get; set; } = default!;
+
+
     [Required]
     public string EmploymentType { get; set; } = string.Empty;
 
@@ -41,7 +44,6 @@ public class JobDetailsRequestDto
     public string? Department { get; set; }
 
     public int? DutyHoursPerDay { get; set; }
-    public bool? IsOilField { get; set; }
 
     public bool? PaidOvertime { get; set; }
 

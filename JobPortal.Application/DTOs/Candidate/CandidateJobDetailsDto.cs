@@ -33,7 +33,6 @@ namespace JobPortal.Application.DTOs.Candidate
         public string TradeCategory { get; set; } = string.Empty;
         public string? Department { get; set; }
         public string IndustryType { get; set; } = default!;
-        public bool? IsOilField { get; set; }
         public List<string> RequiredLicencesCertificates { get; set; }
         public string EmploymentType { get; set; } = string.Empty;
         public string EmploymentMode { get; set; } = string.Empty;

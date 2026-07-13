@@ -45,7 +45,6 @@ public class JobPosting
     public bool IsInternational { get; set; } = false;
     public bool PassportRequired { get; set; } = false;
     public byte? PassportValidityMonths { get; set; }
-    public bool? IsOilField { get; set; }
     public CompanyVisibility CompanyVisibility { get; set; } = CompanyVisibility.ShowName;
     public DateOnly ApplicationDeadline { get; set; }
     public int AppliedCount { get; set; } = 0;
@@ -68,7 +67,8 @@ public class JobPosting
     public string EmploymentMode { get; set; } = default;
     // Department shown on card
     public string? Department { get; set; }
-
+    // NEW
+    public string IndustryType { get; set; } = default!;
     // Analytics
     public int ViewCount { get; set; } = 0;
 

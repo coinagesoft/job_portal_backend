@@ -816,9 +816,9 @@ private static string? FormatSalary(JobPosting job)
     }
 
     // ── Tag builder ───────────────────────────────────────
-    private static List<string> BuildTags(JobPosting job, List<string> publishingTags)
+    private static List<string> BuildTags(JobPosting job, List<string> Tags)
     {
-        var tags = new List<string>(publishingTags);
+        var tags = new List<string>(Tags);
 
         if (job.PassportRequired) tags.Add("Passport Required");
         if (job.IsInternational) tags.Add("International");
@@ -887,8 +887,8 @@ private static string? FormatSalary(JobPosting job)
                 var isConfidential =
                     job.CompanyVisibility == CompanyVisibility.HideName;
 
-                var publishingTags =
-                    job.PublishingTags ?? new List<string>();
+                var Tags =
+                    job.Tags ?? new List<string>();
 
                 var isExpired =
                     job.ApplicationDeadline < today;
@@ -1027,7 +1027,7 @@ private static string? FormatSalary(JobPosting job)
 
                     // Skills
                     Tags =
-                        BuildTags(job, publishingTags),
+                        BuildTags(job,Tags),
 
                     KeySkills =
                         (job.KeySkills ?? new List<string>())

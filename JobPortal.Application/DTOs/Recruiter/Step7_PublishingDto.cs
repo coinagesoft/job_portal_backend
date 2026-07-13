@@ -15,7 +15,7 @@ public class PublishingRequestDto
     /// <summary>
     /// Hot Job, Urgent Hiring, Premium Listing — optional tags
     /// </summary>
-    public List<string>? PublishingTags { get; set; } = new();
+    //public List<string>? PublishingTags { get; set; } = new();
 
     /// <summary>
     /// true = publish immediately

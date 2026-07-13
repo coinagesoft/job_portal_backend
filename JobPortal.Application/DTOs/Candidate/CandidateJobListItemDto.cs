@@ -26,7 +26,6 @@ namespace JobPortal.Application.DTOs.Candidate
         
         public string? LocationType { get; set; }
         public List<string> Tags { get; set; } = new();
-        public bool? IsOilField { get; set; }
 
         // NEW
         public string? EducationRequired { get; set; }

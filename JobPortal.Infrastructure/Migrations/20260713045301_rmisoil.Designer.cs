@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260628173730_AddCandidateDocuments")]
-    partial class AddCandidateDocuments
+    [Migration("20260713045301_rmisoil")]
+    partial class rmisoil
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -1989,6 +1989,10 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("gender_preferred");
 
+                    b.Property<string>("IndustryType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean")
                         .HasColumnName("is_active");
@@ -2004,7 +2008,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<bool>("IsInternational")
                         .HasColumnType("boolean")
                         .HasColumnName("is_international");
-
 
                     b.Property<bool>("IsUrgentHiring")
                         .HasColumnType("boolean")
