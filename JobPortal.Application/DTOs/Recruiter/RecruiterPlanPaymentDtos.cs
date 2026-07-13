@@ -14,11 +14,16 @@ namespace JobPortal.Application.DTOs.Recruiter
         public bool Success { get; set; }
         public string? Message { get; set; }
 
-        // Pass these directly to the Razorpay JS SDK
+        // Pass these directly to the Razorpay JS SDK.
+        // AmountPaise is the GST-inclusive total actually charged.
         public string? RazorpayOrderId { get; set; }
         public int AmountPaise { get; set; }
         public string Currency { get; set; } = "INR";
         public string? RazorpayKeyId { get; set; }
+
+        // Breakdown, for display / invoicing
+        public int BaseAmountPaise { get; set; }
+        public int GstAmountPaise { get; set; }
 
         // Plan metadata — useful for the checkout UI
         public Guid PlanId { get; set; }

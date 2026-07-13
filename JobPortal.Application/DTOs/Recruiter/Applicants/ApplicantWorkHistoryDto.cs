@@ -13,7 +13,7 @@ namespace JobPortal.Application.DTOs.Recruiter.Applicants
 
         public string JobTitle { get; set; } = string.Empty;
 
-        public DateOnly StartDate { get; set; }
+        public DateOnly? StartDate { get; set; }
 
         public DateOnly? EndDate { get; set; }
 

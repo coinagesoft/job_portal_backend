@@ -14,7 +14,7 @@ namespace JobPortal.Application.DTOs.Recruiter.CandidateProfile
 
         public string JobTitle { get; set; } = string.Empty;
 
-        public DateOnly StartDate { get; set; }
+        public DateOnly? StartDate { get; set; }
 
         public DateOnly? EndDate { get; set; }
 

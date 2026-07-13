@@ -40,7 +40,7 @@ public class WorkExperienceItemDto
     public string? WorkLocation { get; set; }
     public string? NoticePeriod { get; set; }
 
-    public DateOnly StartDate { get; set; }
+    public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     /// <summary>true = "Currently working here" checkbox is checked.</summary>
     public bool IsCurrent { get; set; }
@@ -142,24 +142,24 @@ public class EducationListResponseDto
 }
 
 
-    public class EducationItemDto
-    {
-        public Guid EducationId { get; set; }
+public class EducationItemDto
+{
+    public Guid EducationId { get; set; }
 
-        public string QualificationDegree { get; set; } = string.Empty;
+    public string QualificationDegree { get; set; } = string.Empty;
 
-        public string? InstituteName { get; set; }
+    public string? InstituteName { get; set; }
 
-        public short? PassoutYear { get; set; }
+    public short? PassoutYear { get; set; }
 
-        public string? YearDetails { get; set; }
+    public string? YearDetails { get; set; }
 
-        public string? CertificateUrl { get; set; }
+    public string? CertificateUrl { get; set; }
 
-        public string? CertificateNumber { get; set; }
+    public string? CertificateNumber { get; set; }
 
-        public bool IsAiVerified { get; set; }
-    }
+    public bool IsAiVerified { get; set; }
+}
 
 
 /// <summary>
