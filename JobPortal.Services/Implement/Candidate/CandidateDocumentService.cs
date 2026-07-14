@@ -56,10 +56,11 @@ public class CandidateDocumentService : ICandidateDocumentService
     {
         try
         {
-            var profileExists = await _context.CandidateProfiles
-                .AnyAsync(p => p.CandidateId == candidateId);
+            var profile = await _context.CandidateProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
 
-            if (!profileExists)
+            if (profile == null)
                 return DocsFail("Candidate profile not found.");
 
             var cv = await _context.CandidateCvs
@@ -91,7 +92,14 @@ public class CandidateDocumentService : ICandidateDocumentService
                     Resume = cv == null ? null : MapCv(cv),
                     EducationCertificates = eduList.Select(MapEducation).ToList(),
                     Passport = passport == null ? null : MapPassport(passport),
-                    Aadhaar = aadhaar == null ? null : MapAadhaar(aadhaar)
+                    Aadhaar = aadhaar == null ? null : MapAadhaar(aadhaar),
+                    GeneratedCv = string.IsNullOrWhiteSpace(profile.GeneratedCvFileUrl)
+                        ? null
+                        : new GeneratedCvDto
+                        {
+                            Url = profile.GeneratedCvFileUrl,
+                            UpdatedAt = profile.GeneratedCvUpdatedAt
+                        }
                 }
             };
         }

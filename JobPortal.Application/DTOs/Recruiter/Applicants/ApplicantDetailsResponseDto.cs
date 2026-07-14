@@ -29,6 +29,8 @@ namespace JobPortal.Application.DTOs.Recruiter.Applicants
 
         public string? ProfessionalSummary { get; set; }
 
+        public string? About { get; set; }
+
         public string ApplicationStatus { get; set; } = string.Empty;
 
         public bool IsShortlisted { get; set; }

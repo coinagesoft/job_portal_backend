@@ -155,41 +155,54 @@ namespace JobPortal.Services.Implement.Candidate
             document.SetMargins(40, 40, 40, 40);
 
             var navy = new DeviceRgb(18, 35, 89);
+            var orange = new DeviceRgb(255, 163, 0);
             var grey = new DeviceRgb(102, 120, 156);
             var lightGrey = new DeviceRgb(225, 229, 238);
+            var white = new DeviceRgb(255, 255, 255);
 
             var boldFont = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
             var regularFont = PdfFontFactory.CreateFont(StandardFonts.HELVETICA);
 
             void SectionHeader(string title)
             {
-                document.Add(
-                    new Paragraph(title.ToUpperInvariant())
-                        .SetFont(boldFont)
-                        .SetFontSize(12.5f)
-                        .SetFontColor(navy)
-                        .SetMarginTop(6)
-                        .SetMarginBottom(6)
-                        .SetPaddingBottom(4)
-                        .SetBorderBottom(new SolidBorder(lightGrey, 1f)));
+                var header = new Div()
+                    .SetMarginTop(14)
+                    .SetMarginBottom(8)
+                    .SetPaddingBottom(4)
+                    .SetBorderBottom(new SolidBorder(lightGrey, 1f));
+
+                header.Add(
+                    new Paragraph()
+                        .SetMargin(0)
+                        .Add(new Text("▍ ").SetFont(boldFont).SetFontColor(orange).SetFontSize(12.5f))
+                        .Add(new Text(title.ToUpperInvariant()).SetFont(boldFont).SetFontColor(navy).SetFontSize(12.5f)));
+
+                document.Add(header);
             }
 
-            // ── Header ──────────────────────────────────────────────
-            document.Add(
+            // ── Header band (navy background, white text) ───────────
+            var headerDiv = new Div()
+                .SetBackgroundColor(navy)
+                .SetPadding(18)
+                .SetMarginBottom(16);
+
+            headerDiv.Add(
                 new Paragraph((profile.FullName ?? "Candidate").ToUpperInvariant())
                     .SetFont(boldFont)
-                    .SetFontSize(22)
-                    .SetFontColor(navy)
+                    .SetFontSize(23)
+                    .SetFontColor(white)
+                    .SetMargin(0)
                     .SetMarginBottom(2));
 
             if (!string.IsNullOrWhiteSpace(profile.Role))
             {
-                document.Add(
+                headerDiv.Add(
                     new Paragraph(profile.Role!.ToUpperInvariant())
                         .SetFont(boldFont)
                         .SetFontSize(12)
-                        .SetFontColor(grey)
-                        .SetMarginBottom(8));
+                        .SetFontColor(orange)
+                        .SetMargin(0)
+                        .SetMarginBottom(10));
             }
 
             var contactParts = new List<string>();
@@ -207,17 +220,21 @@ namespace JobPortal.Services.Implement.Candidate
 
             if (contactParts.Count > 0)
             {
-                document.Add(
+                headerDiv.Add(
                     new Paragraph(string.Join("     ", contactParts))
                         .SetFont(regularFont)
                         .SetFontSize(10)
-                        .SetFontColor(grey)
-                        .SetPaddingBottom(10)
-                        .SetBorderBottom(new SolidBorder(navy, 1.2f)));
+                        .SetFontColor(new DeviceRgb(200, 212, 238))
+                        .SetMargin(0));
             }
 
+            document.Add(headerDiv);
+
             // ── Summary ─────────────────────────────────────────────
-            var summary = profile.About ?? profile.ProfessionalSummary;
+            // The Personal tab's "Professional Summary" field is bound to
+            // the About column end-to-end (see CandidateProfileService /
+            // frontend Personal tab) — use it directly.
+            var summary = profile.About;
             if (!string.IsNullOrWhiteSpace(summary))
             {
                 SectionHeader("Professional Summary");
