@@ -12,5 +12,7 @@ namespace JobPortal.Services.IImplement.ICandidate
     {
         Task<AuthResponseDto> GoogleRegisterAsync(CandidateGoogleRegisterRequestDto request, string ipAddress);
         Task<AuthResponseDto> LinkedInRegisterAsync(CandidateLinkedInRegisterRequestDto request, string ipAddress);
+        Task<SocialVerifyResponseDto> GoogleVerifyAsync(GoogleVerifyRequestDto request);
+        Task<SocialVerifyResponseDto> LinkedInVerifyAsync(LinkedInVerifyRequestDto request);
     }
 }

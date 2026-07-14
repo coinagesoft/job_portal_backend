@@ -15,9 +15,9 @@ namespace JobPortal.Domain.Entities
 
         public UserType UserType { get; set; } = default!;
 
-        public string MobileNumber { get; set; } = default!;
+        public string? MobileNumber { get; set; } = default!;
 
-        public string CountryCode { get; set; } = default!;
+        public string? CountryCode { get; set; } = default!;
 
         public string? Email { get; set; }
 

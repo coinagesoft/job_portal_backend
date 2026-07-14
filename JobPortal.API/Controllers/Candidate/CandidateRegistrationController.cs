@@ -42,5 +42,19 @@ namespace JobPortal.API.Controllers.Candidate
 
             return result.Success ? Ok(result) : BadRequest(result);
         }
+
+        [HttpPost("google/verify")]
+        public async Task<IActionResult> GoogleVerify(GoogleVerifyRequestDto request)
+        {
+            var result = await _candidateRegistrationService.GoogleVerifyAsync(request);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        [HttpPost("linkedin/verify")]
+        public async Task<IActionResult> LinkedInVerify(LinkedInVerifyRequestDto request)
+        {
+            var result = await _candidateRegistrationService.LinkedInVerifyAsync(request);
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
     }
 }
