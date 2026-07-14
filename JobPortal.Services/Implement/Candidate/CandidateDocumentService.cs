@@ -2463,17 +2463,12 @@ public class CandidateDocumentService : ICandidateDocumentService
         }
 
         // =====================================================
-        // Professional Summary
-        // =====================================================
-
-        if (string.IsNullOrWhiteSpace(profile.ProfessionalSummary) &&
-            !string.IsNullOrWhiteSpace(result.ProfessionalSummary))
-        {
-            profile.ProfessionalSummary = result.ProfessionalSummary;
-        }
-
-        // =====================================================
-        // About
+        // About — the single summary field used everywhere in the
+        // app (Personal tab, Portal CV, employer views). Only fills
+        // it if currently blank, so a resume re-upload never
+        // clobbers a summary the candidate has since edited by hand.
+        // ProfessionalSummary is intentionally left untouched here —
+        // it's a legacy field no longer read anywhere in the app.
         // =====================================================
 
         if (string.IsNullOrWhiteSpace(profile.About) &&
