@@ -56,10 +56,11 @@ public class CandidateDocumentService : ICandidateDocumentService
     {
         try
         {
-            var profileExists = await _context.CandidateProfiles
-                .AnyAsync(p => p.CandidateId == candidateId);
+            var profile = await _context.CandidateProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
 
-            if (!profileExists)
+            if (profile == null)
                 return DocsFail("Candidate profile not found.");
 
             var cv = await _context.CandidateCvs
@@ -91,7 +92,14 @@ public class CandidateDocumentService : ICandidateDocumentService
                     Resume = cv == null ? null : MapCv(cv),
                     EducationCertificates = eduList.Select(MapEducation).ToList(),
                     Passport = passport == null ? null : MapPassport(passport),
-                    Aadhaar = aadhaar == null ? null : MapAadhaar(aadhaar)
+                    Aadhaar = aadhaar == null ? null : MapAadhaar(aadhaar),
+                    GeneratedCv = string.IsNullOrWhiteSpace(profile.GeneratedCvFileUrl)
+                        ? null
+                        : new GeneratedCvDto
+                        {
+                            Url = profile.GeneratedCvFileUrl,
+                            UpdatedAt = profile.GeneratedCvUpdatedAt
+                        }
                 }
             };
         }
@@ -2455,17 +2463,12 @@ public class CandidateDocumentService : ICandidateDocumentService
         }
 
         // =====================================================
-        // Professional Summary
-        // =====================================================
-
-        if (string.IsNullOrWhiteSpace(profile.ProfessionalSummary) &&
-            !string.IsNullOrWhiteSpace(result.ProfessionalSummary))
-        {
-            profile.ProfessionalSummary = result.ProfessionalSummary;
-        }
-
-        // =====================================================
-        // About
+        // About — the single summary field used everywhere in the
+        // app (Personal tab, Portal CV, employer views). Only fills
+        // it if currently blank, so a resume re-upload never
+        // clobbers a summary the candidate has since edited by hand.
+        // ProfessionalSummary is intentionally left untouched here —
+        // it's a legacy field no longer read anywhere in the app.
         // =====================================================
 
         if (string.IsNullOrWhiteSpace(profile.About) &&

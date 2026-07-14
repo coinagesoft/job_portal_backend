@@ -16,14 +16,21 @@ namespace JobPortal.Services.IImplement.IRecruiter
         ///   Relative path stored in CandidateCv.CvFileUrl
         ///   (e.g. "resumes/abc.pdf") or an absolute URL.
         /// </param>
-        /// <param name="employerName">Company name shown on the watermark.</param>
-        /// <param name="employerId">Employer GUID shown on the watermark.</param>
+        /// <param name="downloadedByLabel">
+        ///   Shown on the watermark as "Downloaded by: {label}" — the
+        ///   employer's company name for an employer download, or the
+        ///   candidate's own name for a self-download.
+        /// </param>
+        /// <param name="referenceId">
+        ///   Shown on the watermark as a short reference ID — the
+        ///   employer's or candidate's GUID, whichever is relevant.
+        /// </param>
         /// <param name="downloadedAt">Timestamp shown on the watermark.</param>
         /// <returns>In-memory watermarked PDF bytes ready to stream.</returns>
         Task<byte[]> AddWatermarkAsync(
             string cvFileUrl,
-            string employerName,
-            Guid employerId,
+            string downloadedByLabel,
+            Guid referenceId,
             DateTime downloadedAt);
     }
 }

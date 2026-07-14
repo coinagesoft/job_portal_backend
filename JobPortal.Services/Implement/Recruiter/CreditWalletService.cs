@@ -1032,13 +1032,26 @@ namespace JobPortal.Services.Implement.Recruiter
                     Message = "Profile is locked. Unlock this candidate to download their CV."
                 };
 
-            // 2. Latest CV with a stored file
-            var cv = await _context.CandidateCvs
-                .Where(c => c.CandidateId == candidateId && c.CvFileUrl != null)
-                .OrderByDescending(c => c.GeneratedAt)
-                .FirstOrDefaultAsync();
+            // 2. Latest CV: prefer the portal-generated CV (reflects current
+            //    profile data) if the candidate has generated one; otherwise
+            //    fall back to the originally uploaded resume.
+            var candidateProfile = await _context.CandidateProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
 
-            if (cv == null || string.IsNullOrWhiteSpace(cv.CvFileUrl))
+            string? cvFileUrl = candidateProfile?.GeneratedCvFileUrl;
+
+            if (string.IsNullOrWhiteSpace(cvFileUrl))
+            {
+                var cv = await _context.CandidateCvs
+                    .Where(c => c.CandidateId == candidateId && c.CvFileUrl != null)
+                    .OrderByDescending(c => c.GeneratedAt)
+                    .FirstOrDefaultAsync();
+
+                cvFileUrl = cv?.CvFileUrl;
+            }
+
+            if (string.IsNullOrWhiteSpace(cvFileUrl))
                 return new WatermarkedCvResult
                 {
                     Success = false,
@@ -1060,7 +1073,7 @@ namespace JobPortal.Services.Implement.Recruiter
             //    Nothing is written to disk or storage — the bytes are
             //    streamed to the recruiter and then garbage-collected.
             var bytes = await _watermark.AddWatermarkAsync(
-                cv.CvFileUrl,
+                cvFileUrl,
                 companyName,
                 employerId,
                 DateTime.UtcNow);

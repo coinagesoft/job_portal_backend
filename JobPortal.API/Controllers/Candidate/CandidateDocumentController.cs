@@ -19,13 +19,16 @@ namespace JobPortal.API.Controllers.Candidate;
 public class CandidateDocumentController : ControllerBase
 {
     private readonly ICandidateDocumentService _docService;
+    private readonly ICvGenerationService _cvGenerationService;
     private readonly ILogger<CandidateDocumentController> _logger;
 
     public CandidateDocumentController(
         ICandidateDocumentService docService,
+        ICvGenerationService cvGenerationService,
         ILogger<CandidateDocumentController> logger)
     {
         _docService = docService;
+        _cvGenerationService = cvGenerationService;
         _logger = logger;
     }
 
@@ -166,5 +169,49 @@ public class CandidateDocumentController : ControllerBase
         return deleted
             ? Ok(new { success = true, message = "Document deleted." })
             : NotFound(new { success = false, message = "Document not found." });
+    }
+
+    // ════════════════════════════════════════════════
+    // PORTAL-GENERATED CV
+    // POST /api/candidate/profile/documents/generated-cv
+    //
+    // Builds a fresh PDF from the candidate's CURRENT profile data
+    // (personal info, work history, education, skills, languages) using
+    // a fixed portal template — separate from the originally uploaded
+    // resume, which is left untouched. Call again any time profile data
+    // changes (e.g. a new work experience added) to refresh it.
+    // ════════════════════════════════════════════════
+    [HttpPost("generated-cv")]
+    [ProducesResponseType(typeof(GenerateCvResponseDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GenerateCv([FromQuery] Guid? candidateId = null)
+    {
+        var id = candidateId ?? GetCandidateId();
+        if (id == Guid.Empty)
+            return BadRequest(new { message = "Unable to resolve candidate identity." });
+
+        var result = await _cvGenerationService.GenerateCvAsync(id);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    // ════════════════════════════════════════════════
+    // GET /api/candidate/profile/documents/generated-cv/download
+    //
+    // Candidate downloads their own Portal CV — same watermark treatment
+    // employers get, just labelled with the candidate's own name instead
+    // of a company name. Requires GenerateCv to have been called first.
+    // ════════════════════════════════════════════════
+    [HttpGet("generated-cv/download")]
+    public async Task<IActionResult> DownloadGeneratedCv([FromQuery] Guid? candidateId = null)
+    {
+        var id = candidateId ?? GetCandidateId();
+        if (id == Guid.Empty)
+            return BadRequest(new { message = "Unable to resolve candidate identity." });
+
+        var result = await _cvGenerationService.DownloadOwnGeneratedCvAsync(id);
+
+        if (!result.Success || result.FileBytes == null)
+            return BadRequest(new { success = false, message = result.Message });
+
+        return File(result.FileBytes, "application/pdf", result.FileName);
     }
 }

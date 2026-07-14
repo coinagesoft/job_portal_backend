@@ -253,6 +253,9 @@ namespace JobPortal.Services.Implement.Recruiter
                 ProfessionalSummary =
                     candidate.ProfessionalSummary,
 
+                About =
+                    candidate.About,
+
                 ApplicationStatus =
                     application.ApplicationStatus.ToString(),
 

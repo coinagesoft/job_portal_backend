@@ -29,6 +29,14 @@ public class CandidateDocumentsData
     public List<EducationCertificateDto> EducationCertificates { get; set; } = new();
     public PassportDocumentDto? Passport { get; set; }
     public AadhaarDocumentDto? Aadhaar { get; set; }
+    public GeneratedCvDto? GeneratedCv { get; set; }
+}
+
+/// <summary>Status of the candidate's Portal CV — separate from the originally uploaded Resume above.</summary>
+public class GeneratedCvDto
+{
+    public string? Url { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 // ─────────────────────────────────────────────────────────────

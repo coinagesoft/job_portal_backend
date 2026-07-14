@@ -16,7 +16,20 @@
 		<PackageReference Include="CloudinaryDotNet" Version="1.29.2" />
 		<PackageReference Include="FirebaseAdmin" Version="3.5.0" />
 		<PackageReference Include="itext7" Version="8.0.5" />
+		<PackageReference Include="itext7.bouncy-castle-adapter" Version="8.0.5" />
 		<!-- NEW PACKAGE -->
+		<!--
+		    itext7's PdfWriter requires a BouncyCastle crypto adapter internally
+		    (for its SmartModePdfObjectsSerializer digest, used even for plain
+		    unencrypted PDFs) but doesn't ship one itself. Without this package,
+		    every PdfWriter construction throws:
+		      "Either com.itextpdf:bouncy-castle-adapter or
+		       com.itextpdf:bouncy-castle-fips-adapter dependency must be added
+		       in order to use BouncyCastleFactoryCreator"
+		    This is the standard (non-FIPS) adapter; swap for
+		    itext7.bouncy-castle-fips-adapter instead if this deployment has a
+		    FIPS-compliance requirement.
+		-->
 		<PackageReference Include="MailKit" Version="4.17.0" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.11" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.11" />

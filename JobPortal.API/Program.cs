@@ -128,6 +128,7 @@ builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
 
 builder.Services.AddScoped<IEmbeddingStorageService, EmbeddingStorageService>();
 builder.Services.AddScoped<IJobMatchingService, JobMatchingService>();
+builder.Services.AddScoped<ICvGenerationService, CvGenerationService>();
 
 builder.Services.AddScoped<IAiJobDescriptionService, AiJobDescriptionService>();
 builder.Services.AddScoped<IRankedCandidateService, RankedCandidateService>();
@@ -186,7 +187,7 @@ builder.Services.AddSwaggerGen(c =>
             Array.Empty<string>()
         }
     });
-     });
+});
 
 builder.Services.AddControllers(options =>
 {
