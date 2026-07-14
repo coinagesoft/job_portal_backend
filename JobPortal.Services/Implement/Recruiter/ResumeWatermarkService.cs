@@ -44,15 +44,15 @@ namespace JobPortal.Services.Implement.Recruiter
         // ────────────────────────────────────────────────────────────
         public async Task<byte[]> AddWatermarkAsync(
             string cvFileUrl,
-            string employerName,
-            Guid employerId,
+            string downloadedByLabel,
+            Guid referenceId,
             DateTime downloadedAt)
         {
             // 1. Resolve the PDF bytes from local storage or URL
             var originalBytes = await ReadPdfBytesAsync(cvFileUrl);
 
             // 2. Apply watermark in memory and return the result
-            return ApplyWatermark(originalBytes, employerName, employerId, downloadedAt);
+            return ApplyWatermark(originalBytes, downloadedByLabel, referenceId, downloadedAt);
         }
 
         // ────────────────────────────────────────────────────────────
@@ -83,8 +83,8 @@ namespace JobPortal.Services.Implement.Recruiter
         // ────────────────────────────────────────────────────────────
         private static byte[] ApplyWatermark(
             byte[] pdfBytes,
-            string employerName,
-            Guid employerId,
+            string downloadedByLabel,
+            Guid referenceId,
             DateTime downloadedAt)
         {
             using var inputStream = new MemoryStream(pdfBytes);
@@ -102,8 +102,8 @@ namespace JobPortal.Services.Implement.Recruiter
             {
                 "JOB PORTAL",
                 "CONFIDENTIAL",
-                $"Downloaded by: {employerName}",
-                $"Employer ID: {employerId.ToString()[..8].ToUpper()}",
+                $"Downloaded by: {downloadedByLabel}",
+                $"Reference ID: {referenceId.ToString()[..8].ToUpper()}",
                 $"Downloaded On: {downloadedAt:dd-MMM-yyyy HH:mm} UTC",
                 "www.jobportal.com"
             };

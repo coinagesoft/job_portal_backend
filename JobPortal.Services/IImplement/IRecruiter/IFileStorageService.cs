@@ -15,6 +15,16 @@ namespace JobPortal.Services.IImplement.IRecruiter
             string folder,
             string? fileName = null);
 
+        /// <summary>
+        /// Saves raw bytes (e.g. a programmatically-generated PDF) rather
+        /// than an uploaded IFormFile. Used for the portal-generated CV.
+        /// </summary>
+        Task<FileUploadResult> UploadBytesAsync(
+            byte[] bytes,
+            string folder,
+            string fileName,
+            string contentType);
+
         Task DeleteAsync(string? filePath);
     }
 }

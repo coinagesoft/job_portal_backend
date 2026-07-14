@@ -34,6 +34,35 @@ namespace JobPortal.Services.Implement.Recruiter
             return await SaveFile(file, folder, publicId);
         }
 
+        public async Task<FileUploadResult> UploadBytesAsync(
+            byte[] bytes,
+            string folder,
+            string fileName,
+            string contentType)
+        {
+            var uploadsRoot = Path.Combine(
+                _environment.WebRootPath,
+                "uploads",
+                folder);
+
+            Directory.CreateDirectory(uploadsRoot);
+
+            string fullPath = Path.Combine(uploadsRoot, fileName);
+
+            await File.WriteAllBytesAsync(fullPath, bytes);
+
+            var request = _httpContextAccessor.HttpContext!.Request;
+
+            string fileUrl =
+                $"{request.Scheme}://{request.Host}/uploads/{folder}/{fileName}";
+
+            return new FileUploadResult
+            {
+                Url = fileUrl,
+                PublicId = fileName
+            };
+        }
+
         private async Task<FileUploadResult> SaveFile(
             IFormFile file,
             string folder,
