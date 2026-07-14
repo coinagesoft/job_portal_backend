@@ -2,6 +2,7 @@
 using JobPortal.Application.DTOs.SubUser;
 using JobPortal.Domain.Enums;
 using JobPortal.Services.IImplement.IRecruiter;
+using JobPortal.Services.Implement.Recruiter;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -354,36 +355,48 @@ public class RecruiterSubUserController : ControllerBase
     /// Accept an invite via token from email link.
     /// Called by the sub-user when they click the invite link.
     /// </summary>
+    /// [AllowAnonymous]
+    /// 
+    [AllowAnonymous]
     [HttpPost("accept-invite")]
-    [ProducesResponseType(200)]
-    [ProducesResponseType(400)]
-    [ProducesResponseType(410)]
-    [ProducesResponseType(500)]
-    public async Task<IActionResult> AcceptInvite([FromQuery] string token)
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status410Gone)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> AcceptInvite(
+        [FromBody] AcceptInviteRequestDto request)
     {
         try
         {
-            // ── Validate token presence ────────────────────
-            if (string.IsNullOrWhiteSpace(token))
+            if (request == null)
+            {
+                return BadRequest(Error("Request is required."));
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Token))
+            {
                 return BadRequest(Error("Invite token is required."));
+            }
 
-            // ── Validate token is a valid GUID ─────────────
-            if (!Guid.TryParse(token, out _))
-                return BadRequest(Error("Invalid invite token format."));
+            if (!Guid.TryParse(request.Token, out _))
+            {
+                return BadRequest(Error("Invalid invite token."));
+            }
 
-            var result = await _service.AcceptInviteAsync(token);
+           
+
+
+            var result = await _service.AcceptInviteAsync(request);
 
             if (!result.Success)
             {
-                // Token expired → 410 Gone
-                if (result.Message.Contains("expired"))
-                    return StatusCode(410, result);
+                if (result.Message.Contains("expired", StringComparison.OrdinalIgnoreCase))
+                    return StatusCode(StatusCodes.Status410Gone, result);
 
-                // Already accepted → 409 Conflict
-                if (result.Message.Contains("already accepted"))
+                if (result.Message.Contains("already accepted", StringComparison.OrdinalIgnoreCase))
                     return Conflict(result);
 
-                // Invalid token → 400
                 return BadRequest(result);
             }
 
@@ -392,12 +405,18 @@ public class RecruiterSubUserController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "AcceptInvite failed for token {Token}.", token);
-            return StatusCode(500, Error("Failed to accept invite."));
+                "AcceptInvite failed for token {Token}.",
+                request?.Token);
+
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                Error("Failed to accept invitation."));
         }
     }
 
 
+
+    [AllowAnonymous]
     [HttpDelete("{subUserId:guid}")]
     [ProducesResponseType(200)]
     [ProducesResponseType(404)]
@@ -434,6 +453,19 @@ public class RecruiterSubUserController : ControllerBase
         }
     }
     // ── Private Helpers ───────────────────────────────────
+
+
+
+    [HttpGet("validate-invite/{token}")]
+    public async Task<IActionResult> ValidateInvite(string token)
+    {
+        var result = await _service.ValidateInviteAsync(token);
+
+        if (!result.Success)
+            return BadRequest(result);
+
+        return Ok(result);
+    }
 
     /// <summary>Standard error response shape</summary>
     private static object Error(string message) =>

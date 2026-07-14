@@ -374,23 +374,43 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             // Recruiter validation
             Guid? employerId = null;
-
             if (user.UserType == UserType.Recruiter)
             {
+                // First check if this recruiter is the employer owner
                 var employer = await _context.EmployerProfiles
-                    .FirstOrDefaultAsync(x =>
-                        x.UserId == user.UserId);
+                    .FirstOrDefaultAsync(x => x.UserId == user.UserId);
 
-                if (employer == null)
-                    return AuthFail("Employer profile not found.");
+                if (employer != null)
+                {
+                    if (employer.AccountStatus == AccountStatus.Suspended)
+                        return AuthFail("Company account suspended.");
 
-                if (employer.AccountStatus == AccountStatus.Suspended)
-                    return AuthFail("Company account suspended.");
+                    if (employer.AccountStatus == AccountStatus.Rejected)
+                        return AuthFail("Company account rejected.");
 
-                if (employer.AccountStatus == AccountStatus.Rejected)
-                    return AuthFail("Company account rejected.");
+                    employerId = employer.EmployerId;
+                }
+                else
+                {
+                    // Otherwise check if this recruiter is a sub-user
+                    var subUser = await _context.EmployerSubUsers
+                        .Include(x => x.EmployerProfile)
+                        .FirstOrDefaultAsync(x =>
+                            x.UserId == user.UserId &&
+                            x.InviteAccepted &&
+                            x.SubUserStatus == "Active");
 
-                employerId = employer.EmployerId;
+                    if (subUser == null)
+                        return AuthFail("Employer profile not found.");
+
+                    if (subUser.EmployerProfile.AccountStatus == AccountStatus.Suspended)
+                        return AuthFail("Company account suspended.");
+
+                    if (subUser.EmployerProfile.AccountStatus == AccountStatus.Rejected)
+                        return AuthFail("Company account rejected.");
+
+                    employerId = subUser.EmployerId;
+                }
             }
 
             _logger.LogInformation(

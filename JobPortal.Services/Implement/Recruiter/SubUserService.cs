@@ -172,8 +172,10 @@ public class SubUserService : ISubUserService
 
             await _context.SaveChangesAsync();
 
+            _logger.LogInformation("Sending invite email to {Email}", request.SubUserEmail);
+
             var inviteLink =
-    $"https://job-portal-web-phi.vercel.app/employeer/accept-invite?token={inviteToken}"; ;
+            $"http://localhost:3000/employeer/accept-invite?token={inviteToken}"; ;
 
             await _subUserEmailService.SendSubUserInviteAsync(
                 request.SubUserEmail,
@@ -183,10 +185,13 @@ public class SubUserService : ISubUserService
                 inviteLink,
                 subUser.InviteExpiresAt!.Value);
 
+            _logger.LogInformation("Invite email sent successfully to {Email}", request.SubUserEmail);
+
             _logger.LogInformation(
                 "Sub-user invited — Token:{Token} Email:{Email}",
                 inviteToken,
                 request.SubUserEmail);
+
 
             return new InviteSubUserResponseDto
             {
@@ -441,71 +446,97 @@ public class SubUserService : ISubUserService
     // ════════════════════════════════════════════════
     // ACCEPT INVITE — called by sub-user via email link
     // ════════════════════════════════════════════════
-    public async Task<BaseSubUserResponseDto> AcceptInviteAsync(string token)
+    public async Task<BaseSubUserResponseDto> AcceptInviteAsync(
+     AcceptInviteRequestDto request)
     {
         try
         {
-            if (!Guid.TryParse(token, out var parsedToken))
+            if (string.IsNullOrWhiteSpace(request.Token) ||
+                !Guid.TryParse(request.Token, out var parsedToken))
+            {
                 return new BaseSubUserResponseDto
                 {
                     Success = false,
-                    Message = "Invalid invite link."
+                    Message = "Invalid invitation link."
                 };
+            }
 
             var subUser = await _context.EmployerSubUsers
                 .FirstOrDefaultAsync(s => s.InviteToken == parsedToken);
 
             if (subUser == null)
+            {
                 return new BaseSubUserResponseDto
                 {
                     Success = false,
-                    Message = "Invalid or expired invite link."
+                    Message = "Invalid or expired invitation link."
                 };
+            }
 
             if (subUser.InviteAccepted)
+            {
                 return new BaseSubUserResponseDto
                 {
                     Success = false,
-                    Message = "Invite already accepted."
+                    Message = "This invitation has already been accepted."
                 };
+            }
 
-            if (subUser.InviteExpiresAt < DateTime.UtcNow)
+            if (!subUser.InviteExpiresAt.HasValue ||
+                subUser.InviteExpiresAt.Value < DateTime.UtcNow)
+            {
                 return new BaseSubUserResponseDto
                 {
                     Success = false,
-                    Message = "Invite link has expired. Please ask for a new invite."
+                    Message = "This invitation has expired. Please request a new invitation."
                 };
+            }
 
-            // ── Mark accepted ──────────────────────────────
-            subUser.InviteAccepted = true;
-            subUser.InviteToken = null;         // invalidate token
-
-            // Activate user account
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.UserId == subUser.UserId);
 
-            if (user != null)
+            if (user == null)
             {
-                user.AccountStatus = Domain.Enums.common.AccountStatus.Active;
-                user.UpdatedAt = DateTime.UtcNow;
+                return new BaseSubUserResponseDto
+                {
+                    Success = false,
+                    Message = "Associated user account not found."
+                };
             }
 
+            // Activate account
+            user.AccountStatus = Domain.Enums.common.AccountStatus.Active;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            // Mark invitation accepted
+            subUser.InviteAccepted = true;
+            subUser.InviteToken = null;
+            subUser.InviteExpiresAt = null;
+
             await _context.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "Sub-user invitation accepted. UserId: {UserId}, Email: {Email}",
+                user.UserId,
+                subUser.SubUserEmail);
 
             return new BaseSubUserResponseDto
             {
                 Success = true,
-                Message = "Invite accepted. You can now log in.",
+                Message = "Invitation accepted successfully. You can now sign in using OTP.",
                 Email = subUser.SubUserEmail
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Accept invite error.");
+            _logger.LogError(ex,
+                "Error accepting invitation. Token: {Token}",
+                request.Token);
+
             return new BaseSubUserResponseDto
             {
                 Success = false,
-                Message = "An error occurred."
+                Message = "An error occurred while accepting the invitation."
             };
         }
     }
@@ -544,9 +575,11 @@ public class SubUserService : ISubUserService
         new() { Success = false, Message = message };
 
     public async Task<BaseSubUserResponseDto> DeleteSubUserAsync(
-    Guid subUserId,
-    Guid employerId)
+      Guid subUserId,
+      Guid employerId)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
         try
         {
             var subUser = await _context.EmployerSubUsers
@@ -563,11 +596,10 @@ public class SubUserService : ISubUserService
                 };
             }
 
-            // Optional: remove user if not linked elsewhere
             var user = await _context.Users
-                .FirstOrDefaultAsync(u =>
-                    u.UserId == subUser.UserId);
+                .FirstOrDefaultAsync(u => u.UserId == subUser.UserId);
 
+            // Remove the employer-sub-user mapping
             _context.EmployerSubUsers.Remove(subUser);
 
             if (user != null)
@@ -577,16 +609,29 @@ public class SubUserService : ISubUserService
                         s.UserId == user.UserId &&
                         s.SubUserId != subUserId);
 
+                // Delete user only if not linked elsewhere
                 if (!otherLinks)
                 {
+                    // Delete OTP history
+                    var otpRecords = await _context.OtpVerifications
+                        .Where(x => x.UserId == user.UserId)
+                        .ToListAsync();
+
+                    if (otpRecords.Any())
+                    {
+                        _context.OtpVerifications.RemoveRange(otpRecords);
+                    }
+
+                    // Delete user
                     _context.Users.Remove(user);
                 }
             }
 
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             _logger.LogInformation(
-                "Sub-user deleted — SubUserId:{Id}",
+                "Sub-user deleted successfully. SubUserId: {SubUserId}",
                 subUserId);
 
             return new BaseSubUserResponseDto
@@ -597,13 +642,126 @@ public class SubUserService : ISubUserService
         }
         catch (Exception ex)
         {
+            await transaction.RollbackAsync();
+
             _logger.LogError(ex,
-                "Delete sub-user error.");
+                "Delete sub-user failed. SubUserId: {SubUserId}",
+                subUserId);
 
             return new BaseSubUserResponseDto
             {
                 Success = false,
                 Message = ex.InnerException?.Message ?? ex.Message
+            };
+        }
+    }
+
+    public async Task<ValidateInviteResponseDto> ValidateInviteAsync(string token)
+    {
+        try
+        {
+            _logger.LogInformation("ValidateInvite called with Token: {Token}", token);
+
+            if (!Guid.TryParse(token, out var parsedToken))
+            {
+                _logger.LogWarning("Invalid GUID format. Token: {Token}", token);
+
+                return new ValidateInviteResponseDto
+                {
+                    Success = false,
+                    Message = "Invalid invitation link."
+                };
+            }
+
+            var subUser = await _context.EmployerSubUsers
+                .Include(x => x.EmployerProfile)
+                .FirstOrDefaultAsync(x => x.InviteToken == parsedToken);
+
+            if (subUser == null)
+            {
+                _logger.LogWarning(
+                    "No sub-user found for InviteToken: {Token}",
+                    parsedToken);
+
+                return new ValidateInviteResponseDto
+                {
+                    Success = false,
+                    Message = "Invalid invitation link."
+                };
+            }
+
+            _logger.LogInformation(
+                "Sub-user found. Email: {Email}, InviteAccepted: {Accepted}, ExpiresAt: {ExpiresAt}, CurrentUtc: {CurrentUtc}",
+                subUser.SubUserEmail,
+                subUser.InviteAccepted,
+                subUser.InviteExpiresAt,
+                DateTime.UtcNow);
+
+            if (subUser.InviteAccepted)
+            {
+                _logger.LogWarning(
+                    "Invitation already accepted. Token: {Token}",
+                    parsedToken);
+
+                return new ValidateInviteResponseDto
+                {
+                    Success = false,
+                    Message = "Invitation already accepted."
+                };
+            }
+
+            if (!subUser.InviteExpiresAt.HasValue)
+            {
+                _logger.LogWarning(
+                    "Invite expiry is missing. Token: {Token}",
+                    parsedToken);
+
+                return new ValidateInviteResponseDto
+                {
+                    Success = false,
+                    Message = "Invitation expiry is invalid."
+                };
+            }
+
+            if (subUser.InviteExpiresAt.Value < DateTime.UtcNow)
+            {
+                _logger.LogWarning(
+                    "Invitation expired. Expiry: {Expiry}, Current: {Current}",
+                    subUser.InviteExpiresAt.Value,
+                    DateTime.UtcNow);
+
+                return new ValidateInviteResponseDto
+                {
+                    Success = false,
+                    Message = "Invitation has expired."
+                };
+            }
+
+            _logger.LogInformation(
+                "Invitation validated successfully for {Email}",
+                subUser.SubUserEmail);
+
+            return new ValidateInviteResponseDto
+            {
+                Success = true,
+                Message = "Invitation is valid.",
+                CompanyName = subUser.EmployerProfile.CompanyDisplayName,
+                SubUserName = subUser.SubUserName,
+                Email = subUser.SubUserEmail,
+                Role = subUser.SubUserRole,
+                ExpiresAt = subUser.InviteExpiresAt
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "ValidateInvite failed. Token: {Token}",
+                token);
+
+            return new ValidateInviteResponseDto
+            {
+                Success = false,
+                Message = "An error occurred while validating the invitation."
             };
         }
     }

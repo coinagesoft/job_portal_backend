@@ -36,14 +36,14 @@ namespace JobPortal.Services.IImplement.IRecruiter
             Guid subUserId, Guid employerId);
 
         // Accept invite (called by sub-user)
-        Task<BaseSubUserResponseDto> AcceptInviteAsync(string token);
+        Task<BaseSubUserResponseDto> AcceptInviteAsync(AcceptInviteRequestDto request);
 
         // Get permission matrix for a role
         PermissionsDto GetRolePermissions(SubUserRole role);
 
-        Task<BaseSubUserResponseDto> DeleteSubUserAsync(
-    Guid subUserId,
-    Guid employerId);
+        Task<BaseSubUserResponseDto> DeleteSubUserAsync(Guid subUserId, Guid employerId);
+
+        Task<ValidateInviteResponseDto> ValidateInviteAsync(string token);
     }
 
     public class BaseSubUserResponseDto
