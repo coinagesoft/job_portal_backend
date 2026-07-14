@@ -175,7 +175,7 @@ public class SubUserService : ISubUserService
             _logger.LogInformation("Sending invite email to {Email}", request.SubUserEmail);
 
             var inviteLink =
-            $"http://localhost:3000/employeer/accept-invite?token={inviteToken}"; ;
+            $"https://job-portal-dev-phi.vercel.app/employeer/accept-invite?token={inviteToken}"; ;
 
             await _subUserEmailService.SendSubUserInviteAsync(
                 request.SubUserEmail,
