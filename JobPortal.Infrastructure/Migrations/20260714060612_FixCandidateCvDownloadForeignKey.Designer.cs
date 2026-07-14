@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260714060612_FixCandidateCvDownloadForeignKey")]
+    partial class FixCandidateCvDownloadForeignKey
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3041,6 +3044,7 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnName("account_status");
 
                     b.Property<string>("CountryCode")
+                        .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("text")
                         .HasDefaultValue("+91")
@@ -3066,6 +3070,7 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnName("last_login_at");
 
                     b.Property<string>("MobileNumber")
+                        .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("mobile_number");
 
