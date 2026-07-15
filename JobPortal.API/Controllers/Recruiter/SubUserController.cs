@@ -455,6 +455,7 @@ public class RecruiterSubUserController : ControllerBase
 
 
 
+    [AllowAnonymous]
     [HttpGet("validate-invite/{token}")]
     public async Task<IActionResult> ValidateInvite(string token)
     {
