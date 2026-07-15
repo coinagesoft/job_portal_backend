@@ -17,7 +17,7 @@ namespace JobPortal.Services.IImplement.IRecruiter
         //    JobDetailsRequestDto request, Guid employerId);
 
         Task<JobDetailsResponseDto> SaveJobDetailsAsync(
-          JobDetailsRequestDto request,Guid employerId);
+          JobDetailsRequestDto request, Guid employerId, Guid actionUserId, bool isSubUser);
 
         // Step 2-6 — update draft (all use jobId)
         Task<BaseJobResponseDto> SaveCompensationAsync(
@@ -38,7 +38,7 @@ namespace JobPortal.Services.IImplement.IRecruiter
         // Step 7 — publish or save draft
         Task<PublishingResponseDto> PublishJobAsync(PublishingRequestDto request, Guid employerId);
 
-        Task<BaseJobResponseDto> DeleteJobAsync(Guid jobId,Guid employerId);
+        Task<BaseJobResponseDto> DeleteJobAsync(Guid jobId, Guid employerId);
         // Save draft at any step
         Task<BaseJobResponseDto> SaveDraftAsync(Guid jobId, Guid employerId);
 

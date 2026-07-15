@@ -1,22 +1,24 @@
-﻿    using global::JobPortal.Application.DTOs.Recruiter;
-    using global::JobPortal.Domain.Entities;
-    using global::JobPortal.Infrastructure.Persistence;
-    using global::JobPortal.Services.IImplement.IRecruiter;
-    using JobPortal.Application.DTOs.JobPosting;
-    using JobPortal.Domain.Enums.common;
-    using JobPortal.Domain.Enums.RecruiterEnums;
+﻿using global::JobPortal.Application.DTOs.Recruiter;
+using global::JobPortal.Domain.Entities;
+using global::JobPortal.Infrastructure.Persistence;
+using global::JobPortal.Services.IImplement.IRecruiter;
+using JobPortal.Application.DTOs.JobPosting;
+using JobPortal.Domain.Enums.common;
+using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Services.IImplement.AI;
 using Microsoft.EntityFrameworkCore;
-    using Microsoft.Extensions.Logging;
-    using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
-    namespace JobPortal.Services.Implement.Recruiter { 
+namespace JobPortal.Services.Implement.Recruiter
+{
 
     public class JobPostingService : IJobPostingService
     {
         private readonly AppDbContext _context;
         private readonly ILogger<JobPostingService> _logger;
         private readonly IEmbeddingStorageService _embeddingStorage;   // ✅ नवीन
+        private readonly ISubUserPermissionService _permissionService;
 
 
         private static readonly Dictionary<int, string> StepNames = new()
@@ -33,12 +35,14 @@ using Microsoft.EntityFrameworkCore;
         public JobPostingService(
             AppDbContext context,
             ILogger<JobPostingService> logger,
-            IEmbeddingStorageService embeddingStorage)                  // ✅ नवीन param
+            IEmbeddingStorageService embeddingStorage,                  // ✅ नवीन param
+            ISubUserPermissionService permissionService)
 
         {
             _context = context;
             _logger = logger;
             _embeddingStorage = embeddingStorage;
+            _permissionService = permissionService;
         }
 
         // ════════════════════════════════════════════════
@@ -115,10 +119,24 @@ using Microsoft.EntityFrameworkCore;
 
         public async Task<JobDetailsResponseDto> SaveJobDetailsAsync(
            JobDetailsRequestDto request,
-           Guid employerId)
+           Guid employerId,
+           Guid actionUserId,
+           bool isSubUser)
         {
             try
             {
+                var permissionCheck = await _permissionService.CheckAsync(
+                    actionUserId, isSubUser, s => s.CanPostJobs);
+
+                if (!permissionCheck.Allowed)
+                {
+                    return new JobDetailsResponseDto
+                    {
+                        Success = false,
+                        Message = permissionCheck.Message
+                    };
+                }
+
                 var employer = await _context.EmployerProfiles
                     .FirstOrDefaultAsync(e => e.EmployerId == employerId);
 
@@ -185,7 +203,7 @@ using Microsoft.EntityFrameworkCore;
                         KeyResponsibilities = request.KeyResponsibilities,
 
                         // Salary
-                       
+
 
                         JobStatus = JobStatus.Draft,
 
@@ -231,7 +249,7 @@ using Microsoft.EntityFrameworkCore;
                     job.Role = request.Role;
                     job.JobDescription = request.JobDescription ?? job.JobDescription;
 
-                  
+
                     job.ExperienceMinYears =
                         (byte)(request.ExperienceMinYears ?? job.ExperienceMinYears);
 
@@ -278,9 +296,9 @@ using Microsoft.EntityFrameworkCore;
                         job.KeyResponsibilities = request.KeyResponsibilities;
                     }
 
-                   
 
-                   
+
+
 
                     job.UpdatedAt = DateTime.UtcNow;
 
@@ -920,7 +938,7 @@ using Microsoft.EntityFrameworkCore;
                         request.CompanyVisibility.Value;
                 }
 
-             
+
 
                 job.LastCompletedStep =
                     Math.Max(job.LastCompletedStep, 7);
@@ -1262,7 +1280,7 @@ using Microsoft.EntityFrameworkCore;
                         CompanyVisibility =
         job.CompanyVisibility,
 
-        
+
 
                         PublishNow =
         job.JobStatus == JobStatus.Active

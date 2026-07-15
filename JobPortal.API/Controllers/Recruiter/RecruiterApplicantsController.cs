@@ -2,6 +2,7 @@
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace JobPortal.API.Controllers.Recruiter
 {
@@ -11,11 +12,34 @@ namespace JobPortal.API.Controllers.Recruiter
     public class RecruiterApplicantsController : ControllerBase
     {
         private readonly IRecruiterApplicantService _service;
+        private readonly ISubUserPermissionService _permissionService;
 
         public RecruiterApplicantsController(
-            IRecruiterApplicantService service)
+            IRecruiterApplicantService service,
+            ISubUserPermissionService permissionService)
         {
             _service = service;
+            _permissionService = permissionService;
+        }
+
+        // Who's actually acting — resolved from the signed JWT, not a
+        // client-supplied header, so it can't be spoofed.
+        private Guid GetActionUserId() =>
+            Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        private bool GetIsSubUser() =>
+            User.FindFirst("IsSubUser")?.Value == "true";
+
+        // Every applicant-status-changing action below needs this. Returns
+        // null when allowed; otherwise the result to return immediately.
+        private async Task<IActionResult?> EnforceManageApplicationsAsync()
+        {
+            var check = await _permissionService.CheckAsync(
+                GetActionUserId(), GetIsSubUser(), s => s.CanManageApplications);
+
+            return check.Allowed
+                ? null
+                : BadRequest(new { Success = false, Message = check.Message });
         }
 
         // =====================================================
@@ -110,6 +134,8 @@ namespace JobPortal.API.Controllers.Recruiter
             [FromQuery] Guid employerId,
             [FromBody] UpdateApplicantNoteRequestDto request)
         {
+            if (await EnforceManageApplicationsAsync() is { } denied) return denied;
+
             var result =
                 await _service.MoveToReviewAsync(
                     employerId,
@@ -131,6 +157,8 @@ namespace JobPortal.API.Controllers.Recruiter
             [FromQuery] Guid employerId,
             [FromBody] UpdateApplicantNoteRequestDto request)
         {
+            if (await EnforceManageApplicationsAsync() is { } denied) return denied;
+
             var result =
                 await _service.ShortlistApplicantAsync(
                     employerId,
@@ -155,6 +183,8 @@ namespace JobPortal.API.Controllers.Recruiter
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            if (await EnforceManageApplicationsAsync() is { } denied) return denied;
+
             var result =
                 await _service.ScheduleInterviewAsync(
                     employerId,
@@ -176,6 +206,8 @@ namespace JobPortal.API.Controllers.Recruiter
             [FromQuery] Guid employerId,
             [FromBody] RejectApplicantRequestDto request)
         {
+            if (await EnforceManageApplicationsAsync() is { } denied) return denied;
+
             var result =
                 await _service.RejectApplicantAsync(
                     employerId,
@@ -197,6 +229,8 @@ namespace JobPortal.API.Controllers.Recruiter
             [FromQuery] Guid employerId,
             [FromBody] UpdateApplicantNoteRequestDto request)
         {
+            if (await EnforceManageApplicationsAsync() is { } denied) return denied;
+
             var result =
                 await _service.HireApplicantAsync(
                     employerId,
