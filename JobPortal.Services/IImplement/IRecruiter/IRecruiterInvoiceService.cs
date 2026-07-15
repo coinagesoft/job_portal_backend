@@ -1,6 +1,4 @@
-﻿
-
-using JobPortal.Application.DTOs.Recruiter.RecruiterInvoiceDto.cs;
+﻿using JobPortal.Application.DTOs.Recruiter.RecruiterInvoiceDto.cs;
 
 namespace JobPortal.Services.IImplement.IRecruiter
 {
@@ -15,5 +13,10 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task<InvoiceDownloadDto?>
             GetInvoiceAsync(
                 Guid invoiceId);
+
+        Task<(byte[] Bytes, string FileName)?>
+            DownloadInvoicePdfAsync(
+                Guid invoiceId,
+                Guid employerId);
     }
 }
