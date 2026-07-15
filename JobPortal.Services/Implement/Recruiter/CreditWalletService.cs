@@ -247,6 +247,18 @@ namespace JobPortal.Services.Implement.Recruiter
         bool isSubUser,
         UnlockCandidateRequestDto request)
         {
+            var permissionCheck = await CheckSubUserPermissionAsync(
+                actionUserId, isSubUser, s => s.CanUnlockProfiles);
+
+            if (!permissionCheck.Allowed)
+            {
+                return new UnlockCandidateResponseDto
+                {
+                    Success = false,
+                    Message = permissionCheck.Message
+                };
+            }
+
             var candidate =
                 await GetCandidateAsync(
                     request.CandidateId);
@@ -485,6 +497,18 @@ namespace JobPortal.Services.Implement.Recruiter
         bool isSubUser,
         DownloadCvRequestDto request)
         {
+            var permissionCheck = await CheckSubUserPermissionAsync(
+                actionUserId, isSubUser, s => s.CanUnlockProfiles);
+
+            if (!permissionCheck.Allowed)
+            {
+                return new DownloadCvResponseDto
+                {
+                    Success = false,
+                    Message = permissionCheck.Message
+                };
+            }
+
             var hasAccess =
                 await HasCandidateAccessAsync(
                     employerId,
@@ -1102,6 +1126,52 @@ namespace JobPortal.Services.Implement.Recruiter
                     x.CandidateId == candidateId &&
                     x.IsActive &&
                     x.ExpiresAt > DateTime.UtcNow);
+        }
+
+        // ────────────────────────────────────────────────────────────
+        // Enforces a sub-user's ACTUAL permission flags from the DB
+        // before letting a credit-consuming action through. isSubUser
+        // and actionUserId still come from client-supplied headers
+        // (a broader, separate concern), but whatever the client
+        // claims, this looks the sub-user up fresh and checks their
+        // real, current status and permission — a deactivated or
+        // under-permissioned sub-user can never slip through just
+        // because the request says otherwise.
+        // ────────────────────────────────────────────────────────────
+        private async Task<(bool Allowed, string Message)> CheckSubUserPermissionAsync(
+            Guid actionUserId,
+            bool isSubUser,
+            Func<EmployerSubUser, bool> requiredPermission)
+        {
+            if (!isSubUser)
+            {
+                return (true, string.Empty);
+            }
+
+            var subUser = await _context.EmployerSubUsers
+                .FirstOrDefaultAsync(s => s.UserId == actionUserId);
+
+            if (subUser == null)
+            {
+                return (false, "Sub-user account not found.");
+            }
+
+            if (subUser.SubUserStatus == "Deactivated")
+            {
+                return (false, "This sub-user account has been deactivated.");
+            }
+
+            if (!subUser.InviteAccepted)
+            {
+                return (false, "This sub-user has not accepted their invitation yet.");
+            }
+
+            if (!requiredPermission(subUser))
+            {
+                return (false, "You don't have permission to perform this action.");
+            }
+
+            return (true, string.Empty);
         }
         private async Task<EmployerCandidateAccess?> GetCandidateAccessAsync(Guid employerId, Guid candidateId)
         {
