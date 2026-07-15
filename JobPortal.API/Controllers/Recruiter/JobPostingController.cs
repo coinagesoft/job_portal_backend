@@ -87,7 +87,9 @@ public class RecruiterJobPostingController : ControllerBase
         var result = await _service.SaveCompensationAsync(
        request,
        jobId,
-       GetEmployerId());
+       GetEmployerId(),
+       GetActionUserId(),
+       GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -103,7 +105,9 @@ public class RecruiterJobPostingController : ControllerBase
         var result = await _service.SaveSkillsAsync(
             request,
             jobId,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -119,7 +123,9 @@ public class RecruiterJobPostingController : ControllerBase
         var result = await _service.SaveEligibilityAsync(
             request,
             jobId,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -135,7 +141,9 @@ public class RecruiterJobPostingController : ControllerBase
         var result = await _service.SaveLocationAsync(
             request,
             jobId,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -151,7 +159,9 @@ public class RecruiterJobPostingController : ControllerBase
         var result = await _service.SaveQuestionsAsync(
             request,
             jobId,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -165,7 +175,9 @@ public class RecruiterJobPostingController : ControllerBase
     {
         var result = await _service.PublishJobAsync(
             request,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -177,7 +189,9 @@ public class RecruiterJobPostingController : ControllerBase
     {
         var result = await _service.DeleteJobAsync(
             jobId,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -187,7 +201,7 @@ public class RecruiterJobPostingController : ControllerBase
     [HttpPut("{jobId}/save-draft")]
     public async Task<IActionResult> SaveDraft(Guid jobId)
     {
-        var result = await _service.SaveDraftAsync(jobId, GetEmployerId());
+        var result = await _service.SaveDraftAsync(jobId, GetEmployerId(), GetActionUserId(), GetIsSubUser());
         return result.Success ? Ok(result) : BadRequest(result);
     }
 

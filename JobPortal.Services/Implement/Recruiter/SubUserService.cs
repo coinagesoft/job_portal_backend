@@ -608,6 +608,63 @@ public class SubUserService : ISubUserService
         _ => new PermissionsDto()
     };
 
+    // ════════════════════════════════════════════════
+    // GET MY PERMISSIONS — called by the frontend on login
+    // and on every page refresh, so it always reflects the
+    // caller's current, live flags rather than a stale snapshot.
+    // ════════════════════════════════════════════════
+    public async Task<MyPermissionsResponseDto> GetMyPermissionsAsync(
+        Guid userId, Guid employerId)
+    {
+        var isOwner = await _context.EmployerProfiles
+            .AnyAsync(e => e.EmployerId == employerId && e.UserId == userId);
+
+        if (isOwner)
+        {
+            return new MyPermissionsResponseDto
+            {
+                Success = true,
+                IsSubUser = false,
+                CanSearchCandidates = true,
+                CanUnlockProfiles = true,
+                CanPostJobs = true,
+                CanManageApplications = true
+            };
+        }
+
+        var subUser = await _context.EmployerSubUsers
+            .FirstOrDefaultAsync(s =>
+                s.UserId == userId &&
+                s.EmployerId == employerId);
+
+        if (subUser == null)
+        {
+            return new MyPermissionsResponseDto
+            {
+                Success = false,
+                IsSubUser = true,
+                CanSearchCandidates = false,
+                CanUnlockProfiles = false,
+                CanPostJobs = false,
+                CanManageApplications = false
+            };
+        }
+
+        var isActive =
+            subUser.InviteAccepted &&
+            subUser.SubUserStatus == "Active";
+
+        return new MyPermissionsResponseDto
+        {
+            Success = true,
+            IsSubUser = true,
+            CanSearchCandidates = isActive && subUser.CanSearchCandidates,
+            CanUnlockProfiles = isActive && subUser.CanUnlockProfiles,
+            CanPostJobs = isActive && subUser.CanPostJobs,
+            CanManageApplications = isActive && subUser.CanManageApplications
+        };
+    }
+
     // ── Helpers ───────────────────────────────────────────
     private static InviteSubUserResponseDto InviteFail(string message) =>
         new() { Success = false, Message = message };

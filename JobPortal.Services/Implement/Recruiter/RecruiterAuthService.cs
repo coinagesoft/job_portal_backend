@@ -374,6 +374,12 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             // Recruiter validation
             Guid? employerId = null;
+            bool isSubUser = false;
+            bool canSearchCandidates = true;
+            bool canUnlockProfiles = true;
+            bool canPostJobs = true;
+            bool canManageApplications = true;
+
             if (user.UserType == UserType.Recruiter)
             {
                 // First check if this recruiter is the employer owner
@@ -389,6 +395,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                         return AuthFail("Company account rejected.");
 
                     employerId = employer.EmployerId;
+                    // Owner keeps every permission true (the defaults above).
                 }
                 else
                 {
@@ -410,6 +417,11 @@ public class RecruiterAuthService : IRecruiterAuthService
                         return AuthFail("Company account rejected.");
 
                     employerId = subUser.EmployerId;
+                    isSubUser = true;
+                    canSearchCandidates = subUser.CanSearchCandidates;
+                    canUnlockProfiles = subUser.CanUnlockProfiles;
+                    canPostJobs = subUser.CanPostJobs;
+                    canManageApplications = subUser.CanManageApplications;
                 }
             }
 
@@ -514,7 +526,12 @@ public class RecruiterAuthService : IRecruiterAuthService
                 UserType = user.UserType.ToString(),
                 UserName = await GetUserNameAsync(user),
                 ProfileStatus = profileStatus,
-                ExpiresAt = expiry
+                ExpiresAt = expiry,
+                IsSubUser = isSubUser,
+                CanSearchCandidates = canSearchCandidates,
+                CanUnlockProfiles = canUnlockProfiles,
+                CanPostJobs = canPostJobs,
+                CanManageApplications = canManageApplications
             };
         }
         catch (Exception ex)

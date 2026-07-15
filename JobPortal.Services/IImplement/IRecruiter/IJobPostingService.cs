@@ -21,26 +21,26 @@ namespace JobPortal.Services.IImplement.IRecruiter
 
         // Step 2-6 — update draft (all use jobId)
         Task<BaseJobResponseDto> SaveCompensationAsync(
-            CompensationRequestDto request, Guid jobId, Guid employerId);
+            CompensationRequestDto request, Guid jobId, Guid employerId, Guid actionUserId, bool isSubUser);
 
         Task<BaseJobResponseDto> SaveSkillsAsync(
-            SkillsRequestDto request, Guid jobId, Guid employerId);
+            SkillsRequestDto request, Guid jobId, Guid employerId, Guid actionUserId, bool isSubUser);
 
         Task<BaseJobResponseDto> SaveEligibilityAsync(
-            EligibilityRequestDto request, Guid jobId, Guid employerId);
+            EligibilityRequestDto request, Guid jobId, Guid employerId, Guid actionUserId, bool isSubUser);
 
         Task<BaseJobResponseDto> SaveLocationAsync(
-            LocationRequestDto request, Guid jobId, Guid employerId);
+            LocationRequestDto request, Guid jobId, Guid employerId, Guid actionUserId, bool isSubUser);
 
         Task<BaseJobResponseDto> SaveQuestionsAsync(
-            QuestionsRequestDto request, Guid jobId, Guid employerId);
+            QuestionsRequestDto request, Guid jobId, Guid employerId, Guid actionUserId, bool isSubUser);
 
         // Step 7 — publish or save draft
-        Task<PublishingResponseDto> PublishJobAsync(PublishingRequestDto request, Guid employerId);
+        Task<PublishingResponseDto> PublishJobAsync(PublishingRequestDto request, Guid employerId, Guid actionUserId, bool isSubUser);
 
-        Task<BaseJobResponseDto> DeleteJobAsync(Guid jobId, Guid employerId);
+        Task<BaseJobResponseDto> DeleteJobAsync(Guid jobId, Guid employerId, Guid actionUserId, bool isSubUser);
         // Save draft at any step
-        Task<BaseJobResponseDto> SaveDraftAsync(Guid jobId, Guid employerId);
+        Task<BaseJobResponseDto> SaveDraftAsync(Guid jobId, Guid employerId, Guid actionUserId, bool isSubUser);
 
         // Role search — no dropdown, free search
         Task<RoleSearchResponseDto> SearchRolesAsync(string query);

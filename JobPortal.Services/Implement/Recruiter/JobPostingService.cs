@@ -336,10 +336,24 @@ namespace JobPortal.Services.Implement.Recruiter
         public async Task<BaseJobResponseDto> SaveCompensationAsync(
            CompensationRequestDto request,
            Guid jobId,
-           Guid employerId)
+           Guid employerId,
+           Guid actionUserId,
+           bool isSubUser)
         {
             try
             {
+                var permissionCheck = await _permissionService.CheckAsync(
+                    actionUserId, isSubUser, s => s.CanPostJobs);
+
+                if (!permissionCheck.Allowed)
+                {
+                    return new BaseJobResponseDto
+                    {
+                        Success = false,
+                        Message = permissionCheck.Message
+                    };
+                }
+
                 var job = await GetJobAsync(
                     jobId,
                     employerId);
@@ -445,10 +459,24 @@ namespace JobPortal.Services.Implement.Recruiter
         public async Task<BaseJobResponseDto> SaveSkillsAsync(
             SkillsRequestDto request,
             Guid jobId,
-            Guid employerId)
+            Guid employerId,
+            Guid actionUserId,
+            bool isSubUser)
         {
             try
             {
+                var permissionCheck = await _permissionService.CheckAsync(
+                    actionUserId, isSubUser, s => s.CanPostJobs);
+
+                if (!permissionCheck.Allowed)
+                {
+                    return new BaseJobResponseDto
+                    {
+                        Success = false,
+                        Message = permissionCheck.Message
+                    };
+                }
+
                 var job = await GetJobAsync(jobId, employerId);
 
                 if (job == null)
@@ -532,10 +560,24 @@ namespace JobPortal.Services.Implement.Recruiter
         public async Task<BaseJobResponseDto> SaveEligibilityAsync(
         EligibilityRequestDto request,
         Guid jobId,
-        Guid employerId)
+        Guid employerId,
+        Guid actionUserId,
+        bool isSubUser)
         {
             try
             {
+                var permissionCheck = await _permissionService.CheckAsync(
+                    actionUserId, isSubUser, s => s.CanPostJobs);
+
+                if (!permissionCheck.Allowed)
+                {
+                    return new BaseJobResponseDto
+                    {
+                        Success = false,
+                        Message = permissionCheck.Message
+                    };
+                }
+
                 var job = await GetJobAsync(jobId, employerId);
 
                 if (job == null)
@@ -669,10 +711,24 @@ namespace JobPortal.Services.Implement.Recruiter
         public async Task<BaseJobResponseDto> SaveLocationAsync(
          LocationRequestDto request,
          Guid jobId,
-         Guid employerId)
+         Guid employerId,
+         Guid actionUserId,
+         bool isSubUser)
         {
             try
             {
+                var permissionCheck = await _permissionService.CheckAsync(
+                    actionUserId, isSubUser, s => s.CanPostJobs);
+
+                if (!permissionCheck.Allowed)
+                {
+                    return new BaseJobResponseDto
+                    {
+                        Success = false,
+                        Message = permissionCheck.Message
+                    };
+                }
+
                 var job = await GetJobAsync(jobId, employerId);
 
                 if (job == null)
@@ -810,10 +866,24 @@ namespace JobPortal.Services.Implement.Recruiter
         public async Task<BaseJobResponseDto> SaveQuestionsAsync(
        QuestionsRequestDto request,
        Guid jobId,
-       Guid employerId)
+       Guid employerId,
+       Guid actionUserId,
+       bool isSubUser)
         {
             try
             {
+                var permissionCheck = await _permissionService.CheckAsync(
+                    actionUserId, isSubUser, s => s.CanPostJobs);
+
+                if (!permissionCheck.Allowed)
+                {
+                    return new BaseJobResponseDto
+                    {
+                        Success = false,
+                        Message = permissionCheck.Message
+                    };
+                }
+
                 var job = await GetJobAsync(jobId, employerId);
 
                 if (job == null)
@@ -897,10 +967,24 @@ namespace JobPortal.Services.Implement.Recruiter
         // ════════════════════════════════════════════════
         public async Task<PublishingResponseDto> PublishJobAsync(
             PublishingRequestDto request,
-            Guid employerId)
+            Guid employerId,
+            Guid actionUserId,
+            bool isSubUser)
         {
             try
             {
+                var permissionCheck = await _permissionService.CheckAsync(
+                    actionUserId, isSubUser, s => s.CanPostJobs);
+
+                if (!permissionCheck.Allowed)
+                {
+                    return new PublishingResponseDto
+                    {
+                        Success = false,
+                        Message = permissionCheck.Message
+                    };
+                }
+
                 var job = await GetJobAsync(request.JobId, employerId);
 
                 if (job == null)
@@ -1021,10 +1105,18 @@ namespace JobPortal.Services.Implement.Recruiter
         // SAVE DRAFT — callable at any step
         // ════════════════════════════════════════════════
         public async Task<BaseJobResponseDto> SaveDraftAsync(
-            Guid jobId, Guid employerId)
+            Guid jobId, Guid employerId, Guid actionUserId, bool isSubUser)
         {
             try
             {
+                var permissionCheck = await _permissionService.CheckAsync(
+                    actionUserId, isSubUser, s => s.CanPostJobs);
+
+                if (!permissionCheck.Allowed)
+                {
+                    return Fail(permissionCheck.Message);
+                }
+
                 var job = await GetJobAsync(jobId, employerId);
                 if (job == null) return Fail("Job not found.");
 
@@ -1305,10 +1397,20 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public async Task<BaseJobResponseDto> DeleteJobAsync(
            Guid jobId,
-           Guid employerId)
+           Guid employerId,
+           Guid actionUserId,
+           bool isSubUser)
         {
             try
             {
+                var permissionCheck = await _permissionService.CheckAsync(
+                    actionUserId, isSubUser, s => s.CanPostJobs);
+
+                if (!permissionCheck.Allowed)
+                {
+                    return Fail(permissionCheck.Message);
+                }
+
                 var job = await _context.JobPostings
                     .FirstOrDefaultAsync(x =>
                         x.JobId == jobId &&
