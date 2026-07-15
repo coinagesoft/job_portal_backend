@@ -384,7 +384,7 @@ public class RecruiterSubUserController : ControllerBase
                 return BadRequest(Error("Invalid invite token."));
             }
 
-           
+
 
 
             var result = await _service.AcceptInviteAsync(request);
@@ -416,7 +416,6 @@ public class RecruiterSubUserController : ControllerBase
 
 
 
-    [AllowAnonymous]
     [HttpDelete("{subUserId:guid}")]
     [ProducesResponseType(200)]
     [ProducesResponseType(404)]

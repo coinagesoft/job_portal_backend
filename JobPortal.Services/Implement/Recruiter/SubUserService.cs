@@ -5,6 +5,7 @@ using JobPortal.Domain.Enums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 
@@ -15,14 +16,30 @@ public class SubUserService : ISubUserService
     private readonly AppDbContext _context;
     private readonly ILogger<SubUserService> _logger;
     private readonly ISubUserEmailService _subUserEmailService;
+    private readonly IConfiguration _configuration;
+
     public SubUserService(
         AppDbContext context,
         ILogger<SubUserService> logger,
-        ISubUserEmailService subUserEmailService)
+        ISubUserEmailService subUserEmailService,
+        IConfiguration configuration)
     {
         _context = context;
         _logger = logger;
         _subUserEmailService = subUserEmailService;
+        _configuration = configuration;
+    }
+
+    // Frontend base URL for invite links — configurable via
+    // "Frontend:BaseUrl" (appsettings / environment), falls back to
+    // localhost so local dev keeps working without extra setup.
+    private string BuildInviteLink(Guid token)
+    {
+        var baseUrl =
+            _configuration["Frontend:BaseUrl"]?.TrimEnd('/')
+            ?? "http://localhost:3000";
+
+        return $"{baseUrl}/employeer/accept-invite?token={token}";
     }
 
     // ════════════════════════════════════════════════
@@ -174,8 +191,7 @@ public class SubUserService : ISubUserService
 
             _logger.LogInformation("Sending invite email to {Email}", request.SubUserEmail);
 
-            var inviteLink =
-            $"http://localhost:3000/employeer/accept-invite?token={inviteToken}"; ;
+            var inviteLink = BuildInviteLink(inviteToken);
 
             await _subUserEmailService.SendSubUserInviteAsync(
                 request.SubUserEmail,
@@ -418,15 +434,35 @@ public class SubUserService : ISubUserService
                     Message = "Invite already accepted."
                 };
 
+            var employer = await _context.EmployerProfiles
+                .FirstOrDefaultAsync(e => e.EmployerId == employerId);
+
+            if (employer == null)
+                return new BaseSubUserResponseDto
+                {
+                    Success = false,
+                    Message = "Employer not found."
+                };
+
             // Generate new token and reset expiry
             subUser.InviteToken = Guid.NewGuid();
             subUser.InviteExpiresAt = DateTime.UtcNow.AddHours(72);
             await _context.SaveChangesAsync();
 
-            // TODO: Send new invite email
+            var inviteLink = BuildInviteLink(subUser.InviteToken.Value);
+
+            await _subUserEmailService.SendSubUserInviteAsync(
+                subUser.SubUserEmail,
+                subUser.SubUserName,
+                employer.CompanyDisplayName,
+                subUser.SubUserRole,
+                inviteLink,
+                subUser.InviteExpiresAt.Value);
+
             _logger.LogInformation(
-                "Invite resent — Token:{Token} [DEV]",
-                subUser.InviteToken);
+                "Invite resent — Token:{Token} Email:{Email}",
+                subUser.InviteToken,
+                subUser.SubUserEmail);
 
             return new BaseSubUserResponseDto
             {
