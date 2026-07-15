@@ -175,7 +175,7 @@ public class SubUserService : ISubUserService
             _logger.LogInformation("Sending invite email to {Email}", request.SubUserEmail);
 
             var inviteLink =
-            $"https://job-portal-dev-phi.vercel.app/employeer/accept-invite?token={inviteToken}"; ;
+            $"http://localhost:3000/employeer/accept-invite?token={inviteToken}"; ;
 
             await _subUserEmailService.SendSubUserInviteAsync(
                 request.SubUserEmail,
@@ -215,9 +215,11 @@ public class SubUserService : ISubUserService
             };
         }
     }
+
     // ════════════════════════════════════════════════
     // UPDATE SUB-USER ROLE/PERMISSIONS
     // ════════════════════════════════════════════════
+
     public async Task<InviteSubUserResponseDto> UpdateSubUserAsync(
         Guid subUserId, UpdateSubUserRequestDto request, Guid employerId)
     {
@@ -583,9 +585,9 @@ public class SubUserService : ISubUserService
         try
         {
             var subUser = await _context.EmployerSubUsers
-                .FirstOrDefaultAsync(s =>
-                    s.SubUserId == subUserId &&
-                    s.EmployerId == employerId);
+                .FirstOrDefaultAsync(x =>
+                    x.SubUserId == subUserId &&
+                    x.EmployerId == employerId);
 
             if (subUser == null)
             {
@@ -597,42 +599,92 @@ public class SubUserService : ISubUserService
             }
 
             var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.UserId == subUser.UserId);
+                .FirstOrDefaultAsync(x => x.UserId == subUser.UserId);
 
-            // Remove the employer-sub-user mapping
+            if (user == null)
+            {
+                return new BaseSubUserResponseDto
+                {
+                    Success = false,
+                    Message = "User not found."
+                };
+            }
+
+            // =====================================================
+            // Remove FK references before deleting the sub-user
+            // =====================================================
+
+            // Jobs posted by this sub-user — keep the job, drop the reference
+            var jobs = await _context.JobPostings
+                .Where(x => x.PostedBySubUserId == subUserId)
+                .ToListAsync();
+
+            foreach (var job in jobs)
+            {
+                job.PostedBySubUserId = null;
+            }
+
+            // Credit allocated specifically to this sub-user
+            var creditAllocations = await _context.SubUserCreditAllocation
+                .Where(x => x.SubUserId == subUserId)
+                .ToListAsync();
+
+            if (creditAllocations.Any())
+                _context.SubUserCreditAllocation.RemoveRange(creditAllocations);
+
+            // Credit usage transactions performed by this sub-user's user account
+            var creditUsageTxns = await _context.CreditUsageTransactions
+                .Where(x => x.ActionByUserId == user.UserId)
+                .ToListAsync();
+
+            if (creditUsageTxns.Any())
+                _context.CreditUsageTransactions.RemoveRange(creditUsageTxns);
+
+            // Note: RecruiterNote and EmployerCandidateAccess have no
+            // sub-user reference in this schema — nothing to clean up there.
+
+            // =====================================================
+            // Delete User Sessions
+            // =====================================================
+            var sessions = await _context.UserSessions
+                .Where(x => x.UserId == user.UserId)
+                .ToListAsync();
+
+            if (sessions.Any())
+                _context.UserSessions.RemoveRange(sessions);
+
+            // =====================================================
+            // Delete OTPs
+            // =====================================================
+            var otps = await _context.OtpVerifications
+                .Where(x => x.UserId == user.UserId)
+                .ToListAsync();
+
+            if (otps.Any())
+                _context.OtpVerifications.RemoveRange(otps);
+
+            // =====================================================
+            // Delete Notifications
+            // =====================================================
+            var notifications = await _context.Notifications
+                .Where(x => x.UserId == user.UserId)
+                .ToListAsync();
+
+            if (notifications.Any())
+                _context.Notifications.RemoveRange(notifications);
+
+            // =====================================================
+            // Delete EmployerSubUser
+            // =====================================================
             _context.EmployerSubUsers.Remove(subUser);
 
-            if (user != null)
-            {
-                var otherLinks = await _context.EmployerSubUsers
-                    .AnyAsync(s =>
-                        s.UserId == user.UserId &&
-                        s.SubUserId != subUserId);
-
-                // Delete user only if not linked elsewhere
-                if (!otherLinks)
-                {
-                    // Delete OTP history
-                    var otpRecords = await _context.OtpVerifications
-                        .Where(x => x.UserId == user.UserId)
-                        .ToListAsync();
-
-                    if (otpRecords.Any())
-                    {
-                        _context.OtpVerifications.RemoveRange(otpRecords);
-                    }
-
-                    // Delete user
-                    _context.Users.Remove(user);
-                }
-            }
+            // =====================================================
+            // Delete User
+            // =====================================================
+            _context.Users.Remove(user);
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
-
-            _logger.LogInformation(
-                "Sub-user deleted successfully. SubUserId: {SubUserId}",
-                subUserId);
 
             return new BaseSubUserResponseDto
             {
@@ -645,7 +697,7 @@ public class SubUserService : ISubUserService
             await transaction.RollbackAsync();
 
             _logger.LogError(ex,
-                "Delete sub-user failed. SubUserId: {SubUserId}",
+                "DeleteSubUser failed. SubUserId:{SubUserId}",
                 subUserId);
 
             return new BaseSubUserResponseDto
