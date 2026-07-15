@@ -297,6 +297,38 @@ namespace JobPortal.Services.Implement.Recruiter
                 _context.EmployerPlanPurchase.Add(purchase);
 
                 //--------------------------------------------------------
+                // Invoice (GST-compliant billing record)
+                //--------------------------------------------------------
+
+                var invoiceNumber = await GenerateInvoiceNumberAsync();
+
+                var invoice = new Invoice
+                {
+                    InvoiceId = Guid.NewGuid(),
+                    TransactionId = txn.TransactionId,
+                    UserId = txn.UserId,
+                    InvoiceNumber = invoiceNumber,
+                    InvoiceDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    InvoiceAmount = txn.AmountPaise / 100,
+                    InvoiceGst = txn.GstAmountPaise / 100,
+                    InvoiceTotal = txn.TotalAmountPaise / 100,
+                    InvoiceS3Url = null, // PDF is generated on demand — see RecruiterInvoiceService.DownloadInvoicePdfAsync
+                    CreatedAt = DateTime.UtcNow,
+
+                    // NOTE: the DB's actual FK constraint is on a separate shadow
+                    // column (PaymentTransactionTransactionId) that EF created
+                    // because the "PaymentTransaction" nav property doesn't match
+                    // the "TransactionId" FK property by convention. Setting the
+                    // scalar TransactionId above does NOT populate that shadow
+                    // column. Assigning the navigation here — txn is already
+                    // tracked by this same DbContext — lets EF resolve the
+                    // shadow FK from it automatically at SaveChanges time.
+                    PaymentTransaction = txn
+                };
+
+                _context.Invoices.Add(invoice);
+
+                //--------------------------------------------------------
                 // Save
                 //--------------------------------------------------------
 
@@ -451,6 +483,17 @@ namespace JobPortal.Services.Implement.Recruiter
             obj.Success = false;
             obj.Message = message;
             return obj;
+        }
+
+        // Generates a sequential, per-month invoice number, e.g. INV-202607-0001
+        private async Task<string> GenerateInvoiceNumberAsync()
+        {
+            var prefix = $"INV-{DateTime.UtcNow:yyyyMM}-";
+
+            var countThisMonth = await _context.Invoices
+                .CountAsync(i => i.InvoiceNumber.StartsWith(prefix));
+
+            return $"{prefix}{(countThisMonth + 1):D4}";
         }
     }
 }

@@ -55,5 +55,28 @@ namespace JobPortal.API.Controllers.Recruiter
 
             return Ok(result);
         }
+
+        // GET /api/recruiter/invoices/{invoiceId}/download
+        // Streams a freshly-generated, GST-compliant invoice PDF.
+        [HttpGet("invoices/{invoiceId:guid}/download")]
+        public async Task<IActionResult>
+            DownloadInvoicePdf(
+                Guid invoiceId,
+
+                [FromHeader(Name = "EmployerId")]
+                Guid employerId)
+        {
+            var result =
+                await _service.DownloadInvoicePdfAsync(
+                    invoiceId,
+                    employerId);
+
+            if (result == null)
+            {
+                return NotFound(new { success = false, message = "Invoice not found." });
+            }
+
+            return File(result.Value.Bytes, "application/pdf", result.Value.FileName);
+        }
     }
 }
