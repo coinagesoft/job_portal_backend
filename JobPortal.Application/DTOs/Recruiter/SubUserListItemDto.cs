@@ -20,6 +20,12 @@ namespace JobPortal.Application.DTOs.Recruiter
         public bool InviteAccepted { get; set; }
         public PermissionsDto Permissions { get; set; } = default!;
         public DateTime CreatedAt { get; set; }
+
+        // Credit allocation — 0/0/0 if the owner has never allocated
+        // credits to this sub-user yet.
+        public int AllocatedCredits { get; set; }
+        public int UsedCredits { get; set; }
+        public int RemainingCredits { get; set; }
     }
 
     public class SubUserListResponseDto

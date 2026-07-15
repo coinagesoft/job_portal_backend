@@ -54,25 +54,41 @@ public class SubUserService : ISubUserService
                 .OrderByDescending(s => s.CreatedAt)
                 .ToListAsync();
 
-            var items = subUsers.Select(s => new SubUserListItemDto
+            var allocations = await _context.SubUserCreditAllocation
+                .Where(a => a.EmployerId == employerId)
+                .ToDictionaryAsync(a => a.SubUserId);
+
+            var items = subUsers.Select(s =>
             {
-                SubUserId = s.SubUserId,
-                EmployerId = s.EmployerId,
-                SubUserName = s.SubUserName,
-                SubUserEmail = s.SubUserEmail,
-                SubUserMobile = s.SubUserMobile ?? "",
-                CountryCode = s.SubUserCountryCode ?? "+91",
-                Role = s.SubUserRole,
-                Status = !s.InviteAccepted ? "Pending" : s.SubUserStatus,
-                InviteAccepted = s.InviteAccepted,
-                Permissions = new PermissionsDto
+                // NOTE: despite the field name, SubUserCreditAllocation.SubUserId
+                // actually stores the sub-user's login identity (User.UserId) —
+                // that's what deduction at unlock/download time looks up via the
+                // JWT. Match on s.UserId here, not s.SubUserId (the row's own id).
+                allocations.TryGetValue(s.UserId, out var allocation);
+
+                return new SubUserListItemDto
                 {
-                    CanSearchCandidates = s.CanSearchCandidates,
-                    CanUnlockProfiles = s.CanUnlockProfiles,
-                    CanPostJobs = s.CanPostJobs,
-                    CanManageApplications = s.CanManageApplications
-                },
-                CreatedAt = s.CreatedAt
+                    SubUserId = s.SubUserId,
+                    EmployerId = s.EmployerId,
+                    SubUserName = s.SubUserName,
+                    SubUserEmail = s.SubUserEmail,
+                    SubUserMobile = s.SubUserMobile ?? "",
+                    CountryCode = s.SubUserCountryCode ?? "+91",
+                    Role = s.SubUserRole,
+                    Status = !s.InviteAccepted ? "Pending" : s.SubUserStatus,
+                    InviteAccepted = s.InviteAccepted,
+                    Permissions = new PermissionsDto
+                    {
+                        CanSearchCandidates = s.CanSearchCandidates,
+                        CanUnlockProfiles = s.CanUnlockProfiles,
+                        CanPostJobs = s.CanPostJobs,
+                        CanManageApplications = s.CanManageApplications
+                    },
+                    CreatedAt = s.CreatedAt,
+                    AllocatedCredits = allocation?.AllocatedCredits ?? 0,
+                    UsedCredits = allocation?.UsedCredits ?? 0,
+                    RemainingCredits = allocation?.RemainingCredits ?? 0
+                };
             }).ToList();
 
             return new SubUserListResponseDto

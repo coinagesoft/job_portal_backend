@@ -115,9 +115,16 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
+            // IMPORTANT: the balance-tracking allocation is keyed by the
+            // sub-user's actual login identity (User.UserId) — that's what
+            // DeductSubUserCreditsAsync/GetSubUserCreditBalanceAsync look
+            // up at unlock/download time, resolved from the JWT. Keying
+            // this by the EmployerSubUser row's own id (request.SubUserId)
+            // instead would silently create an allocation the sub-user can
+            // never actually spend from.
             var allocation =
                 await GetSubUserAllocationAsync(
-                    request.SubUserId);
+                    subUser.UserId);
 
             if (allocation == null)
             {
@@ -131,7 +138,7 @@ namespace JobPortal.Services.Implement.Recruiter
                             employerId,
 
                         SubUserId =
-                            request.SubUserId,
+                            subUser.UserId,
 
                         AllocatedCredits =
                             request.Credits,
@@ -164,6 +171,9 @@ namespace JobPortal.Services.Implement.Recruiter
                     DateTime.UtcNow;
             }
 
+            // The history log is purely for display on the Credit Wallet
+            // page, which resolves names via the EmployerSubUser row id —
+            // keep using request.SubUserId here so that lookup keeps working.
             await _context.CreditAllocationHistory
                 .AddAsync(
                     new CreditAllocationHistory

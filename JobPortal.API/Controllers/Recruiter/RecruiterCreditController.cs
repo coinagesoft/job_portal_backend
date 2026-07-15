@@ -61,10 +61,43 @@ public class RecruiterCreditController : ControllerBase
     public async Task<IActionResult> AllocateCredits(
         [FromBody] AllocateCreditsRequestDto request)
     {
+        // Only the account owner can allocate credits — matches the
+        // Sub-Users page's own "Only the account owner can buy credits
+        // or invite users" messaging.
+        if (GetIsSubUser())
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = "Only the account owner can allocate credits."
+            });
+        }
+
         var result =
             await _service.AllocateCreditsAsync(
                 GetEmployerId(),
                 request);
+
+        return Ok(result);
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // GET /api/recruiter/my-credit-balance
+    //
+    // Self-service: returns the CALLER's own allocated/used/remaining
+    // credits. Null for the account owner (they draw from the shared
+    // wallet directly, not a personal allocation) — the frontend shows
+    // the regular wallet cards in that case instead.
+    // ════════════════════════════════════════════════════════════
+    [HttpGet("my-credit-balance")]
+    public async Task<IActionResult> GetMyCreditBalance()
+    {
+        if (!GetIsSubUser())
+        {
+            return Ok(null);
+        }
+
+        var result = await _service.GetSubUserCreditBalanceAsync(GetActionUserId());
 
         return Ok(result);
     }
