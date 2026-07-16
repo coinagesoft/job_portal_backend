@@ -16,7 +16,7 @@ using Microsoft.EntityFrameworkCore;
     {
         private readonly AppDbContext _context;
         private readonly ILogger<JobPostingService> _logger;
-        private readonly IEmbeddingStorageService _embeddingStorage;   // ✅ नवीन
+        private readonly IEmbeddingStorageService _embeddingStorage;   
 
 
         private static readonly Dictionary<int, string> StepNames = new()
@@ -456,7 +456,6 @@ using Microsoft.EntityFrameworkCore;
                     _context.JobPostings.Add(job);
                 }
 
-                // PATCH logic
                 // PATCH logic
 
                 if (request.KeySkills != null)
@@ -1261,8 +1260,6 @@ using Microsoft.EntityFrameworkCore;
 
                         CompanyVisibility =
         job.CompanyVisibility,
-
-        
 
                         PublishNow =
         job.JobStatus == JobStatus.Active

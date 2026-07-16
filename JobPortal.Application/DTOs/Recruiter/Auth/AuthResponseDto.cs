@@ -20,7 +20,7 @@ public class AuthResponseDto
     public Guid? EmployerId { get; set; }
 
     public string? UserType { get; set; }
-
+    public Guid? CandidateId { get; set; }
     public string? UserName { get; set; }
 
     public string? ProfileStatus { get; set; }

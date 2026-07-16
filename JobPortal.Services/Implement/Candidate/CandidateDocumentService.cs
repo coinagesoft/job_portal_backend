@@ -89,10 +89,22 @@ public class CandidateDocumentService : ICandidateDocumentService
                 Message = "Documents retrieved.",
                 Data = new CandidateDocumentsData
                 {
-                    Resume = cv == null ? null : MapCv(cv),
-                    EducationCertificates = eduList.Select(MapEducation).ToList(),
-                    Passport = passport == null ? null : MapPassport(passport),
-                    Aadhaar = aadhaar == null ? null : MapAadhaar(aadhaar),
+                    Resume = cv == null
+                        ? null
+                        : MapCv(cv),
+
+                    EducationCertificates = eduList
+                        .Select(MapEducation)
+                        .ToList(),
+
+                    Passport = passport == null
+                        ? null
+                        : MapPassport(passport),
+
+                    Aadhaar = aadhaar == null
+                        ? null
+                        : MapAadhaar(aadhaar),
+
                     GeneratedCv = string.IsNullOrWhiteSpace(profile.GeneratedCvFileUrl)
                         ? null
                         : new GeneratedCvDto
@@ -105,11 +117,14 @@ public class CandidateDocumentService : ICandidateDocumentService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "GetAllDocumentsAsync failed for {CandidateId}", candidateId);
-            return DocsFail(ex.Message);
+            _logger.LogError(
+                ex,
+                "GetAllDocumentsAsync failed for {CandidateId}",
+                candidateId);
+
+            return DocsFail("Unable to retrieve candidate documents.");
         }
     }
-
     // ════════════════════════════════════════════════
     // UPLOAD RESUME  (Affinda integration)
     // ════════════════════════════════════════════════
@@ -781,9 +796,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 };
             }
 
-            // 4. Upload to Cloudinary. The stored file name is built from the
-            //    detected type + candidate name + short id, e.g.
-            //    "aadhaar_card_shrinath_dandekar_ec52be6d".
+            
             var shortId = candidateId.ToString("N").Substring(0, 8);
             var fileName = $"{Slugify(documentType)}_{Slugify(profile.FullName)}_{shortId}";
 
@@ -817,6 +830,102 @@ public class CandidateDocumentService : ICandidateDocumentService
             };
 
             _context.CandidateDocuments.Add(doc);
+
+            // Save/update KYC verification for Aadhaar
+            if (documentType.Equals("Aadhaar Card", StringComparison.OrdinalIgnoreCase))
+            {
+                var kyc = await _context.KycVerifications
+                    .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
+                if (kyc == null)
+                {
+                    kyc = new KycVerification
+                    {
+                        VerificationId = Guid.NewGuid(),
+                        CandidateId = candidateId,
+                        CreatedAt = now
+                    };
+
+                    _context.KycVerifications.Add(kyc);
+                }
+
+                // Basic document details
+                kyc.IdType = "Aadhaar";
+                kyc.IdFrontImageUrl = uploadResult.Url;
+                kyc.IdFrontPublicId = uploadResult.PublicId;
+
+                // AI extracted data
+                kyc.AiExtractedName = parsedName;
+
+                kyc.AiExtractedDocumentNumber = GetParsedField(
+                    parsed.ParsedData,
+                    "aadhaarNumber",
+                    "aadhaar_number",
+                    "aadhaar");
+
+                kyc.AiExtractedAddress = GetParsedField(
+                    parsed.ParsedData,
+                    "address");
+
+                kyc.AiExtractedGender = GetParsedField(
+                    parsed.ParsedData,
+                    "gender");
+
+                kyc.AiExtractedDob = TryParseDateOnly(
+                    GetParsedField(
+                        parsed.ParsedData,
+                        "dob",
+                        "dateOfBirth",
+                        "date_of_birth"));
+
+                // Gemini returns values like 0.98 -> store as 98
+                kyc.AiConfidenceScore = parsed.AiConfidenceScore.HasValue
+                    ? parsed.AiConfidenceScore.Value * 100
+                    : null;
+
+                // Required for duplicate detection
+                if (string.IsNullOrWhiteSpace(kyc.IdHash))
+                {
+                    var documentNumber = kyc.AiExtractedDocumentNumber;
+
+                    kyc.IdHash = !string.IsNullOrWhiteSpace(documentNumber)
+                        ? documentNumber.Replace(" ", "").Replace("-", "")
+                        : Guid.NewGuid().ToString("N");
+                }
+
+                // Verification
+                kyc.AdminDecision = "Verified";
+                kyc.IsImportedToProfile = false;
+
+                // Audit
+                kyc.UpdatedAt = now;
+            }
+            if (documentType.Equals("Passport", StringComparison.OrdinalIgnoreCase))
+            {
+                var passport = await _context.PassportVerifications
+                    .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
+                if (passport == null)
+                {
+                    passport = new PassportVerification
+                    {
+                        VerificationId = Guid.NewGuid(),
+                        CandidateId = candidateId,
+                        CreatedAt = now
+                    };
+
+                    _context.PassportVerifications.Add(passport);
+                }
+
+                passport.FrontImageUrl = uploadResult.Url;
+                passport.FrontPublicId = uploadResult.PublicId;
+
+                passport.AiExtractedName = parsedName;
+                passport.AiConfidenceScore = parsed.AiConfidenceScore;
+                passport.AdminDecision = "Verified";
+                passport.IsImportedToProfile = false;
+                passport.UpdatedAt = now;
+            }
 
             if (existing.Count > 0)
                 _context.CandidateDocuments.RemoveRange(existing);
@@ -892,8 +1001,7 @@ public class CandidateDocumentService : ICandidateDocumentService
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
+            _logger.LogError(ex,
                 "UploadAndVerifyDocumentAsync failed for Candidate {CandidateId} ({Type})",
                 candidateId, documentType);
 
@@ -902,12 +1010,43 @@ public class CandidateDocumentService : ICandidateDocumentService
             return new UploadDocumentResponse
             {
                 Success = false,
-                Message = "Unable to upload document. Please try again later.",
+                Message = ex.ToString(), // TEMPORARY
                 DocumentType = documentType
             };
         }
     }
+    private static DateOnly? TryParseDateOnly(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
 
+        string[] formats =
+        {
+        "dd/MM/yyyy",
+        "d/M/yyyy",
+        "dd-MM-yyyy",
+        "d-M-yyyy",
+        "yyyy-MM-dd",
+        "MM/dd/yyyy",
+        "M/d/yyyy"
+    };
+
+        if (DateOnly.TryParseExact(
+                value.Trim(),
+                formats,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None,
+                out var date))
+        {
+            return date;
+        }
+
+        // Fallback
+        if (DateTime.TryParse(value, out var dt))
+            return DateOnly.FromDateTime(dt);
+
+        return null;
+    }
     private static bool IsItiCertificate(string? documentType)
         => !string.IsNullOrWhiteSpace(documentType) &&
            documentType.Replace("-", " ").Replace("_", " ")
@@ -3100,6 +3239,10 @@ public class CandidateDocumentService : ICandidateDocumentService
         AiExtractedAddress = k.AiExtractedAddress,
 
         AiConfidenceScore = k.AiConfidenceScore,
+
+        AiExtractedDocumentNumber = k.AiExtractedDocumentNumber,
+
+        AiExtractedGender = k.AiExtractedGender,
 
         OcrConfidence = k.OcrConfidence,
 

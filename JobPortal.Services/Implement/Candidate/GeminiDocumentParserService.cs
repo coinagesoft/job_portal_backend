@@ -74,6 +74,11 @@ Tasks:
 Return format:
 {
   "documentType": "",
+ "confidence": {
+  "overall": 0,
+  "documentType": 0,
+  "ocr": 0
+},
   "fields": {}
 }
 """;
@@ -201,6 +206,7 @@ Return format:
             var parsedRoot = parsedDocument.RootElement;
             string? documentType = null;
             JsonElement? fields = null;
+            decimal? aiConfidence = null;
 
             if (parsedRoot.TryGetProperty("documentType", out var docType))
                 documentType = docType.GetString();
@@ -208,11 +214,22 @@ Return format:
             if (parsedRoot.TryGetProperty("fields", out var fieldsElement))
                 fields = fieldsElement.Clone();
 
+            if (parsedRoot.TryGetProperty("confidence", out var confidenceElement))
+            {
+                if (confidenceElement.ValueKind == JsonValueKind.Object &&
+                    confidenceElement.TryGetProperty("overall", out var overall))
+                {
+                    if (overall.TryGetDecimal(out var score))
+                        aiConfidence = score;
+                }
+            }
+
             return new GeminiDocumentParseResponse
             {
                 Success = true,
                 Message = "Document parsed successfully.",
                 DocumentType = documentType,
+                AiConfidenceScore = aiConfidence,
                 ParsedData = fields,
                 RawResponse = jsonText
             };

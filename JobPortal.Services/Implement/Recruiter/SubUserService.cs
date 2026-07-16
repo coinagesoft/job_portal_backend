@@ -577,8 +577,8 @@ public class SubUserService : ISubUserService
         new() { Success = false, Message = message };
 
     public async Task<BaseSubUserResponseDto> DeleteSubUserAsync(
-      Guid subUserId,
-      Guid employerId)
+        Guid subUserId,
+        Guid employerId)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -611,6 +611,23 @@ public class SubUserService : ISubUserService
             }
 
             // =====================================================
+            // Safety check: never delete a User row that is actually
+            // an employer's own owner account (cascades into
+            // employer_profiles -> job_postings and hits RESTRICT)
+            // =====================================================
+            var isEmployerOwner = await _context.EmployerProfiles
+                .AnyAsync(x => x.UserId == user.UserId);
+
+            if (isEmployerOwner)
+            {
+                return new BaseSubUserResponseDto
+                {
+                    Success = false,
+                    Message = "This account is linked to an employer's own profile and cannot be deleted as a sub-user."
+                };
+            }
+
+            // =====================================================
             // Remove FK references before deleting the sub-user
             // =====================================================
 
@@ -639,9 +656,6 @@ public class SubUserService : ISubUserService
 
             if (creditUsageTxns.Any())
                 _context.CreditUsageTransactions.RemoveRange(creditUsageTxns);
-
-            // Note: RecruiterNote and EmployerCandidateAccess have no
-            // sub-user reference in this schema — nothing to clean up there.
 
             // =====================================================
             // Delete User Sessions

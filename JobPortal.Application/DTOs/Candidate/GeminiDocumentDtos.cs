@@ -15,6 +15,8 @@ public class GeminiDocumentParseResponse
 
     // Raw response from Gemini (useful for debugging)
     public string? RawResponse { get; set; }
+    // ADD THIS
+    public decimal? AiConfidenceScore { get; set; }
 }
 
 public class GeminiSettings

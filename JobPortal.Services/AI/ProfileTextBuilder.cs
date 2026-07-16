@@ -45,7 +45,7 @@ public static class ProfileTextBuilder
     {
         var skills = string.Join(", ",
             profile.Skills
-                .Where(x => x.SkillType == "Skill")   // भाषा वगळून फक्त actual skills
+                .Where(x => x.SkillType == "Skill")   
                 .Select(x => x.SkillName));
 
         var education = string.Join(", ",

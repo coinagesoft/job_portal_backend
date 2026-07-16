@@ -241,6 +241,8 @@ public class AadhaarDocumentDto
     public DateTime UploadedAt { get; set; }
 
     // Useful for UI
+    public string? AiExtractedDocumentNumber { get; set; }
+    public string? AiExtractedGender { get; set; }
     public bool ParsedSuccessfully { get; set; }
 }
 

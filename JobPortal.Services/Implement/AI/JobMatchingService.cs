@@ -124,6 +124,9 @@ public class JobMatchingService : IJobMatchingService
 
         int experienceScore = 100;
 
+        Console.WriteLine($"[EXP DEBUG] JobId={job.JobId} Min={job.ExperienceMinYears} Max={job.ExperienceMaxYears} CandidateExp={candidate.TotalExperienceYears}");
+
+
         if (job.ExperienceMinYears > 0 ||
             job.ExperienceMaxYears > 0)
         {
@@ -151,6 +154,7 @@ public class JobMatchingService : IJobMatchingService
                 experienceScore = 90;
             }
         }
+        Console.WriteLine($"[EXP DEBUG] Final experienceScore={experienceScore}");
 
         // ==========================================
         // Location Match

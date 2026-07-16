@@ -492,7 +492,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             await _context.SaveChangesAsync();
 
-            var (token, expiry) =
+            var (token, expiry, candidateId) =
                 await GenerateUserTokenAsync(user);
 
             var profileStatus =
@@ -509,6 +509,8 @@ public class RecruiterAuthService : IRecruiterAuthService
                 Success = true,
                 Message = "Login successful.",
                 Token = token,
+                CandidateId = candidateId,
+
                 UserId = user.UserId,
                 EmployerId = employerId,
                 UserType = user.UserType.ToString(),
@@ -681,7 +683,7 @@ public class RecruiterAuthService : IRecruiterAuthService
             await _context.SaveChangesAsync();
 
             // Generate JWT
-            var (token, expiry) =
+            var (token, expiry, candidateId) =
                 await GenerateUserTokenAsync(user);
 
             // Profile Status
@@ -702,6 +704,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                 Token = token,
 
                 UserId = user.UserId,
+                CandidateId = candidateId,
 
                 EmployerId = employerId,
 
@@ -907,7 +910,7 @@ public class RecruiterAuthService : IRecruiterAuthService
             await _context.SaveChangesAsync();
 
             // Generate JWT
-            var (token, expiry) =
+            var (token, expiry, candidateId) =
                 await GenerateUserTokenAsync(user);
 
             // Profile Status
@@ -929,6 +932,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 UserId = user.UserId,
 
+                CandidateId = candidateId,
                 EmployerId = employerId,
 
                 UserType = userType.ToString(),
@@ -955,7 +959,7 @@ public class RecruiterAuthService : IRecruiterAuthService
     }
     // ── Private Helpers ───────────────────────────────────
 
-    private async Task<(string token, DateTime expiry)> GenerateUserTokenAsync(User user)
+    private async Task<(string token, DateTime expiry, Guid? candidateId)> GenerateUserTokenAsync(User user)
     {
         Guid? employerId = null;
         Guid? candidateId = null;
@@ -983,7 +987,7 @@ public class RecruiterAuthService : IRecruiterAuthService
             employerId,
             candidateId);
 
-        return (token, _jwtService.GetExpiry());
+        return (token, _jwtService.GetExpiry(), candidateId);
     }
     private async Task<string> GetProfileStatusAsync(User user)
     {
