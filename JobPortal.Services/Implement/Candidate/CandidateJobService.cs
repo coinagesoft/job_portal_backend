@@ -131,8 +131,8 @@ public class CandidateJobService : ICandidateJobService
                     .ThenInclude(e => e.Badges)
                 .FirstOrDefaultAsync(j =>
                     j.JobId == jobId &&
-                    j.JobStatus == JobStatus.Active &&
-                    j.ApplicationDeadline >= DateOnly.FromDateTime(DateTime.UtcNow));
+                    j.JobStatus == JobStatus.Active);
+                    //j.ApplicationDeadline >= DateOnly.FromDateTime(DateTime.UtcNow));
 
             if (job == null)
                 return new CandidateJobDetailResponseDto
@@ -411,27 +411,20 @@ public class CandidateJobService : ICandidateJobService
     {
         try
         {
-            // Validate job exists and is active
-            var jobExists = await _context.JobPostings
-                .AnyAsync(j => j.JobId == jobId && j.JobStatus == JobStatus.Active);
-
-            if (!jobExists)
-                return new SaveJobResponseDto
-                {
-                    Success = false,
-                    Message = "Job not found or no longer active.",
-                    JobId = jobId,
-                    IsSaved = false
-                };
-
+            // Check if already saved
             var existing = await _context.SavedJobs
-                .FirstOrDefaultAsync(s => s.JobId == jobId && s.CandidateId == candidateId);
+                .FirstOrDefaultAsync(s =>
+                    s.JobId == jobId &&
+                    s.CandidateId == candidateId);
 
+            //----------------------------------------------------
+            // UNSAVE (Always Allowed)
+            //----------------------------------------------------
             if (existing != null)
             {
-                // Already saved → unsave
                 _context.SavedJobs.Remove(existing);
                 await _context.SaveChangesAsync();
+
                 return new SaveJobResponseDto
                 {
                     Success = true,
@@ -440,26 +433,46 @@ public class CandidateJobService : ICandidateJobService
                     IsSaved = false
                 };
             }
-            else
+
+            //----------------------------------------------------
+            // SAVE (Only Active Jobs)
+            //----------------------------------------------------
+            var jobExists = await _context.JobPostings
+                .AnyAsync(j =>
+                    j.JobId == jobId &&
+                    j.JobStatus == JobStatus.Active &&
+                    j.IsActive &&
+                    !j.IsDeleted);
+
+            if (!jobExists)
             {
-                // Not saved → save
-                var saved = new SavedJob
-                {
-                    SavedJobId = Guid.NewGuid(),
-                    CandidateId = candidateId,
-                    JobId = jobId,
-                    SavedAt = DateTime.UtcNow
-                };
-                _context.SavedJobs.Add(saved);
-                await _context.SaveChangesAsync();
                 return new SaveJobResponseDto
                 {
-                    Success = true,
-                    Message = "Job saved successfully.",
+                    Success = false,
+                    Message = "Job cannot be saved because it is no longer active.",
                     JobId = jobId,
-                    IsSaved = true
+                    IsSaved = false
                 };
             }
+
+            var saved = new SavedJob
+            {
+                SavedJobId = Guid.NewGuid(),
+                CandidateId = candidateId,
+                JobId = jobId,
+                SavedAt = DateTime.UtcNow
+            };
+
+            _context.SavedJobs.Add(saved);
+            await _context.SaveChangesAsync();
+
+            return new SaveJobResponseDto
+            {
+                Success = true,
+                Message = "Job saved successfully.",
+                JobId = jobId,
+                IsSaved = true
+            };
         }
         catch (Exception ex)
         {
@@ -474,12 +487,11 @@ public class CandidateJobService : ICandidateJobService
                 Success = false,
                 Message = ex.InnerException?.Message ?? ex.Message,
                 JobId = jobId,
-                CandidateId= candidateId,
+                CandidateId = candidateId,
                 IsSaved = false
             };
         }
     }
-
     // ════════════════════════════════════════════════════════
     // 4. FILTER OPTIONS — dynamic sidebar values
     // ════════════════════════════════════════════════════════
