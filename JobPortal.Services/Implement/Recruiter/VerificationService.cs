@@ -9,10 +9,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-    namespace JobPortal.Services.Implement.Recruiter
+namespace JobPortal.Services.Implement.Recruiter
+{
+    public class VerificationService : IVerificationService
     {
-        public class VerificationService : IVerificationService
-        {
         private readonly AppDbContext _context;
         private readonly IFileStorageService _fileStorageService;
         private readonly ILogger<VerificationService> _logger;
@@ -28,110 +28,110 @@ using System.Threading.Tasks;
 
         public async Task<VerificationDashboardResponseDto?> GetVerificationDashboardAsync(
                 Guid employerId)
+        {
+            var profile = await _context.EmployerProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.EmployerId == employerId);
+
+            if (profile == null)
+                return null;
+
+            var response = new VerificationDashboardResponseDto();
+
+            response.Badges.Add(new VerificationBadgeDto
             {
-                var profile = await _context.EmployerProfiles
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.EmployerId == employerId);
+                BadgeName = "GST Verified",
+                Status = profile.GstRegistered ? "Not Approved" : "Pending",
+                Description = "GST registration verification."
+            });
 
-                if (profile == null)
-                    return null;
+            response.Badges.Add(new VerificationBadgeDto
+            {
+                BadgeName = "PAN Verified",
+                Status = !string.IsNullOrWhiteSpace(profile.Pan)
+                    ? "Not Approved"
+                    : "Pending",
+                Description = "PAN verification status."
+            });
 
-                var response = new VerificationDashboardResponseDto();
+            response.Badges.Add(new VerificationBadgeDto
+            {
+                BadgeName = "POE Licensed",
+                Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl)
+                    ? "Approved"
+                    : "Pending",
+                Description = "POE licence verification."
+            });
 
-                response.Badges.Add(new VerificationBadgeDto
-                {
-                    BadgeName = "GST Verified",
-                    Status = profile.GstRegistered ? "Approved" : "Pending",
-                    Description = "GST registration verification."
-                });
+            response.Badges.Add(new VerificationBadgeDto
+            {
+                BadgeName = "RPSL Licensed",
+                Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl)
+                    ? "Approved"
+                    : "Pending",
+                Description = "RPSL licence verification."
+            });
 
-                response.Badges.Add(new VerificationBadgeDto
-                {
-                    BadgeName = "PAN Verified",
-                    Status = !string.IsNullOrWhiteSpace(profile.Pan)
-                        ? "Approved"
-                        : "Pending",
-                    Description = "PAN verification status."
-                });
+            response.Documents.Add(new VerificationDocumentDto
+            {
+                DocumentType = "GST",
+                FileUrl = null,
+                Status = profile.GstRegistered ? "Not Approved" : "Not Available",
+                UploadedAt = profile.UpdatedAt
+            });
 
-                response.Badges.Add(new VerificationBadgeDto
-                {
-                    BadgeName = "POE Licensed",
-                    Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl)
-                        ? "Approved"
-                        : "Pending",
-                    Description = "POE licence verification."
-                });
+            response.Documents.Add(new VerificationDocumentDto
+            {
+                DocumentType = "PAN",
+                FileUrl = null,
+                Status = !string.IsNullOrWhiteSpace(profile.Pan)
+                    ? "Not Approved"
+                    : "Not Available",
+                UploadedAt = profile.UpdatedAt
+            });
 
-                response.Badges.Add(new VerificationBadgeDto
-                {
-                    BadgeName = "RPSL Licensed",
-                    Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl)
-                        ? "Approved"
-                        : "Pending",
-                    Description = "RPSL licence verification."
-                });
+            response.Documents.Add(new VerificationDocumentDto
+            {
+                DocumentType = "POE",
+                FileUrl = profile.PoeLicenceUrl,
+                Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl)
+                    ? "Uploaded"
+                    : "Not Uploaded",
+                UploadedAt = profile.UpdatedAt
+            });
 
-                response.Documents.Add(new VerificationDocumentDto
-                {
-                    DocumentType = "GST",
-                    FileUrl = profile.GstRegistered ? profile.BusinessRegDocUrl : null,
-                    Status = profile.GstRegistered ? "Uploaded" : "Not Uploaded",
-                    UploadedAt = profile.UpdatedAt
-                });
+            response.Documents.Add(new VerificationDocumentDto
+            {
+                DocumentType = "RPSL",
+                FileUrl = profile.RpslLicenceUrl,
+                Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl)
+                    ? "Uploaded"
+                    : "Not Uploaded",
+                UploadedAt = profile.UpdatedAt
+            });
 
-                response.Documents.Add(new VerificationDocumentDto
-                {
-                    DocumentType = "PAN",
-                    FileUrl = null,
-                    Status = !string.IsNullOrWhiteSpace(profile.Pan)
-                        ? "Available"
-                        : "Not Available",
-                    UploadedAt = profile.UpdatedAt
-                });
+            response.Documents.Add(new VerificationDocumentDto
+            {
+                DocumentType = "BUSINESS_REGISTRATION",
+                FileUrl = profile.BusinessRegDocUrl,
+                Status = !string.IsNullOrWhiteSpace(profile.BusinessRegDocUrl)
+                    ? "Uploaded"
+                    : "Not Uploaded",
+                UploadedAt = profile.UpdatedAt
+            });
 
-                response.Documents.Add(new VerificationDocumentDto
-                {
-                    DocumentType = "POE",
-                    FileUrl = profile.PoeLicenceUrl,
-                    Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl)
-                        ? "Uploaded"
-                        : "Not Uploaded",
-                    UploadedAt = profile.UpdatedAt
-                });
-
-                response.Documents.Add(new VerificationDocumentDto
-                {
-                    DocumentType = "RPSL",
-                    FileUrl = profile.RpslLicenceUrl,
-                    Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl)
-                        ? "Uploaded"
-                        : "Not Uploaded",
-                    UploadedAt = profile.UpdatedAt
-                });
-
-                response.Documents.Add(new VerificationDocumentDto
-                {
-                    DocumentType = "BUSINESS_REGISTRATION",
-                    FileUrl = profile.BusinessRegDocUrl,
-                    Status = !string.IsNullOrWhiteSpace(profile.BusinessRegDocUrl)
-                        ? "Uploaded"
-                        : "Not Uploaded",
-                    UploadedAt = profile.UpdatedAt
-                });
-
-                return response;
-            }
+            return response;
+        }
 
 
-        public async Task<bool> UploadDocumentAsync(Guid employerId,UploadVerificationDocumentRequestDto request)
+        public async Task<bool> UploadDocumentAsync(Guid employerId, UploadVerificationDocumentRequestDto request)
         {
             try
             {
                 var profile = await _context.EmployerProfiles
                 .FirstOrDefaultAsync(x => x.EmployerId == employerId);
 
-    if (profile == null)
+                if (profile == null)
                     return false;
 
                 if (request.File == null || request.File.Length == 0)
@@ -209,7 +209,7 @@ using System.Threading.Tasks;
                 return false;
             }
 
-}
+        }
 
 
         public async Task<DocumentViewResponseDto?> GetDocumentAsync(
@@ -244,4 +244,4 @@ using System.Threading.Tasks;
 
 
     }
-    }
+}
