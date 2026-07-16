@@ -18,12 +18,24 @@ namespace JobPortal.API.Controllers.Recruiter
             _service = service;
         }
 
+        // EmployerId is resolved from the signed JWT rather than a
+        // client-supplied header — the token already carries it for both
+        // the account owner and any of their sub-users (see
+        // RecruiterAuthService.GenerateUserTokenAsync).
+        private Guid GetEmployerId()
+        {
+            var employerId = User.FindFirst("EmployerId")?.Value;
+
+            if (string.IsNullOrWhiteSpace(employerId))
+                throw new UnauthorizedAccessException(
+                    "Employer ID not found in token.");
+
+            return Guid.Parse(employerId);
+        }
+
         [HttpGet("invoices")]
         public async Task<IActionResult>
             GetInvoices(
-                [FromHeader(Name = "EmployerId")]
-                Guid employerId,
-
                 [FromQuery]
                 DateOnly? fromDate,
 
@@ -32,7 +44,7 @@ namespace JobPortal.API.Controllers.Recruiter
         {
             var result =
                 await _service.GetInvoicesAsync(
-                    employerId,
+                    GetEmployerId(),
                     fromDate,
                     toDate);
 
@@ -61,15 +73,12 @@ namespace JobPortal.API.Controllers.Recruiter
         [HttpGet("invoices/{invoiceId:guid}/download")]
         public async Task<IActionResult>
             DownloadInvoicePdf(
-                Guid invoiceId,
-
-                [FromHeader(Name = "EmployerId")]
-                Guid employerId)
+                Guid invoiceId)
         {
             var result =
                 await _service.DownloadInvoicePdfAsync(
                     invoiceId,
-                    employerId);
+                    GetEmployerId());
 
             if (result == null)
             {

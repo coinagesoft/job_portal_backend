@@ -44,6 +44,13 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task<BaseSubUserResponseDto> DeleteSubUserAsync(Guid subUserId, Guid employerId);
 
         Task<ValidateInviteResponseDto> ValidateInviteAsync(string token);
+
+        // Current, live permission flags for whoever is calling — the
+        // account owner always gets every flag true; a sub-user gets
+        // their actual, up-to-date flags (so if the owner changes them
+        // mid-session, the next call reflects it, not a stale JWT/login
+        // snapshot).
+        Task<MyPermissionsResponseDto> GetMyPermissionsAsync(Guid userId, Guid employerId);
     }
 
     public class BaseSubUserResponseDto
@@ -51,5 +58,15 @@ namespace JobPortal.Services.IImplement.IRecruiter
         public bool Success { get; set; }
         public string Message { get; set; } = string.Empty;
         public string? Email { get; set; }
+    }
+
+    public class MyPermissionsResponseDto
+    {
+        public bool Success { get; set; } = true;
+        public bool IsSubUser { get; set; }
+        public bool CanSearchCandidates { get; set; } = true;
+        public bool CanUnlockProfiles { get; set; } = true;
+        public bool CanPostJobs { get; set; } = true;
+        public bool CanManageApplications { get; set; } = true;
     }
 }

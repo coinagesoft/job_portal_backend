@@ -84,7 +84,8 @@ namespace JobPortal.Infrastructure.JWT
      string role,
      string? mobileNumber = null,
      Guid? employerId = null,
-     Guid? candidateId = null)
+     Guid? candidateId = null,
+     bool isSubUser = false)
         {
             var claims = new List<Claim>
     {
@@ -122,6 +123,14 @@ namespace JobPortal.Infrastructure.JWT
                         "CandidateId",
                         candidateId.Value.ToString()));
             }
+
+            // Sub-user flag — lets the API resolve "is this a sub-user"
+            // straight from the signed token instead of trusting a
+            // client-supplied header for it.
+            claims.Add(
+                new Claim(
+                    "IsSubUser",
+                    isSubUser ? "true" : "false"));
 
             var key = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(

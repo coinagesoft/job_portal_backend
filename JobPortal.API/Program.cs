@@ -89,10 +89,7 @@ builder.Services.AddScoped<ICandidateRegistrationService, CandidateRegistrationS
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
 builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
 builder.Services.AddScoped<IHomepageService, HomepageService>();
-
-builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
-builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
-builder.Services.AddScoped<IHomepageService, HomepageService>();
+builder.Services.AddScoped<ISubUserPermissionService, SubUserPermissionService>();
 
 builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();

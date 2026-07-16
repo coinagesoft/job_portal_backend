@@ -374,6 +374,12 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             // Recruiter validation
             Guid? employerId = null;
+            bool isSubUser = false;
+            bool canSearchCandidates = true;
+            bool canUnlockProfiles = true;
+            bool canPostJobs = true;
+            bool canManageApplications = true;
+
             if (user.UserType == UserType.Recruiter)
             {
                 // First check if this recruiter is the employer owner
@@ -389,6 +395,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                         return AuthFail("Company account rejected.");
 
                     employerId = employer.EmployerId;
+                    // Owner keeps every permission true (the defaults above).
                 }
                 else
                 {
@@ -410,6 +417,11 @@ public class RecruiterAuthService : IRecruiterAuthService
                         return AuthFail("Company account rejected.");
 
                     employerId = subUser.EmployerId;
+                    isSubUser = true;
+                    canSearchCandidates = subUser.CanSearchCandidates;
+                    canUnlockProfiles = subUser.CanUnlockProfiles;
+                    canPostJobs = subUser.CanPostJobs;
+                    canManageApplications = subUser.CanManageApplications;
                 }
             }
 
@@ -516,7 +528,12 @@ public class RecruiterAuthService : IRecruiterAuthService
                 UserType = user.UserType.ToString(),
                 UserName = await GetUserNameAsync(user),
                 ProfileStatus = profileStatus,
-                ExpiresAt = expiry
+                ExpiresAt = expiry,
+                IsSubUser = isSubUser,
+                CanSearchCandidates = canSearchCandidates,
+                CanUnlockProfiles = canUnlockProfiles,
+                CanPostJobs = canPostJobs,
+                CanManageApplications = canManageApplications
             };
         }
         catch (Exception ex)
@@ -963,6 +980,7 @@ public class RecruiterAuthService : IRecruiterAuthService
     {
         Guid? employerId = null;
         Guid? candidateId = null;
+        bool isSubUser = false;
 
         if (user.UserType == UserType.Recruiter)
         {
@@ -970,6 +988,27 @@ public class RecruiterAuthService : IRecruiterAuthService
                 .Where(x => x.UserId == user.UserId)
                 .Select(x => (Guid?)x.EmployerId)
                 .FirstOrDefaultAsync();
+
+            // Not the account owner — check whether they're an active,
+            // invite-accepted sub-user instead. Without this, a sub-user's
+            // token never gets an EmployerId claim at all, even though the
+            // login response body reports one correctly.
+            if (!employerId.HasValue)
+            {
+                var subUser = await _context.EmployerSubUsers
+                    .Where(x =>
+                        x.UserId == user.UserId &&
+                        x.InviteAccepted &&
+                        x.SubUserStatus == "Active")
+                    .Select(x => (Guid?)x.EmployerId)
+                    .FirstOrDefaultAsync();
+
+                if (subUser.HasValue)
+                {
+                    employerId = subUser;
+                    isSubUser = true;
+                }
+            }
         }
 
         if (user.UserType == UserType.Candidate)
@@ -985,7 +1024,8 @@ public class RecruiterAuthService : IRecruiterAuthService
             user.UserType.ToString(),
             user.MobileNumber,
             employerId,
-            candidateId);
+            candidateId,
+            isSubUser);
 
         return (token, _jwtService.GetExpiry(), candidateId);
     }

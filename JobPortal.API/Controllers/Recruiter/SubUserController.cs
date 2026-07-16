@@ -6,6 +6,7 @@ using JobPortal.Services.Implement.Recruiter;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System.Security.Claims;
 
 namespace JobPortal.API.Controllers.Recruiter;
 
@@ -36,6 +37,31 @@ public class RecruiterSubUserController : ControllerBase
                 "Employer ID not found in token.");
 
         return Guid.Parse(employerId);
+    }
+
+    private Guid GetActionUserId() =>
+        Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+    // ════════════════════════════════════════════════
+    // GET MY PERMISSIONS — called on login and on every
+    // page refresh so the frontend can hide/block restricted
+    // pages using the caller's actual, current flags.
+    // ════════════════════════════════════════════════
+    [HttpGet("my-permissions")]
+    public async Task<IActionResult> GetMyPermissions()
+    {
+        try
+        {
+            var result = await _service.GetMyPermissionsAsync(
+                GetActionUserId(), GetEmployerId());
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GetMyPermissions failed.");
+            return StatusCode(500, Error("Failed to retrieve permissions."));
+        }
     }
 
     // ════════════════════════════════════════════════
@@ -384,7 +410,7 @@ public class RecruiterSubUserController : ControllerBase
                 return BadRequest(Error("Invalid invite token."));
             }
 
-           
+
 
 
             var result = await _service.AcceptInviteAsync(request);
@@ -416,7 +442,6 @@ public class RecruiterSubUserController : ControllerBase
 
 
 
-    [AllowAnonymous]
     [HttpDelete("{subUserId:guid}")]
     [ProducesResponseType(200)]
     [ProducesResponseType(404)]
@@ -456,6 +481,7 @@ public class RecruiterSubUserController : ControllerBase
 
 
 
+    [AllowAnonymous]
     [HttpGet("validate-invite/{token}")]
     public async Task<IActionResult> ValidateInvite(string token)
     {

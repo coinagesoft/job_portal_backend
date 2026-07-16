@@ -5,6 +5,7 @@ using JobPortal.Domain.Enums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 
@@ -15,14 +16,30 @@ public class SubUserService : ISubUserService
     private readonly AppDbContext _context;
     private readonly ILogger<SubUserService> _logger;
     private readonly ISubUserEmailService _subUserEmailService;
+    private readonly IConfiguration _configuration;
+
     public SubUserService(
         AppDbContext context,
         ILogger<SubUserService> logger,
-        ISubUserEmailService subUserEmailService)
+        ISubUserEmailService subUserEmailService,
+        IConfiguration configuration)
     {
         _context = context;
         _logger = logger;
         _subUserEmailService = subUserEmailService;
+        _configuration = configuration;
+    }
+
+    // Frontend base URL for invite links — configurable via
+    // "Frontend:BaseUrl" (appsettings / environment), falls back to
+    // localhost so local dev keeps working without extra setup.
+    private string BuildInviteLink(Guid token)
+    {
+        var baseUrl =
+            _configuration["Frontend:BaseUrl"]?.TrimEnd('/')
+            ?? "http://localhost:3000";
+
+        return $"{baseUrl}/employeer/accept-invite?token={token}";
     }
 
     // ════════════════════════════════════════════════
@@ -37,25 +54,41 @@ public class SubUserService : ISubUserService
                 .OrderByDescending(s => s.CreatedAt)
                 .ToListAsync();
 
-            var items = subUsers.Select(s => new SubUserListItemDto
+            var allocations = await _context.SubUserCreditAllocation
+                .Where(a => a.EmployerId == employerId)
+                .ToDictionaryAsync(a => a.SubUserId);
+
+            var items = subUsers.Select(s =>
             {
-                SubUserId = s.SubUserId,
-                EmployerId = s.EmployerId,
-                SubUserName = s.SubUserName,
-                SubUserEmail = s.SubUserEmail,
-                SubUserMobile = s.SubUserMobile ?? "",
-                CountryCode = s.SubUserCountryCode ?? "+91",
-                Role = s.SubUserRole,
-                Status = !s.InviteAccepted ? "Pending" : s.SubUserStatus,
-                InviteAccepted = s.InviteAccepted,
-                Permissions = new PermissionsDto
+                // NOTE: despite the field name, SubUserCreditAllocation.SubUserId
+                // actually stores the sub-user's login identity (User.UserId) —
+                // that's what deduction at unlock/download time looks up via the
+                // JWT. Match on s.UserId here, not s.SubUserId (the row's own id).
+                allocations.TryGetValue(s.UserId, out var allocation);
+
+                return new SubUserListItemDto
                 {
-                    CanSearchCandidates = s.CanSearchCandidates,
-                    CanUnlockProfiles = s.CanUnlockProfiles,
-                    CanPostJobs = s.CanPostJobs,
-                    CanManageApplications = s.CanManageApplications
-                },
-                CreatedAt = s.CreatedAt
+                    SubUserId = s.SubUserId,
+                    EmployerId = s.EmployerId,
+                    SubUserName = s.SubUserName,
+                    SubUserEmail = s.SubUserEmail,
+                    SubUserMobile = s.SubUserMobile ?? "",
+                    CountryCode = s.SubUserCountryCode ?? "+91",
+                    Role = s.SubUserRole,
+                    Status = !s.InviteAccepted ? "Pending" : s.SubUserStatus,
+                    InviteAccepted = s.InviteAccepted,
+                    Permissions = new PermissionsDto
+                    {
+                        CanSearchCandidates = s.CanSearchCandidates,
+                        CanUnlockProfiles = s.CanUnlockProfiles,
+                        CanPostJobs = s.CanPostJobs,
+                        CanManageApplications = s.CanManageApplications
+                    },
+                    CreatedAt = s.CreatedAt,
+                    AllocatedCredits = allocation?.AllocatedCredits ?? 0,
+                    UsedCredits = allocation?.UsedCredits ?? 0,
+                    RemainingCredits = allocation?.RemainingCredits ?? 0
+                };
             }).ToList();
 
             return new SubUserListResponseDto
@@ -174,8 +207,7 @@ public class SubUserService : ISubUserService
 
             _logger.LogInformation("Sending invite email to {Email}", request.SubUserEmail);
 
-            var inviteLink =
-            $"http://localhost:3000/employeer/accept-invite?token={inviteToken}"; ;
+            var inviteLink = BuildInviteLink(inviteToken);
 
             await _subUserEmailService.SendSubUserInviteAsync(
                 request.SubUserEmail,
@@ -418,15 +450,35 @@ public class SubUserService : ISubUserService
                     Message = "Invite already accepted."
                 };
 
+            var employer = await _context.EmployerProfiles
+                .FirstOrDefaultAsync(e => e.EmployerId == employerId);
+
+            if (employer == null)
+                return new BaseSubUserResponseDto
+                {
+                    Success = false,
+                    Message = "Employer not found."
+                };
+
             // Generate new token and reset expiry
             subUser.InviteToken = Guid.NewGuid();
             subUser.InviteExpiresAt = DateTime.UtcNow.AddHours(72);
             await _context.SaveChangesAsync();
 
-            // TODO: Send new invite email
+            var inviteLink = BuildInviteLink(subUser.InviteToken.Value);
+
+            await _subUserEmailService.SendSubUserInviteAsync(
+                subUser.SubUserEmail,
+                subUser.SubUserName,
+                employer.CompanyDisplayName,
+                subUser.SubUserRole,
+                inviteLink,
+                subUser.InviteExpiresAt.Value);
+
             _logger.LogInformation(
-                "Invite resent — Token:{Token} [DEV]",
-                subUser.InviteToken);
+                "Invite resent — Token:{Token} Email:{Email}",
+                subUser.InviteToken,
+                subUser.SubUserEmail);
 
             return new BaseSubUserResponseDto
             {
@@ -571,6 +623,63 @@ public class SubUserService : ISubUserService
         },
         _ => new PermissionsDto()
     };
+
+    // ════════════════════════════════════════════════
+    // GET MY PERMISSIONS — called by the frontend on login
+    // and on every page refresh, so it always reflects the
+    // caller's current, live flags rather than a stale snapshot.
+    // ════════════════════════════════════════════════
+    public async Task<MyPermissionsResponseDto> GetMyPermissionsAsync(
+        Guid userId, Guid employerId)
+    {
+        var isOwner = await _context.EmployerProfiles
+            .AnyAsync(e => e.EmployerId == employerId && e.UserId == userId);
+
+        if (isOwner)
+        {
+            return new MyPermissionsResponseDto
+            {
+                Success = true,
+                IsSubUser = false,
+                CanSearchCandidates = true,
+                CanUnlockProfiles = true,
+                CanPostJobs = true,
+                CanManageApplications = true
+            };
+        }
+
+        var subUser = await _context.EmployerSubUsers
+            .FirstOrDefaultAsync(s =>
+                s.UserId == userId &&
+                s.EmployerId == employerId);
+
+        if (subUser == null)
+        {
+            return new MyPermissionsResponseDto
+            {
+                Success = false,
+                IsSubUser = true,
+                CanSearchCandidates = false,
+                CanUnlockProfiles = false,
+                CanPostJobs = false,
+                CanManageApplications = false
+            };
+        }
+
+        var isActive =
+            subUser.InviteAccepted &&
+            subUser.SubUserStatus == "Active";
+
+        return new MyPermissionsResponseDto
+        {
+            Success = true,
+            IsSubUser = true,
+            CanSearchCandidates = isActive && subUser.CanSearchCandidates,
+            CanUnlockProfiles = isActive && subUser.CanUnlockProfiles,
+            CanPostJobs = isActive && subUser.CanPostJobs,
+            CanManageApplications = isActive && subUser.CanManageApplications
+        };
+    }
 
     // ── Helpers ───────────────────────────────────────────
     private static InviteSubUserResponseDto InviteFail(string message) =>

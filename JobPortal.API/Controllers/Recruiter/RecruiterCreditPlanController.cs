@@ -26,6 +26,21 @@ namespace JobPortal.API.Controllers.Recruiter
             _logger = logger;
         }
 
+        // EmployerId is resolved from the signed JWT rather than a
+        // client-supplied header — the token already carries it for both
+        // the account owner and any of their sub-users (see
+        // RecruiterAuthService.GenerateUserTokenAsync).
+        private Guid GetEmployerId()
+        {
+            var employerId = User.FindFirst("EmployerId")?.Value;
+
+            if (string.IsNullOrWhiteSpace(employerId))
+                throw new UnauthorizedAccessException(
+                    "Employer ID not found in token.");
+
+            return Guid.Parse(employerId);
+        }
+
         // ── GET /api/recruiter/plans ─────────────────────────────────
         /// <summary>
         /// Get all active credit plans available for purchase.
@@ -46,7 +61,7 @@ namespace JobPortal.API.Controllers.Recruiter
         /// Step 1 — Create a Razorpay payment order for the chosen plan.
         /// </summary>
         /// <remarks>
-        /// Pass only EmployerId (header) + PlanId (body).
+        /// Pass only PlanId (body) — EmployerId now comes from the JWT.
         /// UserId is resolved automatically from the employer profile.
         ///
         /// The response contains razorpayOrderId + razorpayKeyId
@@ -54,7 +69,6 @@ namespace JobPortal.API.Controllers.Recruiter
         ///
         /// **Swagger headers needed:**
         /// - Authorization: Bearer {jwt}
-        /// - EmployerId: {guid}
         ///
         /// **Body:**
         /// ```json
@@ -63,13 +77,12 @@ namespace JobPortal.API.Controllers.Recruiter
         /// </remarks>
         [HttpPost("create-order")]
         public async Task<IActionResult> CreateOrder(
-            [FromHeader(Name = "EmployerId")] Guid employerId,
             [FromBody] CreatePlanOrderRequestDto request)
         {
             if (request.PlanId == Guid.Empty)
                 return BadRequest(new { Success = false, Message = "PlanId is required." });
 
-            var result = await _service.CreatePlanOrderAsync(employerId, request);
+            var result = await _service.CreatePlanOrderAsync(GetEmployerId(), request);
 
             return result.Success ? Ok(result) : BadRequest(result);
         }
@@ -84,7 +97,6 @@ namespace JobPortal.API.Controllers.Recruiter
         ///
         /// **Swagger headers needed:**
         /// - Authorization: Bearer {jwt}
-        /// - EmployerId: {guid}
         ///
         /// **Body:**
         /// ```json
@@ -101,7 +113,6 @@ namespace JobPortal.API.Controllers.Recruiter
         /// </remarks>
         [HttpPost("verify-payment")]
         public async Task<IActionResult> VerifyPayment(
-            [FromHeader(Name = "EmployerId")] Guid employerId,
             [FromBody] VerifyPlanPaymentRequestDto request)
         {
             if (string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
@@ -115,7 +126,7 @@ namespace JobPortal.API.Controllers.Recruiter
                 });
             }
 
-            var result = await _service.VerifyPlanPaymentAsync(employerId, request);
+            var result = await _service.VerifyPlanPaymentAsync(GetEmployerId(), request);
 
             return result.Success ? Ok(result) : BadRequest(result);
         }

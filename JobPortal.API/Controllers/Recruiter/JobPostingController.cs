@@ -1,22 +1,22 @@
-﻿
-using global::JobPortal.Application.DTOs.Recruiter;
+﻿using global::JobPortal.Application.DTOs.Recruiter;
 using global::JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Application.DTOs.JobPosting;
 using JobPortal.Services.Implement.Recruiter;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace JobPortal.API.Controllers.Recruiter;
 
-    [ApiController]
-    [Route("api/recruiter/jobs")]
-    [Authorize(Roles = "Recruiter")]
+[ApiController]
+[Route("api/recruiter/jobs")]
+[Authorize(Roles = "Recruiter")]
 public class RecruiterJobPostingController : ControllerBase
-    {
-        private readonly IJobPostingService _service;
+{
+    private readonly IJobPostingService _service;
 
-        public RecruiterJobPostingController(IJobPostingService service)
-            => _service = service;
+    public RecruiterJobPostingController(IJobPostingService service)
+        => _service = service;
 
     //private Guid GetEmployerId() =>
     //    Guid.Parse(User.FindFirst("employer_id")?.Value
@@ -33,14 +33,22 @@ public class RecruiterJobPostingController : ControllerBase
         return Guid.Parse(employerId);
     }
 
+    // Who's actually acting — resolved from the signed JWT, not a
+    // client-supplied header, so it can't be spoofed.
+    private Guid GetActionUserId() =>
+        Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+    private bool GetIsSubUser() =>
+        User.FindFirst("IsSubUser")?.Value == "true";
+
     // ── Role Search (no auth needed) ───────────────────
     [HttpGet("search-roles")]
-        [AllowAnonymous]
-        public async Task<IActionResult> SearchRoles([FromQuery] string q)
-        {
-            var result = await _service.SearchRolesAsync(q);
-            return Ok(result);
-        }
+    [AllowAnonymous]
+    public async Task<IActionResult> SearchRoles([FromQuery] string q)
+    {
+        var result = await _service.SearchRolesAsync(q);
+        return Ok(result);
+    }
 
     // ── STEP 1 ─────────────────────────────────────────
     /// <summary>
@@ -61,7 +69,9 @@ public class RecruiterJobPostingController : ControllerBase
     {
         var result = await _service.SaveJobDetailsAsync(
             request,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -77,7 +87,9 @@ public class RecruiterJobPostingController : ControllerBase
         var result = await _service.SaveCompensationAsync(
        request,
        jobId,
-       GetEmployerId());
+       GetEmployerId(),
+       GetActionUserId(),
+       GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -93,7 +105,9 @@ public class RecruiterJobPostingController : ControllerBase
         var result = await _service.SaveSkillsAsync(
             request,
             jobId,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -109,7 +123,9 @@ public class RecruiterJobPostingController : ControllerBase
         var result = await _service.SaveEligibilityAsync(
             request,
             jobId,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -125,7 +141,9 @@ public class RecruiterJobPostingController : ControllerBase
         var result = await _service.SaveLocationAsync(
             request,
             jobId,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -141,7 +159,9 @@ public class RecruiterJobPostingController : ControllerBase
         var result = await _service.SaveQuestionsAsync(
             request,
             jobId,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -155,7 +175,9 @@ public class RecruiterJobPostingController : ControllerBase
     {
         var result = await _service.PublishJobAsync(
             request,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -167,7 +189,9 @@ public class RecruiterJobPostingController : ControllerBase
     {
         var result = await _service.DeleteJobAsync(
             jobId,
-            GetEmployerId());
+            GetEmployerId(),
+            GetActionUserId(),
+            GetIsSubUser());
 
         return result.Success
             ? Ok(result)
@@ -175,17 +199,17 @@ public class RecruiterJobPostingController : ControllerBase
     }
     // ── SAVE DRAFT (any time) ──────────────────────────
     [HttpPut("{jobId}/save-draft")]
-        public async Task<IActionResult> SaveDraft(Guid jobId)
-        {
-            var result = await _service.SaveDraftAsync(jobId, GetEmployerId());
-            return result.Success ? Ok(result) : BadRequest(result);
-        }
-
-        // ── RESUME ─────────────────────────────────────────
-        [HttpGet("{jobId}/resume")]
-        public async Task<IActionResult> ResumeJob(Guid jobId)
-        {
-            var result = await _service.ResumeJobAsync(jobId, GetEmployerId());
-            return result.Success ? Ok(result) : BadRequest(result);
-        }
+    public async Task<IActionResult> SaveDraft(Guid jobId)
+    {
+        var result = await _service.SaveDraftAsync(jobId, GetEmployerId(), GetActionUserId(), GetIsSubUser());
+        return result.Success ? Ok(result) : BadRequest(result);
     }
+
+    // ── RESUME ─────────────────────────────────────────
+    [HttpGet("{jobId}/resume")]
+    public async Task<IActionResult> ResumeJob(Guid jobId)
+    {
+        var result = await _service.ResumeJobAsync(jobId, GetEmployerId());
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+}
