@@ -2,6 +2,7 @@
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace JobPortal.API.Controllers.Recruiter
 {
@@ -17,6 +18,14 @@ namespace JobPortal.API.Controllers.Recruiter
         {
             _service = service;
         }
+
+        // Who's actually acting — resolved from the signed JWT, not a
+        // client-supplied header, so it can't be spoofed.
+        private Guid GetActionUserId() =>
+            Guid.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
+        private bool GetIsSubUser() =>
+            User.FindFirst("IsSubUser")?.Value == "true";
 
         // =====================================================
         // Dashboard
@@ -99,11 +108,15 @@ namespace JobPortal.API.Controllers.Recruiter
         {
             var result = await _service.PauseJobAsync(
                 employerId,
-                jobId);
+                jobId,
+                GetActionUserId(),
+                GetIsSubUser());
 
             return result.Success
                 ? Ok(result)
-                : BadRequest(result);
+                : (result.Message.Contains("permission") || result.Message.Contains("deactivated") || result.Message.Contains("not accepted")
+                    ? StatusCode(403, result)
+                    : BadRequest(result));
         }
 
         // =====================================================
@@ -117,11 +130,15 @@ namespace JobPortal.API.Controllers.Recruiter
         {
             var result = await _service.ResumeJobAsync(
                 employerId,
-                jobId);
+                jobId,
+                GetActionUserId(),
+                GetIsSubUser());
 
             return result.Success
                 ? Ok(result)
-                : BadRequest(result);
+                : (result.Message.Contains("permission") || result.Message.Contains("deactivated") || result.Message.Contains("not accepted")
+                    ? StatusCode(403, result)
+                    : BadRequest(result));
         }
 
         // =====================================================
@@ -135,11 +152,15 @@ namespace JobPortal.API.Controllers.Recruiter
         {
             var result = await _service.CloseJobAsync(
                 employerId,
-                jobId);
+                jobId,
+                GetActionUserId(),
+                GetIsSubUser());
 
             return result.Success
                 ? Ok(result)
-                : BadRequest(result);
+                : (result.Message.Contains("permission") || result.Message.Contains("deactivated") || result.Message.Contains("not accepted")
+                    ? StatusCode(403, result)
+                    : BadRequest(result));
         }
 
         // =====================================================
@@ -153,11 +174,15 @@ namespace JobPortal.API.Controllers.Recruiter
         {
             var result = await _service.ArchiveJobAsync(
                 employerId,
-                jobId);
+                jobId,
+                GetActionUserId(),
+                GetIsSubUser());
 
             return result.Success
                 ? Ok(result)
-                : BadRequest(result);
+                : (result.Message.Contains("permission") || result.Message.Contains("deactivated") || result.Message.Contains("not accepted")
+                    ? StatusCode(403, result)
+                    : BadRequest(result));
         }
     }
 }

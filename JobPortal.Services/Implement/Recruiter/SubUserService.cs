@@ -113,10 +113,14 @@ public class SubUserService : ISubUserService
     // INVITE SUB-USER
     // ════════════════════════════════════════════════
     public async Task<InviteSubUserResponseDto> InviteSubUserAsync(
-        InviteSubUserRequestDto request, Guid employerId)
+        InviteSubUserRequestDto request, Guid employerId, Guid actionUserId)
     {
         try
         {
+            // ── Only the employer owner may invite sub-users ───
+            if (!await IsEmployerOwnerAsync(actionUserId, employerId))
+                return InviteFail("Only the account owner can invite sub-users.");
+
             // ── Check employer exists ──────────────────────
             var employer = await _context.EmployerProfiles
                 .FirstOrDefaultAsync(e => e.EmployerId == employerId);
@@ -253,10 +257,17 @@ public class SubUserService : ISubUserService
     // ════════════════════════════════════════════════
 
     public async Task<InviteSubUserResponseDto> UpdateSubUserAsync(
-        Guid subUserId, UpdateSubUserRequestDto request, Guid employerId)
+        Guid subUserId, UpdateSubUserRequestDto request, Guid employerId, Guid actionUserId)
     {
         try
         {
+            // ── Only the employer owner may edit sub-user permissions.
+            // Without this, a sub-user calling this endpoint on their own
+            // SubUserId (or another sub-user's) could change their own
+            // access, since their JWT carries the same EmployerId. ──
+            if (!await IsEmployerOwnerAsync(actionUserId, employerId))
+                return InviteFail("Only the account owner can update sub-user permissions.");
+
             var subUser = await _context.EmployerSubUsers
                 .FirstOrDefaultAsync(s =>
                     s.SubUserId == subUserId &&
@@ -314,10 +325,17 @@ public class SubUserService : ISubUserService
     // DEACTIVATE — revokes access immediately
     // ════════════════════════════════════════════════
     public async Task<BaseSubUserResponseDto> DeactivateSubUserAsync(
-        Guid subUserId, Guid employerId)
+        Guid subUserId, Guid employerId, Guid actionUserId)
     {
         try
         {
+            if (!await IsEmployerOwnerAsync(actionUserId, employerId))
+                return new BaseSubUserResponseDto
+                {
+                    Success = false,
+                    Message = "Only the account owner can deactivate sub-users."
+                };
+
             var subUser = await _context.EmployerSubUsers
                 .FirstOrDefaultAsync(s =>
                     s.SubUserId == subUserId &&
@@ -376,10 +394,17 @@ public class SubUserService : ISubUserService
     // REACTIVATE
     // ════════════════════════════════════════════════
     public async Task<BaseSubUserResponseDto> ReactivateSubUserAsync(
-        Guid subUserId, Guid employerId)
+        Guid subUserId, Guid employerId, Guid actionUserId)
     {
         try
         {
+            if (!await IsEmployerOwnerAsync(actionUserId, employerId))
+                return new BaseSubUserResponseDto
+                {
+                    Success = false,
+                    Message = "Only the account owner can reactivate sub-users."
+                };
+
             var subUser = await _context.EmployerSubUsers
                 .FirstOrDefaultAsync(s =>
                     s.SubUserId == subUserId &&
@@ -427,10 +452,17 @@ public class SubUserService : ISubUserService
     // RESEND INVITE
     // ════════════════════════════════════════════════
     public async Task<BaseSubUserResponseDto> ResendInviteAsync(
-        Guid subUserId, Guid employerId)
+        Guid subUserId, Guid employerId, Guid actionUserId)
     {
         try
         {
+            if (!await IsEmployerOwnerAsync(actionUserId, employerId))
+                return new BaseSubUserResponseDto
+                {
+                    Success = false,
+                    Message = "Only the account owner can resend invites."
+                };
+
             var subUser = await _context.EmployerSubUsers
                 .FirstOrDefaultAsync(s =>
                     s.SubUserId == subUserId &&
@@ -685,14 +717,33 @@ public class SubUserService : ISubUserService
     private static InviteSubUserResponseDto InviteFail(string message) =>
         new() { Success = false, Message = message };
 
+    // Only the actual employer account owner may invite, edit,
+    // deactivate, reactivate, resend-invite, or delete sub-users.
+    // Sub-users authenticate under the same EmployerId, so without
+    // this check a sub-user could call these endpoints on themselves
+    // (or on other sub-users) and grant themselves extra access.
+    private async Task<bool> IsEmployerOwnerAsync(Guid userId, Guid employerId) =>
+        await _context.EmployerProfiles
+            .AnyAsync(e => e.EmployerId == employerId && e.UserId == userId);
+
     public async Task<BaseSubUserResponseDto> DeleteSubUserAsync(
         Guid subUserId,
-        Guid employerId)
+        Guid employerId,
+        Guid actionUserId)
     {
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
         try
         {
+            if (!await IsEmployerOwnerAsync(actionUserId, employerId))
+            {
+                return new BaseSubUserResponseDto
+                {
+                    Success = false,
+                    Message = "Only the account owner can delete sub-users."
+                };
+            }
+
             var subUser = await _context.EmployerSubUsers
                 .FirstOrDefaultAsync(x =>
                     x.SubUserId == subUserId &&
@@ -737,6 +788,19 @@ public class SubUserService : ISubUserService
             }
 
             // =====================================================
+            // Safety check: the same person/email can also have a
+            // Candidate account (e.g. invited as a sub-user using an
+            // email/mobile that already exists as a jobseeker login).
+            // Deleting the shared Users row would violate the RESTRICT
+            // FK on candidate_profiles.user_id, so keep the User row
+            // and only remove the sub-user access in that case.
+            // =====================================================
+            var hasCandidateProfile = await _context.CandidateProfiles
+                .AnyAsync(x => x.UserId == user.UserId);
+
+            var canDeleteUserRow = !hasCandidateProfile;
+
+            // =====================================================
             // Remove FK references before deleting the sub-user
             // =====================================================
 
@@ -767,34 +831,34 @@ public class SubUserService : ISubUserService
                 _context.CreditUsageTransactions.RemoveRange(creditUsageTxns);
 
             // =====================================================
-            // Delete User Sessions
+            // Delete User Sessions, OTPs, Notifications — only when
+            // we are also removing the User row itself. If a
+            // candidate profile still uses this account, leave these
+            // alone; they belong to the still-active candidate login.
             // =====================================================
-            var sessions = await _context.UserSessions
-                .Where(x => x.UserId == user.UserId)
-                .ToListAsync();
+            if (canDeleteUserRow)
+            {
+                var sessions = await _context.UserSessions
+                    .Where(x => x.UserId == user.UserId)
+                    .ToListAsync();
 
-            if (sessions.Any())
-                _context.UserSessions.RemoveRange(sessions);
+                if (sessions.Any())
+                    _context.UserSessions.RemoveRange(sessions);
 
-            // =====================================================
-            // Delete OTPs
-            // =====================================================
-            var otps = await _context.OtpVerifications
-                .Where(x => x.UserId == user.UserId)
-                .ToListAsync();
+                var otps = await _context.OtpVerifications
+                    .Where(x => x.UserId == user.UserId)
+                    .ToListAsync();
 
-            if (otps.Any())
-                _context.OtpVerifications.RemoveRange(otps);
+                if (otps.Any())
+                    _context.OtpVerifications.RemoveRange(otps);
 
-            // =====================================================
-            // Delete Notifications
-            // =====================================================
-            var notifications = await _context.Notifications
-                .Where(x => x.UserId == user.UserId)
-                .ToListAsync();
+                var notifications = await _context.Notifications
+                    .Where(x => x.UserId == user.UserId)
+                    .ToListAsync();
 
-            if (notifications.Any())
-                _context.Notifications.RemoveRange(notifications);
+                if (notifications.Any())
+                    _context.Notifications.RemoveRange(notifications);
+            }
 
             // =====================================================
             // Delete EmployerSubUser
@@ -802,9 +866,13 @@ public class SubUserService : ISubUserService
             _context.EmployerSubUsers.Remove(subUser);
 
             // =====================================================
-            // Delete User
+            // Delete User — only if no other profile (e.g. a
+            // candidate account) still depends on this row.
             // =====================================================
-            _context.Users.Remove(user);
+            if (canDeleteUserRow)
+            {
+                _context.Users.Remove(user);
+            }
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
