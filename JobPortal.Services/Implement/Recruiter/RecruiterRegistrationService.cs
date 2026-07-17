@@ -833,7 +833,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     Purpose = "RecruiterRegistrationEmail",
                     IsVerified = false,
                     OtpAttempts = 0,
-                    ResendCooldownSec = 60
+                    ResendCooldownSec = 30
                 });
 
             await _context.SaveChangesAsync();
@@ -842,7 +842,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             {
                 Success = true,
                 Message = "Email OTP resent successfully.",
-                OtpExpiresInSeconds = 600
+                OtpExpiresInSeconds = 300
             };
         }
         catch (Exception ex)
@@ -1034,7 +1034,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             {
                 Success = true,
                 Message = "Mobile OTP resent successfully.",
-                OtpExpiresInSeconds = 600
+                OtpExpiresInSeconds = 300
             };
         }
         catch (Exception ex)
@@ -1246,9 +1246,6 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
         using var transaction =
             await _context.Database.BeginTransactionAsync();
-
-
-
 
         try
         {

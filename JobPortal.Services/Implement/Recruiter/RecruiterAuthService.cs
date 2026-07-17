@@ -27,7 +27,7 @@ public class RecruiterAuthService : IRecruiterAuthService
     private readonly ISubUserEmailService _emailService;
     private const int OtpExpiryMinutes = 10;
     private const int MaxOtpAttempts = 3;
-    private const int ResendCooldownSeconds = 60;
+    private const int ResendCooldownSeconds = 30;
 
     public RecruiterAuthService(
         AppDbContext context,
