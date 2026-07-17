@@ -1516,12 +1516,42 @@ namespace JobPortal.Services.Implement.Recruiter
     GetLatestCandidateCvAsync(
         Guid candidateId)
         {
-            return await _context.CandidateCvs
+            var existing = await _context.CandidateCvs
                 .Where(x =>
                     x.CandidateId == candidateId)
                 .OrderByDescending(x =>
                     x.GeneratedAt)
                 .FirstOrDefaultAsync();
+
+            if (existing != null)
+                return existing;
+
+            // No uploaded resume on file — fall back to the auto-generated
+            // Portal CV (built from the candidate's profile data) so an
+            // employer can still download something for candidates who
+            // filled out their profile but never uploaded a physical file.
+            var profile = await _context.CandidateProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
+
+            if (string.IsNullOrWhiteSpace(profile?.GeneratedCvFileUrl))
+                return null;
+
+            var generated = new CandidateCv
+            {
+                CvId = Guid.NewGuid(),
+                CandidateId = candidateId,
+                CvFileUrl = profile.GeneratedCvFileUrl,
+                ParsedName = profile.FullName,
+                GeneratedAt = profile.GeneratedCvUpdatedAt ?? DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            await _context.CandidateCvs.AddAsync(generated);
+            await _context.SaveChangesAsync();
+
+            return generated;
         }
 
         private async Task CreateCvDownloadRecordAsync(
