@@ -84,6 +84,35 @@ namespace JobPortal.Services.Implement.Recruiter
                 .OrderByDescending(x => x.GeneratedAt)
                 .FirstOrDefault();
 
+            // ── Related candidates (same trade, different candidate) ──
+            var relatedCandidates = new List<RelatedCandidateCardDto>();
+
+            if (!string.IsNullOrWhiteSpace(candidate.PrimaryTrade))
+            {
+                var trade = candidate.PrimaryTrade.Trim();
+
+                relatedCandidates = await _context.CandidateProfiles
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.CandidateId != candidateId &&
+                        x.PrimaryTrade != null &&
+                        x.PrimaryTrade.ToLower() == trade.ToLower())
+                    .OrderByDescending(x => x.LastAppliedAt ?? x.UpdatedAt)
+                    .Take(5)
+                    .Select(x => new RelatedCandidateCardDto
+                    {
+                        CandidateId = x.CandidateId,
+                        FullName = x.FullName,
+                        ProfilePhotoUrl = x.ProfilePhotoUrl,
+                        PrimaryTrade = x.PrimaryTrade,
+                        TotalExperienceYears = x.TotalExperienceYears,
+                        CurrentCity = x.CurrentCity,
+                        CurrentState = x.CurrentState,
+                        AvailabilityStatus = x.AvailabilityStatus
+                    })
+                    .ToListAsync();
+            }
+
             var response =
                 new RecruiterCandidateProfileResponseDto
                 {
@@ -312,7 +341,10 @@ namespace JobPortal.Services.Implement.Recruiter
 
                             CvDownloadAllowed =
                                 isUnlocked
-                        }
+                        },
+
+                    RelatedCandidates =
+                        relatedCandidates
                 };
 
             return response;

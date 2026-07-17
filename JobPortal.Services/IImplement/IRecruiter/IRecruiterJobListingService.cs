@@ -25,21 +25,29 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task<JobStatusUpdateResponseDto>
             PauseJobAsync(
                 Guid employerId,
-                Guid jobId);
+                Guid jobId,
+                Guid actionUserId,
+                bool isSubUser);
 
         Task<JobStatusUpdateResponseDto>
             ResumeJobAsync(
                 Guid employerId,
-                Guid jobId);
+                Guid jobId,
+                Guid actionUserId,
+                bool isSubUser);
 
         Task<JobStatusUpdateResponseDto>
             CloseJobAsync(
                 Guid employerId,
-                Guid jobId);
+                Guid jobId,
+                Guid actionUserId,
+                bool isSubUser);
 
         Task<JobStatusUpdateResponseDto> ArchiveJobAsync(
                 Guid employerId,
-                Guid jobId);
+                Guid jobId,
+                Guid actionUserId,
+                bool isSubUser);
 
         Task<JobStatsResponseDto> GetJobStatsAsync(
         Guid employerId,

@@ -14,6 +14,11 @@ namespace JobPortal.Application.DTOs.Recruiter.Applicants
 
         public string? Search { get; set; }
 
+        // Quick filters (Applicants page "Quick filters" row)
+        public bool? MinExperience3Years { get; set; }
+        public bool? NoticePeriodMax30Days { get; set; }
+        public bool? MandatoryAnswersComplete { get; set; }
+
         public int PageNumber { get; set; } = 1;
 
         public int PageSize { get; set; } = 10;

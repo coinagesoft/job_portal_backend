@@ -163,10 +163,13 @@ public class RecruiterSubUserController : ControllerBase
                 return BadRequest(Error("Invalid email format."));
 
             var employerId = GetEmployerId();
-            var result = await _service.InviteSubUserAsync(request, employerId);
+            var result = await _service.InviteSubUserAsync(request, employerId, GetActionUserId());
 
             if (!result.Success)
             {
+                if (result.Message.Contains("Only the account owner"))
+                    return StatusCode(403, result);
+
                 // Conflict — email already exists
                 if (result.Message.Contains("already"))
                     return Conflict(result);
@@ -225,10 +228,13 @@ public class RecruiterSubUserController : ControllerBase
 
             var employerId = GetEmployerId();
             var result = await _service.UpdateSubUserAsync(
-                subUserId, request, employerId);
+                subUserId, request, employerId, GetActionUserId());
 
             if (!result.Success)
             {
+                if (result.Message.Contains("Only the account owner"))
+                    return StatusCode(403, result);
+
                 if (result.Message.Contains("not found"))
                     return NotFound(result);
 
@@ -269,10 +275,13 @@ public class RecruiterSubUserController : ControllerBase
                 return BadRequest(Error("Invalid sub-user ID."));
 
             var result = await _service.DeactivateSubUserAsync(
-                subUserId, GetEmployerId());
+                subUserId, GetEmployerId(), GetActionUserId());
 
             if (!result.Success)
             {
+                if (result.Message.Contains("Only the account owner"))
+                    return StatusCode(403, result);
+
                 if (result.Message.Contains("not found"))
                     return NotFound(result);
 
@@ -309,10 +318,13 @@ public class RecruiterSubUserController : ControllerBase
                 return BadRequest(Error("Invalid sub-user ID."));
 
             var result = await _service.ReactivateSubUserAsync(
-                subUserId, GetEmployerId());
+                subUserId, GetEmployerId(), GetActionUserId());
 
             if (!result.Success)
             {
+                if (result.Message.Contains("Only the account owner"))
+                    return StatusCode(403, result);
+
                 if (result.Message.Contains("not found"))
                     return NotFound(result);
 
@@ -350,10 +362,13 @@ public class RecruiterSubUserController : ControllerBase
                 return BadRequest(Error("Invalid sub-user ID."));
 
             var result = await _service.ResendInviteAsync(
-                subUserId, GetEmployerId());
+                subUserId, GetEmployerId(), GetActionUserId());
 
             if (!result.Success)
             {
+                if (result.Message.Contains("Only the account owner"))
+                    return StatusCode(403, result);
+
                 if (result.Message.Contains("not found"))
                     return NotFound(result);
 
@@ -455,10 +470,14 @@ public class RecruiterSubUserController : ControllerBase
 
             var result = await _service.DeleteSubUserAsync(
                 subUserId,
-                GetEmployerId());
+                GetEmployerId(),
+                GetActionUserId());
 
             if (!result.Success)
             {
+                if (result.Message.Contains("Only the account owner"))
+                    return StatusCode(403, result);
+
                 if (result.Message.Contains("not found"))
                     return NotFound(result);
 

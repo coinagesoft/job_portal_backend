@@ -214,4 +214,27 @@ public class CandidateDocumentController : ControllerBase
 
         return File(result.FileBytes, "application/pdf", result.FileName);
     }
+
+    // ════════════════════════════════════════════════
+    // GET /api/candidate/profile/documents/generated-cv/preview
+    //
+    // Same watermarked bytes as the download endpoint, but served with no
+    // filename so the response stays "inline" instead of an attachment —
+    // safe to embed for an in-page preview without exposing the
+    // un-watermarked source file.
+    // ════════════════════════════════════════════════
+    [HttpGet("generated-cv/preview")]
+    public async Task<IActionResult> PreviewGeneratedCv([FromQuery] Guid? candidateId = null)
+    {
+        var id = candidateId ?? GetCandidateId();
+        if (id == Guid.Empty)
+            return BadRequest(new { message = "Unable to resolve candidate identity." });
+
+        var result = await _cvGenerationService.DownloadOwnGeneratedCvAsync(id);
+
+        if (!result.Success || result.FileBytes == null)
+            return BadRequest(new { success = false, message = result.Message });
+
+        return File(result.FileBytes, "application/pdf");
+    }
 }

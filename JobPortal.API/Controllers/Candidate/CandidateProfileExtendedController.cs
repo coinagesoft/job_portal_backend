@@ -24,13 +24,16 @@ namespace JobPortal.API.Controllers.Candidate;
 public class CandidateProfileExtendedController : ControllerBase
 {
     private readonly ICandidateProfileExtendedService _service;
+    private readonly ICvGenerationService _cvGenerationService;
     private readonly ILogger<CandidateProfileExtendedController> _logger;
 
     public CandidateProfileExtendedController(
         ICandidateProfileExtendedService service,
+        ICvGenerationService cvGenerationService,
         ILogger<CandidateProfileExtendedController> logger)
     {
         _service = service;
+        _cvGenerationService = cvGenerationService;
         _logger = logger;
     }
 
@@ -40,6 +43,23 @@ public class CandidateProfileExtendedController : ControllerBase
         var claim = User.FindFirstValue("candidateId")
                     ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(claim, out var id) ? id : Guid.Empty;
+    }
+
+    /// <summary>
+    /// Silently refreshes the Portal CV after a profile-data change.
+    /// Never lets a CV-generation failure fail the caller's request — the
+    /// section save already succeeded, so this is best-effort background work.
+    /// </summary>
+    private async Task RefreshPortalCvAsync(Guid candidateId)
+    {
+        try
+        {
+            await _cvGenerationService.GenerateCvAsync(candidateId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Portal CV auto-refresh failed for candidate {CandidateId}", candidateId);
+        }
     }
 
     // ════════════════════════════════════════════════
@@ -82,6 +102,7 @@ public class CandidateProfileExtendedController : ControllerBase
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
         var result = await _service.AddWorkExperienceAsync(id, request);
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -109,6 +130,7 @@ public class CandidateProfileExtendedController : ControllerBase
         if (!result.Success && result.Message.Contains("not found"))
             return NotFound(result);
 
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -131,6 +153,7 @@ public class CandidateProfileExtendedController : ControllerBase
         if (!result.Success && result.Message.Contains("not found"))
             return NotFound(result);
 
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -174,6 +197,7 @@ public class CandidateProfileExtendedController : ControllerBase
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
         var result = await _service.AddEducationAsync(id, request);
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -201,6 +225,7 @@ public class CandidateProfileExtendedController : ControllerBase
         if (!result.Success && result.Message.Contains("not found"))
             return NotFound(result);
 
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -223,6 +248,7 @@ public class CandidateProfileExtendedController : ControllerBase
         if (!result.Success && result.Message.Contains("not found"))
             return NotFound(result);
 
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -270,6 +296,7 @@ public class CandidateProfileExtendedController : ControllerBase
         if (!result.Success && result.Message.Contains("already been added"))
             return Conflict(result);
 
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -297,6 +324,7 @@ public class CandidateProfileExtendedController : ControllerBase
         if (!result.Success && result.Message.Contains("not found"))
             return NotFound(result);
 
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -319,6 +347,7 @@ public class CandidateProfileExtendedController : ControllerBase
         if (!result.Success && result.Message.Contains("not found"))
             return NotFound(result);
 
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -342,6 +371,7 @@ public class CandidateProfileExtendedController : ControllerBase
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
         var result = await _service.BulkSaveSkillsAsync(id, request);
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -390,6 +420,7 @@ public class CandidateProfileExtendedController : ControllerBase
         if (!result.Success && result.Message.Contains("already been added"))
             return Conflict(result);
 
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -417,6 +448,7 @@ public class CandidateProfileExtendedController : ControllerBase
         if (!result.Success && result.Message.Contains("not found"))
             return NotFound(result);
 
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -439,6 +471,7 @@ public class CandidateProfileExtendedController : ControllerBase
         if (!result.Success && result.Message.Contains("not found"))
             return NotFound(result);
 
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 }

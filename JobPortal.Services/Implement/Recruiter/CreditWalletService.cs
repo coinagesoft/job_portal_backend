@@ -758,8 +758,16 @@ namespace JobPortal.Services.Implement.Recruiter
                 .ToListAsync();
         }
 
-        public async Task<List<AllocationHistoryDto>> GetAllocationHistoryAsync(Guid employerId)
+        public async Task<List<AllocationHistoryDto>> GetAllocationHistoryAsync(Guid employerId, Guid actionUserId, bool isSubUser)
         {
+            // Allocation history shows how the owner divided credits across
+            // every sub-user — that's owner-only account administration, not
+            // something an individual sub-user should see about their peers.
+            if (isSubUser)
+            {
+                return new List<AllocationHistoryDto>();
+            }
+
             return await _context.CreditAllocationHistory
                 .Where(x =>
                     x.EmployerId == employerId)
@@ -823,7 +831,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 .ToListAsync();
         }
 
-        public async Task<List<UnlockedCandidateDto>> GetUnlockedCandidatesAsync(Guid employerId)
+        public async Task<List<UnlockedCandidateDto>> GetUnlockedCandidatesAsync(Guid employerId, Guid actionUserId, bool isSubUser)
         {
             return await
                 (
@@ -833,6 +841,9 @@ namespace JobPortal.Services.Implement.Recruiter
                     on unlock.CandidateId equals candidate.CandidateId
 
                     where unlock.EmployerId == employerId
+                        // A sub-user only ever sees candidates *they*
+                        // unlocked — not every unlock across the company.
+                        && (!isSubUser || unlock.UnlockRequestedBy == actionUserId)
 
                     orderby unlock.UnlockTimestamp descending
 
@@ -869,7 +880,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 .ToListAsync();
         }
 
-        public async Task<List<EmployerTransactionHistoryDto>> GetEmployerTransactionHistoryAsync(Guid employerId)
+        public async Task<List<EmployerTransactionHistoryDto>> GetEmployerTransactionHistoryAsync(Guid employerId, Guid actionUserId, bool isSubUser)
         {
             var creditTransactions =
                 await
@@ -883,6 +894,9 @@ namespace JobPortal.Services.Implement.Recruiter
                     from candidate in candidateJoin.DefaultIfEmpty()
 
                     where t.EmployerId == employerId
+                        // A sub-user only ever sees their own credit usage —
+                        // not the whole company's activity.
+                        && (!isSubUser || t.ActionByUserId == actionUserId)
 
                     select new EmployerTransactionHistoryDto
                     {
@@ -913,51 +927,119 @@ namespace JobPortal.Services.Implement.Recruiter
                             null,
 
                         CreatedAt =
-                            t.CreatedAt
+                            t.CreatedAt,
+
+                        ActionByUserId =
+                            t.ActionByUserId
                     }
                 )
                 .ToListAsync();
 
-            var purchases =
-                await _context.EmployerPlanPurchase
-                    .Where(x =>
-                        x.EmployerId == employerId)
-                    .Select(x =>
-                        new EmployerTransactionHistoryDto
-                        {
-                            TransactionId =
-                                x.EmployerCreditPlanId,
+            List<EmployerTransactionHistoryDto> allRows;
 
-                            TransactionType =
-                                "PlanPurchase",
+            // Plan purchases are company-wide billing events made by the
+            // account owner — a sub-user has no purchasing access, so they
+            // shouldn't see this in their own history either.
+            if (isSubUser)
+            {
+                allRows = creditTransactions;
+            }
+            else
+            {
+                var purchases =
+                    await _context.EmployerPlanPurchase
+                        .Where(x =>
+                            x.EmployerId == employerId)
+                        .Select(x =>
+                            new EmployerTransactionHistoryDto
+                            {
+                                TransactionId =
+                                    x.EmployerCreditPlanId,
 
-                            Category =
-                                "Plan",
+                                TransactionType =
+                                    "PlanPurchase",
 
-                            CandidateId =
-                                null,
+                                Category =
+                                    "Plan",
 
-                            CandidateName =
-                                null,
+                                CandidateId =
+                                    null,
 
-                            PlanName =
-                                x.PlanName,
+                                CandidateName =
+                                    null,
 
-                            CreditsUsed =
-                                x.Credits,
+                                PlanName =
+                                    x.PlanName,
 
-                            AmountPaid =
-                                x.Price,
+                                CreditsUsed =
+                                    x.Credits,
 
-                            CreatedAt =
-                                x.AssignedAt
-                        })
-                    .ToListAsync();
+                                AmountPaid =
+                                    x.Price,
 
-            return creditTransactions
-                .Concat(purchases)
+                                CreatedAt =
+                                    x.AssignedAt,
+
+                                ActionByUserId =
+                                    x.AssignedBy
+                            })
+                        .ToListAsync();
+
+                allRows = creditTransactions.Concat(purchases).ToList();
+            }
+
+            await PopulateActionByDetailsAsync(employerId, allRows);
+
+            return allRows
                 .OrderByDescending(x => x.CreatedAt)
                 .ToList();
+        }
+
+        // Resolves ActionByUserId → a display name and role ("Account
+        // Owner" or the sub-user's role) for a batch of transaction rows,
+        // so the owner can see exactly which user used credits.
+        private async Task PopulateActionByDetailsAsync(
+            Guid employerId,
+            List<EmployerTransactionHistoryDto> rows)
+        {
+            if (rows.Count == 0) return;
+
+            var owner = await _context.EmployerProfiles
+                .AsNoTracking()
+                .Where(x => x.EmployerId == employerId)
+                .Select(x => new { x.UserId, x.ContactPersonName, x.CompanyDisplayName })
+                .FirstOrDefaultAsync();
+
+            var subUsers = await _context.EmployerSubUsers
+                .AsNoTracking()
+                .Where(x => x.EmployerId == employerId)
+                .Select(x => new { x.UserId, x.SubUserName, x.SubUserRole })
+                .ToListAsync();
+
+            var subUserLookup = subUsers
+                .GroupBy(x => x.UserId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            foreach (var row in rows)
+            {
+                if (owner != null && row.ActionByUserId == owner.UserId)
+                {
+                    row.ActionByName = !string.IsNullOrWhiteSpace(owner.ContactPersonName)
+                        ? owner.ContactPersonName
+                        : owner.CompanyDisplayName;
+                    row.ActionByRole = "Account Owner";
+                }
+                else if (subUserLookup.TryGetValue(row.ActionByUserId, out var subUser))
+                {
+                    row.ActionByName = subUser.SubUserName;
+                    row.ActionByRole = subUser.SubUserRole;
+                }
+                else
+                {
+                    row.ActionByName = "Unknown user";
+                    row.ActionByRole = "";
+                }
+            }
         }
         public async Task<CreditWalletDashboardDto> GetCreditWalletDashboardAsync(Guid employerId)
         {
@@ -1434,12 +1516,42 @@ namespace JobPortal.Services.Implement.Recruiter
     GetLatestCandidateCvAsync(
         Guid candidateId)
         {
-            return await _context.CandidateCvs
+            var existing = await _context.CandidateCvs
                 .Where(x =>
                     x.CandidateId == candidateId)
                 .OrderByDescending(x =>
                     x.GeneratedAt)
                 .FirstOrDefaultAsync();
+
+            if (existing != null)
+                return existing;
+
+            // No uploaded resume on file — fall back to the auto-generated
+            // Portal CV (built from the candidate's profile data) so an
+            // employer can still download something for candidates who
+            // filled out their profile but never uploaded a physical file.
+            var profile = await _context.CandidateProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
+
+            if (string.IsNullOrWhiteSpace(profile?.GeneratedCvFileUrl))
+                return null;
+
+            var generated = new CandidateCv
+            {
+                CvId = Guid.NewGuid(),
+                CandidateId = candidateId,
+                CvFileUrl = profile.GeneratedCvFileUrl,
+                ParsedName = profile.FullName,
+                GeneratedAt = profile.GeneratedCvUpdatedAt ?? DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            await _context.CandidateCvs.AddAsync(generated);
+            await _context.SaveChangesAsync();
+
+            return generated;
         }
 
         private async Task CreateCvDownloadRecordAsync(

@@ -60,6 +60,29 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
+        // Notice period is stored as free text ("Immediate", "30 Days", "60
+        // Days", …). Returns the number of days, or null if it can't be
+        // parsed — an unparseable/empty value never matches a "<= N days"
+        // filter rather than guessing.
+        private static int? NoticePeriodDaysOrNull(string? noticePeriod)
+        {
+            if (string.IsNullOrWhiteSpace(noticePeriod)) return null;
+
+            if (noticePeriod.Trim().Equals("Immediate", StringComparison.OrdinalIgnoreCase))
+                return 0;
+
+            var digits = new string(noticePeriod.TakeWhile(char.IsDigit).ToArray());
+            if (digits.Length == 0)
+            {
+                // Handle values like "Notice: 30 Days" where the number
+                // isn't at the very start.
+                var match = System.Text.RegularExpressions.Regex.Match(noticePeriod, @"\d+");
+                digits = match.Success ? match.Value : "";
+            }
+
+            return int.TryParse(digits, out var days) ? days : null;
+        }
+
         // ==========================================================
         // Applicant List
         // ==========================================================
@@ -105,16 +128,71 @@ namespace JobPortal.Services.Implement.Recruiter
                     x.JobPosting.JobTitle.ToLower().Contains(search)
                     ||
                     (x.CandidateProfile.PrimaryTrade != null &&
-                     x.CandidateProfile.PrimaryTrade.ToLower().Contains(search)));
+                     x.CandidateProfile.PrimaryTrade.ToLower().Contains(search))
+                    ||
+                    (x.CandidateProfile.CurrentCity != null &&
+                     x.CandidateProfile.CurrentCity.ToLower().Contains(search)));
             }
 
-            var totalRecords = await query.CountAsync();
+            // Experience 3+ years — plain numeric comparison, translates
+            // fine to SQL.
+            if (request.MinExperience3Years == true)
+            {
+                query = query.Where(x => x.CandidateProfile.TotalExperienceYears >= 3);
+            }
 
-            var applications = await query
-                .OrderByDescending(x => x.AppliedAt)
-                .Skip((request.PageNumber - 1) * request.PageSize)
-                .Take(request.PageSize)
-                .ToListAsync();
+            var needsInMemoryFilter =
+                request.NoticePeriodMax30Days == true ||
+                request.MandatoryAnswersComplete == true;
+
+            List<JobApplication> applications;
+            int totalRecords;
+
+            if (needsInMemoryFilter)
+            {
+                // Notice period is free text ("30 Days", "Immediate", …) and
+                // "mandatory answers complete" compares two list lengths —
+                // neither translates to SQL, so filter in memory instead.
+                var all = await query
+                    .OrderByDescending(x => x.AppliedAt)
+                    .ToListAsync();
+
+                if (request.NoticePeriodMax30Days == true)
+                {
+                    all = all
+                        .Where(x => NoticePeriodDaysOrNull(x.CandidateProfile.NoticePeriod) is int days && days <= 30)
+                        .ToList();
+                }
+
+                if (request.MandatoryAnswersComplete == true)
+                {
+                    all = all
+                        .Where(x =>
+                        {
+                            var required = x.JobPosting.ScreeningQuestions?.Count ?? 0;
+                            if (required == 0) return true;
+                            var answered = x.ScreeningAnswers?.Count(a => !string.IsNullOrWhiteSpace(a)) ?? 0;
+                            return answered >= required;
+                        })
+                        .ToList();
+                }
+
+                totalRecords = all.Count;
+                applications = all
+                    .Skip((request.PageNumber - 1) * request.PageSize)
+                    .Take(request.PageSize)
+                    .ToList();
+            }
+            else
+            {
+                totalRecords = await query.CountAsync();
+
+                applications = await query
+                    .OrderByDescending(x => x.AppliedAt)
+                    .Skip((request.PageNumber - 1) * request.PageSize)
+                    .Take(request.PageSize)
+                    .ToListAsync();
+            }
 
             var candidateIds = applications
                 .Select(x => x.CandidateId)

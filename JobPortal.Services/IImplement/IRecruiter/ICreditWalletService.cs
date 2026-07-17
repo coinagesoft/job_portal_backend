@@ -69,13 +69,13 @@ namespace JobPortal.Services.IImplement.IRecruiter
 
         Task<List<PurchaseHistoryDto>> GetPurchaseHistoryAsync(Guid employerId);
 
-        Task<List<AllocationHistoryDto>> GetAllocationHistoryAsync(Guid employerId);
+        Task<List<AllocationHistoryDto>> GetAllocationHistoryAsync(Guid employerId, Guid actionUserId, bool isSubUser);
 
         Task<List<CvDownloadHistoryDto>> GetCvDownloadHistoryAsync(Guid employerId);
 
-        Task<List<UnlockedCandidateDto>> GetUnlockedCandidatesAsync(Guid employerId);
+        Task<List<UnlockedCandidateDto>> GetUnlockedCandidatesAsync(Guid employerId, Guid actionUserId, bool isSubUser);
 
-        Task<List<EmployerTransactionHistoryDto>> GetEmployerTransactionHistoryAsync(Guid employerId);
+        Task<List<EmployerTransactionHistoryDto>> GetEmployerTransactionHistoryAsync(Guid employerId, Guid actionUserId, bool isSubUser);
 
         Task<CreditWalletDashboardDto> GetCreditWalletDashboardAsync(Guid employerId);
     }

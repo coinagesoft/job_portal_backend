@@ -192,9 +192,8 @@ public class RecruiterCreditController : ControllerBase
     [HttpGet("allocation-history")]
     public async Task<IActionResult> GetAllocationHistory()
     {
-        var result =
-            await _service.GetAllocationHistoryAsync(
-                GetEmployerId());
+        var result = await _service.GetAllocationHistoryAsync(
+            GetEmployerId(), GetActionUserId(), GetIsSubUser());
 
         return Ok(result);
     }
@@ -210,7 +209,8 @@ public class RecruiterCreditController : ControllerBase
     [HttpGet("unlocked-candidates")]
     public async Task<IActionResult> GetUnlockedCandidates()
     {
-        var result = await _service.GetUnlockedCandidatesAsync(GetEmployerId());
+        var result = await _service.GetUnlockedCandidatesAsync(
+            GetEmployerId(), GetActionUserId(), GetIsSubUser());
 
         return Ok(result);
     }
@@ -218,7 +218,8 @@ public class RecruiterCreditController : ControllerBase
     [HttpGet("transaction-history")]
     public async Task<IActionResult> GetTransactionHistory()
     {
-        var result = await _service.GetEmployerTransactionHistoryAsync(GetEmployerId());
+        var result = await _service.GetEmployerTransactionHistoryAsync(
+            GetEmployerId(), GetActionUserId(), GetIsSubUser());
 
         return Ok(result);
     }

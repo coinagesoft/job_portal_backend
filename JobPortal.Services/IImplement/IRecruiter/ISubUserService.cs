@@ -17,23 +17,23 @@ namespace JobPortal.Services.IImplement.IRecruiter
 
         // Invite new sub-user — sends invite link
         Task<InviteSubUserResponseDto> InviteSubUserAsync(
-            InviteSubUserRequestDto request, Guid employerId);
+            InviteSubUserRequestDto request, Guid employerId, Guid actionUserId);
 
         // Edit role/permissions
         Task<InviteSubUserResponseDto> UpdateSubUserAsync(
-            Guid subUserId, UpdateSubUserRequestDto request, Guid employerId);
+            Guid subUserId, UpdateSubUserRequestDto request, Guid employerId, Guid actionUserId);
 
         // Deactivate — revokes access immediately
         Task<BaseSubUserResponseDto> DeactivateSubUserAsync(
-            Guid subUserId, Guid employerId);
+            Guid subUserId, Guid employerId, Guid actionUserId);
 
         // Reactivate
         Task<BaseSubUserResponseDto> ReactivateSubUserAsync(
-            Guid subUserId, Guid employerId);
+            Guid subUserId, Guid employerId, Guid actionUserId);
 
         // Resend invite
         Task<BaseSubUserResponseDto> ResendInviteAsync(
-            Guid subUserId, Guid employerId);
+            Guid subUserId, Guid employerId, Guid actionUserId);
 
         // Accept invite (called by sub-user)
         Task<BaseSubUserResponseDto> AcceptInviteAsync(AcceptInviteRequestDto request);
@@ -41,7 +41,7 @@ namespace JobPortal.Services.IImplement.IRecruiter
         // Get permission matrix for a role
         PermissionsDto GetRolePermissions(SubUserRole role);
 
-        Task<BaseSubUserResponseDto> DeleteSubUserAsync(Guid subUserId, Guid employerId);
+        Task<BaseSubUserResponseDto> DeleteSubUserAsync(Guid subUserId, Guid employerId, Guid actionUserId);
 
         Task<ValidateInviteResponseDto> ValidateInviteAsync(string token);
 

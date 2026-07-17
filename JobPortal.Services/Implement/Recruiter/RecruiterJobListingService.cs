@@ -14,13 +14,16 @@ namespace JobPortal.Services.Implement.Recruiter
     {
         private readonly AppDbContext _context;
         private readonly ILogger<RecruiterJobListingService> _logger;
+        private readonly ISubUserPermissionService _permissionService;
 
         public RecruiterJobListingService(
             AppDbContext context,
-            ILogger<RecruiterJobListingService> logger)
+            ILogger<RecruiterJobListingService> logger,
+            ISubUserPermissionService permissionService)
         {
             _context = context;
             _logger = logger;
+            _permissionService = permissionService;
         }
 
         public async Task<JobDashboardResponseDto> GetDashboardAsync(Guid employerId)
@@ -86,7 +89,7 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<JobListResponseDto> GetJobsAsync( Guid employerId,JobListRequestDto request)
+        public async Task<JobListResponseDto> GetJobsAsync(Guid employerId, JobListRequestDto request)
         {
             var query = _context.JobPostings
                 .AsNoTracking()
@@ -402,8 +405,22 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public async Task<JobStatusUpdateResponseDto> PauseJobAsync(
         Guid employerId,
-        Guid jobId)
+        Guid jobId,
+        Guid actionUserId,
+        bool isSubUser)
         {
+            var permissionCheck = await _permissionService.CheckAsync(
+                actionUserId, isSubUser, s => s.CanPostJobs);
+
+            if (!permissionCheck.Allowed)
+            {
+                return new JobStatusUpdateResponseDto
+                {
+                    Success = false,
+                    Message = permissionCheck.Message
+                };
+            }
+
             var job = await _context.JobPostings
                 .FirstOrDefaultAsync(x =>
                     x.JobId == jobId &&
@@ -434,8 +451,22 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public async Task<JobStatusUpdateResponseDto> ResumeJobAsync(
         Guid employerId,
-        Guid jobId)
+        Guid jobId,
+        Guid actionUserId,
+        bool isSubUser)
         {
+            var permissionCheck = await _permissionService.CheckAsync(
+                actionUserId, isSubUser, s => s.CanPostJobs);
+
+            if (!permissionCheck.Allowed)
+            {
+                return new JobStatusUpdateResponseDto
+                {
+                    Success = false,
+                    Message = permissionCheck.Message
+                };
+            }
+
             var job = await _context.JobPostings
                 .FirstOrDefaultAsync(x =>
                     x.JobId == jobId &&
@@ -466,8 +497,22 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public async Task<JobStatusUpdateResponseDto> CloseJobAsync(
         Guid employerId,
-        Guid jobId)
+        Guid jobId,
+        Guid actionUserId,
+        bool isSubUser)
         {
+            var permissionCheck = await _permissionService.CheckAsync(
+                actionUserId, isSubUser, s => s.CanPostJobs);
+
+            if (!permissionCheck.Allowed)
+            {
+                return new JobStatusUpdateResponseDto
+                {
+                    Success = false,
+                    Message = permissionCheck.Message
+                };
+            }
+
             var job = await _context.JobPostings
                 .FirstOrDefaultAsync(x =>
                     x.JobId == jobId &&
@@ -496,10 +541,24 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<JobStatusUpdateResponseDto>ArchiveJobAsync(
+        public async Task<JobStatusUpdateResponseDto> ArchiveJobAsync(
         Guid employerId,
-        Guid jobId)
+        Guid jobId,
+        Guid actionUserId,
+        bool isSubUser)
         {
+            var permissionCheck = await _permissionService.CheckAsync(
+                actionUserId, isSubUser, s => s.CanPostJobs);
+
+            if (!permissionCheck.Allowed)
+            {
+                return new JobStatusUpdateResponseDto
+                {
+                    Success = false,
+                    Message = permissionCheck.Message
+                };
+            }
+
             var job = await _context.JobPostings
                 .FirstOrDefaultAsync(x =>
                     x.JobId == jobId &&

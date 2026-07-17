@@ -19,13 +19,16 @@ namespace JobPortal.API.Controllers.Candidate;
 public class CandidateProfileController : ControllerBase
 {
     private readonly ICandidateProfileService _profileService;
+    private readonly ICvGenerationService _cvGenerationService;
     private readonly ILogger<CandidateProfileController> _logger;
 
     public CandidateProfileController(
         ICandidateProfileService profileService,
+        ICvGenerationService cvGenerationService,
         ILogger<CandidateProfileController> logger)
     {
         _profileService = profileService;
+        _cvGenerationService = cvGenerationService;
         _logger = logger;
     }
 
@@ -36,6 +39,23 @@ public class CandidateProfileController : ControllerBase
                     ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         return Guid.TryParse(claim, out var id) ? id : Guid.Empty;
+    }
+
+    /// <summary>
+    /// Silently refreshes the Portal CV after a profile-data change.
+    /// Never lets a CV-generation failure fail the caller's request — the
+    /// section save already succeeded, so this is best-effort background work.
+    /// </summary>
+    private async Task RefreshPortalCvAsync(Guid candidateId)
+    {
+        try
+        {
+            await _cvGenerationService.GenerateCvAsync(candidateId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Portal CV auto-refresh failed for candidate {CandidateId}", candidateId);
+        }
     }
 
     // ════════════════════════════════════════════════
@@ -110,6 +130,7 @@ public class CandidateProfileController : ControllerBase
         if (!result.Success && result.Message.Contains("already in use"))
             return Conflict(result);
 
+        if (result.Success) await RefreshPortalCvAsync(id);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
@@ -163,6 +184,7 @@ public class CandidateProfileController : ControllerBase
         if (!result.Success)
             return BadRequest(result);
 
+        await RefreshPortalCvAsync(userId);
         return Ok(result);
     }
     // ════════════════════════════════════════════════
