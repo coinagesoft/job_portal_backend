@@ -2724,8 +2724,10 @@ public class CandidateDocumentService : ICandidateDocumentService
                 continue;
             }
 
+            var workDates = exp.Parsed?.WorkExperienceDates?.Parsed;
+
             var startDate =
-                ParseDatePoint(exp.Parsed?.WorkExperienceDates?.Start);
+                ParseDatePoint(workDates?.Start);
 
             // Affinda sometimes gives no usable date for an entry at all
             // (common on resumes with dates in a separate sidebar column
@@ -2736,9 +2738,9 @@ public class CandidateDocumentService : ICandidateDocumentService
             // are still valuable) and simply leave the date unset rather
             // than inventing one.
             var endDate =
-                exp.Parsed?.WorkExperienceDates?.End?.IsCurrent == true
+                workDates?.End?.IsCurrent == true
                     ? null
-                    : ParseDatePoint(exp.Parsed?.WorkExperienceDates?.End);
+                    : ParseDatePoint(workDates?.End);
 
             _context.CandidateWorkHistories.Add(new CandidateWorkHistory
             {
@@ -2758,14 +2760,14 @@ public class CandidateDocumentService : ICandidateDocumentService
                 EndDate = endDate,
 
                 IsCurrent =
-                    exp.Parsed?.WorkExperienceDates?.End?.IsCurrent
+                    workDates?.End?.IsCurrent
                     ?? false,
 
                 JobDescription =
                     exp.Parsed?.WorkExperienceDescription?.Parsed,
 
                 WorkLocation =
-                    exp.Parsed?.WorkExperienceLocation?.Formatted,
+                    exp.Parsed?.WorkExperienceLocation?.Parsed?.Formatted,
 
                 IsOffshore = false,
 
@@ -2779,7 +2781,7 @@ public class CandidateDocumentService : ICandidateDocumentService
         if (languages == null || !languages.Any()) return new();
 
         return languages
-            .Select(l => l.Parsed?.Parsed)
+            .Select(l => l.Parsed?.LanguageName?.Parsed?.Label)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -2794,6 +2796,7 @@ public class CandidateDocumentService : ICandidateDocumentService
         {
             var accreditation = edu.Parsed?.EducationAccreditation?.Parsed;
             var levelLabel = edu.Parsed?.EducationLevel?.Value ?? edu.Parsed?.EducationLevel?.Label;
+            var eduDates = edu.Parsed?.EducationDates?.Parsed;
 
             var grade =
                 edu.Parsed?.EducationGrade?.EducationGradeScore?.ToString()
@@ -2805,8 +2808,8 @@ public class CandidateDocumentService : ICandidateDocumentService
                 Qualification = accreditation,
                 Level = levelLabel,
                 InstituteName = edu.Parsed?.EducationOrganization?.Parsed,
-                StartYear = edu.Parsed?.EducationDates?.Start?.Year,
-                EndYear = edu.Parsed?.EducationDates?.End?.Year,
+                StartYear = eduDates?.Start?.Year,
+                EndYear = eduDates?.End?.Year,
                 Grade = string.IsNullOrWhiteSpace(grade)
                     ? null
                     : string.IsNullOrWhiteSpace(gradeUnit) ? grade : $"{grade} {gradeUnit}"
@@ -2824,17 +2827,21 @@ public class CandidateDocumentService : ICandidateDocumentService
 
         return workExperiences
             .Where(exp => !string.IsNullOrWhiteSpace(exp.Parsed?.WorkExperienceJobTitle?.Parsed))
-            .Select(exp => new AiParsedWorkExperienceDto
+            .Select(exp =>
             {
-                JobTitle = exp.Parsed?.WorkExperienceJobTitle?.Parsed,
-                CompanyName = exp.Parsed?.WorkExperienceOrganization?.Parsed,
-                Location = exp.Parsed?.WorkExperienceLocation?.Formatted,
-                StartDate = ParseDatePoint(exp.Parsed?.WorkExperienceDates?.Start),
-                EndDate = exp.Parsed?.WorkExperienceDates?.End?.IsCurrent == true
-                    ? null
-                    : ParseDatePoint(exp.Parsed?.WorkExperienceDates?.End),
-                IsCurrent = exp.Parsed?.WorkExperienceDates?.End?.IsCurrent ?? false,
-                Description = exp.Parsed?.WorkExperienceDescription?.Parsed
+                var workDates = exp.Parsed?.WorkExperienceDates?.Parsed;
+                return new AiParsedWorkExperienceDto
+                {
+                    JobTitle = exp.Parsed?.WorkExperienceJobTitle?.Parsed,
+                    CompanyName = exp.Parsed?.WorkExperienceOrganization?.Parsed,
+                    Location = exp.Parsed?.WorkExperienceLocation?.Parsed?.Formatted,
+                    StartDate = ParseDatePoint(workDates?.Start),
+                    EndDate = workDates?.End?.IsCurrent == true
+                        ? null
+                        : ParseDatePoint(workDates?.End),
+                    IsCurrent = workDates?.End?.IsCurrent ?? false,
+                    Description = exp.Parsed?.WorkExperienceDescription?.Parsed
+                };
             })
             .ToList();
     }
@@ -2862,7 +2869,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             _context.CandidateSkills.RemoveRange(existingLanguages);
 
         var distinctLanguages = affindaLanguages
-            .Select(l => l.Parsed?.Parsed)
+            .Select(l => l.Parsed?.LanguageName?.Parsed?.Label)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase);
@@ -2930,10 +2937,10 @@ public class CandidateDocumentService : ICandidateDocumentService
 
             short? passoutYear = null;
 
-            if (edu.Parsed?.EducationDates?.End?.Year != null)
+            if (edu.Parsed?.EducationDates?.Parsed?.End?.Year != null)
             {
                 passoutYear =
-                    (short)edu.Parsed.EducationDates.End.Year.Value;
+                    (short)edu.Parsed.EducationDates.Parsed.End.Year.Value;
             }
 
             var grade =

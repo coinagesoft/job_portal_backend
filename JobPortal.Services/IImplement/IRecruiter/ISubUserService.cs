@@ -64,6 +64,7 @@ namespace JobPortal.Services.IImplement.IRecruiter
     {
         public bool Success { get; set; } = true;
         public bool IsSubUser { get; set; }
+        public string? Role { get; set; }
         public bool CanSearchCandidates { get; set; } = true;
         public bool CanUnlockProfiles { get; set; } = true;
         public bool CanPostJobs { get; set; } = true;

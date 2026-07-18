@@ -675,6 +675,7 @@ public class SubUserService : ISubUserService
             {
                 Success = true,
                 IsSubUser = false,
+                Role = "Owner",
                 CanSearchCandidates = true,
                 CanUnlockProfiles = true,
                 CanPostJobs = true,
@@ -693,6 +694,7 @@ public class SubUserService : ISubUserService
             {
                 Success = false,
                 IsSubUser = true,
+                Role = null,
                 CanSearchCandidates = false,
                 CanUnlockProfiles = false,
                 CanPostJobs = false,
@@ -708,6 +710,7 @@ public class SubUserService : ISubUserService
         {
             Success = true,
             IsSubUser = true,
+            Role = subUser.SubUserRole,
             CanSearchCandidates = isActive && subUser.CanSearchCandidates,
             CanUnlockProfiles = isActive && subUser.CanUnlockProfiles,
             CanPostJobs = isActive && subUser.CanPostJobs,
