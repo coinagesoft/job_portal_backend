@@ -28,6 +28,7 @@ public class CandidateDocumentService : ICandidateDocumentService
     private readonly IAffindaService _affinda;
     private readonly IGeminiDocumentParserService _geminiDocumentParserService;
     private readonly IFileStorageService _fileStorage;
+    private readonly ICvGenerationService _cvGeneration;
     private const long MaxDocFileSizeBytes = 10 * 1024 * 1024;
     private const long MaxImageSizeBytes = 5 * 1024 * 1024;
     private static readonly string[] AllowedDocTypes = { "application/pdf", "image/jpeg", "image/png", "application/zip" };
@@ -39,7 +40,8 @@ public class CandidateDocumentService : ICandidateDocumentService
     IConfiguration configuration,
     IAffindaService affinda,
     IFileStorageService fileStorage,
-    IGeminiDocumentParserService geminiDocumentParserService)
+    IGeminiDocumentParserService geminiDocumentParserService,
+    ICvGenerationService cvGeneration)
     {
         _context = context;
         _logger = logger;
@@ -47,6 +49,7 @@ public class CandidateDocumentService : ICandidateDocumentService
         _affinda = affinda;
         _fileStorage = fileStorage;
         _geminiDocumentParserService = geminiDocumentParserService;
+        _cvGeneration = cvGeneration;
     }
 
     // ════════════════════════════════════════════════
@@ -83,6 +86,26 @@ public class CandidateDocumentService : ICandidateDocumentService
                 .OrderByDescending(p => p.CreatedAt)
                 .FirstOrDefaultAsync();
 
+            // The Portal CV should exist the moment there's any profile data
+            // to build it from — there's no "profile must be X% complete"
+            // requirement. If nobody has ever triggered a generation for
+            // this candidate yet (e.g. their account predates the
+            // auto-generate-on-save behaviour), build one now instead of
+            // showing "not generated" indefinitely until their next edit.
+            string? generatedCvUrl = profile.GeneratedCvFileUrl;
+            DateTime? generatedCvUpdatedAt = profile.GeneratedCvUpdatedAt;
+
+            if (string.IsNullOrWhiteSpace(generatedCvUrl))
+            {
+                var generated = await _cvGeneration.GenerateCvAsync(candidateId);
+
+                if (generated.Success && !string.IsNullOrWhiteSpace(generated.GeneratedCvUrl))
+                {
+                    generatedCvUrl = generated.GeneratedCvUrl;
+                    generatedCvUpdatedAt = generated.GeneratedAt;
+                }
+            }
+
             return new CandidateDocumentsResponseDto
             {
                 Success = true,
@@ -105,12 +128,12 @@ public class CandidateDocumentService : ICandidateDocumentService
                         ? null
                         : MapAadhaar(aadhaar),
 
-                    GeneratedCv = string.IsNullOrWhiteSpace(profile.GeneratedCvFileUrl)
+                    GeneratedCv = string.IsNullOrWhiteSpace(generatedCvUrl)
                         ? null
                         : new GeneratedCvDto
                         {
-                            Url = profile.GeneratedCvFileUrl,
-                            UpdatedAt = profile.GeneratedCvUpdatedAt
+                            Url = generatedCvUrl,
+                            UpdatedAt = generatedCvUpdatedAt
                         }
                 }
             };
@@ -796,7 +819,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 };
             }
 
-            
+
             var shortId = candidateId.ToString("N").Substring(0, 8);
             var fileName = $"{Slugify(documentType)}_{Slugify(profile.FullName)}_{shortId}";
 

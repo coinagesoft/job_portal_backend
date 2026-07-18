@@ -17,6 +17,17 @@ namespace JobPortal.Domain.Entities
 
         public Guid ActionByUserId { get; set; }
 
+        // Snapshot of who performed this action, taken at the moment it
+        // happened. The owner/sub-user's name used to be resolved by a
+        // live join at read time — that breaks the instant a sub-user is
+        // deleted (their EmployerSubUsers row is gone), showing "Unknown
+        // user" for perfectly real, already-spent credits. Storing it here
+        // means the transaction stays readable forever, regardless of what
+        // happens to the account later.
+        public string? ActionByName { get; set; }
+
+        public string? ActionByRole { get; set; }
+
         public Guid? CandidateId { get; set; }
 
         public Guid? UnlockId { get; set; }

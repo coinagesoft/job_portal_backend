@@ -280,6 +280,15 @@ namespace JobPortal.Services.Implement.Recruiter
                 // Purchase History
                 //--------------------------------------------------------
 
+                // AssignedBy should be the owner's login identity (UserId) —
+                // that's what transaction-history name resolution matches
+                // against — not the EmployerId itself, which can never
+                // equal a User's UserId.
+                var ownerUserId = await _context.EmployerProfiles
+                    .Where(e => e.EmployerId == employerId)
+                    .Select(e => e.UserId)
+                    .FirstOrDefaultAsync();
+
                 var purchase = new EmployerPlanPurchase
                 {
                     EmployerCreditPlanId = Guid.NewGuid(),
@@ -291,7 +300,7 @@ namespace JobPortal.Services.Implement.Recruiter
                     AssignedAt = DateTime.UtcNow,
                     ExpiresAt = DateTime.UtcNow.AddMonths(plan.ValidityMonths),
                     IsActive = true,
-                    AssignedBy = employerId
+                    AssignedBy = ownerUserId
                 };
 
                 _context.EmployerPlanPurchase.Add(purchase);
@@ -412,6 +421,13 @@ namespace JobPortal.Services.Implement.Recruiter
                 wallet.UpdatedAt = DateTime.UtcNow;
             }
 
+            // AssignedBy should be the owner's login identity (UserId), not
+            // the EmployerId — see the matching fix in VerifyPlanPaymentAsync.
+            var ownerUserId = await _context.EmployerProfiles
+                .Where(e => e.EmployerId == employerId)
+                .Select(e => e.UserId)
+                .FirstOrDefaultAsync();
+
             _context.EmployerPlanPurchase.Add(new EmployerPlanPurchase
             {
                 EmployerCreditPlanId = Guid.NewGuid(),
@@ -423,7 +439,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 AssignedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.AddMonths(plan.ValidityMonths),
                 IsActive = true,
-                AssignedBy = employerId
+                AssignedBy = ownerUserId
             });
 
             await _context.SaveChangesAsync();

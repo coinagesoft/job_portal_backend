@@ -195,6 +195,9 @@ namespace JobPortal.Services.Implement.Recruiter
                         SubUserId =
                             request.SubUserId,
 
+                        SubUserName =
+                            subUser.SubUserName,
+
                         CreditsAllocated =
                             request.Credits,
 
@@ -776,7 +779,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 return new List<AllocationHistoryDto>();
             }
 
-            return await _context.CreditAllocationHistory
+            var rows = await _context.CreditAllocationHistory
                 .Where(x =>
                     x.EmployerId == employerId)
                 .OrderByDescending(x =>
@@ -790,8 +793,14 @@ namespace JobPortal.Services.Implement.Recruiter
                         SubUserId =
                             x.SubUserId,
 
+                        SubUserName =
+                            x.SubUserName,
+
                         CreditsAllocated =
                             x.CreditsAllocated,
+
+                        IsReclaim =
+                            x.CreditsAllocated < 0,
 
                         BalanceBefore =
                             x.BalanceBefore,
@@ -803,6 +812,39 @@ namespace JobPortal.Services.Implement.Recruiter
                             x.CreatedAt
                     })
                 .ToListAsync();
+
+            // Legacy rows created before SubUserName was snapshotted won't
+            // have it set. Sub-user deletion is a soft delete (the
+            // EmployerSubUsers row stays forever, just marked "Deleted"),
+            // so a live lookup — deliberately not filtered by status — can
+            // usually still recover the name even for someone who's since
+            // been removed. Only a row whose sub-user predates soft-delete
+            // entirely (hard-deleted under old behaviour) stays unresolved.
+            var missingNameIds = rows
+                .Where(r => string.IsNullOrWhiteSpace(r.SubUserName))
+                .Select(r => r.SubUserId)
+                .Distinct()
+                .ToList();
+
+            if (missingNameIds.Count > 0)
+            {
+                var namesById = await _context.EmployerSubUsers
+                    .AsNoTracking()
+                    .Where(x => missingNameIds.Contains(x.SubUserId))
+                    .Select(x => new { x.SubUserId, x.SubUserName })
+                    .ToDictionaryAsync(x => x.SubUserId, x => x.SubUserName);
+
+                foreach (var row in rows)
+                {
+                    if (string.IsNullOrWhiteSpace(row.SubUserName) &&
+                        namesById.TryGetValue(row.SubUserId, out var name))
+                    {
+                        row.SubUserName = name;
+                    }
+                }
+            }
+
+            return rows;
         }
 
         public async Task<List<CvDownloadHistoryDto>> GetCvDownloadHistoryAsync(Guid employerId)
@@ -938,7 +980,13 @@ namespace JobPortal.Services.Implement.Recruiter
                             t.CreatedAt,
 
                         ActionByUserId =
-                            t.ActionByUserId
+                            t.ActionByUserId,
+
+                        ActionByName =
+                            t.ActionByName,
+
+                        ActionByRole =
+                            t.ActionByRole
                     }
                 )
                 .ToListAsync();
@@ -954,6 +1002,22 @@ namespace JobPortal.Services.Implement.Recruiter
             }
             else
             {
+                var owner = await _context.EmployerProfiles
+                    .AsNoTracking()
+                    .Where(x => x.EmployerId == employerId)
+                    .Select(x => new { x.UserId, x.ContactPersonName, x.CompanyDisplayName })
+                    .FirstOrDefaultAsync();
+
+                var ownerName = owner != null && !string.IsNullOrWhiteSpace(owner.ContactPersonName)
+                    ? owner.ContactPersonName
+                    : owner?.CompanyDisplayName;
+
+                // Expression trees (which this Select is, since it's
+                // chained on IQueryable and gets translated to SQL) can't
+                // contain the null-conditional operator — so resolve
+                // owner?.UserId to a plain nullable value first.
+                Guid? ownerUserIdOrNull = owner?.UserId;
+
                 var purchases =
                     await _context.EmployerPlanPurchase
                         .Where(x =>
@@ -988,8 +1052,24 @@ namespace JobPortal.Services.Implement.Recruiter
                                 CreatedAt =
                                     x.AssignedAt,
 
+                                // NOTE: EmployerPlanPurchase.AssignedBy is
+                                // historically populated with the EmployerId,
+                                // not the owner's own UserId — it can never
+                                // match owner.UserId in PopulateActionByDetailsAsync.
+                                // Only a sub-user's shared wallet can even reach
+                                // this code path (isSubUser branch above skips
+                                // purchases entirely), and only the account owner
+                                // can buy credits in the first place — so every
+                                // row here is unambiguously theirs. Resolve it
+                                // directly rather than depending on that id match.
                                 ActionByUserId =
-                                    x.AssignedBy
+                                    ownerUserIdOrNull ?? x.AssignedBy,
+
+                                ActionByName =
+                                    ownerName,
+
+                                ActionByRole =
+                                    "Account Owner"
                             })
                         .ToListAsync();
 
@@ -1004,13 +1084,21 @@ namespace JobPortal.Services.Implement.Recruiter
         }
 
         // Resolves ActionByUserId → a display name and role ("Account
-        // Owner" or the sub-user's role) for a batch of transaction rows,
-        // so the owner can see exactly which user used credits.
+        // Owner" or the sub-user's role) for rows that don't already carry
+        // a snapshotted name (PlanPurchase rows, and any CreditUsageTransaction
+        // row created before the ActionByName/ActionByRole columns existed).
+        // Rows with a snapshot already set are left untouched — that's the
+        // name as it was at the time, which stays correct even if the
+        // sub-user is deleted later.
         private async Task PopulateActionByDetailsAsync(
             Guid employerId,
             List<EmployerTransactionHistoryDto> rows)
         {
-            if (rows.Count == 0) return;
+            var unresolvedRows = rows
+                .Where(r => string.IsNullOrWhiteSpace(r.ActionByName))
+                .ToList();
+
+            if (unresolvedRows.Count == 0) return;
 
             var owner = await _context.EmployerProfiles
                 .AsNoTracking()
@@ -1028,7 +1116,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 .GroupBy(x => x.UserId)
                 .ToDictionary(g => g.Key, g => g.First());
 
-            foreach (var row in rows)
+            foreach (var row in unresolvedRows)
             {
                 if (owner != null && row.ActionByUserId == owner.UserId)
                 {
@@ -1044,7 +1132,12 @@ namespace JobPortal.Services.Implement.Recruiter
                 }
                 else
                 {
-                    row.ActionByName = "Unknown user";
+                    // The row's actor genuinely can't be resolved — their
+                    // EmployerSubUsers row doesn't exist at all anymore
+                    // (hard-deleted under the old delete behaviour, before
+                    // deletion became a soft delete). There's no name left
+                    // to recover for these specific legacy rows.
+                    row.ActionByName = "Former sub-user";
                     row.ActionByRole = "";
                 }
             }
@@ -1052,9 +1145,7 @@ namespace JobPortal.Services.Implement.Recruiter
         public async Task<CreditWalletDashboardDto> GetCreditWalletDashboardAsync(Guid employerId)
         {
             var wallet =
-                await _context.CreditWallets
-                    .FirstOrDefaultAsync(x =>
-                        x.EmployerId == employerId);
+                await GetEmployerWalletEntityAsync(employerId);
 
             var creditsUsedThisMonth =
                 await _context.CreditUsageTransactions
@@ -1076,10 +1167,22 @@ namespace JobPortal.Services.Implement.Recruiter
                         x.EmployerId == employerId &&
                         x.SubUserStatus == "Active");
 
+            // How much of the shared pool is currently sitting in sub-user
+            // allocations (handed out, still theirs to spend) vs. how much
+            // is untouched and free for the owner to hand out next.
+            var allocatedToSubUsers =
+                await _context.SubUserCreditAllocation
+                    .Where(x =>
+                        x.EmployerId == employerId)
+                    .SumAsync(x =>
+                        (int?)x.RemainingCredits) ?? 0;
+
+            var remainingCredits = wallet?.CreditBalance ?? 0;
+
             return new CreditWalletDashboardDto
             {
                 RemainingCredits =
-                    wallet?.CreditBalance ?? 0,
+                    remainingCredits,
 
                 PlanName =
                     wallet?.PackageName,
@@ -1097,7 +1200,13 @@ namespace JobPortal.Services.Implement.Recruiter
                     wallet?.SharedWallet ?? false,
 
                 TotalSubUsers =
-                    totalSubUsers
+                    totalSubUsers,
+
+                AllocatedToSubUsers =
+                    allocatedToSubUsers,
+
+                AvailableToAllocate =
+                    remainingCredits - allocatedToSubUsers
             };
         }
 
@@ -1109,9 +1218,44 @@ namespace JobPortal.Services.Implement.Recruiter
 
         private async Task<CreditWallet?> GetEmployerWalletEntityAsync(Guid employerId)
         {
-            return await _context.CreditWallets
+            var wallet = await _context.CreditWallets
                 .FirstOrDefaultAsync(x =>
                     x.EmployerId == employerId);
+
+            if (wallet != null)
+                await ReconcileWalletBalanceAsync(wallet);
+
+            return wallet;
+        }
+
+        /// <summary>
+        /// Recomputes the wallet's true remaining balance from the
+        /// immutable ledger — total credits ever granted (plan purchases)
+        /// minus total credits ever used (by the owner AND every sub-user
+        /// combined) — and corrects wallet.CreditBalance in place if it's
+        /// drifted from that. This makes the balance self-healing: any past
+        /// inconsistency (e.g. a period where sub-user spending wasn't being
+        /// debited from the shared wallet) fixes itself the next time the
+        /// wallet is read, rather than requiring a manual data correction.
+        /// </summary>
+        private async Task ReconcileWalletBalanceAsync(CreditWallet wallet)
+        {
+            var totalGranted = await _context.EmployerPlanPurchase
+                .Where(x => x.EmployerId == wallet.EmployerId)
+                .SumAsync(x => (int?)x.Credits) ?? 0;
+
+            var totalUsed = await _context.CreditUsageTransactions
+                .Where(x => x.EmployerId == wallet.EmployerId)
+                .SumAsync(x => (int?)x.CreditsUsed) ?? 0;
+
+            var trueRemaining = totalGranted - totalUsed;
+
+            if (wallet.CreditBalance != trueRemaining)
+            {
+                wallet.CreditBalance = trueRemaining;
+                wallet.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
         }
 
         private async Task<SubUserCreditAllocation?> GetSubUserAllocationAsync(Guid subUserId)
@@ -1437,6 +1581,34 @@ namespace JobPortal.Services.Implement.Recruiter
                     allocation.RemainingCredits);
             }
 
+            // Sub-user credits are drawn from the same shared company pool —
+            // the allocation is just a per-sub-user quota/permission ledger
+            // on top of it. Every spend has to come off both: the
+            // allocation (so the sub-user's own remaining quota shrinks)
+            // and the shared wallet (so the owner's total remaining
+            // reflects everyone's usage, not just their own).
+            var wallet =
+                await GetEmployerWalletEntityAsync(
+                    allocation.EmployerId);
+
+            if (wallet == null)
+            {
+                return (
+                    false,
+                    "Wallet not found.",
+                    allocation.RemainingCredits,
+                    allocation.RemainingCredits);
+            }
+
+            if (wallet.CreditBalance < credits)
+            {
+                return (
+                    false,
+                    "Insufficient credits.",
+                    allocation.RemainingCredits,
+                    allocation.RemainingCredits);
+            }
+
             var before =
                 allocation.RemainingCredits;
 
@@ -1445,6 +1617,11 @@ namespace JobPortal.Services.Implement.Recruiter
             allocation.UsedCredits += credits;
 
             allocation.UpdatedAt =
+                DateTime.UtcNow;
+
+            wallet.CreditBalance -= credits;
+
+            wallet.UpdatedAt =
                 DateTime.UtcNow;
 
             return (
@@ -1464,6 +1641,9 @@ namespace JobPortal.Services.Implement.Recruiter
     int balanceBefore,
     int balanceAfter)
         {
+            var (actionByName, actionByRole) =
+                await ResolveActionByDetailsAsync(employerId, actionByUserId);
+
             var transaction =
                 new CreditUsageTransaction
                 {
@@ -1473,6 +1653,12 @@ namespace JobPortal.Services.Implement.Recruiter
 
                     ActionByUserId =
                         actionByUserId,
+
+                    ActionByName =
+                        actionByName,
+
+                    ActionByRole =
+                        actionByRole,
 
                     CandidateId =
                         candidateId,
@@ -1498,6 +1684,43 @@ namespace JobPortal.Services.Implement.Recruiter
 
             await _context.CreditUsageTransactions
                 .AddAsync(transaction);
+        }
+
+        /// <summary>
+        /// Resolves a single actor's display name + role ("Account Owner"
+        /// or the sub-user's role) at the moment an action happens, so it
+        /// can be permanently snapshotted onto the record — see
+        /// PopulateActionByDetailsAsync for the batch/read-time version of
+        /// this same lookup used for legacy rows that predate the snapshot.
+        /// </summary>
+        private async Task<(string? Name, string? Role)> ResolveActionByDetailsAsync(
+            Guid employerId,
+            Guid actionByUserId)
+        {
+            var owner = await _context.EmployerProfiles
+                .AsNoTracking()
+                .Where(x => x.EmployerId == employerId)
+                .Select(x => new { x.UserId, x.ContactPersonName, x.CompanyDisplayName })
+                .FirstOrDefaultAsync();
+
+            if (owner != null && actionByUserId == owner.UserId)
+            {
+                var name = !string.IsNullOrWhiteSpace(owner.ContactPersonName)
+                    ? owner.ContactPersonName
+                    : owner.CompanyDisplayName;
+
+                return (name, "Account Owner");
+            }
+
+            var subUser = await _context.EmployerSubUsers
+                .AsNoTracking()
+                .Where(x => x.EmployerId == employerId && x.UserId == actionByUserId)
+                .Select(x => new { x.SubUserName, x.SubUserRole })
+                .FirstOrDefaultAsync();
+
+            return subUser != null
+                ? (subUser.SubUserName, subUser.SubUserRole)
+                : (null, null);
         }
 
         private async Task<EmployerCandidateAccess>
