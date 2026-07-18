@@ -47,12 +47,18 @@ public class AiJobDescriptionService : IAiJobDescriptionService
                 You are an expert HR copywriter for maritime, offshore, and skilled-trades
                 recruitment in India and the Middle East.
 
-                Produce a concise, professional job description split into clear parts.
-                Keep it brief and skimmable. Use these rules:
-                  - summary: 2-3 sentence role overview.
-                  - responsibilities: 5 short bullet strings, each starting with an action verb.
-                  - requirements: 4-5 short bullet strings (experience, certifications, education).
-                  - benefits: 2-3 short bullet strings (what the company offers).
+                Produce a thorough, detailed, and well-organized job description — this should
+                read like a complete posting a candidate could fully evaluate on its own, not a
+                short summary. Use these rules:
+                  - summary: a rich 5-7 sentence overview of the role, the kind of work involved,
+                    and what makes it a strong opportunity — not just 2-3 sentences.
+                  - responsibilities: 7-9 detailed bullet strings, each starting with an action
+                    verb, covering day-to-day duties as well as broader ownership areas.
+                  - requirements: 6-8 bullet strings covering experience, certifications,
+                    education, and any physical/logistical requirements typical for this trade.
+                  - benefits: 4-5 bullet strings describing what the company offers (pay
+                    structure, accommodation/travel if relevant to maritime/offshore work,
+                    growth opportunities, work culture).
                   - suggestedSkills: 8-12 short skill strings relevant to the role.
 
                 Return ONLY valid JSON - no markdown, no preamble:
@@ -66,7 +72,7 @@ public class AiJobDescriptionService : IAiJobDescriptionService
                 """;
 
             var userPrompt = BuildAutoGeneratePrompt(req);
-            var raw = await CallChatAsync(systemPrompt, userPrompt, maxTokens: 900);
+            var raw = await CallChatAsync(systemPrompt, userPrompt, maxTokens: 1800);
             raw = StripFences(raw);
 
             using var doc = JsonDocument.Parse(raw);
@@ -92,7 +98,13 @@ public class AiJobDescriptionService : IAiJobDescriptionService
             if (string.IsNullOrWhiteSpace(summary) && responsibilities.Count == 0)
                 return AutoGenFailure("AI returned an empty description.");
 
-            // Main JD (Step 1): summary + key responsibilities.
+            // One consolidated JD — summary, responsibilities, requirements, and
+            // benefits all in a single field. Previously this was split into a
+            // "main" (summary + responsibilities) and "extra" (requirements +
+            // benefits) piece, with responsibilities ALSO returned as a raw
+            // array that the frontend dropped into a separate Key
+            // Responsibilities field — showing the same bullets twice on the
+            // same screen. Everything now lives in GeneratedDescription only.
             var main = new System.Text.StringBuilder();
             if (!string.IsNullOrWhiteSpace(summary))
                 main.AppendLine(summary).AppendLine();
@@ -100,9 +112,23 @@ public class AiJobDescriptionService : IAiJobDescriptionService
             {
                 main.AppendLine("Key Responsibilities:");
                 foreach (var r in responsibilities) main.AppendLine($"• {r}");
+                main.AppendLine();
+            }
+            if (requirements.Count > 0)
+            {
+                main.AppendLine("Requirements:");
+                foreach (var r in requirements) main.AppendLine($"• {r}");
+                main.AppendLine();
+            }
+            if (benefits.Count > 0)
+            {
+                main.AppendLine("What We Offer:");
+                foreach (var b in benefits) main.AppendLine($"• {b}");
             }
 
-            // Additional JD (Step 3): requirements + what we offer.
+            // Additional JD (Step 3's own separate "Generate with AI" button
+            // still uses this) — requirements + what we offer, kept
+            // available independently of the consolidated description above.
             var extra = new System.Text.StringBuilder();
             if (requirements.Count > 0)
             {

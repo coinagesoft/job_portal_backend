@@ -148,231 +148,241 @@ namespace JobPortal.Services.Implement.Recruiter
         Guid employerId,
         VerifyPlanPaymentRequestDto request)
         {
-            await using var dbTransaction = await _context.Database.BeginTransactionAsync();
+            // See SubmitRegistrationAsync in RecruiterRegistrationService.cs
+            // for why this needs the execution-strategy wrapper: Program.cs
+            // enables EnableRetryOnFailure, and a retrying strategy can't
+            // work with a plain BeginTransactionAsync() unless it owns the
+            // whole thing via ExecuteAsync.
+            var strategy = _context.Database.CreateExecutionStrategy();
 
-            try
+            return await strategy.ExecuteAsync(async () =>
             {
-                //--------------------------------------------------------
-                // Load pending transaction
-                //--------------------------------------------------------
+                await using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
-                var txn = await _context.PaymentTransactions
-                    .FirstOrDefaultAsync(t =>
-                        t.TransactionId == request.TransactionId &&
-                        t.EmployerId == employerId &&
-                        t.PaymentStatus == "Pending");
-
-                if (txn == null)
+                try
                 {
-                    return Fail<VerifyPlanPaymentResponseDto>(
-                        "Transaction not found or already processed.");
-                }
+                    //--------------------------------------------------------
+                    // Load pending transaction
+                    //--------------------------------------------------------
 
-                //--------------------------------------------------------
-                // Verify Razorpay Signature
-                //--------------------------------------------------------
+                    var txn = await _context.PaymentTransactions
+                        .FirstOrDefaultAsync(t =>
+                            t.TransactionId == request.TransactionId &&
+                            t.EmployerId == employerId &&
+                            t.PaymentStatus == "Pending");
 
-                if (!VerifySignature(
-                        request.RazorpayOrderId,
-                        request.RazorpayPaymentId,
-                        request.RazorpaySignature))
-                {
-                    txn.PaymentStatus = "Failed";
+                    if (txn == null)
+                    {
+                        return Fail<VerifyPlanPaymentResponseDto>(
+                            "Transaction not found or already processed.");
+                    }
+
+                    //--------------------------------------------------------
+                    // Verify Razorpay Signature
+                    //--------------------------------------------------------
+
+                    if (!VerifySignature(
+                            request.RazorpayOrderId,
+                            request.RazorpayPaymentId,
+                            request.RazorpaySignature))
+                    {
+                        txn.PaymentStatus = "Failed";
+
+                        await _context.SaveChangesAsync();
+                        await dbTransaction.CommitAsync();
+
+                        _logger.LogWarning(
+                            "Invalid Razorpay signature. Txn={TxnId}",
+                            txn.TransactionId);
+
+                        return Fail<VerifyPlanPaymentResponseDto>(
+                            "Payment verification failed.");
+                    }
+
+                    //--------------------------------------------------------
+                    // Prevent duplicate payment usage
+                    //--------------------------------------------------------
+
+                    var alreadyUsed = await _context.PaymentTransactions
+                        .AnyAsync(t =>
+                            t.TransactionId != txn.TransactionId &&
+                            t.RazorpayPaymentId == request.RazorpayPaymentId &&
+                            t.PaymentStatus == "Completed");
+
+                    if (alreadyUsed)
+                    {
+                        return Fail<VerifyPlanPaymentResponseDto>(
+                            "This payment has already been applied.");
+                    }
+
+                    //--------------------------------------------------------
+                    // Load Credit Plan
+                    //--------------------------------------------------------
+
+                    var plan = await _context.CreditPlans
+                        .FirstOrDefaultAsync(p =>
+                            p.PlanName == txn.PackType &&
+                            p.IsActive);
+
+                    if (plan == null)
+                    {
+                        _logger.LogError(
+                            "Credit Plan not found. PackType={PackType}",
+                            txn.PackType);
+
+                        return Fail<VerifyPlanPaymentResponseDto>(
+                            "Associated credit plan not found.");
+                    }
+
+                    //--------------------------------------------------------
+                    // Complete Transaction
+                    //--------------------------------------------------------
+
+                    txn.RazorpayOrderId = request.RazorpayOrderId;
+                    txn.RazorpayPaymentId = request.RazorpayPaymentId;
+                    txn.PaymentStatus = "Completed";
+                    txn.CreditsAddedAt = DateTime.UtcNow;
+
+                    //--------------------------------------------------------
+                    // Wallet
+                    //--------------------------------------------------------
+
+                    var wallet = await _context.CreditWallets
+                        .FirstOrDefaultAsync(x =>
+                            x.EmployerId == employerId);
+
+                    if (wallet == null)
+                    {
+                        wallet = new CreditWallet
+                        {
+                            Wallet_Id = Guid.NewGuid(),
+                            EmployerId = employerId,
+                            CreditBalance = plan.Credits,
+                            PackageName = plan.PlanName,
+                            SharedWallet = true,
+                            PackExpiresAt = DateTime.UtcNow.AddMonths(plan.ValidityMonths),
+                            UpdatedAt = DateTime.UtcNow
+                        };
+
+                        _context.CreditWallets.Add(wallet);
+                    }
+                    else
+                    {
+                        wallet.CreditBalance =
+                            (wallet.CreditBalance) + plan.Credits;
+
+                        wallet.PackageName = plan.PlanName;
+
+                        var baseDate =
+                            wallet.PackExpiresAt.HasValue &&
+                            wallet.PackExpiresAt.Value > DateTime.UtcNow
+                                ? wallet.PackExpiresAt.Value
+                                : DateTime.UtcNow;
+
+                        wallet.PackExpiresAt =
+                            baseDate.AddMonths(plan.ValidityMonths);
+
+                        wallet.UpdatedAt = DateTime.UtcNow;
+                    }
+
+                    //--------------------------------------------------------
+                    // Purchase History
+                    //--------------------------------------------------------
+
+                    // AssignedBy should be the owner's login identity (UserId) —
+                    // that's what transaction-history name resolution matches
+                    // against — not the EmployerId itself, which can never
+                    // equal a User's UserId.
+                    var ownerUserId = await _context.EmployerProfiles
+                        .Where(e => e.EmployerId == employerId)
+                        .Select(e => e.UserId)
+                        .FirstOrDefaultAsync();
+
+                    var purchase = new EmployerPlanPurchase
+                    {
+                        EmployerCreditPlanId = Guid.NewGuid(),
+                        EmployerId = employerId,
+                        PlanId = plan.PlanId,
+                        PlanName = plan.PlanName,
+                        Credits = plan.Credits,
+                        Price = plan.Price,
+                        AssignedAt = DateTime.UtcNow,
+                        ExpiresAt = DateTime.UtcNow.AddMonths(plan.ValidityMonths),
+                        IsActive = true,
+                        AssignedBy = ownerUserId
+                    };
+
+                    _context.EmployerPlanPurchase.Add(purchase);
+
+                    //--------------------------------------------------------
+                    // Invoice (GST-compliant billing record)
+                    //--------------------------------------------------------
+
+                    var invoiceNumber = await GenerateInvoiceNumberAsync();
+
+                    var invoice = new Invoice
+                    {
+                        InvoiceId = Guid.NewGuid(),
+                        TransactionId = txn.TransactionId,
+                        UserId = txn.UserId,
+                        InvoiceNumber = invoiceNumber,
+                        InvoiceDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                        InvoiceAmount = txn.AmountPaise / 100,
+                        InvoiceGst = txn.GstAmountPaise / 100,
+                        InvoiceTotal = txn.TotalAmountPaise / 100,
+                        InvoiceS3Url = null, // PDF is generated on demand — see RecruiterInvoiceService.DownloadInvoicePdfAsync
+                        CreatedAt = DateTime.UtcNow,
+
+                        // NOTE: the DB's actual FK constraint is on a separate shadow
+                        // column (PaymentTransactionTransactionId) that EF created
+                        // because the "PaymentTransaction" nav property doesn't match
+                        // the "TransactionId" FK property by convention. Setting the
+                        // scalar TransactionId above does NOT populate that shadow
+                        // column. Assigning the navigation here — txn is already
+                        // tracked by this same DbContext — lets EF resolve the
+                        // shadow FK from it automatically at SaveChanges time.
+                        PaymentTransaction = txn
+                    };
+
+                    _context.Invoices.Add(invoice);
+
+                    //--------------------------------------------------------
+                    // Save
+                    //--------------------------------------------------------
 
                     await _context.SaveChangesAsync();
                     await dbTransaction.CommitAsync();
 
-                    _logger.LogWarning(
-                        "Invalid Razorpay signature. Txn={TxnId}",
-                        txn.TransactionId);
+                    _logger.LogInformation(
+                        "Employer {EmployerId} purchased plan {PlanName}. Credits={Credits}",
+                        employerId,
+                        plan.PlanName,
+                        plan.Credits);
 
-                    return Fail<VerifyPlanPaymentResponseDto>(
-                        "Payment verification failed.");
-                }
-
-                //--------------------------------------------------------
-                // Prevent duplicate payment usage
-                //--------------------------------------------------------
-
-                var alreadyUsed = await _context.PaymentTransactions
-                    .AnyAsync(t =>
-                        t.TransactionId != txn.TransactionId &&
-                        t.RazorpayPaymentId == request.RazorpayPaymentId &&
-                        t.PaymentStatus == "Completed");
-
-                if (alreadyUsed)
-                {
-                    return Fail<VerifyPlanPaymentResponseDto>(
-                        "This payment has already been applied.");
-                }
-
-                //--------------------------------------------------------
-                // Load Credit Plan
-                //--------------------------------------------------------
-
-                var plan = await _context.CreditPlans
-                    .FirstOrDefaultAsync(p =>
-                        p.PlanName == txn.PackType &&
-                        p.IsActive);
-
-                if (plan == null)
-                {
-                    _logger.LogError(
-                        "Credit Plan not found. PackType={PackType}",
-                        txn.PackType);
-
-                    return Fail<VerifyPlanPaymentResponseDto>(
-                        "Associated credit plan not found.");
-                }
-
-                //--------------------------------------------------------
-                // Complete Transaction
-                //--------------------------------------------------------
-
-                txn.RazorpayOrderId = request.RazorpayOrderId;
-                txn.RazorpayPaymentId = request.RazorpayPaymentId;
-                txn.PaymentStatus = "Completed";
-                txn.CreditsAddedAt = DateTime.UtcNow;
-
-                //--------------------------------------------------------
-                // Wallet
-                //--------------------------------------------------------
-
-                var wallet = await _context.CreditWallets
-                    .FirstOrDefaultAsync(x =>
-                        x.EmployerId == employerId);
-
-                if (wallet == null)
-                {
-                    wallet = new CreditWallet
+                    return new VerifyPlanPaymentResponseDto
                     {
-                        Wallet_Id = Guid.NewGuid(),
-                        EmployerId = employerId,
-                        CreditBalance = plan.Credits,
-                        PackageName = plan.PlanName,
-                        SharedWallet = true,
-                        PackExpiresAt = DateTime.UtcNow.AddMonths(plan.ValidityMonths),
-                        UpdatedAt = DateTime.UtcNow
+                        Success = true,
+                        Message = $"Payment successful! {plan.Credits} credits added to your wallet.",
+                        NewCreditBalance = wallet.CreditBalance,
+                        PurchaseId = purchase.EmployerCreditPlanId
                     };
-
-                    _context.CreditWallets.Add(wallet);
                 }
-                else
+                catch (Exception ex)
                 {
-                    wallet.CreditBalance =
-                        (wallet.CreditBalance) + plan.Credits;
+                    await dbTransaction.RollbackAsync();
 
-                    wallet.PackageName = plan.PlanName;
+                    _logger.LogError(
+                        ex,
+                        "VerifyPlanPaymentAsync failed for EmployerId={EmployerId}",
+                        employerId);
 
-                    var baseDate =
-                        wallet.PackExpiresAt.HasValue &&
-                        wallet.PackExpiresAt.Value > DateTime.UtcNow
-                            ? wallet.PackExpiresAt.Value
-                            : DateTime.UtcNow;
-
-                    wallet.PackExpiresAt =
-                        baseDate.AddMonths(plan.ValidityMonths);
-
-                    wallet.UpdatedAt = DateTime.UtcNow;
+                    return new VerifyPlanPaymentResponseDto
+                    {
+                        Success = false,
+                        Message = ex.InnerException?.Message ?? ex.Message
+                    };
                 }
-
-                //--------------------------------------------------------
-                // Purchase History
-                //--------------------------------------------------------
-
-                // AssignedBy should be the owner's login identity (UserId) —
-                // that's what transaction-history name resolution matches
-                // against — not the EmployerId itself, which can never
-                // equal a User's UserId.
-                var ownerUserId = await _context.EmployerProfiles
-                    .Where(e => e.EmployerId == employerId)
-                    .Select(e => e.UserId)
-                    .FirstOrDefaultAsync();
-
-                var purchase = new EmployerPlanPurchase
-                {
-                    EmployerCreditPlanId = Guid.NewGuid(),
-                    EmployerId = employerId,
-                    PlanId = plan.PlanId,
-                    PlanName = plan.PlanName,
-                    Credits = plan.Credits,
-                    Price = plan.Price,
-                    AssignedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddMonths(plan.ValidityMonths),
-                    IsActive = true,
-                    AssignedBy = ownerUserId
-                };
-
-                _context.EmployerPlanPurchase.Add(purchase);
-
-                //--------------------------------------------------------
-                // Invoice (GST-compliant billing record)
-                //--------------------------------------------------------
-
-                var invoiceNumber = await GenerateInvoiceNumberAsync();
-
-                var invoice = new Invoice
-                {
-                    InvoiceId = Guid.NewGuid(),
-                    TransactionId = txn.TransactionId,
-                    UserId = txn.UserId,
-                    InvoiceNumber = invoiceNumber,
-                    InvoiceDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                    InvoiceAmount = txn.AmountPaise / 100,
-                    InvoiceGst = txn.GstAmountPaise / 100,
-                    InvoiceTotal = txn.TotalAmountPaise / 100,
-                    InvoiceS3Url = null, // PDF is generated on demand — see RecruiterInvoiceService.DownloadInvoicePdfAsync
-                    CreatedAt = DateTime.UtcNow,
-
-                    // NOTE: the DB's actual FK constraint is on a separate shadow
-                    // column (PaymentTransactionTransactionId) that EF created
-                    // because the "PaymentTransaction" nav property doesn't match
-                    // the "TransactionId" FK property by convention. Setting the
-                    // scalar TransactionId above does NOT populate that shadow
-                    // column. Assigning the navigation here — txn is already
-                    // tracked by this same DbContext — lets EF resolve the
-                    // shadow FK from it automatically at SaveChanges time.
-                    PaymentTransaction = txn
-                };
-
-                _context.Invoices.Add(invoice);
-
-                //--------------------------------------------------------
-                // Save
-                //--------------------------------------------------------
-
-                await _context.SaveChangesAsync();
-                await dbTransaction.CommitAsync();
-
-                _logger.LogInformation(
-                    "Employer {EmployerId} purchased plan {PlanName}. Credits={Credits}",
-                    employerId,
-                    plan.PlanName,
-                    plan.Credits);
-
-                return new VerifyPlanPaymentResponseDto
-                {
-                    Success = true,
-                    Message = $"Payment successful! {plan.Credits} credits added to your wallet.",
-                    NewCreditBalance = wallet.CreditBalance,
-                    PurchaseId = purchase.EmployerCreditPlanId
-                };
-            }
-            catch (Exception ex)
-            {
-                await dbTransaction.RollbackAsync();
-
-                _logger.LogError(
-                    ex,
-                    "VerifyPlanPaymentAsync failed for EmployerId={EmployerId}",
-                    employerId);
-
-                return new VerifyPlanPaymentResponseDto
-                {
-                    Success = false,
-                    Message = ex.InnerException?.Message ?? ex.Message
-                };
-            }
+            });
         }
 
         // ─────────────────────────────────────────────────────────────

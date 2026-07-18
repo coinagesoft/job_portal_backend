@@ -185,7 +185,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             session.Pan = request.Pan;
             session.GstnRegistrationDate = request.GstnRegistrationDate;
 
-          
+
 
             // Address
             session.State = request.State;
@@ -1242,273 +1242,284 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
       ReviewSubmitRequestDto request,
       string ipAddress)
     {
-        RegistrationSession? session = null;
+        // EnableRetryOnFailure (configured in Program.cs) means EF Core
+        // won't allow a plain BeginTransactionAsync() here — the retrying
+        // strategy needs to own and retry the whole transaction as one
+        // atomic unit, or it throws "does not support user-initiated
+        // transactions". ExecuteAsync below is the documented way to keep
+        // an explicit transaction while still getting retry-on-failure.
+        var strategy = _context.Database.CreateExecutionStrategy();
 
-        using var transaction =
-            await _context.Database.BeginTransactionAsync();
-
-        try
+        return await strategy.ExecuteAsync(async () =>
         {
+            RegistrationSession? session = null;
 
-            if (!request.ConsentGiven)
+            using var transaction =
+                await _context.Database.BeginTransactionAsync();
+
+            try
             {
-                return new ReviewSubmitResponseDto
-                {
-                    Success = false,
-                    Message = "You must accept the terms and conditions."
-                };
-            }
 
-            session = await GetValidSessionAsync(request.SessionId);
-
-            if (session == null)
-            {
-                return new ReviewSubmitResponseDto
-                {
-                    Success = false,
-                    Message = "Session expired. Please start again."
-                };
-            }
-
-            if (!session.MobileVerified)
-            {
-                return new ReviewSubmitResponseDto
-                {
-                    Success = false,
-                    Message = "Mobile number not verified.",
-                    StepStatus = BuildStepStatus(session)
-                };
-            }
-
-            if (!session.CompanyEmailVerified)
-            {
-                return new ReviewSubmitResponseDto
-                {
-                    Success = false,
-                    Message = "Company email not verified.",
-                    StepStatus = BuildStepStatus(session)
-                };
-            }
-
-            // Step 4 mandatory
-            if (session.LastCompletedStep < 4)
-            {
-                return new ReviewSubmitResponseDto
-                {
-                    Success = false,
-                    Message =
-                        $"Please complete all steps. Last completed: Step {session.LastCompletedStep}.",
-                    StepStatus = BuildStepStatus(session)
-                };
-            }
-
-            // Duplicate mobile check
-            var mobileExists = await _context.Users.AnyAsync(x =>
-     x.MobileNumber == session.MobileNumber &&
-     x.CountryCode == session.CountryCode &&
-     x.UserType == UserType.Recruiter);
-
-            if (mobileExists)
-            {
-                return new ReviewSubmitResponseDto
-                {
-                    Success = false,
-                    Message = "This mobile number is already registered."
-                };
-            }
-
-            // Duplicate email check
-            if (!string.IsNullOrWhiteSpace(session.CompanyEmail))
-            {
-                var emailExists = await _context.Users.AnyAsync(x =>
-                    x.Email == session.CompanyEmail);
-
-                if (emailExists)
+                if (!request.ConsentGiven)
                 {
                     return new ReviewSubmitResponseDto
                     {
                         Success = false,
-                        Message = "This email is already registered."
+                        Message = "You must accept the terms and conditions."
                     };
                 }
-            }
 
-            var now = DateTime.UtcNow;
+                session = await GetValidSessionAsync(request.SessionId);
 
-            // Create User
-            var user = new User
-            {
-                UserId = Guid.NewGuid(),
-                UserType = UserType.Recruiter,
-                MobileNumber = session.MobileNumber!,
-                CountryCode = session.CountryCode!,
-                Email = session.CompanyEmail,
-                PasswordHash = "N/A",
-                AccountStatus = AccountStatus.Pending,
-                KycStatus = KycStatus.Pending,
-                PaymentStatus = PaymentStatus.Unpaid,
-                CreatedAt = now,
-                UpdatedAt = now
-            };
-
-            _context.Users.Add(user);
-
-            // Create Employer Profile
-            var employer = new EmployerProfile
-            {
-                EmployerId = Guid.NewGuid(),
-                UserId = user.UserId,
-
-                LegalName = session.LegalName!,
-                TradeName = session.TradeName,
-                CompanyDisplayName = session.CompanyDisplayName!,
-
-                BusinessType = session.BusinessType,
-
-                IndustryType =session.IndustryType,
-
-                CompanySize =
-                    !string.IsNullOrWhiteSpace(session.CompanySize)
-                        ? Enum.Parse<CompanySize>(session.CompanySize, true)
-                        : null,
-
-                Cin = session.Cin,
-
-                WebsiteUrl = session.WebsiteUrl,
-                CompanyLogoUrl = session.CompanyLogoUrl,
-                CompanyLogoPublicId = session.CompanyLogoPublicId,
-                GstRegistered = session.GstRegistered ?? false,
-                Gstin = session.Gstn,
-                Pan = session.Pan,
-                GstinRegistrationDate = session.GstnRegistrationDate,
-
-                State = session.State,
-                City = session.City!,
-                Pincode = session.Pincode!,
-                AddressLine1 = session.AddressLine1!,
-                AddressLine2 = session.AddressLine2,
-
-                Country = "India",
-
-                ContactPersonName = session.ContactPersonName!,
-                Designation = session.Designation!,
-                ContactEmailPublic = session.CompanyEmail,
-                ContactPhone =
-                    $"{session.CountryCode}{session.MobileNumber}",
-
-                CompanyDescription = session.CompanyDescription,
-
-                PoeLicenceUrl = session.PoeLicenceUrl,
-                PoeLicencePublicId = session.PoeLicencePublicId,
-                RpslLicenceUrl = session.RpslLicenceUrl,
-                RpslLicencePublicId = session.RpslLicencePublicId,
-                AccountStatus = AccountStatus.Pending,
-
-                SecurityDepositPaid = false,
-
-                ProfileCompletionScore = 60,
-
-                ConsentTimestamp = now,
-
-                CreatedAt = now,
-                UpdatedAt = now
-            };
-
-            _context.EmployerProfiles.Add(employer);
-            // ── Create Wallet ─────────────────────────────────────
-            _context.CreditWallets.Add(new CreditWallet
-            {
-                Wallet_Id = Guid.NewGuid(),
-                EmployerId = employer.EmployerId,
-                CreditBalance = 0,
-                PackageName = null,
-                PackExpiresAt = null,
-                SharedWallet = true,
-                UpdatedAt = now
-            });
-
-            // ── Create Notification Settings ─────────────────────
-            _context.EmployerNotificationSettings.Add(
-                new EmployerNotificationSetting
+                if (session == null)
                 {
-                    NotifPrefId = Guid.NewGuid(),
+                    return new ReviewSubmitResponseDto
+                    {
+                        Success = false,
+                        Message = "Session expired. Please start again."
+                    };
+                }
+
+                if (!session.MobileVerified)
+                {
+                    return new ReviewSubmitResponseDto
+                    {
+                        Success = false,
+                        Message = "Mobile number not verified.",
+                        StepStatus = BuildStepStatus(session)
+                    };
+                }
+
+                if (!session.CompanyEmailVerified)
+                {
+                    return new ReviewSubmitResponseDto
+                    {
+                        Success = false,
+                        Message = "Company email not verified.",
+                        StepStatus = BuildStepStatus(session)
+                    };
+                }
+
+                // Step 4 mandatory
+                if (session.LastCompletedStep < 4)
+                {
+                    return new ReviewSubmitResponseDto
+                    {
+                        Success = false,
+                        Message =
+                            $"Please complete all steps. Last completed: Step {session.LastCompletedStep}.",
+                        StepStatus = BuildStepStatus(session)
+                    };
+                }
+
+                // Duplicate mobile check
+                var mobileExists = await _context.Users.AnyAsync(x =>
+         x.MobileNumber == session.MobileNumber &&
+         x.CountryCode == session.CountryCode &&
+         x.UserType == UserType.Recruiter);
+
+                if (mobileExists)
+                {
+                    return new ReviewSubmitResponseDto
+                    {
+                        Success = false,
+                        Message = "This mobile number is already registered."
+                    };
+                }
+
+                // Duplicate email check
+                if (!string.IsNullOrWhiteSpace(session.CompanyEmail))
+                {
+                    var emailExists = await _context.Users.AnyAsync(x =>
+                        x.Email == session.CompanyEmail);
+
+                    if (emailExists)
+                    {
+                        return new ReviewSubmitResponseDto
+                        {
+                            Success = false,
+                            Message = "This email is already registered."
+                        };
+                    }
+                }
+
+                var now = DateTime.UtcNow;
+
+                // Create User
+                var user = new User
+                {
+                    UserId = Guid.NewGuid(),
+                    UserType = UserType.Recruiter,
+                    MobileNumber = session.MobileNumber!,
+                    CountryCode = session.CountryCode!,
+                    Email = session.CompanyEmail,
+                    PasswordHash = "N/A",
+                    AccountStatus = AccountStatus.Pending,
+                    KycStatus = KycStatus.Pending,
+                    PaymentStatus = PaymentStatus.Unpaid,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+
+                _context.Users.Add(user);
+
+                // Create Employer Profile
+                var employer = new EmployerProfile
+                {
+                    EmployerId = Guid.NewGuid(),
+                    UserId = user.UserId,
+
+                    LegalName = session.LegalName!,
+                    TradeName = session.TradeName,
+                    CompanyDisplayName = session.CompanyDisplayName!,
+
+                    BusinessType = session.BusinessType,
+
+                    IndustryType = session.IndustryType,
+
+                    CompanySize =
+                        !string.IsNullOrWhiteSpace(session.CompanySize)
+                            ? Enum.Parse<CompanySize>(session.CompanySize, true)
+                            : null,
+
+                    Cin = session.Cin,
+
+                    WebsiteUrl = session.WebsiteUrl,
+                    CompanyLogoUrl = session.CompanyLogoUrl,
+                    CompanyLogoPublicId = session.CompanyLogoPublicId,
+                    GstRegistered = session.GstRegistered ?? false,
+                    Gstin = session.Gstn,
+                    Pan = session.Pan,
+                    GstinRegistrationDate = session.GstnRegistrationDate,
+
+                    State = session.State,
+                    City = session.City!,
+                    Pincode = session.Pincode!,
+                    AddressLine1 = session.AddressLine1!,
+                    AddressLine2 = session.AddressLine2,
+
+                    Country = "India",
+
+                    ContactPersonName = session.ContactPersonName!,
+                    Designation = session.Designation!,
+                    ContactEmailPublic = session.CompanyEmail,
+                    ContactPhone =
+                        $"{session.CountryCode}{session.MobileNumber}",
+
+                    CompanyDescription = session.CompanyDescription,
+
+                    PoeLicenceUrl = session.PoeLicenceUrl,
+                    PoeLicencePublicId = session.PoeLicencePublicId,
+                    RpslLicenceUrl = session.RpslLicenceUrl,
+                    RpslLicencePublicId = session.RpslLicencePublicId,
+                    AccountStatus = AccountStatus.Pending,
+
+                    SecurityDepositPaid = false,
+
+                    ProfileCompletionScore = 60,
+
+                    ConsentTimestamp = now,
+
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+
+                _context.EmployerProfiles.Add(employer);
+                // ── Create Wallet ─────────────────────────────────────
+                _context.CreditWallets.Add(new CreditWallet
+                {
+                    Wallet_Id = Guid.NewGuid(),
                     EmployerId = employer.EmployerId,
-
-                    PrefEmailEnabled = true,
-                    PrefPushEnabled = true,
-                    PrefApplicantNotify = true,
-                    PrefCreditExpiryEmail = true,
-                    PrefJobStatusUpdates = true,
-                    PrefSystemMessages = true,
-
-                    FcmToken = null,
-                    SessionTimeoutMinutes = 30
+                    CreditBalance = 0,
+                    PackageName = null,
+                    PackExpiresAt = null,
+                    SharedWallet = true,
+                    UpdatedAt = now
                 });
 
-            // ── Mark session completed ───────────────────────────
-            session.IsCompleted = true;
-            session.CurrentStep = 5;
-            session.LastCompletedStep = 5;
+                // ── Create Notification Settings ─────────────────────
+                _context.EmployerNotificationSettings.Add(
+                    new EmployerNotificationSetting
+                    {
+                        NotifPrefId = Guid.NewGuid(),
+                        EmployerId = employer.EmployerId,
 
-            // Save everything
-            await _context.SaveChangesAsync();
+                        PrefEmailEnabled = true,
+                        PrefPushEnabled = true,
+                        PrefApplicantNotify = true,
+                        PrefCreditExpiryEmail = true,
+                        PrefJobStatusUpdates = true,
+                        PrefSystemMessages = true,
 
-            await transaction.CommitAsync();
+                        FcmToken = null,
+                        SessionTimeoutMinutes = 30
+                    });
 
-            _logger.LogInformation(
-                "Recruiter registered successfully. EmployerId:{EmployerId}, IP:{IP}",
-                employer.EmployerId,
-                ipAddress);
+                // ── Mark session completed ───────────────────────────
+                session.IsCompleted = true;
+                session.CurrentStep = 5;
+                session.LastCompletedStep = 5;
 
-            var requiresDeposit = !(session.GstRegistered ?? false);
+                // Save everything
+                await _context.SaveChangesAsync();
 
-            return new ReviewSubmitResponseDto
+                await transaction.CommitAsync();
+
+                _logger.LogInformation(
+                    "Recruiter registered successfully. EmployerId:{EmployerId}, IP:{IP}",
+                    employer.EmployerId,
+                    ipAddress);
+
+                var requiresDeposit = !(session.GstRegistered ?? false);
+
+                return new ReviewSubmitResponseDto
+                {
+                    Success = true,
+
+                    Message = requiresDeposit
+                        ? "Registration submitted. Please pay ₹2,000 security deposit to activate."
+                        : "Registration submitted. Your account is under review.",
+
+                    EmployerId = employer.EmployerId,
+
+                    AccountStatus = AccountStatus.Pending.ToString(),
+
+                    RequiresSecurityDeposit = requiresDeposit,
+
+                    SecurityDepositAmountRs =
+                        requiresDeposit
+                            ? 2000
+                            : null,
+
+                    NextStep =
+                        requiresDeposit
+                            ? "pay_deposit"
+                            : "start_trial",
+
+                    RegistrationCompleted = true,
+
+                    StepStatus = BuildStepStatus(session)
+                };
+            }
+            catch (Exception ex)
             {
-                Success = true,
+                await transaction.RollbackAsync();
 
-                Message = requiresDeposit
-                    ? "Registration submitted. Please pay ₹2,000 security deposit to activate."
-                    : "Registration submitted. Your account is under review.",
+                _logger.LogError(
+                    ex,
+                    "Submit registration failed. IP:{IP}",
+                    ipAddress);
 
-                EmployerId = employer.EmployerId,
-
-                AccountStatus = AccountStatus.Pending.ToString(),
-
-                RequiresSecurityDeposit = requiresDeposit,
-
-                SecurityDepositAmountRs =
-                    requiresDeposit
-                        ? 2000
-                        : null,
-
-                NextStep =
-                    requiresDeposit
-                        ? "pay_deposit"
-                        : "start_trial",
-
-                RegistrationCompleted = true,
-
-                StepStatus = BuildStepStatus(session)
-            };
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-
-            _logger.LogError(
-                ex,
-                "Submit registration failed. IP:{IP}",
-                ipAddress);
-
-            return new ReviewSubmitResponseDto
-            {
-                Success = false,
-                Message =
-                    ex.InnerException?.InnerException?.Message
-                    ?? ex.InnerException?.Message
-                    ?? ex.Message
-            };
-        }
+                return new ReviewSubmitResponseDto
+                {
+                    Success = false,
+                    Message =
+                        ex.InnerException?.InnerException?.Message
+                        ?? ex.InnerException?.Message
+                        ?? ex.Message
+                };
+            }
+        });
     }
 
     // ════════════════════════════════════════════════
