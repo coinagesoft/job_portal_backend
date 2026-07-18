@@ -21,7 +21,7 @@ using System.Threading.Tasks;
 
 namespace JobPortal.Services.Implement.Candidate
 {
-    public class CandidateRegistrationService:ICandidateRegistrationService
+    public class CandidateRegistrationService : ICandidateRegistrationService
     {
         private readonly AppDbContext _context;
         private readonly JwtService _jwtService;
@@ -53,7 +53,7 @@ namespace JobPortal.Services.Implement.Candidate
             _httpClientFactory = httpClientFactory;
         }
 
-        public async Task<AuthResponseDto> GoogleRegisterAsync(CandidateGoogleRegisterRequestDto request,string ipAddress)
+        public async Task<AuthResponseDto> GoogleRegisterAsync(CandidateGoogleRegisterRequestDto request, string ipAddress)
         {
             try
             {
@@ -297,7 +297,13 @@ namespace JobPortal.Services.Implement.Candidate
                 }));
 
             if (!tokenResponse.IsSuccessStatusCode)
+            {
+                var errorBody = await tokenResponse.Content.ReadAsStringAsync();
+                _logger.LogWarning(
+                    "LinkedIn token exchange failed. Status:{Status} Body:{Body} RedirectUri:{RedirectUri}",
+                    (int)tokenResponse.StatusCode, errorBody, request.RedirectUri);
                 return new SocialVerifyResponseDto { Success = false, Message = "LinkedIn authentication failed." };
+            }
 
             var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
             using var tokenDoc = JsonDocument.Parse(tokenJson);
