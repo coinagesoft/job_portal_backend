@@ -148,117 +148,10 @@ public class CandidateDocumentService : ICandidateDocumentService
             return DocsFail("Unable to retrieve candidate documents.");
         }
     }
+
     // ════════════════════════════════════════════════
     // UPLOAD RESUME  (Affinda integration)
     // ════════════════════════════════════════════════
-    //public async Task<UploadResumeResponseDto> UploadResumeAsync(Guid candidateId, IFormFile file)
-    //{
-    //    try
-    //    {
-    //        // 1. Validate
-    //        var validationError = ValidateFile(file, AllowedDocTypes, MaxDocFileSizeBytes);
-    //        if (validationError != null)
-    //            return new UploadResumeResponseDto { Success = false, Message = validationError };
-
-    //        // 2. Load profile with all related data
-    //        var profile = await _context.CandidateProfiles
-    //            .Include(p => p.Cvs)
-    //            .Include(p => p.Skills)
-    //            .Include(p => p.WorkHistories)
-    //            .Include(p => p.Educations)
-    //            .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
-
-    //        if (profile == null)
-    //            return new UploadResumeResponseDto { Success = false, Message = "Candidate profile not found." };
-
-    //        // 3. Build file URL (replace with your actual S3/Azure Blob upload)
-    //        var fileUrl =
-    //   await _fileStorage.SaveFileAsync(
-    //       file,
-    //       "resumes");
-
-
-
-    //        // 4. Call Affinda
-    //        _logger.LogInformation("Sending resume to Affinda for candidate {CandidateId}", candidateId);
-    //        var parseResult = await _affinda.ParseResumeAsync(file);
-    //        _logger.LogInformation(
-    //"Affinda Result => Success:{Success}, Error:{Error}, Name:{Name}, Email:{Email}",
-    //parseResult.Success,
-    //parseResult.ErrorMessage,
-    //parseResult.ParsedName,
-    //parseResult.ParsedEmail);
-    //        // 5. Remove old CV, keep only latest
-    //        _context.CandidateCvs.RemoveRange(profile.Cvs);
-
-    //        // 6. Save new CandidateCv with Affinda data
-    //        var cv = new CandidateCv
-    //        {
-    //            CvId = Guid.NewGuid(),
-    //            CandidateId = candidateId,
-    //            CvFileUrl = fileUrl,
-    //            GeneratedAt = DateTime.UtcNow,
-    //            AffindaJobId = parseResult.AffindaDocId,
-    //            ParsedName = parseResult.ParsedName,
-    //            ParsedPhone = parseResult.ParsedPhone,
-    //            ParsedEmail = parseResult.ParsedEmail,
-    //            ParsedTrade = parseResult.ParsedTrade,
-    //            ParsedExperienceYrs = parseResult.ParsedExperienceYrs,
-    //            ParsedSkillsJson = parseResult.ParsedSkills.Count > 0
-    //                                    ? JsonSerializer.Serialize(parseResult.ParsedSkills)
-    //                                    : null,
-    //            AiConfidenceScore = parseResult.AiConfidenceScore
-    //        };
-    //        _context.CandidateCvs.Add(cv);
-
-    //        // 7. Auto-fill + upsert child tables
-    //        if (parseResult.Success)
-    //        {
-    //            AutoFillProfileFields(profile, parseResult);
-    //            await UpsertSkillsAsync(profile, parseResult.ParsedSkills, candidateId);
-    //            await UpsertWorkHistoriesAsync(profile, parseResult.WorkExperiences, candidateId);
-    //            await UpsertEducationsAsync(profile, parseResult.Educations, candidateId);
-    //        }
-
-    //        // 8. Recalculate profile completion
-    //        profile.ProfileCompletionPct = RecalcPct(profile);
-    //        profile.UpdatedAt = DateTime.UtcNow;
-
-    //        await _context.SaveChangesAsync();
-
-    //        _logger.LogInformation(
-    //            "Resume uploaded & parsed for {CandidateId}. Affinda doc: {DocId}. Skills: {SkillCount}",
-    //            candidateId, parseResult.AffindaDocId, parseResult.ParsedSkills.Count);
-
-    //        return new UploadResumeResponseDto
-    //        {
-    //            Success = true,
-    //            Message = parseResult.Success
-    //                ? "Resume uploaded and parsed successfully."
-    //                : "Resume uploaded. Parsing had issues — some fields may be incomplete.",
-    //            CvId = cv.CvId,
-    //            CvFileUrl = fileUrl,
-    //            ProfileCompletionPct = profile.ProfileCompletionPct,
-    //            AiParsed = parseResult.Success ? new AiParsedResumeDto
-    //            {
-    //                Name = parseResult.ParsedName,
-    //                Phone = parseResult.ParsedPhone,
-    //                Email = parseResult.ParsedEmail,
-    //                Trade = parseResult.ParsedTrade,
-    //                ExperienceYrs = parseResult.ParsedExperienceYrs,
-    //                Skills = parseResult.ParsedSkills,
-    //                ConfidenceScore = parseResult.AiConfidenceScore,
-    //                AffindaDocId = parseResult.AffindaDocId
-    //            } : null
-    //        };
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        _logger.LogError(ex, "UploadResumeAsync failed for {CandidateId}", candidateId);
-    //        return new UploadResumeResponseDto { Success = false, Message = "Internal server error." };
-    //    }
-    //}
-
     public async Task<UploadResumeResponseDto> UploadResumeAsync(
     Guid candidateId,
     IFormFile file)
@@ -333,10 +226,6 @@ public class CandidateDocumentService : ICandidateDocumentService
                 parseResult.ErrorMessage,
                 parseResult.ParsedName,
                 parseResult.ParsedEmail);
-
-            // =====================================================
-            // 6. Handle Parsing Result
-            // =====================================================
 
             // =====================================================
             // 6. Verify parse result + candidate name match
@@ -499,36 +388,33 @@ public class CandidateDocumentService : ICandidateDocumentService
 
             // =====================================================
             // 9. Import Resume Data
-            // Only if candidate has not already entered data
             // =====================================================
 
             if (parseResult.Success)
             {
-                // Skills
-                if (!profile.Skills.Any())
-                {
-                    await UpsertSkillsAsync(
-                        profile,
-                        parseResult.ParsedSkills,
-                        candidateId);
-                }
+                // Skills, Work History, and Education all use the same
+                // pattern as Languages below: always attempt the re-import.
+                // Each Upsert* method internally checks whether any existing
+                // row was manually added/edited (not AI-derived) and, if so,
+                // leaves that candidate's data alone entirely — otherwise it
+                // replaces the old AI-derived rows with the freshly parsed
+                // set. Previously this call site gated each one behind
+                // "only if currently empty", which made that replace-logic
+                // unreachable and meant a second resume upload silently did
+                // nothing once any row existed from the first upload.
+                await UpsertSkillsAsync(
+                    profile,
+                    parseResult.ParsedSkills,
+                    candidateId);
 
-                // Work History
-                if (!profile.WorkHistories.Any())
-                {
-                    await UpsertWorkHistoriesAsync(
-                        profile,
-                        parseResult.WorkExperiences,
-                        candidateId);
-                }
+                await UpsertWorkHistoriesAsync(
+                    profile,
+                    parseResult.WorkExperiences,
+                    candidateId);
 
-                // Education
-                if (!profile.Educations.Any())
-                {
-                    await UpsertEducationsAsync(
-                        parseResult.Educations,
-                        candidateId);
-                }
+                await UpsertEducationsAsync(
+                    parseResult.Educations,
+                    candidateId);
 
                 // Languages (previously parsed but never persisted anywhere queryable)
                 await UpsertLanguagesAsync(
@@ -1657,75 +1543,6 @@ public class CandidateDocumentService : ICandidateDocumentService
     // ════════════════════════════════════════════════
     // PASSPORT
     // ════════════════════════════════════════════════
-    //public async Task<UploadPassportResponseDto> UploadPassportAsync(
-    //    Guid candidateId, UploadPassportRequestDto request,
-    //    IFormFile frontImage, IFormFile? backImage)
-    //{
-    //    try
-    //    {
-    //        if (!request.ConsentGiven)
-    //            return new UploadPassportResponseDto
-    //            { Success = false, Message = "Consent is required to upload ID documents." };
-
-    //        var frontError = ValidateFile(frontImage, AllowedImgTypes, MaxImageSizeBytes);
-    //        if (frontError != null)
-    //            return new UploadPassportResponseDto { Success = false, Message = frontError };
-
-    //        if (backImage != null)
-    //        {
-    //            var backError = ValidateFile(backImage, AllowedImgTypes, MaxImageSizeBytes);
-    //            if (backError != null)
-    //                return new UploadPassportResponseDto { Success = false, Message = backError };
-    //        }
-
-    //        var profileExists = await _context.CandidateProfiles
-    //            .AnyAsync(p => p.CandidateId == candidateId);
-    //        if (!profileExists)
-    //            return new UploadPassportResponseDto { Success = false, Message = "Candidate not found." };
-
-    //        var existing = await _context.Set<PassportVerification>()
-    //            .Where(p => p.CandidateId == candidateId).ToListAsync();
-    //        _context.Set<PassportVerification>().RemoveRange(existing);
-
-    //        var frontUrl = $"{_configuration["Storage:BaseUrl"]}/passport/{candidateId}/front_{Guid.NewGuid()}{Path.GetExtension(frontImage.FileName)}";
-    //        string? backUrl = backImage == null ? null
-    //            : $"{_configuration["Storage:BaseUrl"]}/passport/{candidateId}/back_{Guid.NewGuid()}{Path.GetExtension(backImage.FileName)}";
-
-    //        var pv = new PassportVerification
-    //        {
-    //            VerificationId = Guid.NewGuid(),
-    //            CandidateId = candidateId,
-    //            FrontImageUrl = frontUrl,
-    //            BackImageUrl = backUrl,
-    //            AdminDecision = "Pending",
-    //            CreatedAt = DateTime.UtcNow
-    //        };
-
-    //        _context.Set<PassportVerification>().Add(pv);
-    //        await _context.SaveChangesAsync();
-
-    //        var profile = await _context.CandidateProfiles
-    //            .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
-
-    //        return new UploadPassportResponseDto
-    //        {
-    //            Success = true,
-    //            Message = "Passport uploaded. Pending admin review.",
-    //            VerificationId = pv.VerificationId,
-    //            FrontImageUrl = frontUrl,
-    //            BackImageUrl = backUrl,
-    //            AdminDecision = "Pending",
-    //            ProfileCompletionPct = profile?.ProfileCompletionPct ?? 0
-    //        };
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        _logger.LogError(ex, "UploadPassportAsync failed for {CandidateId}", candidateId);
-    //        return new UploadPassportResponseDto { Success = false, Message = "Internal server error." };
-    //    }
-    //}
-
-
     public async Task<UploadPassportResponseDto> UploadPassportAsync(
     Guid candidateId,
     UploadPassportRequestDto request,
@@ -2245,11 +2062,6 @@ public class CandidateDocumentService : ICandidateDocumentService
             }
 
             // =====================================================
-            // Part 3.1B Starts Here
-            // Gemini OCR Parsing
-            // =====================================================
-
-            // =====================================================
             // 7. Parse Aadhaar Using Gemini OCR
             // =====================================================
             _logger.LogInformation(
@@ -2313,11 +2125,6 @@ public class CandidateDocumentService : ICandidateDocumentService
                 AiExtractedDob = extractedDob,
                 AiExtractedAddress = extractedAddress,
 
-                //If later you enhance the parser to calculate or receive confidence,
-                //you can simply change these lines to:
-                //AiConfidenceScore = parseResult.AiConfidenceScore,
-
-                //OcrConfidence = parseResult.OcrConfidence,
                 AiConfidenceScore = null,
 
                 OcrConfidence = null,
@@ -2374,19 +2181,13 @@ public class CandidateDocumentService : ICandidateDocumentService
                 completion?.OverallPct ?? 0;
 
             // =====================================================
-            // 12. Remove Previous Aadhaar Record
-            // =====================================================
-
-
-
-            // =====================================================
-            // 13. Save Changes
+            // 12. Save Changes
             // =====================================================
 
             await _context.SaveChangesAsync();
 
             // =====================================================
-            // 14. Delete Previous Cloudinary Images
+            // 13. Delete Previous Cloudinary Images
             // Only after successful DB save
             // =====================================================
 
@@ -2410,7 +2211,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             }
 
             // =====================================================
-            // 15. Logging
+            // 14. Logging
             // =====================================================
 
             _logger.LogInformation(
@@ -2418,7 +2219,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 candidateId);
 
             // =====================================================
-            // 16. Response
+            // 15. Response
             // =====================================================
 
             return new UploadAadhaarResponseDto
@@ -3022,67 +2823,37 @@ public class CandidateDocumentService : ICandidateDocumentService
         int completed = 0;
         const int totalSections = 10;
 
-        // ============================================
-        // 1. Basic Profile
-        // ============================================
         if (!string.IsNullOrWhiteSpace(profile.FullName))
             completed++;
 
-        // ============================================
-        // 2. Personal Details
-        // ============================================
         if (profile.DateOfBirth.HasValue &&
             !string.IsNullOrWhiteSpace(profile.Gender))
             completed++;
 
-        // ============================================
-        // 3. Location
-        // ============================================
         if (!string.IsNullOrWhiteSpace(profile.CurrentCity) &&
             !string.IsNullOrWhiteSpace(profile.CurrentState))
             completed++;
 
-        // ============================================
-        // 4. Resume
-        // ============================================
         if (profile.Cvs?.Any(x => !string.IsNullOrWhiteSpace(x.CvFileUrl)) == true)
             completed++;
 
-        // ============================================
-        // 5. Skills
-        // ============================================
         if (profile.Skills?.Any() == true)
             completed++;
 
-        // ============================================
-        // 6. Work History
-        // ============================================
         if (profile.WorkHistories?.Any() == true)
             completed++;
 
-        // ============================================
-        // 7. Education
-        // ============================================
         if (profile.Educations?.Any() == true)
             completed++;
 
-        // ============================================
-        // 8. Professional Information
-        // ============================================
         if (!string.IsNullOrWhiteSpace(profile.PrimaryTrade) &&
             profile.TotalExperienceYears >= 0)
             completed++;
 
-        // ============================================
-        // 9. About
-        // ============================================
         if (!string.IsNullOrWhiteSpace(profile.ProfessionalSummary) ||
             !string.IsNullOrWhiteSpace(profile.About))
             completed++;
 
-        // ============================================
-        // 10. Documents
-        // ============================================
         if ((profile.KycVerifications?.Any() ?? false) ||
             (profile.PassportVerifications?.Any() ?? false))
             completed++;

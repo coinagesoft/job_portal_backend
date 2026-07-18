@@ -230,6 +230,7 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseCors("Frontend");
 app.UseAuthentication();
+app.UseMiddleware<JobPortal.API.Middleware.ActiveSubUserMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
