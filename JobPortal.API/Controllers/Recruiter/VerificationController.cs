@@ -47,6 +47,18 @@ namespace JobPortal.API.Controllers.Recruiter
             Guid employerId,
             [FromForm] UploadVerificationDocumentRequestDto request)
         {
+            // Only the account owner may upload/replace verification
+            // documents — sub-users can still view the dashboard and any
+            // already-uploaded documents via the GET endpoints above.
+            if (User.FindFirst("IsSubUser")?.Value == "true")
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "You don't have permission to upload verification documents. Please contact your account owner."
+                });
+            }
+
             if (request.File == null || request.File.Length == 0)
             {
                 return BadRequest(new
