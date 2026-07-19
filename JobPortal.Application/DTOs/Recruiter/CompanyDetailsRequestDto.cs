@@ -31,7 +31,7 @@ public class CompanyDetailsRequestDto
     /// Legal business structure — dropdown in Swagger
     /// </summary>
     [Required(ErrorMessage = "Business type is required.")]
-    public string BusinessType { get; set; }     
+    public string BusinessType { get; set; }
 
     /// <summary>
     /// Company size range — dropdown in Swagger
@@ -53,6 +53,13 @@ public class CompanyDetailsRequestDto
 
     [Required(ErrorMessage = "City is required.")]
     public string City { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Defaults to India since the registration form pre-fills/locks this
+    /// field, but is still accepted from the client rather than hardcoded
+    /// here, so a future non-India employer isn't silently overwritten.
+    /// </summary>
+    public string? Country { get; set; } = "India";
 
     [Required(ErrorMessage = "PIN code is required.")]
     [RegularExpression(@"^\d{6}$", ErrorMessage = "PIN must be 6 digits.")]

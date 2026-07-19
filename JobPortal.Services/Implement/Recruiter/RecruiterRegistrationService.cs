@@ -190,6 +190,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             // Address
             session.State = request.State;
             session.City = request.City;
+            session.Country = string.IsNullOrWhiteSpace(request.Country) ? "India" : request.Country;
             session.Pincode = request.Pincode;
 
             session.AddressLine1 = request.AddressLine1;
@@ -1398,7 +1399,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     AddressLine1 = session.AddressLine1!,
                     AddressLine2 = session.AddressLine2,
 
-                    Country = "India",
+                    Country = string.IsNullOrWhiteSpace(session.Country) ? "India" : session.Country,
 
                     ContactPersonName = session.ContactPersonName!,
                     Designation = session.Designation!,
@@ -1580,6 +1581,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                         State = session.State,
                         City = session.City,
+                        Country = session.Country,
                         Pincode = session.Pincode,
 
                         AddressLine1 = session.AddressLine1,

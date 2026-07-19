@@ -213,7 +213,8 @@ namespace JobPortal.Services.Implement.Recruiter
                     employer.AddressLine2,
                     employer.City,
                     employer.State,
-                    employer.Pincode
+                    employer.Pincode,
+                    employer.Country
                 }.Where(part => !string.IsNullOrWhiteSpace(part)));
 
                 if (!string.IsNullOrWhiteSpace(addressLine))
