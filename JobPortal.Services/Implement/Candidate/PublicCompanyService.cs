@@ -17,7 +17,7 @@ public class PublicCompanyService : IPublicCompanyService
     private readonly JobPortal.Services.IImplement.AI.IJobMatchingService _jobMatching;
     private const int MaxPageSize = 50;
 
-    public PublicCompanyService( AppDbContext context, ILogger<PublicCompanyService> logger,
+    public PublicCompanyService(AppDbContext context, ILogger<PublicCompanyService> logger,
         JobPortal.Services.IImplement.AI.IJobMatchingService jobMatching)
     {
         _context = context;
@@ -1435,6 +1435,8 @@ public class PublicCompanyService : IPublicCompanyService
 
                 AddressLine2 = company.AddressLine2,
 
+                OfficeAddress = company.OfficeAddress,
+
                 City = company.City,
 
                 State = company.State,
@@ -1443,16 +1445,25 @@ public class PublicCompanyService : IPublicCompanyService
 
                 Pincode = company.Pincode,
 
+                // Candidates should see where the company actually operates
+                // day-to-day, not necessarily its legal registered address —
+                // if the employer set a different Office Address, that's
+                // what shows here (and what the map below is built from).
+                // Falls back to the registered address when no distinct
+                // office address was entered (the employer's own "Same as
+                // the address above" checkbox leaves OfficeAddress blank).
                 FullLocation =
-                    string.Join(", ",
-                        new[]
-                        {
-                            company.AddressLine1,
-                            company.City,
-                            company.State,
-                            company.Country
-                        }
-                        .Where(x => !string.IsNullOrWhiteSpace(x))),
+                    !string.IsNullOrWhiteSpace(company.OfficeAddress)
+                        ? company.OfficeAddress
+                        : string.Join(", ",
+                            new[]
+                            {
+                                company.AddressLine1,
+                                company.City,
+                                company.State,
+                                company.Country
+                            }
+                            .Where(x => !string.IsNullOrWhiteSpace(x))),
 
                 MapEmbedUrl =
                     BuildMapEmbedUrl(company),
@@ -1595,7 +1606,7 @@ public class PublicCompanyService : IPublicCompanyService
             IsUrgentHiring =
                 job.IsUrgentHiring,
 
-           
+
 
             PassportRequired =
                 job.PassportRequired,
@@ -1741,16 +1752,28 @@ public class PublicCompanyService : IPublicCompanyService
         if (company == null)
             return null;
 
-        var addressParts = new[]
-            {
-                company.AddressLine1,
-                company.City,
-                company.State,
-                company.Country
-            }
-            .Where(x => !string.IsNullOrWhiteSpace(x));
+        string query;
 
-        var query = string.Join(", ", addressParts);
+        if (!string.IsNullOrWhiteSpace(company.OfficeAddress))
+        {
+            // A distinct office address is a full freeform string already
+            // (city/state/country as typed by the employer), so it's used
+            // as-is rather than being reassembled from separate fields.
+            query = company.OfficeAddress;
+        }
+        else
+        {
+            var addressParts = new[]
+                {
+                    company.AddressLine1,
+                    company.City,
+                    company.State,
+                    company.Country
+                }
+                .Where(x => !string.IsNullOrWhiteSpace(x));
+
+            query = string.Join(", ", addressParts);
+        }
 
         if (string.IsNullOrWhiteSpace(query))
             return null;

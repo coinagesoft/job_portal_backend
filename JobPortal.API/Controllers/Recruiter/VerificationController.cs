@@ -23,6 +23,13 @@ namespace JobPortal.API.Controllers.Recruiter
         [HttpGet("{employerId:guid}")]
         public async Task<IActionResult> GetVerificationDashboard(Guid employerId)
         {
+            // This is re-fetched immediately after every document upload —
+            // if any intermediate cache (browser, CDN/edge) were to serve a
+            // stale response for this URL, it would look exactly like "the
+            // upload succeeded but the document isn't in the list."
+            Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+            Response.Headers["Pragma"] = "no-cache";
+
             var result = await _verificationService
                 .GetVerificationDashboardAsync(employerId);
 

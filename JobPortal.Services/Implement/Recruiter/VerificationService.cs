@@ -77,7 +77,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 DocumentType = "GST",
                 FileUrl = null,
                 Status = profile.GstRegistered ? "Not Approved" : "Not Available",
-                UploadedAt = profile.UpdatedAt
+                UploadedAt = profile.GstRegistered ? profile.UpdatedAt : null
             });
 
             response.Documents.Add(new VerificationDocumentDto
@@ -87,7 +87,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 Status = !string.IsNullOrWhiteSpace(profile.Pan)
                     ? "Not Approved"
                     : "Not Available",
-                UploadedAt = profile.UpdatedAt
+                UploadedAt = !string.IsNullOrWhiteSpace(profile.Pan) ? profile.UpdatedAt : null
             });
 
             response.Documents.Add(new VerificationDocumentDto
@@ -97,7 +97,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl)
                     ? "Uploaded"
                     : "Not Uploaded",
-                UploadedAt = profile.UpdatedAt
+                UploadedAt = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl) ? profile.UpdatedAt : null
             });
 
             response.Documents.Add(new VerificationDocumentDto
@@ -107,7 +107,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl)
                     ? "Uploaded"
                     : "Not Uploaded",
-                UploadedAt = profile.UpdatedAt
+                UploadedAt = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl) ? profile.UpdatedAt : null
             });
 
             response.Documents.Add(new VerificationDocumentDto
@@ -117,7 +117,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 Status = !string.IsNullOrWhiteSpace(profile.BusinessRegDocUrl)
                     ? "Uploaded"
                     : "Not Uploaded",
-                UploadedAt = profile.UpdatedAt
+                UploadedAt = !string.IsNullOrWhiteSpace(profile.BusinessRegDocUrl) ? profile.UpdatedAt : null
             });
 
             return response;
