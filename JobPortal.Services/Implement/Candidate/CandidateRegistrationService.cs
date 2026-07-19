@@ -295,10 +295,13 @@ namespace JobPortal.Services.Implement.Candidate
                     ["client_id"] = _config["LinkedIn:ClientId"]!,
                     ["client_secret"] = _config["LinkedIn:ClientSecret"]!
                 }));
-
             if (!tokenResponse.IsSuccessStatusCode)
+            {
+                var errorBody = await tokenResponse.Content.ReadAsStringAsync();
+                _logger.LogError("LinkedIn token exchange failed. Status: {Status}, Body: {Body}",
+                    tokenResponse.StatusCode, errorBody);
                 return new SocialVerifyResponseDto { Success = false, Message = "LinkedIn authentication failed." };
-
+            }
             var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
             using var tokenDoc = JsonDocument.Parse(tokenJson);
             var accessToken = tokenDoc.RootElement.GetProperty("access_token").GetString();
@@ -327,6 +330,8 @@ namespace JobPortal.Services.Implement.Candidate
             var exists = await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email);
             if (exists)
                 return new SocialVerifyResponseDto { Success = false, Message = "Email is already registered. Please sign in instead." };
+
+          
 
             return new SocialVerifyResponseDto
             {
