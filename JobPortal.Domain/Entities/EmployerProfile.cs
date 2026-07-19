@@ -76,6 +76,15 @@ public class EmployerProfile
     public bool RpslExpiredFlag { get; set; } = false;
     // Docs
     public string? BusinessRegDocUrl { get; set; }
+    public string? BusinessRegDocPublicId { get; set; }
+    // GST Certificate (separate from the GstRegistered flag/GSTIN text —
+    // this is the actual uploaded certificate file)
+    public string? GstCertificateUrl { get; set; }
+    public string? GstCertificatePublicId { get; set; }
+    // PAN Card (separate from the Pan text field — the actual uploaded
+    // card/document file)
+    public string? PanCardUrl { get; set; }
+    public string? PanCardPublicId { get; set; }
     public DateTime? ConsentTimestamp { get; set; }
     public List<string>? CompanyHighlights { get; set; }
     public string TimeZone { get; set; } = "Asia/Kolkata";

@@ -19,6 +19,8 @@ namespace JobPortal.Application.DTOs.Recruiter.CompanyProfile
     {
         POE,
         RPSL,
-        BUSINESS_REGISTRATION
+        BUSINESS_REGISTRATION,
+        GST,
+        PAN
     }
 }
