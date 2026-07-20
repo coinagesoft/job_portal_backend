@@ -90,7 +90,6 @@ builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
 builder.Services.AddScoped<IApplicationStatusService, ApplicationStatusService>();
 builder.Services.AddScoped<IHomepageService, HomepageService>();
 builder.Services.AddScoped<ISubUserPermissionService, SubUserPermissionService>();
-
 builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IRecruiterSettingsService, RecruiterSettingsService>();
@@ -99,7 +98,6 @@ builder.Services.AddScoped<IRecruiterJobListingService, RecruiterJobListingServi
 builder.Services.AddScoped<IRecruiterApplicantService, RecruiterApplicantService>();
 builder.Services.AddScoped<ICandidateNotificationService, CandidateNotificationService>();
 builder.Services.AddScoped<IResumeWatermarkService, ResumeWatermarkService>();
-
 builder.Services.AddScoped<IRecruiterCvSearchService, RecruiterCvSearchService>();
 builder.Services.AddScoped<IHomepageService, HomepageService>();
 builder.Services.AddScoped<IRecruiterScreeningQuestionService, RecruiterScreeningQuestionService>();
@@ -110,6 +108,8 @@ builder.Services.AddScoped<ICandidateSettingsService, CandidateSettingsService>(
 builder.Services.AddScoped<ICandidateAvailabilityService, CandidateAvailabilityService>();
 builder.Services.AddScoped<ICandidateItiInfoService, CandidateItiInfoService>();
 builder.Services.AddScoped<ICandidateLogoutService, CandidateLogoutService>();
+builder.Services.AddScoped<ICandidateLoginService, CandidateLoginService>();
+
 builder.Services.AddScoped<CandidatePagedJobService>();
 
 //builder.Services.AddScoped<IAffindaService, AffindaService>();
