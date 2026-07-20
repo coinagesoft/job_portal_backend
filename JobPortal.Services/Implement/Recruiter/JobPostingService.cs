@@ -17,7 +17,7 @@ namespace JobPortal.Services.Implement.Recruiter
     {
         private readonly AppDbContext _context;
         private readonly ILogger<JobPostingService> _logger;
-        private readonly IEmbeddingStorageService _embeddingStorage;   
+        private readonly IEmbeddingStorageService _embeddingStorage;
         private readonly ISubUserPermissionService _permissionService;
 
 
@@ -35,7 +35,7 @@ namespace JobPortal.Services.Implement.Recruiter
         public JobPostingService(
             AppDbContext context,
             ILogger<JobPostingService> logger,
-            IEmbeddingStorageService embeddingStorage,                 
+            IEmbeddingStorageService embeddingStorage,
             ISubUserPermissionService permissionService)
 
         {
@@ -180,7 +180,7 @@ namespace JobPortal.Services.Implement.Recruiter
 
                         // Job
                         JobType = string.IsNullOrWhiteSpace(request.JobType)
-                            ? "Normal Job"
+                            ? "Regular Hiring"
                             : request.JobType.Trim(),
 
                         // Employment
@@ -1228,12 +1228,14 @@ namespace JobPortal.Services.Implement.Recruiter
 
                     Step1Data = new JobDetailsRequestDto
                     {
+                        JobId = job.JobId,
                         JobTitle = job.JobTitle,
                         TradeCategory = job.TradeCategory,
                         Role = job.Role,
 
                         ExperienceMinYears = job.ExperienceMinYears,
                         ExperienceMaxYears = job.ExperienceMaxYears,
+                        JobType = job.JobType,
                         IndustryType = job.IndustryType,
                         JobDescription = job.JobDescription,
 

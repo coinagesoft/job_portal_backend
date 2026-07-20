@@ -423,6 +423,13 @@ public class CandidateSettingsService : ICandidateSettingsService
                     Message = "Ticket not found."
                 };
 
+            if (ticket.Status == "Resolved")
+                return new CandidateAddReplyResponseDto
+                {
+                    Success = false,
+                    Message = "This ticket is resolved and no longer accepts new messages. Please raise a new ticket if you need further help."
+                };
+
             var reply = new SupportTicketReply
             {
                 ReplyId = Guid.NewGuid(),

@@ -5,6 +5,7 @@
 
 using JobPortal.Application.DTOs.Candidate.Settings;
 using JobPortal.Services.IImplement.ICandidate;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -13,7 +14,7 @@ namespace JobPortal.API.Controllers.Candidate;
 [ApiController]
 [Route("api/candidate/settings")]
 [Produces("application/json")]
-// [Authorize(Roles = "Candidate")]   // Uncomment once JWT auth middleware is wired up
+[Authorize(Roles = "Candidate")]
 public class CandidateSettingsController : ControllerBase
 {
     private readonly ICandidateSettingsService _service;
@@ -27,11 +28,19 @@ public class CandidateSettingsController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>Extracts CandidateId from JWT claim; falls back to query param for dev.</summary>
+    /// <summary>
+    /// Extracts CandidateId from the JWT. JwtService issues this claim as
+    /// "CandidateId" (see JobPortal.Infrastructure/JWT/JwtService.cs) — the
+    /// previous lookup here used "candidateId" (lowercase c), which never
+    /// matches (claim lookups are case-sensitive), so this always silently
+    /// fell through to ClaimTypes.NameIdentifier (the User's UserId, not
+    /// the CandidateProfile's CandidateId) and every request 404'd with
+    /// "Candidate profile not found" against a GUID that was never going
+    /// to match. That's the bug that made this page always show blanks.
+    /// </summary>
     private Guid GetCandidateId()
     {
-        var claim = User.FindFirstValue("candidateId")
-                    ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var claim = User.FindFirstValue("CandidateId");
 
         return Guid.TryParse(claim, out var id) ? id : Guid.Empty;
     }
@@ -47,9 +56,9 @@ public class CandidateSettingsController : ControllerBase
     [ProducesResponseType(typeof(CandidatePreferenceResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetPreferences([FromQuery] Guid? candidateId = null)
+    public async Task<IActionResult> GetPreferences()
     {
-        var id = candidateId ?? GetCandidateId();
+        var id = GetCandidateId();
         if (id == Guid.Empty)
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
@@ -62,13 +71,12 @@ public class CandidateSettingsController : ControllerBase
     [ProducesResponseType(typeof(UpdateCandidatePreferenceResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdatePreferences(
-        [FromBody] UpdateCandidatePreferenceRequestDto request,
-        [FromQuery] Guid? candidateId = null)
+        [FromBody] UpdateCandidatePreferenceRequestDto request)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var id = candidateId ?? GetCandidateId();
+        var id = GetCandidateId();
         if (id == Guid.Empty)
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
@@ -87,9 +95,9 @@ public class CandidateSettingsController : ControllerBase
     [HttpGet("notifications")]
     [ProducesResponseType(typeof(CandidateNotificationResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> GetNotifications([FromQuery] Guid? candidateId = null)
+    public async Task<IActionResult> GetNotifications()
     {
-        var id = candidateId ?? GetCandidateId();
+        var id = GetCandidateId();
         if (id == Guid.Empty)
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
@@ -102,13 +110,12 @@ public class CandidateSettingsController : ControllerBase
     [ProducesResponseType(typeof(CandidateNotificationResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateNotifications(
-        [FromBody] UpdateCandidateNotificationRequestDto request,
-        [FromQuery] Guid? candidateId = null)
+        [FromBody] UpdateCandidateNotificationRequestDto request)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var id = candidateId ?? GetCandidateId();
+        var id = GetCandidateId();
         if (id == Guid.Empty)
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
@@ -120,9 +127,9 @@ public class CandidateSettingsController : ControllerBase
     [HttpPut("notifications/reset")]
     [ProducesResponseType(typeof(CandidateNotificationResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> ResetNotifications([FromQuery] Guid? candidateId = null)
+    public async Task<IActionResult> ResetNotifications()
     {
-        var id = candidateId ?? GetCandidateId();
+        var id = GetCandidateId();
         if (id == Guid.Empty)
             return BadRequest(new { message = "Unable to resolve candidate identity." });
 
@@ -190,6 +197,12 @@ public class CandidateSettingsController : ControllerBase
         [FromBody] CandidateAddReplyRequestDto request)
     {
         var result = await _service.AddReplyAsync(candidateId, ticketId, request);
+
+        if (!result.Success)
+        {
+            return BadRequest(result);
+        }
+
         return Ok(result);
     }
 

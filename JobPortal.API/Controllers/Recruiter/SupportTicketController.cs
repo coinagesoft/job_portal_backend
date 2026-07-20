@@ -78,13 +78,18 @@ namespace JobPortal.API.Controllers.Recruiter
         /// Add Reply To Ticket
         /// </summary>
         [HttpPost("{ticketId:guid}/reply/{employerId:guid}")]
-        public async Task<IActionResult> AddReply(Guid ticketId,Guid employerId,
+        public async Task<IActionResult> AddReply(Guid ticketId, Guid employerId,
       [FromBody] AddTicketReplyRequestDto request)
         {
             var result = await _supportTicketService.AddReplyAsync(
                 ticketId,
                 employerId,
                 request);
+
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
 
             return Ok(result);
         }

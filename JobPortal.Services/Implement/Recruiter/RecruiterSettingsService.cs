@@ -4,6 +4,7 @@ using JobPortal.Domain.Enums.common;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 
 namespace JobPortal.Services.Implement.Recruiter
@@ -11,11 +12,14 @@ namespace JobPortal.Services.Implement.Recruiter
     public class RecruiterSettingsService : IRecruiterSettingsService
     {
         private readonly AppDbContext _context;
+        private readonly ILogger<RecruiterSettingsService> _logger;
 
         public RecruiterSettingsService(
-            AppDbContext context)
+            AppDbContext context,
+            ILogger<RecruiterSettingsService> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         #region Account Settings
@@ -1106,6 +1110,97 @@ namespace JobPortal.Services.Implement.Recruiter
                     .Where(x => x.EmployerId == employerId)
                     .ExecuteDeleteAsync();
 
+                // A login account here can, in some data, ALSO be linked
+                // to a CandidateProfile (same UserId used on both sides —
+                // e.g. someone who signed up as a candidate first, then
+                // separately as an employer with the same mobile number).
+                // CandidateProfile.UserId → User is a Restrict FK, so the
+                // Users delete below would otherwise fail with a raw
+                // Postgres constraint error. Cascade that candidate graph
+                // first, the same way we already cascade the employer one.
+                var linkedCandidateIds = await _context.CandidateProfiles
+                    .Where(cp => allUserIds.Contains(cp.UserId))
+                    .Select(cp => cp.CandidateId)
+                    .ToListAsync();
+
+                if (linkedCandidateIds.Count > 0)
+                {
+                    await _context.CandidateCvDownloads
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.CandidateCvs
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.CandidateEducations
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.CandidateWorkHistories
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.CandidateSkills
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.CandidateDocuments
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.CandidateEmbeddings
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.CandidateNotificationSettings
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.CandidatePreferenceSettings
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.CandidateLogoutSessions
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.KycVerifications
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.PassportVerifications
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.ItiCertificateReviews
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    // This candidate's applications/saves/unlocks — to ANY
+                    // employer, not just this one (already-deleted rows
+                    // for this employer are simply a no-op re-filter here).
+                    await _context.JobApplications
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.SavedJobs
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.CandidateUnlocks
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.EmployerCandidateAccesses
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+
+                    await _context.CandidateProfiles
+                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
+                        .ExecuteDeleteAsync();
+                }
+
                 // Sub-users' own login accounts only exist to work
                 // under this employer — remove them too, not just the
                 // EmployerSubUsers link row.
@@ -1126,10 +1221,15 @@ namespace JobPortal.Services.Implement.Recruiter
             {
                 await transaction.RollbackAsync();
 
+                _logger.LogError(
+                    ex,
+                    "DeleteAccountAsync failed for EmployerId={EmployerId}",
+                    employerId);
+
                 return new DangerZoneActionResponseDto
                 {
                     Success = false,
-                    Message = "Failed to delete account: " + ex.Message
+                    Message = "Failed to delete account. Please try again or contact support if this keeps happening."
                 };
             }
 
