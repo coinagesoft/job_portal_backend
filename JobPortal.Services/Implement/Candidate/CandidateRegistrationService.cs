@@ -18,10 +18,9 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-
 namespace JobPortal.Services.Implement.Candidate
 {
-    public class CandidateRegistrationService:ICandidateRegistrationService
+    public class CandidateRegistrationService : ICandidateRegistrationService
     {
         private readonly AppDbContext _context;
         private readonly JwtService _jwtService;
@@ -30,11 +29,9 @@ namespace JobPortal.Services.Implement.Candidate
         private readonly ITwilioOtpService _twilioOtpService;
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
-
         private const int OtpExpiryMinutes = 10;
         private const int ResendCooldownSeconds = 60;
         private const int MaxOtpAttempts = 5;
-
         public CandidateRegistrationService(
             AppDbContext context,
             JwtService jwtService,
@@ -52,50 +49,39 @@ namespace JobPortal.Services.Implement.Candidate
             _twilioOtpService = twilioOtpService;
             _httpClientFactory = httpClientFactory;
         }
-
-        public async Task<AuthResponseDto> GoogleRegisterAsync(CandidateGoogleRegisterRequestDto request,string ipAddress)
+        public async Task<AuthResponseDto> GoogleRegisterAsync(CandidateGoogleRegisterRequestDto request, string ipAddress)
         {
             try
             {
                 if (!request.TermsAccepted)
                     return AuthFail("Terms and Conditions must be accepted.");
-
                 if (string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
                     string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
                     string.IsNullOrWhiteSpace(request.RazorpaySignature))
                 {
                     return AuthFail("Payment verification failed.");
                 }
-
                 var httpClient = _httpClientFactory.CreateClient();
                 httpClient.DefaultRequestHeaders.Authorization =
                     new AuthenticationHeaderValue("Bearer", request.AccessToken);
-
                 var googleResponse = await httpClient.GetAsync(
                     "https://www.googleapis.com/oauth2/v3/userinfo");
-
                 if (!googleResponse.IsSuccessStatusCode)
                     return AuthFail("Invalid Google session.");
-
                 var googleJson = await googleResponse.Content.ReadAsStringAsync();
                 using var googleDoc = JsonDocument.Parse(googleJson);
                 var root = googleDoc.RootElement;
-
                 var email = root.TryGetProperty("email", out var emailProp)
                     ? emailProp.GetString()?.ToLower() : null;
-
                 if (string.IsNullOrWhiteSpace(email))
                     return AuthFail("Google account email not found.");
-
                 if (await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email))
                     return AuthFail("Email is already registered. Please sign in instead.");
-
                 if (!string.IsNullOrWhiteSpace(request.MobileNumber) &&
                     await _context.Users.AnyAsync(u => u.MobileNumber == request.MobileNumber.Trim()))
                 {
                     return AuthFail("Mobile number is already registered.");
                 }
-
                 var user = new User
                 {
                     UserId = Guid.NewGuid(),
@@ -110,9 +96,7 @@ namespace JobPortal.Services.Implement.Candidate
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-
                 _context.Users.Add(user);
-
                 var profile = new JobPortal.Domain.Entities.CandidateProfile
                 {
                     CandidateId = Guid.NewGuid(),
@@ -124,14 +108,10 @@ namespace JobPortal.Services.Implement.Candidate
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-
                 _context.CandidateProfiles.Add(profile);
                 await _context.SaveChangesAsync();
-
                 var token = _jwtService.GenerateToken(user.UserId, user.UserType.ToString(), user.MobileNumber);
-
                 _logger.LogInformation("New candidate registered via Google - UserId:{Id} IP:{IP}", user.UserId, ipAddress);
-
                 return new AuthResponseDto
                 {
                     Success = true,
@@ -149,48 +129,38 @@ namespace JobPortal.Services.Implement.Candidate
                 return AuthFail("An error occurred. Please try again.");
             }
         }
-
         public async Task<AuthResponseDto> LinkedInRegisterAsync(CandidateLinkedInRegisterRequestDto request, string ipAddress)
         {
             try
             {
                 if (!request.TermsAccepted)
                     return AuthFail("Terms and Conditions must be accepted.");
-
                 if (string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
                     string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
                     string.IsNullOrWhiteSpace(request.RazorpaySignature))
                 {
                     return AuthFail("Payment verification failed.");
                 }
-
                 // No code exchange here — reuse the access token from the verify step
                 var httpClient = _httpClientFactory.CreateClient();
                 httpClient.DefaultRequestHeaders.Authorization =
                     new AuthenticationHeaderValue("Bearer", request.AccessToken);
-
                 var profileResponse = await httpClient.GetAsync("https://api.linkedin.com/v2/userinfo");
                 if (!profileResponse.IsSuccessStatusCode)
                     return AuthFail("LinkedIn session expired. Please try again.");
-
                 var profileJson = await profileResponse.Content.ReadAsStringAsync();
                 using var profileDoc = JsonDocument.Parse(profileJson);
-
                 var email = profileDoc.RootElement.TryGetProperty("email", out var emailProp)
                     ? emailProp.GetString()?.ToLower() : null;
-
                 if (string.IsNullOrWhiteSpace(email))
                     return AuthFail("LinkedIn email not found.");
-
                 if (await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email))
                     return AuthFail("Email is already registered. Please sign in instead.");
-
                 if (!string.IsNullOrWhiteSpace(request.MobileNumber) &&
                     await _context.Users.AnyAsync(u => u.MobileNumber == request.MobileNumber.Trim()))
                 {
                     return AuthFail("Mobile number is already registered.");
                 }
-
                 var user = new User
                 {
                     UserId = Guid.NewGuid(),
@@ -205,9 +175,7 @@ namespace JobPortal.Services.Implement.Candidate
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-
                 _context.Users.Add(user);
-
                 var profile = new JobPortal.Domain.Entities.CandidateProfile
                 {
                     CandidateId = Guid.NewGuid(),
@@ -219,14 +187,10 @@ namespace JobPortal.Services.Implement.Candidate
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-
                 _context.CandidateProfiles.Add(profile);
                 await _context.SaveChangesAsync();
-
                 var token = _jwtService.GenerateToken(user.UserId, user.UserType.ToString(), user.MobileNumber);
-
                 _logger.LogInformation("New candidate registered via LinkedIn - UserId:{Id} IP:{IP}", user.UserId, ipAddress);
-
                 return new AuthResponseDto
                 {
                     Success = true,
@@ -244,35 +208,27 @@ namespace JobPortal.Services.Implement.Candidate
                 return AuthFail("An error occurred. Please try again.");
             }
         }
-
         public async Task<SocialVerifyResponseDto> GoogleVerifyAsync(GoogleVerifyRequestDto request)
         {
             var httpClient = _httpClientFactory.CreateClient();
             httpClient.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", request.AccessToken);
-
             var googleResponse = await httpClient.GetAsync(
                 "https://www.googleapis.com/oauth2/v3/userinfo");
-
             if (!googleResponse.IsSuccessStatusCode)
                 return new SocialVerifyResponseDto { Success = false, Message = "Invalid Google session." };
-
             var googleJson = await googleResponse.Content.ReadAsStringAsync();
             using var googleDoc = JsonDocument.Parse(googleJson);
             var root = googleDoc.RootElement;
-
             var email = root.TryGetProperty("email", out var emailProp)
                 ? emailProp.GetString()?.ToLower() : null;
             var name = root.TryGetProperty("name", out var nameProp)
                 ? nameProp.GetString() : null;
-
             if (string.IsNullOrWhiteSpace(email))
                 return new SocialVerifyResponseDto { Success = false, Message = "Google account email not found." };
-
             var exists = await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email);
             if (exists)
                 return new SocialVerifyResponseDto { Success = false, Message = "Email is already registered. Please sign in instead." };
-
             return new SocialVerifyResponseDto
             {
                 Success = true,
@@ -280,11 +236,9 @@ namespace JobPortal.Services.Implement.Candidate
                 FullName = name
             };
         }
-
         public async Task<SocialVerifyResponseDto> LinkedInVerifyAsync(LinkedInVerifyRequestDto request)
         {
             var httpClient = _httpClientFactory.CreateClient();
-
             var tokenResponse = await httpClient.PostAsync(
                 "https://www.linkedin.com/oauth/v2/accessToken",
                 new FormUrlEncodedContent(new Dictionary<string, string>
@@ -298,41 +252,32 @@ namespace JobPortal.Services.Implement.Candidate
             if (!tokenResponse.IsSuccessStatusCode)
             {
                 var errorBody = await tokenResponse.Content.ReadAsStringAsync();
-                _logger.LogError("LinkedIn token exchange failed. Status: {Status}, Body: {Body}",
-                    tokenResponse.StatusCode, errorBody);
+                _logger.LogWarning(
+                    "LinkedIn token exchange failed. Status:{Status} Body:{Body} RedirectUri:{RedirectUri}",
+                    (int)tokenResponse.StatusCode, errorBody, request.RedirectUri);
                 return new SocialVerifyResponseDto { Success = false, Message = "LinkedIn authentication failed." };
             }
             var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
             using var tokenDoc = JsonDocument.Parse(tokenJson);
             var accessToken = tokenDoc.RootElement.GetProperty("access_token").GetString();
-
             if (string.IsNullOrWhiteSpace(accessToken))
                 return new SocialVerifyResponseDto { Success = false, Message = "LinkedIn authentication failed." };
-
             httpClient.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", accessToken);
-
             var profileResponse = await httpClient.GetAsync("https://api.linkedin.com/v2/userinfo");
             if (!profileResponse.IsSuccessStatusCode)
                 return new SocialVerifyResponseDto { Success = false, Message = "Failed to get LinkedIn profile." };
-
             var profileJson = await profileResponse.Content.ReadAsStringAsync();
             using var profileDoc = JsonDocument.Parse(profileJson);
-
             var email = profileDoc.RootElement.TryGetProperty("email", out var emailProp)
                 ? emailProp.GetString()?.ToLower() : null;
             var name = profileDoc.RootElement.TryGetProperty("name", out var nameProp)
                 ? nameProp.GetString() : null;
-
             if (string.IsNullOrWhiteSpace(email))
                 return new SocialVerifyResponseDto { Success = false, Message = "LinkedIn email not found. Please ensure it's visible." };
-
             var exists = await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email);
             if (exists)
                 return new SocialVerifyResponseDto { Success = false, Message = "Email is already registered. Please sign in instead." };
-
-          
-
             return new SocialVerifyResponseDto
             {
                 Success = true,
@@ -341,9 +286,7 @@ namespace JobPortal.Services.Implement.Candidate
                 AccessToken = accessToken   // frontend holds onto this for the final register call
             };
         }
-
         // ── Private Helpers ───────────────────────────────────
-
         private static AuthResponseDto AuthFail(string message) =>
             new() { Success = false, Message = message };
     }

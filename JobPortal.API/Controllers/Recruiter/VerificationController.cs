@@ -23,6 +23,13 @@ namespace JobPortal.API.Controllers.Recruiter
         [HttpGet("{employerId:guid}")]
         public async Task<IActionResult> GetVerificationDashboard(Guid employerId)
         {
+            // This is re-fetched immediately after every document upload —
+            // if any intermediate cache (browser, CDN/edge) were to serve a
+            // stale response for this URL, it would look exactly like "the
+            // upload succeeded but the document isn't in the list."
+            Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+            Response.Headers["Pragma"] = "no-cache";
+
             var result = await _verificationService
                 .GetVerificationDashboardAsync(employerId);
 
@@ -47,6 +54,18 @@ namespace JobPortal.API.Controllers.Recruiter
             Guid employerId,
             [FromForm] UploadVerificationDocumentRequestDto request)
         {
+            // Only the account owner may upload/replace verification
+            // documents — sub-users can still view the dashboard and any
+            // already-uploaded documents via the GET endpoints above.
+            if (User.FindFirst("IsSubUser")?.Value == "true")
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "You don't have permission to upload verification documents. Please contact your account owner."
+                });
+            }
+
             if (request.File == null || request.File.Length == 0)
             {
                 return BadRequest(new

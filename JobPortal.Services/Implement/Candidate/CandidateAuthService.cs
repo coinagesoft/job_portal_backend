@@ -123,7 +123,13 @@ public class CandidateAuthService : ICandidateAuthService
                 UserType = UserType.Candidate,
                 MobileNumber = request.MobileNumber,
                 CountryCode = request.CountryCode,
-                Email = request.Email,
+                // uq_users_email is a plain unique index with no filter for
+                // blank values, so an empty string collides with any other
+                // candidate who also skipped email — store null instead,
+                // which the index correctly allows to repeat.
+                Email = string.IsNullOrWhiteSpace(request.Email)
+                    ? null
+                    : request.Email,
                 PasswordHash = "OTP_AUTH",
                 AccountStatus = AccountStatus.Active,
                 KycStatus = KycStatus.Pending,

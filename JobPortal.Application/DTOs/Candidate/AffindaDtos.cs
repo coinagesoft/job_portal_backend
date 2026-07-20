@@ -459,13 +459,19 @@ public class AffindaWorkExpParsed
     public AffindaParsedValue? WorkExperienceDescription { get; set; }
 
     [JsonPropertyName("workExperienceLocation")]
-    public AffindaLocationParsed? WorkExperienceLocation { get; set; }
+    public AffindaLocation? WorkExperienceLocation { get; set; }
 
     [JsonPropertyName("workExperienceDates")]
     public AffindaWorkDates? WorkExperienceDates { get; set; }
 }
 
 public class AffindaWorkDates
+{
+    [JsonPropertyName("parsed")]
+    public AffindaWorkDatesInner? Parsed { get; set; }
+}
+
+public class AffindaWorkDatesInner
 {
     [JsonPropertyName("start")]
     public AffindaDatePoint? Start { get; set; }
@@ -507,6 +513,12 @@ public class AffindaEducationParsed
 
 public class AffindaEduDates
 {
+    [JsonPropertyName("parsed")]
+    public AffindaEduDatesInner? Parsed { get; set; }
+}
+
+public class AffindaEduDatesInner
+{
     [JsonPropertyName("start")]
     public AffindaDatePoint? Start { get; set; }
 
@@ -533,7 +545,19 @@ public class AffindaEduGrade
 public class AffindaLanguage
 {
     [JsonPropertyName("parsed")]
-    public AffindaParsedValue? Parsed { get; set; }
+    public AffindaLanguageParsed? Parsed { get; set; }
+}
+
+public class AffindaLanguageParsed
+{
+    [JsonPropertyName("languageName")]
+    public AffindaLanguageNameField? LanguageName { get; set; }
+}
+
+public class AffindaLanguageNameField
+{
+    [JsonPropertyName("parsed")]
+    public AffindaLabelValue? Parsed { get; set; }
 }
 
 //======================================================

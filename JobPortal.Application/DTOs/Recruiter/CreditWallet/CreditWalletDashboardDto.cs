@@ -25,5 +25,14 @@ namespace JobPortal.Application.DTOs.Recruiter.CreditWallet
         public bool SharedWalletEnabled { get; set; }
 
         public int TotalSubUsers { get; set; }
+
+        // Sub-user allocation breakdown — RemainingCredits above is the
+        // TOTAL still remaining across the owner and every sub-user
+        // combined. These two split that total into "already handed out to
+        // sub-users (and still theirs to spend)" vs "not yet allocated to
+        // anyone, free for the owner to assign".
+        public int AllocatedToSubUsers { get; set; }
+
+        public int AvailableToAllocate { get; set; }
     }
 }

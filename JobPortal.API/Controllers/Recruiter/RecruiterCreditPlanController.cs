@@ -41,6 +41,9 @@ namespace JobPortal.API.Controllers.Recruiter
             return Guid.Parse(employerId);
         }
 
+        private bool GetIsSubUser() =>
+            User.FindFirst("IsSubUser")?.Value == "true";
+
         // ── GET /api/recruiter/plans ─────────────────────────────────
         /// <summary>
         /// Get all active credit plans available for purchase.
@@ -79,6 +82,18 @@ namespace JobPortal.API.Controllers.Recruiter
         public async Task<IActionResult> CreateOrder(
             [FromBody] CreatePlanOrderRequestDto request)
         {
+            // Buying credits is restricted to the account owner — a
+            // sub-user can still view available plans via GetActivePlans
+            // above, just not purchase.
+            if (GetIsSubUser())
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "You don't have permission to purchase credits. Please contact your account owner."
+                });
+            }
+
             if (request.PlanId == Guid.Empty)
                 return BadRequest(new { Success = false, Message = "PlanId is required." });
 
@@ -115,6 +130,19 @@ namespace JobPortal.API.Controllers.Recruiter
         public async Task<IActionResult> VerifyPayment(
             [FromBody] VerifyPlanPaymentRequestDto request)
         {
+            // Same restriction as create-order — enforced again here since
+            // a sub-user could otherwise call this step directly with a
+            // forged/replayed order, even if they never received a
+            // create-order response of their own.
+            if (GetIsSubUser())
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "You don't have permission to purchase credits. Please contact your account owner."
+                });
+            }
+
             if (string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
                 string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
                 string.IsNullOrWhiteSpace(request.RazorpaySignature))

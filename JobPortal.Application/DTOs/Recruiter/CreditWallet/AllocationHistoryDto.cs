@@ -13,7 +13,14 @@ namespace JobPortal.Application.DTOs.Recruiter.CreditWallet
 
         public Guid SubUserId { get; set; }
 
+        public string? SubUserName { get; set; }
+
         public int CreditsAllocated { get; set; }
+
+        // True when this row represents credits being reclaimed back to
+        // the shared pool (e.g. because the sub-user was deleted) rather
+        // than newly handed out. CreditsAllocated is negative in that case.
+        public bool IsReclaim { get; set; }
 
         public int BalanceBefore { get; set; }
 

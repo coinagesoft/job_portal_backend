@@ -75,19 +75,21 @@ namespace JobPortal.Services.Implement.Recruiter
             response.Documents.Add(new VerificationDocumentDto
             {
                 DocumentType = "GST",
-                FileUrl = null,
-                Status = profile.GstRegistered ? "Not Approved" : "Not Available",
-                UploadedAt = profile.UpdatedAt
+                FileUrl = profile.GstCertificateUrl,
+                Status = !string.IsNullOrWhiteSpace(profile.GstCertificateUrl)
+                    ? "Uploaded"
+                    : "Not Uploaded",
+                UploadedAt = !string.IsNullOrWhiteSpace(profile.GstCertificateUrl) ? profile.UpdatedAt : null
             });
 
             response.Documents.Add(new VerificationDocumentDto
             {
                 DocumentType = "PAN",
-                FileUrl = null,
-                Status = !string.IsNullOrWhiteSpace(profile.Pan)
-                    ? "Not Approved"
-                    : "Not Available",
-                UploadedAt = profile.UpdatedAt
+                FileUrl = profile.PanCardUrl,
+                Status = !string.IsNullOrWhiteSpace(profile.PanCardUrl)
+                    ? "Uploaded"
+                    : "Not Uploaded",
+                UploadedAt = !string.IsNullOrWhiteSpace(profile.PanCardUrl) ? profile.UpdatedAt : null
             });
 
             response.Documents.Add(new VerificationDocumentDto
@@ -97,7 +99,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl)
                     ? "Uploaded"
                     : "Not Uploaded",
-                UploadedAt = profile.UpdatedAt
+                UploadedAt = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl) ? profile.UpdatedAt : null
             });
 
             response.Documents.Add(new VerificationDocumentDto
@@ -107,7 +109,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl)
                     ? "Uploaded"
                     : "Not Uploaded",
-                UploadedAt = profile.UpdatedAt
+                UploadedAt = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl) ? profile.UpdatedAt : null
             });
 
             response.Documents.Add(new VerificationDocumentDto
@@ -117,7 +119,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 Status = !string.IsNullOrWhiteSpace(profile.BusinessRegDocUrl)
                     ? "Uploaded"
                     : "Not Uploaded",
-                UploadedAt = profile.UpdatedAt
+                UploadedAt = !string.IsNullOrWhiteSpace(profile.BusinessRegDocUrl) ? profile.UpdatedAt : null
             });
 
             return response;
@@ -178,12 +180,55 @@ namespace JobPortal.Services.Implement.Recruiter
 
                     case DocumentType.BUSINESS_REGISTRATION:
 
+                        if (!string.IsNullOrWhiteSpace(profile.BusinessRegDocPublicId))
+                        {
+                            await _fileStorageService.DeleteAsync(
+                                profile.BusinessRegDocPublicId);
+                        }
+
                         var businessUpload =
                             await _fileStorageService.UploadDocumentAsync(
                                 request.File,
                                 "verification-documents");
 
                         profile.BusinessRegDocUrl = businessUpload.Url;
+                        profile.BusinessRegDocPublicId = businessUpload.PublicId;
+
+                        break;
+
+                    case DocumentType.GST:
+
+                        if (!string.IsNullOrWhiteSpace(profile.GstCertificatePublicId))
+                        {
+                            await _fileStorageService.DeleteAsync(
+                                profile.GstCertificatePublicId);
+                        }
+
+                        var gstUpload =
+                            await _fileStorageService.UploadDocumentAsync(
+                                request.File,
+                                "verification-documents");
+
+                        profile.GstCertificateUrl = gstUpload.Url;
+                        profile.GstCertificatePublicId = gstUpload.PublicId;
+
+                        break;
+
+                    case DocumentType.PAN:
+
+                        if (!string.IsNullOrWhiteSpace(profile.PanCardPublicId))
+                        {
+                            await _fileStorageService.DeleteAsync(
+                                profile.PanCardPublicId);
+                        }
+
+                        var panUpload =
+                            await _fileStorageService.UploadDocumentAsync(
+                                request.File,
+                                "verification-documents");
+
+                        profile.PanCardUrl = panUpload.Url;
+                        profile.PanCardPublicId = panUpload.PublicId;
 
                         break;
 
@@ -231,6 +276,10 @@ namespace JobPortal.Services.Implement.Recruiter
                 DocumentType.RPSL => profile.RpslLicenceUrl,
 
                 DocumentType.BUSINESS_REGISTRATION => profile.BusinessRegDocUrl,
+
+                DocumentType.GST => profile.GstCertificateUrl,
+
+                DocumentType.PAN => profile.PanCardUrl,
 
                 _ => null
             };

@@ -50,7 +50,7 @@ public class SubUserService : ISubUserService
         try
         {
             var subUsers = await _context.EmployerSubUsers
-                .Where(s => s.EmployerId == employerId)
+                .Where(s => s.EmployerId == employerId && s.SubUserStatus != "Deleted")
                 .OrderByDescending(s => s.CreatedAt)
                 .ToListAsync();
 
@@ -132,7 +132,8 @@ public class SubUserService : ISubUserService
             var existingCount = await _context.EmployerSubUsers
                 .CountAsync(s =>
                     s.EmployerId == employerId &&
-                    s.SubUserStatus != "Deactivated");
+                    s.SubUserStatus != "Deactivated" &&
+                    s.SubUserStatus != "Deleted");
 
             if (existingCount >= 10)
                 return InviteFail("Maximum 10 sub-users allowed.");
@@ -145,7 +146,8 @@ public class SubUserService : ISubUserService
                         s.SubUserEmail == request.SubUserEmail ||
                         s.SubUserMobile == request.SubUserMobile
                     ) &&
-                    s.SubUserStatus != "Deactivated");
+                    s.SubUserStatus != "Deactivated" &&
+                    s.SubUserStatus != "Deleted");
 
             if (alreadySubUser)
                 return InviteFail(
@@ -673,6 +675,7 @@ public class SubUserService : ISubUserService
             {
                 Success = true,
                 IsSubUser = false,
+                Role = "Owner",
                 CanSearchCandidates = true,
                 CanUnlockProfiles = true,
                 CanPostJobs = true,
@@ -691,6 +694,7 @@ public class SubUserService : ISubUserService
             {
                 Success = false,
                 IsSubUser = true,
+                Role = null,
                 CanSearchCandidates = false,
                 CanUnlockProfiles = false,
                 CanPostJobs = false,
@@ -706,6 +710,7 @@ public class SubUserService : ISubUserService
         {
             Success = true,
             IsSubUser = true,
+            Role = subUser.SubUserRole,
             CanSearchCandidates = isActive && subUser.CanSearchCandidates,
             CanUnlockProfiles = isActive && subUser.CanUnlockProfiles,
             CanPostJobs = isActive && subUser.CanPostJobs,
@@ -731,172 +736,159 @@ public class SubUserService : ISubUserService
         Guid employerId,
         Guid actionUserId)
     {
-        await using var transaction = await _context.Database.BeginTransactionAsync();
+        // Same execution-strategy wrapper needed here as in
+        // RecruiterRegistrationService.SubmitRegistrationAsync — see that
+        // method's comment for why a plain BeginTransactionAsync() no
+        // longer works once EnableRetryOnFailure is configured.
+        var strategy = _context.Database.CreateExecutionStrategy();
 
-        try
+        return await strategy.ExecuteAsync(async () =>
         {
-            if (!await IsEmployerOwnerAsync(actionUserId, employerId))
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
             {
-                return new BaseSubUserResponseDto
+                if (!await IsEmployerOwnerAsync(actionUserId, employerId))
                 {
-                    Success = false,
-                    Message = "Only the account owner can delete sub-users."
-                };
-            }
+                    return new BaseSubUserResponseDto
+                    {
+                        Success = false,
+                        Message = "Only the account owner can delete sub-users."
+                    };
+                }
 
-            var subUser = await _context.EmployerSubUsers
-                .FirstOrDefaultAsync(x =>
-                    x.SubUserId == subUserId &&
-                    x.EmployerId == employerId);
+                var subUser = await _context.EmployerSubUsers
+                    .FirstOrDefaultAsync(x =>
+                        x.SubUserId == subUserId &&
+                        x.EmployerId == employerId);
 
-            if (subUser == null)
-            {
-                return new BaseSubUserResponseDto
+                if (subUser == null)
                 {
-                    Success = false,
-                    Message = "Sub-user not found."
-                };
-            }
+                    return new BaseSubUserResponseDto
+                    {
+                        Success = false,
+                        Message = "Sub-user not found."
+                    };
+                }
 
-            var user = await _context.Users
-                .FirstOrDefaultAsync(x => x.UserId == subUser.UserId);
-
-            if (user == null)
-            {
-                return new BaseSubUserResponseDto
+                if (subUser.SubUserStatus == "Deleted")
                 {
-                    Success = false,
-                    Message = "User not found."
-                };
-            }
+                    return new BaseSubUserResponseDto
+                    {
+                        Success = false,
+                        Message = "Sub-user is already deleted."
+                    };
+                }
 
-            // =====================================================
-            // Safety check: never delete a User row that is actually
-            // an employer's own owner account (cascades into
-            // employer_profiles -> job_postings and hits RESTRICT)
-            // =====================================================
-            var isEmployerOwner = await _context.EmployerProfiles
-                .AnyAsync(x => x.UserId == user.UserId);
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(x => x.UserId == subUser.UserId);
 
-            if (isEmployerOwner)
-            {
-                return new BaseSubUserResponseDto
+                if (user == null)
                 {
-                    Success = false,
-                    Message = "This account is linked to an employer's own profile and cannot be deleted as a sub-user."
-                };
-            }
+                    return new BaseSubUserResponseDto
+                    {
+                        Success = false,
+                        Message = "User not found."
+                    };
+                }
 
-            // =====================================================
-            // Safety check: the same person/email can also have a
-            // Candidate account (e.g. invited as a sub-user using an
-            // email/mobile that already exists as a jobseeker login).
-            // Deleting the shared Users row would violate the RESTRICT
-            // FK on candidate_profiles.user_id, so keep the User row
-            // and only remove the sub-user access in that case.
-            // =====================================================
-            var hasCandidateProfile = await _context.CandidateProfiles
-                .AnyAsync(x => x.UserId == user.UserId);
+                // =====================================================
+                // "Delete" is a SOFT delete, not a row removal. The
+                // EmployerSubUsers row (and the underlying User row) stay in
+                // place forever, purely so every place that already displays
+                // this person's name from a historical record — transaction
+                // history, credit allocation history, CV download history,
+                // job postings they made — keeps showing "Rishi" instead of
+                // "Unknown user" / a bare GUID. Nothing about *access* depends
+                // on the row being physically gone: login is revoked the same
+                // way Deactivate revokes it (via SubUserStatus + AccountStatus
+                // below), and GetSubUsersAsync filters "Deleted" out of the
+                // active sub-user list so it disappears from view exactly like
+                // a real delete would, without losing the name trail.
+                // =====================================================
 
-            var canDeleteUserRow = !hasCandidateProfile;
-
-            // =====================================================
-            // Remove FK references before deleting the sub-user
-            // =====================================================
-
-            // Jobs posted by this sub-user — keep the job, drop the reference
-            var jobs = await _context.JobPostings
-                .Where(x => x.PostedBySubUserId == subUserId)
-                .ToListAsync();
-
-            foreach (var job in jobs)
-            {
-                job.PostedBySubUserId = null;
-            }
-
-            // Credit allocated specifically to this sub-user
-            var creditAllocations = await _context.SubUserCreditAllocation
-                .Where(x => x.SubUserId == subUserId)
-                .ToListAsync();
-
-            if (creditAllocations.Any())
-                _context.SubUserCreditAllocation.RemoveRange(creditAllocations);
-
-            // Credit usage transactions performed by this sub-user's user account
-            var creditUsageTxns = await _context.CreditUsageTransactions
-                .Where(x => x.ActionByUserId == user.UserId)
-                .ToListAsync();
-
-            if (creditUsageTxns.Any())
-                _context.CreditUsageTransactions.RemoveRange(creditUsageTxns);
-
-            // =====================================================
-            // Delete User Sessions, OTPs, Notifications — only when
-            // we are also removing the User row itself. If a
-            // candidate profile still uses this account, leave these
-            // alone; they belong to the still-active candidate login.
-            // =====================================================
-            if (canDeleteUserRow)
-            {
-                var sessions = await _context.UserSessions
-                    .Where(x => x.UserId == user.UserId)
+                // Credit allocated specifically to this sub-user — whatever's
+                // still unspent goes back into the shared pool. Under the
+                // reconciled wallet model, unspent allocations were never
+                // actually subtracted from the wallet itself (only reserved),
+                // so removing the allocation row is enough to make that amount
+                // available for the owner to allocate elsewhere — no wallet
+                // balance change needed. We log the reclaim so the owner can
+                // still see where those credits went.
+                //
+                // NOTE: SubUserCreditAllocation.SubUserId is keyed by the
+                // sub-user's actual login identity (user.UserId), the same way
+                // AllocateCreditsAsync stores it — not by the EmployerSubUsers
+                // row's own id (subUserId param). Querying by subUserId here
+                // would silently match nothing.
+                var creditAllocations = await _context.SubUserCreditAllocation
+                    .Where(x => x.SubUserId == user.UserId)
                     .ToListAsync();
 
-                if (sessions.Any())
-                    _context.UserSessions.RemoveRange(sessions);
+                var reclaimedCredits = creditAllocations.Sum(x => x.RemainingCredits);
 
-                var otps = await _context.OtpVerifications
-                    .Where(x => x.UserId == user.UserId)
-                    .ToListAsync();
+                if (creditAllocations.Any())
+                    _context.SubUserCreditAllocation.RemoveRange(creditAllocations);
 
-                if (otps.Any())
-                    _context.OtpVerifications.RemoveRange(otps);
+                if (reclaimedCredits > 0)
+                {
+                    var wallet = await _context.CreditWallets
+                        .FirstOrDefaultAsync(x => x.EmployerId == employerId);
 
-                var notifications = await _context.Notifications
-                    .Where(x => x.UserId == user.UserId)
-                    .ToListAsync();
+                    var allocatedElsewhere = await _context.SubUserCreditAllocation
+                        .Where(x => x.EmployerId == employerId && x.SubUserId != user.UserId)
+                        .SumAsync(x => (int?)x.RemainingCredits) ?? 0;
 
-                if (notifications.Any())
-                    _context.Notifications.RemoveRange(notifications);
+                    var availableBefore = (wallet?.CreditBalance ?? 0) - allocatedElsewhere - reclaimedCredits;
+
+                    await _context.CreditAllocationHistory.AddAsync(
+                        new CreditAllocationHistory
+                        {
+                            HistoryId = Guid.NewGuid(),
+                            EmployerId = employerId,
+                            SubUserId = subUserId,
+                            SubUserName = subUser.SubUserName,
+                            // Negative marks this as a reclaim rather than a
+                            // fresh allocation — see AllocationHistoryDto.IsReclaim.
+                            CreditsAllocated = -reclaimedCredits,
+                            BalanceBefore = availableBefore,
+                            BalanceAfter = availableBefore + reclaimedCredits,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                }
+
+                // Revoke access immediately — identical mechanism to Deactivate.
+                subUser.SubUserStatus = "Deleted";
+                subUser.DeactivatedAt = DateTime.UtcNow;
+                subUser.InviteToken = null;
+
+                user.AccountStatus = Domain.Enums.common.AccountStatus.Suspended;
+                user.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return new BaseSubUserResponseDto
+                {
+                    Success = true,
+                    Message = "Sub-user deleted successfully."
+                };
             }
-
-            // =====================================================
-            // Delete EmployerSubUser
-            // =====================================================
-            _context.EmployerSubUsers.Remove(subUser);
-
-            // =====================================================
-            // Delete User — only if no other profile (e.g. a
-            // candidate account) still depends on this row.
-            // =====================================================
-            if (canDeleteUserRow)
+            catch (Exception ex)
             {
-                _context.Users.Remove(user);
+                await transaction.RollbackAsync();
+
+                _logger.LogError(ex,
+                    "DeleteSubUser failed. SubUserId:{SubUserId}",
+                    subUserId);
+
+                return new BaseSubUserResponseDto
+                {
+                    Success = false,
+                    Message = ex.InnerException?.Message ?? ex.Message
+                };
             }
-
-            await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            return new BaseSubUserResponseDto
-            {
-                Success = true,
-                Message = "Sub-user deleted successfully."
-            };
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync();
-
-            _logger.LogError(ex,
-                "DeleteSubUser failed. SubUserId:{SubUserId}",
-                subUserId);
-
-            return new BaseSubUserResponseDto
-            {
-                Success = false,
-                Message = ex.InnerException?.Message ?? ex.Message
-            };
-        }
+        });
     }
 
     public async Task<ValidateInviteResponseDto> ValidateInviteAsync(string token)

@@ -35,6 +35,7 @@ public class RegistrationSession
     public DateOnly? GstnRegistrationDate { get; set; }
     public string? State { get; set; }
     public string? City { get; set; }
+    public string? Country { get; set; }
     public string? Pincode { get; set; }
     public string? AddressLine1 { get; set; }
     public string? AddressLine2 { get; set; }
@@ -63,7 +64,7 @@ public class RegistrationSession
     public string? RpslLicencePublicId { get; set; }
     // Meta
     public bool IsCompleted { get; set; } = false;
-    public DateTime CreatedAt { get; set; }  
-    public DateTime UpdatedAt { get; set; }         
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
 }

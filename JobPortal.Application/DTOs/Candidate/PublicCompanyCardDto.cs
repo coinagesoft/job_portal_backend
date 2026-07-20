@@ -83,6 +83,8 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public string? AddressLine2 { get; set; }
 
+        public string? OfficeAddress { get; set; }
+
         public string? City { get; set; }
 
         public string? State { get; set; }

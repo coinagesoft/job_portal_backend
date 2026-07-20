@@ -101,9 +101,7 @@ builder.Services.AddScoped<IResumeWatermarkService, ResumeWatermarkService>();
 builder.Services.AddScoped<IRecruiterCvSearchService, RecruiterCvSearchService>();
 builder.Services.AddScoped<IHomepageService, HomepageService>();
 builder.Services.AddScoped<IRecruiterScreeningQuestionService, RecruiterScreeningQuestionService>();
-
 builder.Services.AddScoped<IRecruiterCvSearchService, RecruiterCvSearchService>();
-
 builder.Services.AddScoped<ICandidateSettingsService, CandidateSettingsService>();
 builder.Services.AddScoped<ICandidateAvailabilityService, CandidateAvailabilityService>();
 builder.Services.AddScoped<ICandidateItiInfoService, CandidateItiInfoService>();

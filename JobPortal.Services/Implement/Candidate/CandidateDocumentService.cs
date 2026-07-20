@@ -28,6 +28,7 @@ public class CandidateDocumentService : ICandidateDocumentService
     private readonly IAffindaService _affinda;
     private readonly IGeminiDocumentParserService _geminiDocumentParserService;
     private readonly IFileStorageService _fileStorage;
+    private readonly ICvGenerationService _cvGeneration;
     private const long MaxDocFileSizeBytes = 10 * 1024 * 1024;
     private const long MaxImageSizeBytes = 5 * 1024 * 1024;
     private static readonly string[] AllowedDocTypes = { "application/pdf", "image/jpeg", "image/png", "application/zip" };
@@ -39,7 +40,8 @@ public class CandidateDocumentService : ICandidateDocumentService
     IConfiguration configuration,
     IAffindaService affinda,
     IFileStorageService fileStorage,
-    IGeminiDocumentParserService geminiDocumentParserService)
+    IGeminiDocumentParserService geminiDocumentParserService,
+    ICvGenerationService cvGeneration)
     {
         _context = context;
         _logger = logger;
@@ -47,6 +49,7 @@ public class CandidateDocumentService : ICandidateDocumentService
         _affinda = affinda;
         _fileStorage = fileStorage;
         _geminiDocumentParserService = geminiDocumentParserService;
+        _cvGeneration = cvGeneration;
     }
 
     // ════════════════════════════════════════════════
@@ -83,6 +86,26 @@ public class CandidateDocumentService : ICandidateDocumentService
                 .OrderByDescending(p => p.CreatedAt)
                 .FirstOrDefaultAsync();
 
+            // The Portal CV should exist the moment there's any profile data
+            // to build it from — there's no "profile must be X% complete"
+            // requirement. If nobody has ever triggered a generation for
+            // this candidate yet (e.g. their account predates the
+            // auto-generate-on-save behaviour), build one now instead of
+            // showing "not generated" indefinitely until their next edit.
+            string? generatedCvUrl = profile.GeneratedCvFileUrl;
+            DateTime? generatedCvUpdatedAt = profile.GeneratedCvUpdatedAt;
+
+            if (string.IsNullOrWhiteSpace(generatedCvUrl))
+            {
+                var generated = await _cvGeneration.GenerateCvAsync(candidateId);
+
+                if (generated.Success && !string.IsNullOrWhiteSpace(generated.GeneratedCvUrl))
+                {
+                    generatedCvUrl = generated.GeneratedCvUrl;
+                    generatedCvUpdatedAt = generated.GeneratedAt;
+                }
+            }
+
             return new CandidateDocumentsResponseDto
             {
                 Success = true,
@@ -105,12 +128,12 @@ public class CandidateDocumentService : ICandidateDocumentService
                         ? null
                         : MapAadhaar(aadhaar),
 
-                    GeneratedCv = string.IsNullOrWhiteSpace(profile.GeneratedCvFileUrl)
+                    GeneratedCv = string.IsNullOrWhiteSpace(generatedCvUrl)
                         ? null
                         : new GeneratedCvDto
                         {
-                            Url = profile.GeneratedCvFileUrl,
-                            UpdatedAt = profile.GeneratedCvUpdatedAt
+                            Url = generatedCvUrl,
+                            UpdatedAt = generatedCvUpdatedAt
                         }
                 }
             };
@@ -125,117 +148,10 @@ public class CandidateDocumentService : ICandidateDocumentService
             return DocsFail("Unable to retrieve candidate documents.");
         }
     }
+
     // ════════════════════════════════════════════════
     // UPLOAD RESUME  (Affinda integration)
     // ════════════════════════════════════════════════
-    //public async Task<UploadResumeResponseDto> UploadResumeAsync(Guid candidateId, IFormFile file)
-    //{
-    //    try
-    //    {
-    //        // 1. Validate
-    //        var validationError = ValidateFile(file, AllowedDocTypes, MaxDocFileSizeBytes);
-    //        if (validationError != null)
-    //            return new UploadResumeResponseDto { Success = false, Message = validationError };
-
-    //        // 2. Load profile with all related data
-    //        var profile = await _context.CandidateProfiles
-    //            .Include(p => p.Cvs)
-    //            .Include(p => p.Skills)
-    //            .Include(p => p.WorkHistories)
-    //            .Include(p => p.Educations)
-    //            .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
-
-    //        if (profile == null)
-    //            return new UploadResumeResponseDto { Success = false, Message = "Candidate profile not found." };
-
-    //        // 3. Build file URL (replace with your actual S3/Azure Blob upload)
-    //        var fileUrl =
-    //   await _fileStorage.SaveFileAsync(
-    //       file,
-    //       "resumes");
-
-
-
-    //        // 4. Call Affinda
-    //        _logger.LogInformation("Sending resume to Affinda for candidate {CandidateId}", candidateId);
-    //        var parseResult = await _affinda.ParseResumeAsync(file);
-    //        _logger.LogInformation(
-    //"Affinda Result => Success:{Success}, Error:{Error}, Name:{Name}, Email:{Email}",
-    //parseResult.Success,
-    //parseResult.ErrorMessage,
-    //parseResult.ParsedName,
-    //parseResult.ParsedEmail);
-    //        // 5. Remove old CV, keep only latest
-    //        _context.CandidateCvs.RemoveRange(profile.Cvs);
-
-    //        // 6. Save new CandidateCv with Affinda data
-    //        var cv = new CandidateCv
-    //        {
-    //            CvId = Guid.NewGuid(),
-    //            CandidateId = candidateId,
-    //            CvFileUrl = fileUrl,
-    //            GeneratedAt = DateTime.UtcNow,
-    //            AffindaJobId = parseResult.AffindaDocId,
-    //            ParsedName = parseResult.ParsedName,
-    //            ParsedPhone = parseResult.ParsedPhone,
-    //            ParsedEmail = parseResult.ParsedEmail,
-    //            ParsedTrade = parseResult.ParsedTrade,
-    //            ParsedExperienceYrs = parseResult.ParsedExperienceYrs,
-    //            ParsedSkillsJson = parseResult.ParsedSkills.Count > 0
-    //                                    ? JsonSerializer.Serialize(parseResult.ParsedSkills)
-    //                                    : null,
-    //            AiConfidenceScore = parseResult.AiConfidenceScore
-    //        };
-    //        _context.CandidateCvs.Add(cv);
-
-    //        // 7. Auto-fill + upsert child tables
-    //        if (parseResult.Success)
-    //        {
-    //            AutoFillProfileFields(profile, parseResult);
-    //            await UpsertSkillsAsync(profile, parseResult.ParsedSkills, candidateId);
-    //            await UpsertWorkHistoriesAsync(profile, parseResult.WorkExperiences, candidateId);
-    //            await UpsertEducationsAsync(profile, parseResult.Educations, candidateId);
-    //        }
-
-    //        // 8. Recalculate profile completion
-    //        profile.ProfileCompletionPct = RecalcPct(profile);
-    //        profile.UpdatedAt = DateTime.UtcNow;
-
-    //        await _context.SaveChangesAsync();
-
-    //        _logger.LogInformation(
-    //            "Resume uploaded & parsed for {CandidateId}. Affinda doc: {DocId}. Skills: {SkillCount}",
-    //            candidateId, parseResult.AffindaDocId, parseResult.ParsedSkills.Count);
-
-    //        return new UploadResumeResponseDto
-    //        {
-    //            Success = true,
-    //            Message = parseResult.Success
-    //                ? "Resume uploaded and parsed successfully."
-    //                : "Resume uploaded. Parsing had issues — some fields may be incomplete.",
-    //            CvId = cv.CvId,
-    //            CvFileUrl = fileUrl,
-    //            ProfileCompletionPct = profile.ProfileCompletionPct,
-    //            AiParsed = parseResult.Success ? new AiParsedResumeDto
-    //            {
-    //                Name = parseResult.ParsedName,
-    //                Phone = parseResult.ParsedPhone,
-    //                Email = parseResult.ParsedEmail,
-    //                Trade = parseResult.ParsedTrade,
-    //                ExperienceYrs = parseResult.ParsedExperienceYrs,
-    //                Skills = parseResult.ParsedSkills,
-    //                ConfidenceScore = parseResult.AiConfidenceScore,
-    //                AffindaDocId = parseResult.AffindaDocId
-    //            } : null
-    //        };
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        _logger.LogError(ex, "UploadResumeAsync failed for {CandidateId}", candidateId);
-    //        return new UploadResumeResponseDto { Success = false, Message = "Internal server error." };
-    //    }
-    //}
-
     public async Task<UploadResumeResponseDto> UploadResumeAsync(
     Guid candidateId,
     IFormFile file)
@@ -310,10 +226,6 @@ public class CandidateDocumentService : ICandidateDocumentService
                 parseResult.ErrorMessage,
                 parseResult.ParsedName,
                 parseResult.ParsedEmail);
-
-            // =====================================================
-            // 6. Handle Parsing Result
-            // =====================================================
 
             // =====================================================
             // 6. Verify parse result + candidate name match
@@ -476,36 +388,33 @@ public class CandidateDocumentService : ICandidateDocumentService
 
             // =====================================================
             // 9. Import Resume Data
-            // Only if candidate has not already entered data
             // =====================================================
 
             if (parseResult.Success)
             {
-                // Skills
-                if (!profile.Skills.Any())
-                {
-                    await UpsertSkillsAsync(
-                        profile,
-                        parseResult.ParsedSkills,
-                        candidateId);
-                }
+                // Skills, Work History, and Education all use the same
+                // pattern as Languages below: always attempt the re-import.
+                // Each Upsert* method internally checks whether any existing
+                // row was manually added/edited (not AI-derived) and, if so,
+                // leaves that candidate's data alone entirely — otherwise it
+                // replaces the old AI-derived rows with the freshly parsed
+                // set. Previously this call site gated each one behind
+                // "only if currently empty", which made that replace-logic
+                // unreachable and meant a second resume upload silently did
+                // nothing once any row existed from the first upload.
+                await UpsertSkillsAsync(
+                    profile,
+                    parseResult.ParsedSkills,
+                    candidateId);
 
-                // Work History
-                if (!profile.WorkHistories.Any())
-                {
-                    await UpsertWorkHistoriesAsync(
-                        profile,
-                        parseResult.WorkExperiences,
-                        candidateId);
-                }
+                await UpsertWorkHistoriesAsync(
+                    profile,
+                    parseResult.WorkExperiences,
+                    candidateId);
 
-                // Education
-                if (!profile.Educations.Any())
-                {
-                    await UpsertEducationsAsync(
-                        parseResult.Educations,
-                        candidateId);
-                }
+                await UpsertEducationsAsync(
+                    parseResult.Educations,
+                    candidateId);
 
                 // Languages (previously parsed but never persisted anywhere queryable)
                 await UpsertLanguagesAsync(
@@ -796,7 +705,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 };
             }
 
-            
+
             var shortId = candidateId.ToString("N").Substring(0, 8);
             var fileName = $"{Slugify(documentType)}_{Slugify(profile.FullName)}_{shortId}";
 
@@ -1634,75 +1543,6 @@ public class CandidateDocumentService : ICandidateDocumentService
     // ════════════════════════════════════════════════
     // PASSPORT
     // ════════════════════════════════════════════════
-    //public async Task<UploadPassportResponseDto> UploadPassportAsync(
-    //    Guid candidateId, UploadPassportRequestDto request,
-    //    IFormFile frontImage, IFormFile? backImage)
-    //{
-    //    try
-    //    {
-    //        if (!request.ConsentGiven)
-    //            return new UploadPassportResponseDto
-    //            { Success = false, Message = "Consent is required to upload ID documents." };
-
-    //        var frontError = ValidateFile(frontImage, AllowedImgTypes, MaxImageSizeBytes);
-    //        if (frontError != null)
-    //            return new UploadPassportResponseDto { Success = false, Message = frontError };
-
-    //        if (backImage != null)
-    //        {
-    //            var backError = ValidateFile(backImage, AllowedImgTypes, MaxImageSizeBytes);
-    //            if (backError != null)
-    //                return new UploadPassportResponseDto { Success = false, Message = backError };
-    //        }
-
-    //        var profileExists = await _context.CandidateProfiles
-    //            .AnyAsync(p => p.CandidateId == candidateId);
-    //        if (!profileExists)
-    //            return new UploadPassportResponseDto { Success = false, Message = "Candidate not found." };
-
-    //        var existing = await _context.Set<PassportVerification>()
-    //            .Where(p => p.CandidateId == candidateId).ToListAsync();
-    //        _context.Set<PassportVerification>().RemoveRange(existing);
-
-    //        var frontUrl = $"{_configuration["Storage:BaseUrl"]}/passport/{candidateId}/front_{Guid.NewGuid()}{Path.GetExtension(frontImage.FileName)}";
-    //        string? backUrl = backImage == null ? null
-    //            : $"{_configuration["Storage:BaseUrl"]}/passport/{candidateId}/back_{Guid.NewGuid()}{Path.GetExtension(backImage.FileName)}";
-
-    //        var pv = new PassportVerification
-    //        {
-    //            VerificationId = Guid.NewGuid(),
-    //            CandidateId = candidateId,
-    //            FrontImageUrl = frontUrl,
-    //            BackImageUrl = backUrl,
-    //            AdminDecision = "Pending",
-    //            CreatedAt = DateTime.UtcNow
-    //        };
-
-    //        _context.Set<PassportVerification>().Add(pv);
-    //        await _context.SaveChangesAsync();
-
-    //        var profile = await _context.CandidateProfiles
-    //            .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
-
-    //        return new UploadPassportResponseDto
-    //        {
-    //            Success = true,
-    //            Message = "Passport uploaded. Pending admin review.",
-    //            VerificationId = pv.VerificationId,
-    //            FrontImageUrl = frontUrl,
-    //            BackImageUrl = backUrl,
-    //            AdminDecision = "Pending",
-    //            ProfileCompletionPct = profile?.ProfileCompletionPct ?? 0
-    //        };
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        _logger.LogError(ex, "UploadPassportAsync failed for {CandidateId}", candidateId);
-    //        return new UploadPassportResponseDto { Success = false, Message = "Internal server error." };
-    //    }
-    //}
-
-
     public async Task<UploadPassportResponseDto> UploadPassportAsync(
     Guid candidateId,
     UploadPassportRequestDto request,
@@ -2222,11 +2062,6 @@ public class CandidateDocumentService : ICandidateDocumentService
             }
 
             // =====================================================
-            // Part 3.1B Starts Here
-            // Gemini OCR Parsing
-            // =====================================================
-
-            // =====================================================
             // 7. Parse Aadhaar Using Gemini OCR
             // =====================================================
             _logger.LogInformation(
@@ -2290,11 +2125,6 @@ public class CandidateDocumentService : ICandidateDocumentService
                 AiExtractedDob = extractedDob,
                 AiExtractedAddress = extractedAddress,
 
-                //If later you enhance the parser to calculate or receive confidence,
-                //you can simply change these lines to:
-                //AiConfidenceScore = parseResult.AiConfidenceScore,
-
-                //OcrConfidence = parseResult.OcrConfidence,
                 AiConfidenceScore = null,
 
                 OcrConfidence = null,
@@ -2351,19 +2181,13 @@ public class CandidateDocumentService : ICandidateDocumentService
                 completion?.OverallPct ?? 0;
 
             // =====================================================
-            // 12. Remove Previous Aadhaar Record
-            // =====================================================
-
-
-
-            // =====================================================
-            // 13. Save Changes
+            // 12. Save Changes
             // =====================================================
 
             await _context.SaveChangesAsync();
 
             // =====================================================
-            // 14. Delete Previous Cloudinary Images
+            // 13. Delete Previous Cloudinary Images
             // Only after successful DB save
             // =====================================================
 
@@ -2387,7 +2211,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             }
 
             // =====================================================
-            // 15. Logging
+            // 14. Logging
             // =====================================================
 
             _logger.LogInformation(
@@ -2395,7 +2219,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 candidateId);
 
             // =====================================================
-            // 16. Response
+            // 15. Response
             // =====================================================
 
             return new UploadAadhaarResponseDto
@@ -2701,8 +2525,10 @@ public class CandidateDocumentService : ICandidateDocumentService
                 continue;
             }
 
+            var workDates = exp.Parsed?.WorkExperienceDates?.Parsed;
+
             var startDate =
-                ParseDatePoint(exp.Parsed?.WorkExperienceDates?.Start);
+                ParseDatePoint(workDates?.Start);
 
             // Affinda sometimes gives no usable date for an entry at all
             // (common on resumes with dates in a separate sidebar column
@@ -2713,9 +2539,9 @@ public class CandidateDocumentService : ICandidateDocumentService
             // are still valuable) and simply leave the date unset rather
             // than inventing one.
             var endDate =
-                exp.Parsed?.WorkExperienceDates?.End?.IsCurrent == true
+                workDates?.End?.IsCurrent == true
                     ? null
-                    : ParseDatePoint(exp.Parsed?.WorkExperienceDates?.End);
+                    : ParseDatePoint(workDates?.End);
 
             _context.CandidateWorkHistories.Add(new CandidateWorkHistory
             {
@@ -2735,14 +2561,14 @@ public class CandidateDocumentService : ICandidateDocumentService
                 EndDate = endDate,
 
                 IsCurrent =
-                    exp.Parsed?.WorkExperienceDates?.End?.IsCurrent
+                    workDates?.End?.IsCurrent
                     ?? false,
 
                 JobDescription =
                     exp.Parsed?.WorkExperienceDescription?.Parsed,
 
                 WorkLocation =
-                    exp.Parsed?.WorkExperienceLocation?.Formatted,
+                    exp.Parsed?.WorkExperienceLocation?.Parsed?.Formatted,
 
                 IsOffshore = false,
 
@@ -2756,7 +2582,7 @@ public class CandidateDocumentService : ICandidateDocumentService
         if (languages == null || !languages.Any()) return new();
 
         return languages
-            .Select(l => l.Parsed?.Parsed)
+            .Select(l => l.Parsed?.LanguageName?.Parsed?.Label)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -2771,6 +2597,7 @@ public class CandidateDocumentService : ICandidateDocumentService
         {
             var accreditation = edu.Parsed?.EducationAccreditation?.Parsed;
             var levelLabel = edu.Parsed?.EducationLevel?.Value ?? edu.Parsed?.EducationLevel?.Label;
+            var eduDates = edu.Parsed?.EducationDates?.Parsed;
 
             var grade =
                 edu.Parsed?.EducationGrade?.EducationGradeScore?.ToString()
@@ -2782,8 +2609,8 @@ public class CandidateDocumentService : ICandidateDocumentService
                 Qualification = accreditation,
                 Level = levelLabel,
                 InstituteName = edu.Parsed?.EducationOrganization?.Parsed,
-                StartYear = edu.Parsed?.EducationDates?.Start?.Year,
-                EndYear = edu.Parsed?.EducationDates?.End?.Year,
+                StartYear = eduDates?.Start?.Year,
+                EndYear = eduDates?.End?.Year,
                 Grade = string.IsNullOrWhiteSpace(grade)
                     ? null
                     : string.IsNullOrWhiteSpace(gradeUnit) ? grade : $"{grade} {gradeUnit}"
@@ -2801,17 +2628,21 @@ public class CandidateDocumentService : ICandidateDocumentService
 
         return workExperiences
             .Where(exp => !string.IsNullOrWhiteSpace(exp.Parsed?.WorkExperienceJobTitle?.Parsed))
-            .Select(exp => new AiParsedWorkExperienceDto
+            .Select(exp =>
             {
-                JobTitle = exp.Parsed?.WorkExperienceJobTitle?.Parsed,
-                CompanyName = exp.Parsed?.WorkExperienceOrganization?.Parsed,
-                Location = exp.Parsed?.WorkExperienceLocation?.Formatted,
-                StartDate = ParseDatePoint(exp.Parsed?.WorkExperienceDates?.Start),
-                EndDate = exp.Parsed?.WorkExperienceDates?.End?.IsCurrent == true
-                    ? null
-                    : ParseDatePoint(exp.Parsed?.WorkExperienceDates?.End),
-                IsCurrent = exp.Parsed?.WorkExperienceDates?.End?.IsCurrent ?? false,
-                Description = exp.Parsed?.WorkExperienceDescription?.Parsed
+                var workDates = exp.Parsed?.WorkExperienceDates?.Parsed;
+                return new AiParsedWorkExperienceDto
+                {
+                    JobTitle = exp.Parsed?.WorkExperienceJobTitle?.Parsed,
+                    CompanyName = exp.Parsed?.WorkExperienceOrganization?.Parsed,
+                    Location = exp.Parsed?.WorkExperienceLocation?.Parsed?.Formatted,
+                    StartDate = ParseDatePoint(workDates?.Start),
+                    EndDate = workDates?.End?.IsCurrent == true
+                        ? null
+                        : ParseDatePoint(workDates?.End),
+                    IsCurrent = workDates?.End?.IsCurrent ?? false,
+                    Description = exp.Parsed?.WorkExperienceDescription?.Parsed
+                };
             })
             .ToList();
     }
@@ -2839,7 +2670,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             _context.CandidateSkills.RemoveRange(existingLanguages);
 
         var distinctLanguages = affindaLanguages
-            .Select(l => l.Parsed?.Parsed)
+            .Select(l => l.Parsed?.LanguageName?.Parsed?.Label)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase);
@@ -2907,10 +2738,10 @@ public class CandidateDocumentService : ICandidateDocumentService
 
             short? passoutYear = null;
 
-            if (edu.Parsed?.EducationDates?.End?.Year != null)
+            if (edu.Parsed?.EducationDates?.Parsed?.End?.Year != null)
             {
                 passoutYear =
-                    (short)edu.Parsed.EducationDates.End.Year.Value;
+                    (short)edu.Parsed.EducationDates.Parsed.End.Year.Value;
             }
 
             var grade =
@@ -2992,67 +2823,37 @@ public class CandidateDocumentService : ICandidateDocumentService
         int completed = 0;
         const int totalSections = 10;
 
-        // ============================================
-        // 1. Basic Profile
-        // ============================================
         if (!string.IsNullOrWhiteSpace(profile.FullName))
             completed++;
 
-        // ============================================
-        // 2. Personal Details
-        // ============================================
         if (profile.DateOfBirth.HasValue &&
             !string.IsNullOrWhiteSpace(profile.Gender))
             completed++;
 
-        // ============================================
-        // 3. Location
-        // ============================================
         if (!string.IsNullOrWhiteSpace(profile.CurrentCity) &&
             !string.IsNullOrWhiteSpace(profile.CurrentState))
             completed++;
 
-        // ============================================
-        // 4. Resume
-        // ============================================
         if (profile.Cvs?.Any(x => !string.IsNullOrWhiteSpace(x.CvFileUrl)) == true)
             completed++;
 
-        // ============================================
-        // 5. Skills
-        // ============================================
         if (profile.Skills?.Any() == true)
             completed++;
 
-        // ============================================
-        // 6. Work History
-        // ============================================
         if (profile.WorkHistories?.Any() == true)
             completed++;
 
-        // ============================================
-        // 7. Education
-        // ============================================
         if (profile.Educations?.Any() == true)
             completed++;
 
-        // ============================================
-        // 8. Professional Information
-        // ============================================
         if (!string.IsNullOrWhiteSpace(profile.PrimaryTrade) &&
             profile.TotalExperienceYears >= 0)
             completed++;
 
-        // ============================================
-        // 9. About
-        // ============================================
         if (!string.IsNullOrWhiteSpace(profile.ProfessionalSummary) ||
             !string.IsNullOrWhiteSpace(profile.About))
             completed++;
 
-        // ============================================
-        // 10. Documents
-        // ============================================
         if ((profile.KycVerifications?.Any() ?? false) ||
             (profile.PassportVerifications?.Any() ?? false))
             completed++;

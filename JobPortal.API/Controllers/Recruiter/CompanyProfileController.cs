@@ -18,6 +18,9 @@ namespace JobPortal.API.Controllers.Recruiter
             _companyProfileService = companyProfileService;
         }
 
+        private bool GetIsSubUser() =>
+            User.FindFirst("IsSubUser")?.Value == "true";
+
         [HttpGet("{employerId:guid}")]
         public async Task<IActionResult> GetCompanyProfile(Guid employerId)
         {
@@ -41,6 +44,19 @@ namespace JobPortal.API.Controllers.Recruiter
             Guid employerId,
             [FromForm] UpdateCompanyProfileDto request)
         {
+            // Company profile edits are restricted to the account owner —
+            // no sub-user, regardless of their individual permission flags,
+            // may change these details. Sub-users can still view the
+            // profile via GetCompanyProfile above.
+            if (GetIsSubUser())
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "You don't have permission to edit the company profile. Please contact your account owner."
+                });
+            }
+
             var result = await _companyProfileService
                 .UpdateCompanyProfileAsync(employerId, request);
 
