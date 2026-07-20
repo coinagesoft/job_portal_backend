@@ -318,7 +318,7 @@ namespace JobPortal.Services.Implement.Recruiter
 
                                 CvAvailable =
                                     !string.IsNullOrWhiteSpace(
-                                        latestCv.CvPdfUrl),
+                                        latestCv.CvFileUrl),
 
                                 CanDownloadCv =
                                     isUnlocked
