@@ -14,6 +14,25 @@ namespace JobPortal.Services.IImplement.IRecruiter
             UpdateAccountSettingsRequestDto request);
 
 
+        // Account Email / Mobile Change (OTP-gated)
+
+        Task<SettingsOtpResponseDto> RequestEmailChangeOtpAsync(
+            Guid employerId,
+            RequestEmailChangeOtpRequestDto request);
+
+        Task<SettingsOtpResponseDto> VerifyEmailChangeOtpAsync(
+            Guid employerId,
+            VerifyEmailChangeOtpRequestDto request);
+
+        Task<SettingsOtpResponseDto> RequestMobileChangeOtpAsync(
+            Guid employerId,
+            RequestMobileChangeOtpRequestDto request);
+
+        Task<SettingsOtpResponseDto> VerifyMobileChangeOtpAsync(
+            Guid employerId,
+            VerifyMobileChangeOtpRequestDto request);
+
+
         // Notification Settings
 
         Task<GetNotificationSettingsResponseDto?> GetNotificationSettingsAsync(
@@ -41,5 +60,20 @@ namespace JobPortal.Services.IImplement.IRecruiter
 
         Task<RevokeSessionResponseDto> RevokeSessionAsync(
             Guid sessionId);
+
+
+        // Danger Zone
+
+        Task<DangerZoneActionResponseDto> DeactivateAccountAsync(
+            Guid employerId);
+
+        Task<DangerZoneActionResponseDto> DeleteAllJobsAsync(
+            Guid employerId);
+
+        Task<DangerZoneActionResponseDto> DeleteAccountAsync(
+            Guid employerId);
+
+        Task<DangerZoneActionResponseDto> ReactivateAccountAsync(
+            Guid employerId);
     }
 }

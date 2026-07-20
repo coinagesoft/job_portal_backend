@@ -20,7 +20,16 @@ namespace JobPortal.Domain.Enums.common
         Suspended,
 
         [EnumMember(Value = "Rejected")]
-        Rejected
+        Rejected,
+
+        /// <summary>
+        /// Permanently deleted by the account owner via Settings ▸ Delete
+        /// Account. The row is kept (soft-delete) for audit/billing-history
+        /// purposes, but the account can never authenticate again and is
+        /// excluded from every candidate/admin-facing query.
+        /// </summary>
+        [EnumMember(Value = "Deleted")]
+        Deleted
     }
 
 }
