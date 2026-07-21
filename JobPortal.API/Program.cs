@@ -109,7 +109,6 @@ builder.Services.AddScoped<ICandidateLogoutService, CandidateLogoutService>();
 builder.Services.AddScoped<ICandidateLoginService, CandidateLoginService>();
 
 builder.Services.AddScoped<CandidatePagedJobService>();
-
 //builder.Services.AddScoped<IAffindaService, AffindaService>();
 builder.Services.Configure<CloudinarySettingsDto>(
     builder.Configuration.GetSection("CloudinarySettings"));

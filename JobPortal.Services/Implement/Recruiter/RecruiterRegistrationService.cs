@@ -645,9 +645,9 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             var otp = GenerateOtp();
 
             // ===== QA BYPASS: real email OTP send disabled =====
-            // await _emailService.SendOtpEmailAsync(
-            //     request.CompanyEmail,
-            //     otp);
+            await _emailService.SendOtpEmailAsync(
+                request.CompanyEmail,
+                otp);
             // ===== END QA BYPASS =====
 
             var oldOtp = await _context.OtpVerifications
@@ -671,7 +671,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     Purpose = "RecruiterRegistrationEmail",
                     IsVerified = false,
                     OtpAttempts = 0,
-                    ResendCooldownSec = 60
+                    ResendCooldownSec = 30
                 });
 
             await _context.SaveChangesAsync();
@@ -680,7 +680,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             {
                 Success = true,
                 Message = "Email OTP sent successfully.",
-                OtpExpiresInSeconds = 600
+                OtpExpiresInSeconds = 300
             };
         }
         catch (Exception ex)
@@ -731,10 +731,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             }
 
             // ===== QA BYPASS: static OTP "123456" accepted, real check disabled =====
-            // var valid = BCrypt.Net.BCrypt.Verify(
-            //     request.EmailOtpCode,
-            //     otpRecord.OtpCode);
-            var valid = request.EmailOtpCode == "123456";
+            var valid = BCrypt.Net.BCrypt.Verify(
+                request.EmailOtpCode,
+                otpRecord.OtpCode);
+            //var valid = request.EmailOtpCode == "123456";
             // ===== END QA BYPASS =====
 
             if (!valid)
@@ -804,9 +804,9 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             var otp = GenerateOtp();
 
             // ===== QA BYPASS: real email OTP send disabled =====
-            // await _emailService.SendOtpEmailAsync(
-            //     session.CompanyEmail!,
-            //     otp);
+            await _emailService.SendOtpEmailAsync(
+                session.CompanyEmail!,
+                otp);
             // ===== END QA BYPASS =====
 
             var oldOtps = await _context.OtpVerifications
@@ -893,8 +893,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             var fullPhone = $"{request.CountryCode}{request.MobileNumber}";
 
             // ===== QA BYPASS: real Twilio OTP send disabled =====
-            // var sent = await _twilioOtpService.SendOtpAsync(fullPhone);
-            var sent = true;
+             var sent = await _twilioOtpService.SendOtpAsync(fullPhone);
+            //var sent = true;
             // ===== END QA BYPASS =====
 
             if (!sent)
@@ -910,7 +910,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             {
                 Success = true,
                 Message = "Mobile OTP sent successfully.",
-                OtpExpiresInSeconds = 600
+                OtpExpiresInSeconds = 300
             };
         }
         catch (Exception ex)
@@ -947,11 +947,11 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 $"{request.CountryCode}{request.MobileNumber}";
 
             // ===== QA BYPASS: static OTP "123456" accepted, real Twilio check disabled =====
-            // var valid =
-            //     await _twilioOtpService.VerifyOtpAsync(
-            //         fullPhone,
-            //         request.MobileOtpCode);
-            var valid = request.MobileOtpCode == "123456";
+            var valid =
+                await _twilioOtpService.VerifyOtpAsync(
+                    fullPhone,
+                    request.MobileOtpCode);
+            //var valid = request.MobileOtpCode == "123456";
             // ===== END QA BYPASS =====
 
             if (!valid)
@@ -1017,9 +1017,9 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 $"{session.CountryCode}{session.MobileNumber}";
 
             // ===== QA BYPASS: real Twilio OTP send disabled =====
-            // var sent =
-            //     await _twilioOtpService.SendOtpAsync(fullPhone);
-            var sent = true;
+            var sent =
+                await _twilioOtpService.SendOtpAsync(fullPhone);
+            //var sent = true;
             // ===== END QA BYPASS =====
 
             if (!sent)

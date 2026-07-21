@@ -213,12 +213,11 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 await _context.SaveChangesAsync();
 
-                // ===== QA BYPASS: real email OTP send disabled =====
-                // await _emailService.SendOtpEmailAsync(
-                //     identifier,
-                //     otpCode);
-                _logger.LogInformation(
-                    "QA BYPASS - Login Email OTP send skipped. Static OTP 123456 applies.");
+                await _emailService.SendOtpEmailAsync(
+                    identifier,
+                    otpCode);
+                //_logger.LogInformation(
+                //    "QA BYPASS - Login Email OTP send skipped. Static OTP 123456 applies.");
                 // ===== END QA BYPASS =====
             }
             else
@@ -230,12 +229,9 @@ public class RecruiterAuthService : IRecruiterAuthService
                     "TWILIO SEND OTP - Phone:{Phone}",
                     phoneNumber);
 
-                // ===== QA BYPASS: real Twilio OTP send disabled =====
-                // var sent =
-                //     await _twilioOtpService
-                //         .SendOtpAsync(phoneNumber);
-                var sent = true;
-                // ===== END QA BYPASS =====
+                var sent =
+                    await _twilioOtpService
+                        .SendOtpAsync(phoneNumber);
 
                 _logger.LogInformation(
                     "TWILIO RESULT - Sent:{Sent}",
@@ -302,7 +298,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                         : "mobile",
 
                 ExpiresInSeconds =
-                    OtpExpiryMinutes * 60,
+                    OtpExpiryMinutes * 30,
 
                 ResendCooldownSeconds =
                     ResendCooldownSeconds
@@ -455,26 +451,25 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             bool isValid;
 
-            // ===== QA BYPASS: static OTP "123456" accepted, real checks disabled =====
-            // if (isEmail)
-            // {
-            //     isValid =
-            //         BCrypt.Net.BCrypt.Verify(
-            //             request.OtpCode,
-            //             otp.OtpCode);
-            // }
-            // else
-            // {
-            //     var phoneNumber =
-            //         $"{request.CountryCode}{identifier}";
-            //
-            //     isValid =
-            //         await _twilioOtpService
-            //             .VerifyOtpAsync(
-            //                 phoneNumber,
-            //                 request.OtpCode);
-            // }
-            isValid = request.OtpCode == "123456";
+            if (isEmail)
+            {
+                isValid =
+                    BCrypt.Net.BCrypt.Verify(
+                        request.OtpCode,
+                        otp.OtpCode);
+            }
+            else
+            {
+                var phoneNumber =
+                    $"{request.CountryCode}{identifier}";
+
+                isValid =
+                    await _twilioOtpService
+                        .VerifyOtpAsync(
+                            phoneNumber,
+                            request.OtpCode);
+            }
+            //isValid = request.OtpCode == "123456";
             // ===== END QA BYPASS =====
 
             if (!isValid)
