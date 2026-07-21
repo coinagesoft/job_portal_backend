@@ -30,7 +30,7 @@ public class JobDetailsRequestDto
     public int? ExperienceMaxYears { get; set; }
 
     [Required]
-    public string JobType { get; set; } = "Normal Job";
+    public string JobType { get; set; } = "Regular Hiring";
 
     public string IndustryType { get; set; } = default!;
 

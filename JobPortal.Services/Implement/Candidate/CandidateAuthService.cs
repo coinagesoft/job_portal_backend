@@ -165,7 +165,8 @@ public class CandidateAuthService : ICandidateAuthService
                 _jwtService.GenerateToken(
                     user.UserId,
                     user.UserType.ToString(),
-                    user.MobileNumber);
+                    user.MobileNumber,
+                    candidateId: profile.CandidateId);
 
             return new CandidateRegisterResponseDto
             {

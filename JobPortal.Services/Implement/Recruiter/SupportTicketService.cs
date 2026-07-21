@@ -147,6 +147,27 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
+            var ticket = await _context.SupportTickets
+                .FirstOrDefaultAsync(x => x.TicketId == ticketId);
+
+            if (ticket == null)
+            {
+                return new AddTicketReplyResponseDto
+                {
+                    Success = false,
+                    Message = "Ticket not found."
+                };
+            }
+
+            if (ticket.Status == "Resolved")
+            {
+                return new AddTicketReplyResponseDto
+                {
+                    Success = false,
+                    Message = "This ticket is resolved and no longer accepts new messages. Please raise a new ticket if you need further help."
+                };
+            }
+
             var reply = new SupportTicketReply
             {
                 ReplyId = Guid.NewGuid(),

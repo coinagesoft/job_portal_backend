@@ -224,5 +224,6 @@ app.UseStaticFiles();
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<JobPortal.API.Middleware.ActiveSubUserMiddleware>();
 app.MapControllers();
 app.Run();

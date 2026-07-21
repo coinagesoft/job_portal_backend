@@ -60,7 +60,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 // =====================================================
 
                 NormalJobs = jobs.Count(x =>
-                    x.JobType == "Normal Job"),
+                    x.JobType == "Regular Hiring"),
 
                 ClassifiedJobs = jobs.Count(x =>
                     x.JobType == "Classified"),
