@@ -155,59 +155,30 @@ namespace JobPortal.Services.Implement.Recruiter
             var font = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
             var pageCount = pdf.GetNumberOfPages();
 
-            // Watermark lines shown on every page
-            var lines = new[]
-            {
-                "JOB PORTAL",
-                "CONFIDENTIAL",
-                $"Downloaded by: {downloadedByLabel}",
-                $"Reference ID: {referenceId.ToString()[..8].ToUpper()}",
-                $"Downloaded On: {downloadedAt:dd-MMM-yyyy HH:mm} UTC",
-                "www.jobportal.com"
-            };
-
             for (int i = 1; i <= pageCount; i++)
             {
                 var page = pdf.GetPage(i);
                 var pageSize = page.GetPageSize();
-                var canvas = new PdfCanvas(page);
 
-                // Save graphics state, set opacity to ~25 %
-                canvas.SaveState();
-                var extGState = new iText.Kernel.Pdf.Extgstate.PdfExtGState();
-                extGState.SetFillOpacity(0.18f);
-                canvas.SetExtGState(extGState);
+                var pdfCanvas = new PdfCanvas(page);
+                var canvas = new Canvas(pdfCanvas, pageSize);
 
-                // Rotate 45° around the page centre (diagonal)
-                float cx = pageSize.GetWidth() / 2f;
-                float cy = pageSize.GetHeight() / 2f;
+                var footer =
+                    $"Downloaded from JOB PORTAL | Downloaded by: {downloadedByLabel} | " +
+                    $"Ref: {referenceId.ToString()[..8].ToUpper()} | " +
+                    $"{downloadedAt:dd-MMM-yyyy HH:mm} UTC";
 
-                canvas.ConcatMatrix(
-                    AffineTransformOf45Degrees(cx, cy));
+                canvas.ShowTextAligned(
+                    new Paragraph(footer)
+                        .SetFont(font)
+                        .SetFontSize(8)
+                        .SetFontColor(ColorConstants.GRAY),
+                    pageSize.GetWidth() / 2,
+                    15,
+                    TextAlignment.CENTER
+                );
 
-                // Draw each line centred around the rotation pivot
-                float fontSize = 22f;
-                float lineGap = 30f;
-                float totalH = lines.Length * lineGap;
-                float startY = cy + totalH / 2f;
-
-                canvas.SetFillColor(new DeviceRgb(105, 105, 105)); // dark-grey
-                canvas.SetFontAndSize(font, fontSize);
-
-                foreach (var line in lines)
-                {
-                    float textWidth = font.GetWidth(line, fontSize);
-                    float x = cx - textWidth / 2f;
-
-                    canvas.BeginText()
-                          .MoveText(x, startY)
-                          .ShowText(line)
-                          .EndText();
-
-                    startY -= lineGap;
-                }
-
-                canvas.RestoreState();
+                canvas.Close();
             }
 
             pdf.Close();
