@@ -14,7 +14,7 @@ public class EmployerBadge
 
     public Guid EmployerId { get; set; }
 
-    public BadgeType BadgeType { get; set; }
+    public BadgeType? BadgeType { get; set; }
 
     public BadgeStatus BadgeStatus { get; set; }
 
@@ -29,5 +29,9 @@ public class EmployerBadge
     // Navigation
     public EmployerProfile EmployerProfile { get; set; } = default!;
     public AdminUser? IssuedByAdmin { get; set; }
+
+    public Guid? VerificationDocumentId { get; set; }
+
+    public EmployerVerificationDocument? VerificationDocument { get; set; }
 }
 

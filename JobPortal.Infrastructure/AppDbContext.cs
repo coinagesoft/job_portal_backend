@@ -89,6 +89,10 @@ public class AppDbContext : DbContext
     public DbSet<CandidateLogoutSession> CandidateLogoutSessions => Set<CandidateLogoutSession>();
     public DbSet<CandidateEmbedding> CandidateEmbeddings { get; set; }
     public DbSet<CandidateDocument> CandidateDocuments => Set<CandidateDocument>();
+    
+    public DbSet<EmployerVerificationDocument> EmployerVerificationDocuments { get; set; }
+
+    public DbSet<VerificationDocumentMaster> VerificationDocumentMasters { get; set; }
 
     //public DbSet<JobEmbedding> JobEmbeddings { get; set; }
     public DbSet<JobEmbedding> JobEmbeddings =>

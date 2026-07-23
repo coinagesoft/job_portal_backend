@@ -23,8 +23,7 @@ namespace JobPortal.Services.Implement.Recruiter
             _context = context;
         }
 
-        public async Task<CreditConfigurationResponseDto?>
-            GetConfigurationAsync()
+        public async Task<CreditConfigurationResponseDto?> GetConfigurationAsync()
         {
             var config =
                 await _context.CreditConfigurations
@@ -48,8 +47,7 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<CommonResponseDto>
-            UpdateConfigurationAsync(
+        public async Task<CommonResponseDto> UpdateConfigurationAsync(
                 UpdateCreditConfigurationRequestDto request,
                 Guid adminId)
         {

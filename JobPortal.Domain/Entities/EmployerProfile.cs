@@ -56,6 +56,9 @@ public class EmployerProfile
     public bool SecurityDepositPaid { get; set; } = false;
     public string? SecurityDepositStatus { get; set; }
     public byte ProfileCompletionScore { get; set; } = 0;
+    public Guid? VerifiedBy { get; set; }
+
+    public DateTime? VerifiedAt { get; set; }
 
     /// <summary>
     /// Number of reviews candidates have given this company.
@@ -108,4 +111,7 @@ public class EmployerProfile
     public ICollection<EmployerSubUser> SubUsers { get; set; } = new List<EmployerSubUser>();
 
     public EmployerNotificationSetting? NotificationSetting { get; set; }
+
+    public ICollection<EmployerVerificationDocument> VerificationDocuments { get; set; }
+    = new List<EmployerVerificationDocument>();
 }
