@@ -107,8 +107,12 @@ builder.Services.AddScoped<ICandidateAvailabilityService, CandidateAvailabilityS
 builder.Services.AddScoped<ICandidateItiInfoService, CandidateItiInfoService>();
 builder.Services.AddScoped<ICandidateLogoutService, CandidateLogoutService>();
 builder.Services.AddScoped<ICandidateLoginService, CandidateLoginService>();
-
+builder.Services.AddScoped<ICompanyDocumentService, CompanyDocumentService>();
+builder.Services.AddScoped<IDocumentTypeService, DocumentTypeService>();
+builder.Services.AddScoped<IAdminCompanyDocumentService, AdminCompanyDocumentService>();
+builder.Services.AddScoped<IAdminDocumentTypeService, AdminDocumentTypeService>();
 builder.Services.AddScoped<CandidatePagedJobService>();
+builder.Services.AddHttpClient<IGeminiCompanyDocumentParserService, GeminiCompanyDocumentParserService>();
 //builder.Services.AddScoped<IAffindaService, AffindaService>();
 builder.Services.Configure<CloudinarySettingsDto>(
     builder.Configuration.GetSection("CloudinarySettings"));

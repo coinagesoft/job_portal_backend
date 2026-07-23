@@ -591,7 +591,7 @@ namespace JobPortal.Services.Implement.Recruiter
         public async Task<List<CreditUsageHistoryDto>> GetCreditUsageHistoryAsync(Guid employerId)
         {
             var monthCredits =
-    await _context.CreditUsageTransactions
+        await _context.CreditUsageTransactions
         .Where(x =>
             x.EmployerId == employerId &&
             x.CreatedAt.Month == DateTime.UtcNow.Month &&
@@ -1392,6 +1392,7 @@ namespace JobPortal.Services.Implement.Recruiter
 
             return (true, string.Empty);
         }
+
         private async Task<EmployerCandidateAccess?> GetCandidateAccessAsync(Guid employerId, Guid candidateId)
         {
             return await _context.EmployerCandidateAccesses

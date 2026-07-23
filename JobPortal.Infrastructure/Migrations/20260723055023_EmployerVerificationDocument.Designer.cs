@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260723055023_EmployerVerificationDocument")]
+    partial class EmployerVerificationDocument
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1175,6 +1178,7 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("BadgeType")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<Guid>("EmployerId")
@@ -1632,12 +1636,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
-                    b.Property<DateTime?>("VerifiedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("VerifiedBy")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("WebsiteUrl")
                         .HasColumnType("text")
                         .HasColumnName("website_url");
@@ -1751,17 +1749,16 @@ namespace JobPortal.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<decimal?>("AiConfidenceScore")
-                        .HasColumnType("numeric");
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text");
 
-                    b.Property<string>("DetectedDocumentType")
+                    b.Property<string>("DocumentName")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("DocumentNumber")
                         .HasColumnType("text");
-
-                    b.Property<Guid>("DocumentTypeId")
-                        .HasColumnType("uuid");
 
                     b.Property<Guid>("EmployerId")
                         .HasColumnType("uuid");
@@ -1786,9 +1783,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("IssuingAuthority")
                         .HasColumnType("text");
 
-                    b.Property<string>("ParsedDataJson")
-                        .HasColumnType("text");
-
                     b.Property<string>("PublicId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1809,8 +1803,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("DocumentId");
-
-                    b.HasIndex("DocumentTypeId");
 
                     b.HasIndex("EmployerId");
 
@@ -3273,59 +3265,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.ToTable("UserSessions");
                 });
 
-            modelBuilder.Entity("VerificationDocumentMaster", b =>
-                {
-                    b.Property<Guid>("DocumentTypeId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("AllowCustomDocument")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("AllowMultipleUploads")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<int>("DisplayOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("DocumentName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsMandatory")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsSystemDocument")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("RequiresVerification")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("DocumentTypeId");
-
-                    b.ToTable("VerificationDocumentMasters");
-                });
-
             modelBuilder.Entity("JobPortal.Domain.Entities.AI.CandidateEmbedding", b =>
                 {
                     b.HasOne("JobPortal.Domain.Entities.CandidateProfile", "Candidate")
@@ -3628,19 +3567,11 @@ namespace JobPortal.Infrastructure.Migrations
 
             modelBuilder.Entity("JobPortal.Domain.Entities.EmployerVerificationDocument", b =>
                 {
-                    b.HasOne("VerificationDocumentMaster", "DocumentType")
-                        .WithMany()
-                        .HasForeignKey("DocumentTypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("JobPortal.Domain.Entities.EmployerProfile", "Employer")
                         .WithMany("VerificationDocuments")
                         .HasForeignKey("EmployerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("DocumentType");
 
                     b.Navigation("Employer");
                 });
