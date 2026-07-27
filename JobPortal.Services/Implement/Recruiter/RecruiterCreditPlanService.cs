@@ -20,6 +20,7 @@ namespace JobPortal.Services.Implement.Recruiter
         private readonly ILogger<RecruiterCreditPlanService> _logger;
         private readonly IConfiguration _configuration;
         private readonly HttpClient _httpClient;
+        private readonly IRecruiterInvoiceService _invoiceService;
 
         private string RazorpayKeyId =>
             _configuration["Razorpay:KeyId"]
@@ -33,12 +34,14 @@ namespace JobPortal.Services.Implement.Recruiter
             AppDbContext context,
             ILogger<RecruiterCreditPlanService> logger,
             IConfiguration configuration,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IRecruiterInvoiceService invoiceService)
         {
             _context = context;
             _logger = logger;
             _configuration = configuration;
             _httpClient = httpClientFactory.CreateClient("Razorpay");
+            _invoiceService = invoiceService;
         }
 
         // ─────────────────────────────────────────────────────────────
@@ -358,6 +361,26 @@ namespace JobPortal.Services.Implement.Recruiter
                         employerId,
                         plan.PlanName,
                         plan.Credits);
+
+                    // ── Email the invoice right away so the employer has a
+                    // copy in their inbox without needing to visit the
+                    // Invoices page. Best-effort: a failed send (bad SMTP
+                    // config, no contact email on file, etc.) should never
+                    // undo a successful payment, so this is swallowed and
+                    // just logged — the invoice is still downloadable from
+                    // the Invoices page regardless. ────────────────────────
+                    try
+                    {
+                        await _invoiceService.EmailInvoiceAsync(invoice.InvoiceId, employerId);
+                    }
+                    catch (Exception emailEx)
+                    {
+                        _logger.LogWarning(
+                            emailEx,
+                            "Could not email invoice {InvoiceId} for employer {EmployerId}.",
+                            invoice.InvoiceId,
+                            employerId);
+                    }
 
                     return new VerifyPlanPaymentResponseDto
                     {

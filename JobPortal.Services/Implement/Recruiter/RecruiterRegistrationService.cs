@@ -1421,15 +1421,23 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 employer.ProfileCompletionScore =
                  (byte)ProfileCompletionHelper.CalculateProfileCompletionScore(employer);
 
-                // ── Create Wallet ─────────────────────────────────────
+                // ── Create Wallet (10 Free Trial Credits) ─────────────────────────
                 _context.CreditWallets.Add(new CreditWallet
                 {
                     Wallet_Id = Guid.NewGuid(),
+
                     EmployerId = employer.EmployerId,
-                    CreditBalance = 0,
-                    PackageName = null,
-                    PackExpiresAt = null,
+
+                    // Give every new employer 10 free credits
+                    CreditBalance = 10,
+
+                    PackageName = "Free Trial",
+
+                    // Trial validity (change/remove as needed)
+                    PackExpiresAt = DateTime.UtcNow.AddDays(30),
+
                     SharedWallet = true,
+
                     UpdatedAt = now
                 });
 

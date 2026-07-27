@@ -15,6 +15,11 @@ public class InviteSubUserResponseDto
     public string? Role { get; set; }
     public PermissionsDto? Permissions { get; set; }
     public DateTime? InviteExpiresAt { get; set; }
+
+    // ── Credits allocated to the sub-user as part of this invite (0 if
+    // the owner didn't set an initial amount). Lets the frontend confirm
+    // exactly what was granted without a second round-trip. ────────────
+    public int AllocatedCredits { get; set; }
 }
 
 public class PermissionsDto

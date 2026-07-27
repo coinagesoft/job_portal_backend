@@ -34,6 +34,11 @@ public class JobPosting
     public bool DisabilityEligible { get; set; } = false;
     public LocationType LocationType { get; set; } = LocationType.Onshore;
     // Onshore
+    public bool IsClientHiring { get; set; } = false;
+
+    public string? ClientName { get; set; }
+
+    public bool ShowClientName { get; set; } = false;
     public string? WorkAddressLine { get; set; }
     public string? OnshoreCity { get; set; }
     public string? OnshoreState { get; set; }

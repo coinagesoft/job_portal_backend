@@ -1,4 +1,5 @@
 ﻿using JobPortal.Application.DTOs.Recruiter;
+using JobPortal.Application.DTOs.Recruiter.CreditWallet;
 using JobPortal.Application.DTOs.SubUser;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
@@ -17,17 +18,20 @@ public class SubUserService : ISubUserService
     private readonly ILogger<SubUserService> _logger;
     private readonly ISubUserEmailService _subUserEmailService;
     private readonly IConfiguration _configuration;
+    private readonly ICreditWalletService _creditWalletService;
 
     public SubUserService(
         AppDbContext context,
         ILogger<SubUserService> logger,
         ISubUserEmailService subUserEmailService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ICreditWalletService creditWalletService)
     {
         _context = context;
         _logger = logger;
         _subUserEmailService = subUserEmailService;
         _configuration = configuration;
+        _creditWalletService = creditWalletService;
     }
 
     // Frontend base URL for invite links — configurable via
@@ -153,8 +157,40 @@ public class SubUserService : ISubUserService
                 return InviteFail(
                     "This email/mobile is already a sub-user for your account.");
 
-            // ── Get permissions ────────────────────────────
-            var permissions = GetRolePermissions(request.Role);
+            // ── If the owner set a starting credit balance, make sure the
+            // employer wallet actually has that much spare before we create
+            // anything. Mirrors the same availability math CreditWalletService
+            // .AllocateCreditsAsync uses (wallet balance minus whatever's
+            // already reserved for other sub-users), so an invite can never
+            // promise credits the wallet doesn't have. ─────────────────────
+            if (request.InitialCredits > 0)
+            {
+                var wallet = await _context.CreditWallets
+                    .FirstOrDefaultAsync(w => w.EmployerId == employerId);
+
+                if (wallet == null)
+                    return InviteFail("Wallet not found.");
+
+                var allocatedAlready = await _context.SubUserCreditAllocation
+                    .Where(a => a.EmployerId == employerId)
+                    .SumAsync(a => (int?)a.RemainingCredits) ?? 0;
+
+                var availableCredits = wallet.CreditBalance - allocatedAlready;
+
+                if (request.InitialCredits > availableCredits)
+                    return InviteFail(
+                        $"Not enough available credits to allocate. Only {availableCredits} credit(s) available.");
+            }
+
+            // ── Permissions come straight from the checkboxes on the
+            // invite form now — no more Role → defaults lookup. ────────
+            var permissions = new PermissionsDto
+            {
+                CanSearchCandidates = request.CanSearchCandidates,
+                CanUnlockProfiles = request.CanUnlockProfiles,
+                CanPostJobs = request.CanPostJobs,
+                CanManageApplications = request.CanManageApplications
+            };
 
             // ── Find existing user by email/mobile ─────────
             var user = await _context.Users
@@ -195,7 +231,7 @@ public class SubUserService : ISubUserService
                 SubUserEmail = request.SubUserEmail,
                 SubUserMobile = request.SubUserMobile,
                 SubUserCountryCode = request.CountryCode,
-                SubUserRole = request.Role.ToString(),
+                SubUserRole = DeriveRoleLabel(permissions),
                 InviteToken = inviteToken,
                 InviteExpiresAt = DateTime.UtcNow.AddHours(72),
                 InviteAccepted = false,
@@ -211,15 +247,55 @@ public class SubUserService : ISubUserService
 
             await _context.SaveChangesAsync();
 
+            // ── Allocate the owner's requested starting credits now that the
+            // sub-user row exists. Reuses the exact same allocation path as
+            // the Credits & Wallets page (CreditWalletService.AllocateCreditsAsync)
+            // so the wallet math, allocation row, and CreditAllocationHistory
+            // entry all stay identical whether credits are granted at invite
+            // time or afterwards. We already confirmed availability above, so
+            // this should succeed; if it somehow doesn't (e.g. a concurrent
+            // allocation ran in between), the invite still goes out — we just
+            // log it and leave the sub-user at 0 credits so the owner can
+            // retry the allocation from the Credits & Wallets page. ─────────
+            var allocatedCredits = 0;
+
+            if (request.InitialCredits > 0)
+            {
+                var allocationResult = await _creditWalletService.AllocateCreditsAsync(
+                    employerId,
+                    new AllocateCreditsRequestDto
+                    {
+                        SubUserId = subUser.SubUserId,
+                        Credits = request.InitialCredits
+                    });
+
+                if (allocationResult.Success)
+                {
+                    allocatedCredits = request.InitialCredits;
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Initial credit allocation failed for new sub-user {SubUserId}: {Message}",
+                        subUser.SubUserId,
+                        allocationResult.Message);
+                }
+            }
+
             _logger.LogInformation("Sending invite email to {Email}", request.SubUserEmail);
 
             var inviteLink = BuildInviteLink(inviteToken);
+
+            var permissionSummary = BuildPermissionSummary(permissions);
+
+            if (allocatedCredits > 0)
+                permissionSummary += $" | {allocatedCredits} credit(s) allocated";
 
             await _subUserEmailService.SendSubUserInviteAsync(
                 request.SubUserEmail,
                 request.SubUserName,
                 employer.CompanyDisplayName,
-                request.Role.ToString(),
+                permissionSummary,
                 inviteLink,
                 subUser.InviteExpiresAt!.Value);
 
@@ -239,7 +315,8 @@ public class SubUserService : ISubUserService
                 SubUserName = subUser.SubUserName,
                 Role = subUser.SubUserRole,
                 Permissions = permissions,
-                InviteExpiresAt = subUser.InviteExpiresAt
+                InviteExpiresAt = subUser.InviteExpiresAt,
+                AllocatedCredits = allocatedCredits
             };
         }
         catch (Exception ex)
@@ -281,19 +358,23 @@ public class SubUserService : ISubUserService
             if (subUser.SubUserStatus == "Deactivated")
                 return InviteFail("Cannot edit a deactivated sub-user.");
 
-            // ── Update role ────────────────────────────────
-            var defaultPermissions = GetRolePermissions(request.Role);
-            subUser.SubUserRole = request.Role.ToString();
+            // ── Apply permissions directly from the checkboxes — no more
+            // Role dropdown to derive defaults from. ───────────────────
+            subUser.CanSearchCandidates = request.CanSearchCandidates;
+            subUser.CanUnlockProfiles = request.CanUnlockProfiles;
+            subUser.CanPostJobs = request.CanPostJobs;
+            subUser.CanManageApplications = request.CanManageApplications;
 
-            // ── Apply permissions — role defaults OR overrides
-            subUser.CanSearchCandidates = request.CanSearchCandidates
-                ?? defaultPermissions.CanSearchCandidates;
-            subUser.CanUnlockProfiles = request.CanUnlockProfiles
-                ?? defaultPermissions.CanUnlockProfiles;
-            subUser.CanPostJobs = request.CanPostJobs
-                ?? defaultPermissions.CanPostJobs;
-            subUser.CanManageApplications = request.CanManageApplications
-                ?? defaultPermissions.CanManageApplications;
+            // Keep a human-readable role label in sync with whatever
+            // permission combo was just chosen (used for display, and by
+            // the HR-Manager-only view access on a few account pages).
+            subUser.SubUserRole = DeriveRoleLabel(new PermissionsDto
+            {
+                CanSearchCandidates = subUser.CanSearchCandidates,
+                CanUnlockProfiles = subUser.CanUnlockProfiles,
+                CanPostJobs = subUser.CanPostJobs,
+                CanManageApplications = subUser.CanManageApplications
+            });
 
             await _context.SaveChangesAsync();
 
@@ -505,7 +586,13 @@ public class SubUserService : ISubUserService
                 subUser.SubUserEmail,
                 subUser.SubUserName,
                 employer.CompanyDisplayName,
-                subUser.SubUserRole,
+                BuildPermissionSummary(new PermissionsDto
+                {
+                    CanSearchCandidates = subUser.CanSearchCandidates,
+                    CanUnlockProfiles = subUser.CanUnlockProfiles,
+                    CanPostJobs = subUser.CanPostJobs,
+                    CanManageApplications = subUser.CanManageApplications
+                }),
                 inviteLink,
                 subUser.InviteExpiresAt.Value);
 
@@ -657,6 +744,49 @@ public class SubUserService : ISubUserService
         },
         _ => new PermissionsDto()
     };
+
+    // ════════════════════════════════════════════════
+    // DERIVE ROLE LABEL — the invite/edit form no longer has a Role
+    // dropdown; permissions are now the source of truth. We still keep
+    // a short label on the record for display in the sub-users list and
+    // because a couple of account pages (Company Profile, Verification,
+    // Sub-Users, Buy Credits, Settings) grant read-only access to
+    // whoever is labeled "HR_Manager". Any combo that doesn't match one
+    // of the old presets exactly is labeled "Custom".
+    // ════════════════════════════════════════════════
+    private static string DeriveRoleLabel(PermissionsDto p)
+    {
+        if (p.CanSearchCandidates && p.CanUnlockProfiles && p.CanPostJobs && p.CanManageApplications)
+            return "HR_Manager";
+
+        if (p.CanSearchCandidates && p.CanUnlockProfiles && !p.CanPostJobs && p.CanManageApplications)
+            return "Recruiter";
+
+        if (p.CanSearchCandidates && !p.CanUnlockProfiles && !p.CanPostJobs && !p.CanManageApplications)
+            return "Viewer";
+
+        return "Custom";
+    }
+
+    // ════════════════════════════════════════════════
+    // BUILD PERMISSION SUMMARY — human-readable text for the invite
+    // email, e.g. "Search candidates, Post jobs". Used instead of the
+    // internal role label (which can be "Custom" for non-preset combos
+    // and isn't meaningful to the person receiving the invite).
+    // ════════════════════════════════════════════════
+    private static string BuildPermissionSummary(PermissionsDto p)
+    {
+        var granted = new List<string>();
+
+        if (p.CanSearchCandidates) granted.Add("Search candidates");
+        if (p.CanUnlockProfiles) granted.Add("Unlock profiles");
+        if (p.CanPostJobs) granted.Add("Post jobs");
+        if (p.CanManageApplications) granted.Add("Manage applications");
+
+        return granted.Count > 0
+            ? string.Join(", ", granted)
+            : "No permissions granted";
+    }
 
     // ════════════════════════════════════════════════
     // GET MY PERMISSIONS — called by the frontend on login

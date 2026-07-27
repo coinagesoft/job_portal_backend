@@ -44,7 +44,11 @@ public class JobDetailsRequestDto
     public string? Department { get; set; }
 
     public int? DutyHoursPerDay { get; set; }
+    public bool IsClientHiring { get; set; }
 
+    public string? ClientName { get; set; }
+
+    public bool ShowClientName { get; set; }
     public bool? PaidOvertime { get; set; }
 
     public List<string>? KeyResponsibilities { get; set; } = new();
@@ -59,4 +63,9 @@ public class JobDetailsResponseDto
     public Guid JobId { get; set; }         // created here, used in all next steps
     public string JobStatus { get; set; } = "Draft";
     public JobStepStatusDto? StepStatus { get; set; }
+    public bool IsClientHiring { get; set; }
+
+    public string? ClientName { get; set; }
+
+    public bool ShowClientName { get; set; }
 }

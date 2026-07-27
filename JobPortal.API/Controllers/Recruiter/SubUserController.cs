@@ -162,6 +162,11 @@ public class RecruiterSubUserController : ControllerBase
             if (!IsValidEmail(request.SubUserEmail))
                 return BadRequest(Error("Invalid email format."));
 
+            // ── At least one permission must be granted ────
+            if (!HasAnyPermission(request.CanSearchCandidates, request.CanUnlockProfiles,
+                    request.CanPostJobs, request.CanManageApplications))
+                return BadRequest(Error("Select at least one permission."));
+
             var employerId = GetEmployerId();
             var result = await _service.InviteSubUserAsync(request, employerId, GetActionUserId());
 
@@ -176,6 +181,11 @@ public class RecruiterSubUserController : ControllerBase
 
                 // Limit reached
                 if (result.Message.Contains("Maximum"))
+                    return UnprocessableEntity(result);
+
+                // Initial credit allocation requested more than the wallet
+                // has spare right now
+                if (result.Message.Contains("available credits"))
                     return UnprocessableEntity(result);
 
                 return BadRequest(result);
@@ -225,6 +235,11 @@ public class RecruiterSubUserController : ControllerBase
             // ── Validate subUserId ─────────────────────────
             if (subUserId == Guid.Empty)
                 return BadRequest(Error("Invalid sub-user ID."));
+
+            // ── At least one permission must be granted ────
+            if (!HasAnyPermission(request.CanSearchCandidates, request.CanUnlockProfiles,
+                    request.CanPostJobs, request.CanManageApplications))
+                return BadRequest(Error("Select at least one permission."));
 
             var employerId = GetEmployerId();
             var result = await _service.UpdateSubUserAsync(
@@ -528,4 +543,8 @@ public class RecruiterSubUserController : ControllerBase
         !string.IsNullOrWhiteSpace(email) &&
         email.Contains('@') &&
         email.Contains('.');
+
+    /// <summary>At least one permission checkbox must be selected.</summary>
+    private static bool HasAnyPermission(params bool[] flags) =>
+        flags.Any(f => f);
 }

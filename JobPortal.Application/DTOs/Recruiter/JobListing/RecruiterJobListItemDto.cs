@@ -61,7 +61,13 @@ namespace JobPortal.Application.DTOs.Recruiter.JobListing
         public DateOnly ApplicationDeadline { get; set; }
 
         public DateTime CreatedAt { get; set; }
+        public bool IsClientHiring { get; set; }
 
+        public string? ClientName { get; set; }
+
+        public bool ShowClientName { get; set; }
+
+        public string CompanyName { get; set; } = string.Empty;
         public DateTime? PublishedAt { get; set; }
     }
 }

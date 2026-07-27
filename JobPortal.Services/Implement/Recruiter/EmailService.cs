@@ -64,8 +64,69 @@ public class EmailService : IEmailService
             Console.WriteLine(ex.ToString());
             throw;
         }
- 
-    
+
+
+    }
+
+
+    public async Task SendEmailWithAttachmentAsync(
+        string toEmail,
+        string subject,
+        string htmlBody,
+        byte[] attachmentBytes,
+        string attachmentFileName,
+        string attachmentContentType = "application/pdf")
+    {
+        try
+        {
+            Console.WriteLine($"Sending email with attachment to: {toEmail}");
+
+            var message = new MimeMessage();
+
+            message.From.Add(
+                new MailboxAddress(
+                    "Job Portal",
+                    _configuration["EmailSettings:FromEmail"]));
+
+            message.To.Add(MailboxAddress.Parse(toEmail));
+
+            message.Subject = subject;
+
+            var bodyBuilder = new BodyBuilder
+            {
+                HtmlBody = htmlBody
+            };
+
+            var contentType = ContentType.Parse(attachmentContentType);
+            bodyBuilder.Attachments.Add(
+                attachmentFileName,
+                attachmentBytes,
+                contentType);
+
+            message.Body = bodyBuilder.ToMessageBody();
+
+            using var client = new MailKit.Net.Smtp.SmtpClient();
+
+            await client.ConnectAsync(
+                _configuration["EmailSettings:SmtpHost"],
+                int.Parse(_configuration["EmailSettings:SmtpPort"]),
+                SecureSocketOptions.StartTls);
+
+            await client.AuthenticateAsync(
+                _configuration["EmailSettings:Username"],
+                _configuration["EmailSettings:Password"]);
+
+            await client.SendAsync(message);
+
+            Console.WriteLine("Email with attachment sent");
+
+            await client.DisconnectAsync(true);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            throw;
+        }
     }
 
 
@@ -80,4 +141,3 @@ public class EmailService : IEmailService
         <p>Do not share this OTP.</p>");
     }
 }
-

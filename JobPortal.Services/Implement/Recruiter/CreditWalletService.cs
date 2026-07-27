@@ -513,13 +513,15 @@ namespace JobPortal.Services.Implement.Recruiter
         }
 
         public async Task<DownloadCvResponseDto> DownloadCvAsync(
-        Guid employerId,
-        Guid actionUserId,
-        bool isSubUser,
-        DownloadCvRequestDto request)
+       Guid employerId,
+       Guid actionUserId,
+       bool isSubUser,
+       DownloadCvRequestDto request)
         {
             var permissionCheck = await CheckSubUserPermissionAsync(
-                actionUserId, isSubUser, s => s.CanUnlockProfiles);
+                actionUserId,
+                isSubUser,
+                s => s.CanUnlockProfiles);
 
             if (!permissionCheck.Allowed)
             {
@@ -530,24 +532,21 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            var hasAccess =
-                await HasCandidateAccessAsync(
-                    employerId,
-                    request.CandidateId);
+            // Candidate must already be unlocked
+            var hasAccess = await HasCandidateAccessAsync(
+                employerId,
+                request.CandidateId);
 
             if (!hasAccess)
             {
                 return new DownloadCvResponseDto
                 {
                     Success = false,
-                    Message =
-                        "Candidate profile is not unlocked."
+                    Message = "Candidate profile is not unlocked."
                 };
             }
 
-            var cv =
-                await GetLatestCandidateCvAsync(
-                    request.CandidateId);
+            var cv = await GetLatestCandidateCvAsync(request.CandidateId);
 
             if (cv == null)
             {
@@ -558,135 +557,34 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            var config =
-                await GetCreditConfigurationAsync();
-
-            var wallet = await GetEmployerWalletEntityAsync(employerId);
-
-            if (wallet == null)
-            {
-                return new DownloadCvResponseDto
-                {
-                    Success = false,
-                    Message = "Wallet not found."
-                };
-            }
-
-            if (wallet.PackExpiresAt.HasValue &&
-                wallet.PackExpiresAt.Value < DateTime.UtcNow)
-            {
-                return new DownloadCvResponseDto
-                {
-                    Success = false,
-                    Message =
-                        "Credit package has expired. Please purchase a new package."
-                };
-            }
-
-            if (config == null)
-            {
-                return new DownloadCvResponseDto
-                {
-                    Success = false,
-                    Message =
-                        "Credit configuration not found."
-                };
-            }
-
-            var cvCost = config.CvDownloadCredits;
-
-            int balanceBefore;
-            int balanceAfter;
-
-            if (isSubUser)
-            {
-                var deduct = await DeductSubUserCreditsAsync(
-                        actionUserId,
-                        cvCost);
-
-                if (!deduct.Success)
-                {
-                    return new DownloadCvResponseDto
-                    {
-                        Success = false,
-                        Message =
-                            deduct.Message
-                    };
-                }
-
-                balanceBefore =
-                    deduct.BalanceBefore;
-
-                balanceAfter =
-                    deduct.BalanceAfter;
-            }
-            else
-            {
-                var deduct =
-                    await DeductEmployerCreditsAsync(
-                        employerId,
-                        cvCost);
-
-                if (!deduct.Success)
-                {
-                    return new DownloadCvResponseDto
-                    {
-                        Success = false,
-                        Message =
-                            deduct.Message
-                    };
-                }
-
-                balanceBefore =
-                    deduct.BalanceBefore;
-
-                balanceAfter =
-                    deduct.BalanceAfter;
-            }
-
+            // Record download only (NO CREDIT DEDUCTION)
             await CreateCvDownloadRecordAsync(
                 request.CandidateId,
                 cv.CvId,
                 employerId,
-                isSubUser
-                    ? actionUserId
-                    : null,
-                cvCost);
-
-            await CreateCreditUsageTransactionAsync(
-                employerId,
-                actionUserId,
-                request.CandidateId,
-                null,
-                TransactionType.CvDownload,
-                cvCost,
-                balanceBefore,
-                balanceAfter);
+                isSubUser ? actionUserId : null,
+                0);
 
             await _context.SaveChangesAsync();
+
+            var wallet = await GetEmployerWalletEntityAsync(employerId);
 
             return new DownloadCvResponseDto
             {
                 Success = true,
-                Message =
-                    "CV download successful.",
+                Message = "CV download successful.",
 
-                CandidateId =
-                    request.CandidateId,
+                CandidateId = request.CandidateId,
 
-                CvId =
-                    cv.CvId,
+                CvId = cv.CvId,
 
-                CvUrl =
-                    cv.CvPdfUrl ??
-                    cv.CvFileUrl ??
-                    string.Empty,
+                CvUrl = cv.CvPdfUrl ??
+                        cv.CvFileUrl ??
+                        string.Empty,
 
-                CreditsDeducted =
-                    cvCost,
+                CreditsDeducted = 0,
 
-                RemainingCredits =
-                    balanceAfter
+                RemainingCredits = wallet?.CreditBalance ?? 0
             };
         }
 

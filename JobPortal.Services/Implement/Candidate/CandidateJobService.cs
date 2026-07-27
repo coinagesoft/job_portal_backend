@@ -175,8 +175,14 @@ public class CandidateJobService : ICandidateJobService
 
                 // Company
                 CompanyName = isConfidential
-          ? null
-          : employer.CompanyDisplayName,
+    ? null
+    : (
+        job.IsClientHiring &&
+        job.ShowClientName &&
+        !string.IsNullOrWhiteSpace(job.ClientName)
+            ? job.ClientName
+            : employer.CompanyDisplayName
+      ),
 
                 CompanyLogoUrl = isConfidential
           ? null
@@ -702,9 +708,15 @@ public class CandidateJobService : ICandidateJobService
               : null,
 
             CompanyName =
-          job.CompanyVisibility == CompanyVisibility.ShowName
-              ? job.EmployerProfile?.CompanyDisplayName
-              : "Confidential Company",
+    job.CompanyVisibility == CompanyVisibility.ShowName
+        ? (
+            job.IsClientHiring &&
+            job.ShowClientName &&
+            !string.IsNullOrWhiteSpace(job.ClientName)
+                ? job.ClientName
+                : job.EmployerProfile?.CompanyDisplayName
+          )
+        : "Confidential Company",
 
             JobTitle = job.JobTitle,
 
@@ -1421,9 +1433,15 @@ private static string? FormatSalary(JobPosting job)
                 JobTitle = job.JobTitle,
 
                 CompanyName =
-                    job.CompanyVisibility == CompanyVisibility.ShowName
-                        ? job.EmployerProfile?.CompanyDisplayName
-                        : "Confidential Company",
+    job.CompanyVisibility == CompanyVisibility.ShowName
+        ? (
+            job.IsClientHiring &&
+            job.ShowClientName &&
+            !string.IsNullOrWhiteSpace(job.ClientName)
+                ? job.ClientName
+                : job.EmployerProfile?.CompanyDisplayName
+          )
+        : "Confidential Company",
 
                 ApplicationStatus =
                     application.ApplicationStatus.ToString(),
@@ -1524,9 +1542,15 @@ private static string? FormatSalary(JobPosting job)
                     JobLocation = jobLocation,
 
                     CompanyName =
-                        showCompany
-                            ? job.EmployerProfile?.CompanyDisplayName
-                            : "Confidential Company",
+    showCompany
+        ? (
+            job.IsClientHiring &&
+            job.ShowClientName &&
+            !string.IsNullOrWhiteSpace(job.ClientName)
+                ? job.ClientName
+                : job.EmployerProfile?.CompanyDisplayName
+          )
+        : "Confidential Company",
 
                     CompanyLogoUrl =
                         showCompany

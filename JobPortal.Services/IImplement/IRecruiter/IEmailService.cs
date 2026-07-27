@@ -14,6 +14,18 @@ namespace JobPortal.Services.IImplement.IRecruiter
             string subject,
             string htmlBody);
 
+        // Same as SendEmailAsync but with a single file attachment — used
+        // for emailing invoice PDFs, generated CVs, etc. Kept as a separate
+        // method rather than an optional param so every existing caller of
+        // SendEmailAsync (OTPs, sub-user invites, ...) is unaffected.
+        Task SendEmailWithAttachmentAsync(
+            string toEmail,
+            string subject,
+            string htmlBody,
+            byte[] attachmentBytes,
+            string attachmentFileName,
+            string attachmentContentType = "application/pdf");
+
         Task SendOtpEmailAsync(
             string email,
             string otp);
