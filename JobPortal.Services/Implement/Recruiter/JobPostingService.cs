@@ -118,10 +118,10 @@ namespace JobPortal.Services.Implement.Recruiter
 
 
         public async Task<JobDetailsResponseDto> SaveJobDetailsAsync(
-           JobDetailsRequestDto request,
-           Guid employerId,
-           Guid actionUserId,
-           bool isSubUser)
+        JobDetailsRequestDto request,
+        Guid employerId,
+        Guid actionUserId,
+        bool isSubUser)
         {
             try
             {
@@ -149,17 +149,27 @@ namespace JobPortal.Services.Implement.Recruiter
                     };
                 }
 
-                JobPosting job;
+                // Validate Contract Period
+                if (request.EmploymentType?.Trim().Equals("Contract", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    if (string.IsNullOrWhiteSpace(request.ContractPeriod))
+                    {
+                        return new JobDetailsResponseDto
+                        {
+                            Success = false,
+                            Message = "Contract period is required for contract employment."
+                        };
+                    }
+                }
+
+                JobPosting job = await _context.JobPostings
+                    .FirstOrDefaultAsync(x =>
+                        x.JobId == request.JobId &&
+                        x.EmployerId == employerId);
 
                 // =====================================================
                 // CREATE
                 // =====================================================
-
-                job = await _context.JobPostings
-                     .FirstOrDefaultAsync(x =>
-                      x.JobId == request.JobId &&
-                     x.EmployerId == employerId);
-
                 if (job == null)
                 {
                     job = new JobPosting
@@ -171,10 +181,12 @@ namespace JobPortal.Services.Implement.Recruiter
                         TradeCategory = request.TradeCategory ?? string.Empty,
                         Role = request.Role,
                         JobDescription = request.JobDescription ?? string.Empty,
+
                         SalaryMin = 0,
                         SalaryMax = 0,
                         SalaryCurrency = "INR",
                         SalaryDisplayOption = "Show Range",
+
                         ExperienceMinYears = (byte)(request.ExperienceMinYears ?? 0),
                         ExperienceMaxYears = (byte)(request.ExperienceMaxYears ?? 0),
 
@@ -188,12 +200,19 @@ namespace JobPortal.Services.Implement.Recruiter
                             ? "Full Time"
                             : request.EmploymentType.Trim(),
 
+                        ContractPeriod =
+                            request.EmploymentType?.Trim().Equals("Contract",
+                                StringComparison.OrdinalIgnoreCase) == true
+                                ? request.ContractPeriod?.Trim()
+                                : null,
+
                         EmploymentMode = string.IsNullOrWhiteSpace(request.EmploymentMode)
                             ? "Onsite"
                             : request.EmploymentMode.Trim(),
 
                         Department = request.Department,
                         IndustryType = request.IndustryType,
+
                         DutyHoursPerDay = request.DutyHoursPerDay.HasValue
                             ? (byte?)request.DutyHoursPerDay.Value
                             : null,
@@ -201,9 +220,6 @@ namespace JobPortal.Services.Implement.Recruiter
                         PaidOvertime = request.PaidOvertime ?? false,
 
                         KeyResponsibilities = request.KeyResponsibilities,
-
-                        // Salary
-
 
                         JobStatus = JobStatus.Draft,
 
@@ -230,25 +246,10 @@ namespace JobPortal.Services.Implement.Recruiter
                 // =====================================================
                 else
                 {
-                    job = await _context.JobPostings
-                        .FirstOrDefaultAsync(x =>
-                            x.JobId == request.JobId &&
-                            x.EmployerId == employerId);
-
-                    if (job == null)
-                    {
-                        return new JobDetailsResponseDto
-                        {
-                            Success = false,
-                            Message = "Job not found."
-                        };
-                    }
-
                     job.JobTitle = request.JobTitle ?? job.JobTitle;
                     job.TradeCategory = request.TradeCategory ?? job.TradeCategory;
                     job.Role = request.Role;
                     job.JobDescription = request.JobDescription ?? job.JobDescription;
-
 
                     job.ExperienceMinYears =
                         (byte)(request.ExperienceMinYears ?? job.ExperienceMinYears);
@@ -264,6 +265,16 @@ namespace JobPortal.Services.Implement.Recruiter
                     if (!string.IsNullOrWhiteSpace(request.EmploymentType))
                     {
                         job.EmploymentType = request.EmploymentType.Trim();
+                    }
+
+                    if (job.EmploymentType.Equals("Contract", StringComparison.OrdinalIgnoreCase))
+                    {
+                        job.ContractPeriod = request.ContractPeriod?.Trim();
+                    }
+                    else
+                    {
+                        // Clear contract period when employment type is not Contract
+                        job.ContractPeriod = null;
                     }
 
                     if (!string.IsNullOrWhiteSpace(request.EmploymentMode))
@@ -296,12 +307,7 @@ namespace JobPortal.Services.Implement.Recruiter
                         job.KeyResponsibilities = request.KeyResponsibilities;
                     }
 
-
-
-
-
                     job.UpdatedAt = DateTime.UtcNow;
-
                     job.CurrentStep = Math.Max(job.CurrentStep, 1);
                     job.LastCompletedStep = Math.Max(job.LastCompletedStep, 1);
                 }
@@ -1194,8 +1200,8 @@ namespace JobPortal.Services.Implement.Recruiter
         // RESUME — get existing draft job progress
         // ════════════════════════════════════════════════
         public async Task<ResumeJobResponseDto> ResumeJobAsync(
-     Guid jobId,
-     Guid employerId)
+        Guid jobId,
+        Guid employerId)
         {
             try
             {
@@ -1246,7 +1252,7 @@ namespace JobPortal.Services.Implement.Recruiter
                         DutyHoursPerDay = job.DutyHoursPerDay,
                         PaidOvertime = job.PaidOvertime,
 
-                        KeyResponsibilities =
+                        KeyResponsibilities = 
                             job.KeyResponsibilities ?? new List<string>()
                     },
 

@@ -25,18 +25,13 @@ using Microsoft.OpenApi.Models;
 using Npgsql;
 using System.Text;
 
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
-
 builder.Services.AddHttpClient();
-
 builder.Services.AddEndpointsApiExplorer();
-
-
-
 builder.Services.AddLogging();
 
-// REGISTER POSTGRESQL DB CONTEXT
 
 var dataSourceBuilder =
     new NpgsqlDataSourceBuilder(
@@ -119,15 +114,12 @@ builder.Services.Configure<CloudinarySettingsDto>(
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
-
 builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
 builder.Services.AddScoped<IEmbeddingStorageService, EmbeddingStorageService>();
 builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
-
 builder.Services.AddScoped<IEmbeddingStorageService, EmbeddingStorageService>();
 builder.Services.AddScoped<IJobMatchingService, JobMatchingService>();
 builder.Services.AddScoped<ICvGenerationService, CvGenerationService>();
-
 builder.Services.AddScoped<IAiJobDescriptionService, AiJobDescriptionService>();
 builder.Services.AddScoped<IRankedCandidateService, RankedCandidateService>();
 // ── Affinda AI — resume parsing ──────────────────────────────

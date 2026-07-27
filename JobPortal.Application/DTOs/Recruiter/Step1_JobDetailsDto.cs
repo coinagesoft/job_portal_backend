@@ -33,7 +33,7 @@ public class JobDetailsRequestDto
     public string JobType { get; set; } = "Regular Hiring";
 
     public string IndustryType { get; set; } = default!;
-
+    public string? ContractPeriod { get; set; }
 
     [Required]
     public string EmploymentType { get; set; } = string.Empty;

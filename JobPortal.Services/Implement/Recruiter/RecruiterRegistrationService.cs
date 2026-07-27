@@ -1,4 +1,5 @@
 ﻿using JobPortal.Application.DTOs.Recruiter;
+using JobPortal.Domain.Common;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
@@ -7,6 +8,7 @@ using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace JobPortal.Services.Implement.Recruiter;
 
@@ -1243,12 +1245,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
       ReviewSubmitRequestDto request,
       string ipAddress)
     {
-        // EnableRetryOnFailure (configured in Program.cs) means EF Core
-        // won't allow a plain BeginTransactionAsync() here — the retrying
-        // strategy needs to own and retry the whole transaction as one
-        // atomic unit, or it throws "does not support user-initiated
-        // transactions". ExecuteAsync below is the documented way to keep
-        // an explicit transaction while still getting retry-on-failure.
+   
         var strategy = _context.Database.CreateExecutionStrategy();
 
         return await strategy.ExecuteAsync(async () =>
@@ -1414,18 +1411,16 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     RpslLicenceUrl = session.RpslLicenceUrl,
                     RpslLicencePublicId = session.RpslLicencePublicId,
                     AccountStatus = AccountStatus.Pending,
-
                     SecurityDepositPaid = false,
-
-                    ProfileCompletionScore = 60,
-
                     ConsentTimestamp = now,
-
                     CreatedAt = now,
                     UpdatedAt = now
                 };
 
                 _context.EmployerProfiles.Add(employer);
+                employer.ProfileCompletionScore =
+                 (byte)ProfileCompletionHelper.CalculateProfileCompletionScore(employer);
+
                 // ── Create Wallet ─────────────────────────────────────
                 _context.CreditWallets.Add(new CreditWallet
                 {

@@ -1,4 +1,6 @@
 ﻿using JobPortal.Application.DTOs.Recruiter.CompanyProfile;
+using JobPortal.Domain.Common;
+using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
@@ -191,6 +193,8 @@ namespace JobPortal.Services.Implement.Recruiter
             if (!string.IsNullOrWhiteSpace(request.TimeZone))
                 profile.TimeZone = request.TimeZone;
 
+            profile.ProfileCompletionScore =
+                ProfileCompletionHelper.CalculateProfileCompletionScore(profile);
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -198,6 +202,6 @@ namespace JobPortal.Services.Implement.Recruiter
             return true;
         }
 
-
+   
     }
 }

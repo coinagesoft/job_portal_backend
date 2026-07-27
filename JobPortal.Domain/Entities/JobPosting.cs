@@ -16,6 +16,8 @@ public class JobPosting
     public int SalaryMin { get; set; }
     public int SalaryMax { get; set; }
 
+    public string? ContractPeriod { get; set; }
+
     // ✅ ALL string — no enums on entity
     public string SalaryCurrency { get; set; } 
     public string SalaryDisplayOption { get; set; } = default;
