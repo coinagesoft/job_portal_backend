@@ -14,7 +14,11 @@ namespace JobPortal.Application.DTOs.Candidate
         public string? CompanyLogoUrl { get; set; }
 
         public string? CompanyName { get; set; }
+        public bool IsClientHiring { get; set; }
 
+        public string? ClientName { get; set; }
+
+        public bool ShowClientName { get; set; }
         public string JobTitle { get; set; } = string.Empty;
 
         public string TradeCategory { get; set; } = string.Empty;

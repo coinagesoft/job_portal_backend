@@ -244,7 +244,11 @@ public class CandidateJobDetailResponseDto
     // ─────────────────────────────────────────────
 
     public string? CompanyName { get; set; }
+    public bool IsClientHiring { get; set; }
 
+    public string? ClientName { get; set; }
+
+    public bool ShowClientName { get; set; }
     public string? CompanyLogoUrl { get; set; }
 
     public bool IsConfidentialCompany { get; set; }

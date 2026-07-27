@@ -106,10 +106,19 @@ public class PublicCompanyService : IPublicCompanyService
                     job.EmployerProfile?.CompanyLogoUrl,
 
                 CompanyName =
-                    job.CompanyVisibility ==
-                    CompanyVisibility.ShowName
-                        ? job.EmployerProfile?.CompanyDisplayName
-                        : "Confidential Company",
+    job.CompanyVisibility == CompanyVisibility.ShowName
+        ? (
+            job.IsClientHiring &&
+            job.ShowClientName &&
+            !string.IsNullOrWhiteSpace(job.ClientName)
+                ? job.ClientName
+                : job.EmployerProfile?.CompanyDisplayName
+          )
+        : "Confidential Company",
+
+                IsClientHiring = job.IsClientHiring,
+                ClientName = job.ClientName,
+                ShowClientName = job.ShowClientName,
 
                 JobTitle = job.JobTitle,
                 CompanyVisibility = job.CompanyVisibility.ToString(),
@@ -287,9 +296,17 @@ public class PublicCompanyService : IPublicCompanyService
             CompanyLogoUrl = employer?.CompanyLogoUrl,
 
             CompanyName =
-                job.CompanyVisibility == CompanyVisibility.ShowName
-                    ? employer?.CompanyDisplayName
-                    : "Confidential Company",
+    job.CompanyVisibility == CompanyVisibility.ShowName
+        ? (
+            job.IsClientHiring &&
+            job.ShowClientName &&
+            !string.IsNullOrWhiteSpace(job.ClientName)
+                ? job.ClientName
+                : employer?.CompanyDisplayName
+          )
+        : "Confidential Company",
+
+         
             CompanyVisibility = job.CompanyVisibility.ToString(),
             CompanyLocation = companyLocation,
 
@@ -1526,9 +1543,19 @@ public class PublicCompanyService : IPublicCompanyService
                     : null,
 
             CompanyName =
-                job.CompanyVisibility == CompanyVisibility.ShowName
-                    ? job.EmployerProfile?.CompanyDisplayName
-                    : "Confidential Company",
+    job.CompanyVisibility == CompanyVisibility.ShowName
+        ? (
+            job.IsClientHiring &&
+            job.ShowClientName &&
+            !string.IsNullOrWhiteSpace(job.ClientName)
+                ? job.ClientName
+                : job.EmployerProfile?.CompanyDisplayName
+          )
+        : "Confidential Company",
+
+            IsClientHiring = job.IsClientHiring,
+            ClientName = job.ClientName,
+            ShowClientName = job.ShowClientName,
 
             CompanyVisibility =
                 job.CompanyVisibility.ToString(),

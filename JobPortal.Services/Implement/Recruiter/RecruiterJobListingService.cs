@@ -92,11 +92,12 @@ namespace JobPortal.Services.Implement.Recruiter
         public async Task<JobListResponseDto> GetJobsAsync(Guid employerId, JobListRequestDto request)
         {
             var query = _context.JobPostings
-                .AsNoTracking()
-                .Where(x =>
-                    x.EmployerId == employerId &&
-                    !x.IsDeleted)
-                .AsQueryable();
+          .AsNoTracking()
+          .Include(x => x.EmployerProfile)
+          .Where(x =>
+              x.EmployerId == employerId &&
+              !x.IsDeleted)
+          .AsQueryable();
 
             // ==========================================
             // Search
@@ -164,7 +165,18 @@ namespace JobPortal.Services.Implement.Recruiter
                 TradeCategory = x.TradeCategory,
                 Role = x.Role,
                 Department = x.Department,
+                CompanyName =
+    x.IsClientHiring &&
+    x.ShowClientName &&
+    !string.IsNullOrWhiteSpace(x.ClientName)
+        ? x.ClientName!
+        : x.EmployerProfile != null
+            ? x.EmployerProfile.CompanyDisplayName
+            : string.Empty,
 
+                IsClientHiring = x.IsClientHiring,
+                ClientName = x.ClientName,
+                ShowClientName = x.ShowClientName,
                 JobType = x.JobType,
 
                 EmploymentType = x.EmploymentType.ToString(),

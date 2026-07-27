@@ -177,7 +177,9 @@ namespace JobPortal.Services.Implement.Recruiter
                         SalaryDisplayOption = "Show Range",
                         ExperienceMinYears = (byte)(request.ExperienceMinYears ?? 0),
                         ExperienceMaxYears = (byte)(request.ExperienceMaxYears ?? 0),
-
+                        IsClientHiring = request.IsClientHiring,
+                        ClientName = request.ClientName,
+                        ShowClientName = request.ShowClientName,
                         // Job
                         JobType = string.IsNullOrWhiteSpace(request.JobType)
                             ? "Regular Hiring"
@@ -295,6 +297,16 @@ namespace JobPortal.Services.Implement.Recruiter
                     {
                         job.KeyResponsibilities = request.KeyResponsibilities;
                     }
+
+                    job.IsClientHiring = request.IsClientHiring;
+
+                    job.ClientName = request.IsClientHiring
+                        ? request.ClientName?.Trim()
+                        : null;
+
+                    job.ShowClientName = request.IsClientHiring
+                        ? request.ShowClientName
+                        : false;
 
 
 
@@ -1232,7 +1244,9 @@ namespace JobPortal.Services.Implement.Recruiter
                         JobTitle = job.JobTitle,
                         TradeCategory = job.TradeCategory,
                         Role = job.Role,
-
+                        IsClientHiring = job.IsClientHiring,
+                        ClientName = job.ClientName,
+                        ShowClientName = job.ShowClientName,
                         ExperienceMinYears = job.ExperienceMinYears,
                         ExperienceMaxYears = job.ExperienceMaxYears,
                         JobType = job.JobType,

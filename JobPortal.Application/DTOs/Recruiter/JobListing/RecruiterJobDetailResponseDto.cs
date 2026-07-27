@@ -26,7 +26,11 @@ public class RecruiterJobDetailResponseDto
     // =====================================================
     // Job Type
     // =====================================================
+    public bool IsClientHiring { get; set; }
 
+    public string? ClientName { get; set; }
+
+    public bool ShowClientName { get; set; }
     public string JobType { get; set; }
 
     public string EmploymentType { get; set; }
