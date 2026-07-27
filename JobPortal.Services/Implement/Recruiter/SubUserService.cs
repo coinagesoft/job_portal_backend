@@ -1,4 +1,5 @@
 ﻿using JobPortal.Application.DTOs.Recruiter;
+using JobPortal.Application.DTOs.Recruiter.CreditWallet;
 using JobPortal.Application.DTOs.SubUser;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
@@ -17,17 +18,20 @@ public class SubUserService : ISubUserService
     private readonly ILogger<SubUserService> _logger;
     private readonly ISubUserEmailService _subUserEmailService;
     private readonly IConfiguration _configuration;
+    private readonly ICreditWalletService _creditWalletService;
 
     public SubUserService(
         AppDbContext context,
         ILogger<SubUserService> logger,
         ISubUserEmailService subUserEmailService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ICreditWalletService creditWalletService)
     {
         _context = context;
         _logger = logger;
         _subUserEmailService = subUserEmailService;
         _configuration = configuration;
+        _creditWalletService = creditWalletService;
     }
 
     // Frontend base URL for invite links — configurable via
@@ -153,6 +157,31 @@ public class SubUserService : ISubUserService
                 return InviteFail(
                     "This email/mobile is already a sub-user for your account.");
 
+            // ── If the owner set a starting credit balance, make sure the
+            // employer wallet actually has that much spare before we create
+            // anything. Mirrors the same availability math CreditWalletService
+            // .AllocateCreditsAsync uses (wallet balance minus whatever's
+            // already reserved for other sub-users), so an invite can never
+            // promise credits the wallet doesn't have. ─────────────────────
+            if (request.InitialCredits > 0)
+            {
+                var wallet = await _context.CreditWallets
+                    .FirstOrDefaultAsync(w => w.EmployerId == employerId);
+
+                if (wallet == null)
+                    return InviteFail("Wallet not found.");
+
+                var allocatedAlready = await _context.SubUserCreditAllocation
+                    .Where(a => a.EmployerId == employerId)
+                    .SumAsync(a => (int?)a.RemainingCredits) ?? 0;
+
+                var availableCredits = wallet.CreditBalance - allocatedAlready;
+
+                if (request.InitialCredits > availableCredits)
+                    return InviteFail(
+                        $"Not enough available credits to allocate. Only {availableCredits} credit(s) available.");
+            }
+
             // ── Permissions come straight from the checkboxes on the
             // invite form now — no more Role → defaults lookup. ────────
             var permissions = new PermissionsDto
@@ -218,15 +247,55 @@ public class SubUserService : ISubUserService
 
             await _context.SaveChangesAsync();
 
+            // ── Allocate the owner's requested starting credits now that the
+            // sub-user row exists. Reuses the exact same allocation path as
+            // the Credits & Wallets page (CreditWalletService.AllocateCreditsAsync)
+            // so the wallet math, allocation row, and CreditAllocationHistory
+            // entry all stay identical whether credits are granted at invite
+            // time or afterwards. We already confirmed availability above, so
+            // this should succeed; if it somehow doesn't (e.g. a concurrent
+            // allocation ran in between), the invite still goes out — we just
+            // log it and leave the sub-user at 0 credits so the owner can
+            // retry the allocation from the Credits & Wallets page. ─────────
+            var allocatedCredits = 0;
+
+            if (request.InitialCredits > 0)
+            {
+                var allocationResult = await _creditWalletService.AllocateCreditsAsync(
+                    employerId,
+                    new AllocateCreditsRequestDto
+                    {
+                        SubUserId = subUser.SubUserId,
+                        Credits = request.InitialCredits
+                    });
+
+                if (allocationResult.Success)
+                {
+                    allocatedCredits = request.InitialCredits;
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Initial credit allocation failed for new sub-user {SubUserId}: {Message}",
+                        subUser.SubUserId,
+                        allocationResult.Message);
+                }
+            }
+
             _logger.LogInformation("Sending invite email to {Email}", request.SubUserEmail);
 
             var inviteLink = BuildInviteLink(inviteToken);
+
+            var permissionSummary = BuildPermissionSummary(permissions);
+
+            if (allocatedCredits > 0)
+                permissionSummary += $" | {allocatedCredits} credit(s) allocated";
 
             await _subUserEmailService.SendSubUserInviteAsync(
                 request.SubUserEmail,
                 request.SubUserName,
                 employer.CompanyDisplayName,
-                BuildPermissionSummary(permissions),
+                permissionSummary,
                 inviteLink,
                 subUser.InviteExpiresAt!.Value);
 
@@ -246,7 +315,8 @@ public class SubUserService : ISubUserService
                 SubUserName = subUser.SubUserName,
                 Role = subUser.SubUserRole,
                 Permissions = permissions,
-                InviteExpiresAt = subUser.InviteExpiresAt
+                InviteExpiresAt = subUser.InviteExpiresAt,
+                AllocatedCredits = allocatedCredits
             };
         }
         catch (Exception ex)

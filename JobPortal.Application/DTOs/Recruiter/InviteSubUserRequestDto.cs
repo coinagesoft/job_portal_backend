@@ -33,4 +33,12 @@ public class InviteSubUserRequestDto
     public bool CanUnlockProfiles { get; set; }
     public bool CanPostJobs { get; set; }
     public bool CanManageApplications { get; set; }
+
+    // ── Optional credit allocation at invite time — lets the owner
+    // hand the sub-user a starting balance in the same step as the
+    // invite, instead of having to invite first and allocate separately
+    // from the Credits & Wallets page. Defaults to 0 (no allocation),
+    // which keeps existing invite flows/tests unaffected. ─────────────
+    [Range(0, int.MaxValue, ErrorMessage = "Initial credits cannot be negative.")]
+    public int InitialCredits { get; set; } = 0;
 }

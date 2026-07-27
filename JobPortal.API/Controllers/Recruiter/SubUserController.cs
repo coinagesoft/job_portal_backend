@@ -183,6 +183,11 @@ public class RecruiterSubUserController : ControllerBase
                 if (result.Message.Contains("Maximum"))
                     return UnprocessableEntity(result);
 
+                // Initial credit allocation requested more than the wallet
+                // has spare right now
+                if (result.Message.Contains("available credits"))
+                    return UnprocessableEntity(result);
+
                 return BadRequest(result);
             }
 

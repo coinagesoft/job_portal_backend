@@ -18,5 +18,14 @@ namespace JobPortal.Services.IImplement.IRecruiter
             DownloadInvoicePdfAsync(
                 Guid invoiceId,
                 Guid employerId);
+
+        // Regenerates the invoice PDF and emails it to the employer's
+        // contact email as an attachment. Used both for the manual
+        // "Email Invoice" action and automatically right after a
+        // successful credit plan purchase.
+        Task<(bool Success, string Message)>
+            EmailInvoiceAsync(
+                Guid invoiceId,
+                Guid employerId);
     }
 }

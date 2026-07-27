@@ -13,6 +13,7 @@ using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace JobPortal.Services.Implement.Recruiter
 {
@@ -20,11 +21,17 @@ namespace JobPortal.Services.Implement.Recruiter
         IRecruiterInvoiceService
     {
         private readonly AppDbContext _context;
+        private readonly IEmailService _emailService;
+        private readonly ILogger<RecruiterInvoiceService> _logger;
 
         public RecruiterInvoiceService(
-            AppDbContext context)
+            AppDbContext context,
+            IEmailService emailService,
+            ILogger<RecruiterInvoiceService> logger)
         {
             _context = context;
+            _emailService = emailService;
+            _logger = logger;
         }
 
         public async Task<List<EmployerInvoiceDto>>
@@ -152,16 +159,139 @@ namespace JobPortal.Services.Implement.Recruiter
                 .AsNoTracking()
                 .FirstOrDefaultAsync(e => e.EmployerId == employerId);
 
-            var bytes = BuildInvoicePdf(data.Invoice, data.Transaction, employer);
+            var contactEmail = await ResolveContactEmailAsync(employerId, employer);
+
+            var bytes = BuildInvoicePdf(data.Invoice, data.Transaction, employer, contactEmail);
             var fileName = $"{data.Invoice.InvoiceNumber}.pdf";
 
             return (bytes, fileName);
         }
 
+        // ────────────────────────────────────────────────────────────
+        // Regenerates the invoice PDF and emails it to the employer's
+        // contact email as an attachment. Called both from the manual
+        // "Email Invoice" button and automatically right after a credit
+        // plan purchase (see RecruiterCreditPlanService.VerifyPlanPaymentAsync).
+        // ────────────────────────────────────────────────────────────
+        public async Task<(bool Success, string Message)>
+            EmailInvoiceAsync(
+                Guid invoiceId,
+                Guid employerId)
+        {
+            var data = await (
+                from invoice in _context.Invoices
+
+                join transaction in _context.PaymentTransactions
+                on invoice.TransactionId equals transaction.TransactionId
+
+                where invoice.InvoiceId == invoiceId
+                      && transaction.EmployerId == employerId
+
+                select new { Invoice = invoice, Transaction = transaction }
+            ).FirstOrDefaultAsync();
+
+            if (data == null)
+            {
+                return (false, "Invoice not found.");
+            }
+
+            var employer = await _context.EmployerProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e => e.EmployerId == employerId);
+
+            var contactEmail = await ResolveContactEmailAsync(employerId, employer);
+
+            if (string.IsNullOrWhiteSpace(contactEmail))
+            {
+                return (false, "No contact email is on file for this account.");
+            }
+
+            var bytes = BuildInvoicePdf(data.Invoice, data.Transaction, employer, contactEmail);
+            var fileName = $"{data.Invoice.InvoiceNumber}.pdf";
+
+            try
+            {
+                await _emailService.SendEmailWithAttachmentAsync(
+                    contactEmail,
+                    $"Your invoice {data.Invoice.InvoiceNumber} — JobBox",
+                    BuildInvoiceEmailBody(employer?.CompanyDisplayName, data.Invoice, data.Transaction),
+                    bytes,
+                    fileName);
+
+                _logger.LogInformation(
+                    "Invoice {InvoiceNumber} emailed to {Email}",
+                    data.Invoice.InvoiceNumber,
+                    contactEmail);
+
+                return (true, $"Invoice emailed to {contactEmail}.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to email invoice {InvoiceNumber} to {Email}",
+                    data.Invoice.InvoiceNumber,
+                    contactEmail);
+
+                return (false, "Failed to send invoice email. Please try again.");
+            }
+        }
+
+        // Contact email preference: the public contact email shown on the
+        // company profile, falling back to the account owner's login email
+        // when that hasn't been set — so an invoice can basically always be
+        // emailed somewhere.
+        private async Task<string?> ResolveContactEmailAsync(
+            Guid employerId,
+            EmployerProfile? employer)
+        {
+            if (!string.IsNullOrWhiteSpace(employer?.ContactEmailPublic))
+                return employer.ContactEmailPublic;
+
+            if (employer == null)
+                return null;
+
+            return await _context.Users
+                .Where(u => u.UserId == employer.UserId)
+                .Select(u => u.Email)
+                .FirstOrDefaultAsync();
+        }
+
+        private static string BuildInvoiceEmailBody(
+            string? companyName,
+            Invoice invoice,
+            PaymentTransaction transaction)
+        {
+            return $@"
+<!DOCTYPE html>
+<html>
+<head><meta charset='UTF-8'></head>
+<body style='margin:0;padding:30px;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;'>
+<table width='100%' cellpadding='0' cellspacing='0'>
+<tr><td align='center'>
+<table width='600' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:8px;padding:40px;'>
+<tr><td>
+<h2 style='margin-top:0;color:#333333;'>Your invoice is ready</h2>
+<p>Hello{(string.IsNullOrWhiteSpace(companyName) ? "" : $" from {companyName}")},</p>
+<p>Please find attached your GST-compliant invoice <strong>{invoice.InvoiceNumber}</strong>
+dated {invoice.InvoiceDate:dd MMM yyyy}.</p>
+<p><strong>Total paid: Rs. {invoice.InvoiceTotal:N2}</strong></p>
+<p style='color:#66789c;font-size:12px;margin-top:30px;'>
+This is a system-generated email. Please retain the attached PDF for your records.
+</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>";
+        }
+
         private static byte[] BuildInvoicePdf(
             Invoice invoice,
             PaymentTransaction transaction,
-            EmployerProfile? employer)
+            EmployerProfile? employer,
+            string? contactEmail)
         {
             using var stream = new MemoryStream();
             using var writer = new PdfWriter(stream);
@@ -231,6 +361,16 @@ namespace JobPortal.Services.Implement.Recruiter
                 {
                     document.Add(new Paragraph($"PAN: {employer.Pan}").SetFont(regularFont).SetFontSize(9));
                 }
+
+                if (!string.IsNullOrWhiteSpace(employer.ContactPhone))
+                {
+                    document.Add(new Paragraph($"Phone: {employer.ContactPhone}").SetFont(regularFont).SetFontSize(9));
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(contactEmail))
+            {
+                document.Add(new Paragraph($"Email: {contactEmail}").SetFont(regularFont).SetFontSize(9));
             }
 
             // ── Line item ───────────────────────────────────────
