@@ -153,8 +153,15 @@ public class SubUserService : ISubUserService
                 return InviteFail(
                     "This email/mobile is already a sub-user for your account.");
 
-            // ── Get permissions ────────────────────────────
-            var permissions = GetRolePermissions(request.Role);
+            // ── Permissions come straight from the checkboxes on the
+            // invite form now — no more Role → defaults lookup. ────────
+            var permissions = new PermissionsDto
+            {
+                CanSearchCandidates = request.CanSearchCandidates,
+                CanUnlockProfiles = request.CanUnlockProfiles,
+                CanPostJobs = request.CanPostJobs,
+                CanManageApplications = request.CanManageApplications
+            };
 
             // ── Find existing user by email/mobile ─────────
             var user = await _context.Users
@@ -195,7 +202,7 @@ public class SubUserService : ISubUserService
                 SubUserEmail = request.SubUserEmail,
                 SubUserMobile = request.SubUserMobile,
                 SubUserCountryCode = request.CountryCode,
-                SubUserRole = request.Role.ToString(),
+                SubUserRole = DeriveRoleLabel(permissions),
                 InviteToken = inviteToken,
                 InviteExpiresAt = DateTime.UtcNow.AddHours(72),
                 InviteAccepted = false,
@@ -219,7 +226,7 @@ public class SubUserService : ISubUserService
                 request.SubUserEmail,
                 request.SubUserName,
                 employer.CompanyDisplayName,
-                request.Role.ToString(),
+                BuildPermissionSummary(permissions),
                 inviteLink,
                 subUser.InviteExpiresAt!.Value);
 
@@ -281,19 +288,23 @@ public class SubUserService : ISubUserService
             if (subUser.SubUserStatus == "Deactivated")
                 return InviteFail("Cannot edit a deactivated sub-user.");
 
-            // ── Update role ────────────────────────────────
-            var defaultPermissions = GetRolePermissions(request.Role);
-            subUser.SubUserRole = request.Role.ToString();
+            // ── Apply permissions directly from the checkboxes — no more
+            // Role dropdown to derive defaults from. ───────────────────
+            subUser.CanSearchCandidates = request.CanSearchCandidates;
+            subUser.CanUnlockProfiles = request.CanUnlockProfiles;
+            subUser.CanPostJobs = request.CanPostJobs;
+            subUser.CanManageApplications = request.CanManageApplications;
 
-            // ── Apply permissions — role defaults OR overrides
-            subUser.CanSearchCandidates = request.CanSearchCandidates
-                ?? defaultPermissions.CanSearchCandidates;
-            subUser.CanUnlockProfiles = request.CanUnlockProfiles
-                ?? defaultPermissions.CanUnlockProfiles;
-            subUser.CanPostJobs = request.CanPostJobs
-                ?? defaultPermissions.CanPostJobs;
-            subUser.CanManageApplications = request.CanManageApplications
-                ?? defaultPermissions.CanManageApplications;
+            // Keep a human-readable role label in sync with whatever
+            // permission combo was just chosen (used for display, and by
+            // the HR-Manager-only view access on a few account pages).
+            subUser.SubUserRole = DeriveRoleLabel(new PermissionsDto
+            {
+                CanSearchCandidates = subUser.CanSearchCandidates,
+                CanUnlockProfiles = subUser.CanUnlockProfiles,
+                CanPostJobs = subUser.CanPostJobs,
+                CanManageApplications = subUser.CanManageApplications
+            });
 
             await _context.SaveChangesAsync();
 
@@ -505,7 +516,13 @@ public class SubUserService : ISubUserService
                 subUser.SubUserEmail,
                 subUser.SubUserName,
                 employer.CompanyDisplayName,
-                subUser.SubUserRole,
+                BuildPermissionSummary(new PermissionsDto
+                {
+                    CanSearchCandidates = subUser.CanSearchCandidates,
+                    CanUnlockProfiles = subUser.CanUnlockProfiles,
+                    CanPostJobs = subUser.CanPostJobs,
+                    CanManageApplications = subUser.CanManageApplications
+                }),
                 inviteLink,
                 subUser.InviteExpiresAt.Value);
 
@@ -657,6 +674,49 @@ public class SubUserService : ISubUserService
         },
         _ => new PermissionsDto()
     };
+
+    // ════════════════════════════════════════════════
+    // DERIVE ROLE LABEL — the invite/edit form no longer has a Role
+    // dropdown; permissions are now the source of truth. We still keep
+    // a short label on the record for display in the sub-users list and
+    // because a couple of account pages (Company Profile, Verification,
+    // Sub-Users, Buy Credits, Settings) grant read-only access to
+    // whoever is labeled "HR_Manager". Any combo that doesn't match one
+    // of the old presets exactly is labeled "Custom".
+    // ════════════════════════════════════════════════
+    private static string DeriveRoleLabel(PermissionsDto p)
+    {
+        if (p.CanSearchCandidates && p.CanUnlockProfiles && p.CanPostJobs && p.CanManageApplications)
+            return "HR_Manager";
+
+        if (p.CanSearchCandidates && p.CanUnlockProfiles && !p.CanPostJobs && p.CanManageApplications)
+            return "Recruiter";
+
+        if (p.CanSearchCandidates && !p.CanUnlockProfiles && !p.CanPostJobs && !p.CanManageApplications)
+            return "Viewer";
+
+        return "Custom";
+    }
+
+    // ════════════════════════════════════════════════
+    // BUILD PERMISSION SUMMARY — human-readable text for the invite
+    // email, e.g. "Search candidates, Post jobs". Used instead of the
+    // internal role label (which can be "Custom" for non-preset combos
+    // and isn't meaningful to the person receiving the invite).
+    // ════════════════════════════════════════════════
+    private static string BuildPermissionSummary(PermissionsDto p)
+    {
+        var granted = new List<string>();
+
+        if (p.CanSearchCandidates) granted.Add("Search candidates");
+        if (p.CanUnlockProfiles) granted.Add("Unlock profiles");
+        if (p.CanPostJobs) granted.Add("Post jobs");
+        if (p.CanManageApplications) granted.Add("Manage applications");
+
+        return granted.Count > 0
+            ? string.Join(", ", granted)
+            : "No permissions granted";
+    }
 
     // ════════════════════════════════════════════════
     // GET MY PERMISSIONS — called by the frontend on login

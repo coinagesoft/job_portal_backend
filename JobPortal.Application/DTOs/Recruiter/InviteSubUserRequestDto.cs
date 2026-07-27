@@ -26,6 +26,11 @@ public class InviteSubUserRequestDto
     [RegularExpression(@"^\+\d{1,4}$")]
     public string CountryCode { get; set; } = "+91";
 
-    [Required(ErrorMessage = "Role is required.")]
-    public SubUserRole Role { get; set; }
+    // ── Permissions — chosen directly via checkboxes on the invite form.
+    // No more Role dropdown; these four flags are the single source of
+    // truth for what the sub-user can do. ─────────────────────────────
+    public bool CanSearchCandidates { get; set; }
+    public bool CanUnlockProfiles { get; set; }
+    public bool CanPostJobs { get; set; }
+    public bool CanManageApplications { get; set; }
 }

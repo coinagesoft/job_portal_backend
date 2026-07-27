@@ -60,9 +60,12 @@ You're Invited!
 
 <p>
 You have been invited to join
-<strong>{companyName}</strong>
-as a
-<strong>{role}</strong>.
+<strong>{companyName}</strong>.
+</p>
+
+<p>
+You'll have access to:<br/>
+<strong>{role}</strong>
 </p>
 
 <p>

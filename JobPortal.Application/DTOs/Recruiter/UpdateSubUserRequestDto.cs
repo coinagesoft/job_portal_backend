@@ -10,13 +10,12 @@ namespace JobPortal.Application.DTOs.Recruiter
 {
     public class UpdateSubUserRequestDto
     {
-        [Required]
-        public SubUserRole Role { get; set; }
-
-        // Optional — override role defaults
-        public bool? CanSearchCandidates { get; set; }
-        public bool? CanUnlockProfiles { get; set; }
-        public bool? CanPostJobs { get; set; }
-        public bool? CanManageApplications { get; set; }
+        // ── Permissions — the single source of truth now that the Role
+        // dropdown is gone. Each flag is set directly from the checkbox
+        // state on the Sub-Users page. ─────────────────────────────────
+        public bool CanSearchCandidates { get; set; }
+        public bool CanUnlockProfiles { get; set; }
+        public bool CanPostJobs { get; set; }
+        public bool CanManageApplications { get; set; }
     }
 }
