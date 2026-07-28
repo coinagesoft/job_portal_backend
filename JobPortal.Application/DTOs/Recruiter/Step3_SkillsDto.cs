@@ -7,9 +7,6 @@ public class SkillsRequestDto
     // Main skills shown on job card and used in AI matching
     public List<string>? KeySkills { get; set; } = new();
 
-    
-    public string? LicenceDocsRequired { get; set; }
-
     // Example:
     // "English"
     // "English, Hindi"

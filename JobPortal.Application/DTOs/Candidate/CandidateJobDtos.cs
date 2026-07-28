@@ -329,6 +329,8 @@ public class CandidateJobDetailResponseDto
 
     public string? LicenceDocsRequired { get; set; }
 
+    public string? WorkingDocsRequired { get; set; }
+
     public string? LanguageRequired { get; set; }
 
     // ─────────────────────────────────────────────

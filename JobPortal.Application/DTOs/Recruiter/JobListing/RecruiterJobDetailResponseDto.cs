@@ -99,6 +99,8 @@ public class RecruiterJobDetailResponseDto
 
     public string? LicenceDocsRequired { get; set; }
 
+    public string? WorkingDocsRequired { get; set; }
+
     // =====================================================
     // Location
     // =====================================================

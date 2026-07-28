@@ -25,4 +25,9 @@ public class EligibilityRequestDto
 
     [Range(1, 120)]
     public int? PassportValidityMonths { get; set; }
+
+    public string? LicenceDocsRequired { get; set; }
+
+    // Working Documents
+    public string? WorkingDocsRequired { get; set; }
 }

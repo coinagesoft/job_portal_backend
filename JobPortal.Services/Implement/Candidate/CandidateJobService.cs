@@ -319,10 +319,13 @@ public class CandidateJobService : ICandidateJobService
           benefits,
 
                 LicenceDocsRequired =
-          job.LicenceDocsRequired,
+    job.LicenceDocsRequired,
+
+                WorkingDocsRequired =
+    job.WorkingDocsRequired,
 
                 LanguageRequired =
-          job.LanguageRequired,
+    job.LanguageRequired,
 
                 // Eligibility
 
@@ -1167,10 +1170,18 @@ private static string? FormatSalary(JobPosting job)
             // Certificates
             //----------------------------------------------------
 
-            var certificates =
-                string.IsNullOrWhiteSpace(job.LicenceDocsRequired)
+            var personalCertificates =
+       string.IsNullOrWhiteSpace(job.LicenceDocsRequired)
+           ? new List<string>()
+           : job.LicenceDocsRequired
+               .Split(',', StringSplitOptions.RemoveEmptyEntries)
+               .Select(x => x.Trim())
+               .ToList();
+
+            var workingCertificates =
+                string.IsNullOrWhiteSpace(job.WorkingDocsRequired)
                     ? new List<string>()
-                    : job.LicenceDocsRequired
+                    : job.WorkingDocsRequired
                         .Split(',', StringSplitOptions.RemoveEmptyEntries)
                         .Select(x => x.Trim())
                         .ToList();
