@@ -9,7 +9,6 @@ namespace JobPortal.Services.IImplement.IAdmin
     {
         Task<List<PendingCompanyDocumentDto>> GetPendingAsync();
 
-        Task<bool> VerifyAsync(
-            Guid adminUserId, Guid documentId, VerifyCompanyDocumentRequestDto request);
+        Task<bool> VerifyAsync(Guid adminUserId, Guid documentId, VerifyCompanyDocumentRequestDto request);
     }
 }
