@@ -339,6 +339,8 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 LicenceDocsRequired = job.LicenceDocsRequired,
 
+                WorkingDocsRequired = job.WorkingDocsRequired,
+
                 // =====================================================
                 // Location
                 // =====================================================

@@ -1263,8 +1263,11 @@ private static string? FormatSalary(JobPosting job)
                 LanguagesRequired =
                     languages,
 
-                CertificatesRequired =
-                    certificates,
+                PersonalDocumentsRequired =
+    personalCertificates,
+
+                WorkingDocumentsRequired =
+    workingCertificates,
 
                 ScreeningQuestions =
                     job.ScreeningQuestions ?? new List<string>(),

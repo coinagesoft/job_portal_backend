@@ -1348,7 +1348,10 @@ namespace JobPortal.Services.Implement.Recruiter
                             job.PassportValidityMonths,
 
                         LicenceDocsRequired =
-                            job.LicenceDocsRequired
+    job.LicenceDocsRequired,
+
+                        WorkingDocsRequired =
+    job.WorkingDocsRequired
                     },
 
                     // =====================================================
