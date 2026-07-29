@@ -50,7 +50,7 @@ namespace JobPortal.Services.Implement.Recruiter
         public async Task<List<CreditPlanResponseDto>> GetActivePlansAsync()
         {
             return await _context.CreditPlans
-                .Where(p => p.IsActive)
+                .Where(p => p.IsActive && p.Price > 0)
                 .OrderBy(p => p.Price)
                 .Select(p => new CreditPlanResponseDto
                 {
@@ -86,6 +86,15 @@ namespace JobPortal.Services.Implement.Recruiter
 
             if (plan == null)
                 return Fail<CreatePlanOrderResponseDto>("Plan not found or is no longer active.");
+
+            // The free plan is granted automatically once at registration
+            // (see SubmitRegistrationAsync) and isn't meant to be
+            // re-purchased. Block it here too, not just by hiding it from
+            // GetActivePlansAsync, so it can't be bought via a direct API
+            // call with its planId.
+            if (plan.Price <= 0)
+                return Fail<CreatePlanOrderResponseDto>(
+                    "This plan is included automatically with your account and can't be purchased again.");
 
             int amountPaise = (int)(plan.Price * 100);   // ₹ → paise
             int gstAmountPaise = (int)Math.Round(amountPaise * 0.18m, MidpointRounding.AwayFromZero);

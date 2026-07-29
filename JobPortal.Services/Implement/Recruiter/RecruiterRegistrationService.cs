@@ -895,7 +895,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             var fullPhone = $"{request.CountryCode}{request.MobileNumber}";
 
             // ===== QA BYPASS: real Twilio OTP send disabled =====
-             var sent = await _twilioOtpService.SendOtpAsync(fullPhone);
+            var sent = await _twilioOtpService.SendOtpAsync(fullPhone);
             //var sent = true;
             // ===== END QA BYPASS =====
 
@@ -1245,7 +1245,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
       ReviewSubmitRequestDto request,
       string ipAddress)
     {
-   
+
         var strategy = _context.Database.CreateExecutionStrategy();
 
         return await strategy.ExecuteAsync(async () =>
@@ -1310,6 +1310,46 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     };
                 }
 
+                // ── Guard against a session that advanced its step counter
+                // without the underlying data actually being saved (e.g. a
+                // client that navigated forward after a failed save). Every
+                // field below is NOT NULL on EmployerProfile/User, so
+                // catching gaps here avoids a raw DB constraint exception
+                // leaking to the client and instead tells them exactly
+                // what's missing and which step to go back to.
+                var missingFields = new List<(string Field, int Step)>();
+
+                if (string.IsNullOrWhiteSpace(session.LegalName)) missingFields.Add(("Company legal name", 2));
+                if (string.IsNullOrWhiteSpace(session.CompanyDisplayName)) missingFields.Add(("Company display name", 2));
+                if (string.IsNullOrWhiteSpace(session.BusinessType)) missingFields.Add(("Business type", 2));
+                if (string.IsNullOrWhiteSpace(session.IndustryType)) missingFields.Add(("Industry type", 2));
+                if (string.IsNullOrWhiteSpace(session.AddressLine1)) missingFields.Add(("Address", 2));
+                if (string.IsNullOrWhiteSpace(session.City)) missingFields.Add(("City", 2));
+                if (string.IsNullOrWhiteSpace(session.Pincode)) missingFields.Add(("Pincode", 2));
+                if (string.IsNullOrWhiteSpace(session.ContactPersonName)) missingFields.Add(("Contact person name", 3));
+                if (string.IsNullOrWhiteSpace(session.Designation)) missingFields.Add(("Designation", 3));
+                if (string.IsNullOrWhiteSpace(session.MobileNumber)) missingFields.Add(("Mobile number", 3));
+                if (string.IsNullOrWhiteSpace(session.CountryCode)) missingFields.Add(("Mobile country code", 3));
+                if (string.IsNullOrWhiteSpace(session.CompanyEmail)) missingFields.Add(("Company email", 3));
+
+                if (missingFields.Count > 0)
+                {
+                    var earliestStep = missingFields.Min(m => m.Step);
+                    var fieldList = string.Join(", ", missingFields.Select(m => m.Field));
+
+                    _logger.LogWarning(
+                        "SubmitRegistrationAsync blocked: session {SessionId} reached step {LastCompletedStep} but is missing required fields: {MissingFields}",
+                        session.SessionId, session.LastCompletedStep, fieldList);
+
+                    return new ReviewSubmitResponseDto
+                    {
+                        Success = false,
+                        Message =
+                            $"Some required details are missing ({fieldList}). Please go back to step {earliestStep} and re-save them before continuing.",
+                        StepStatus = BuildStepStatus(session)
+                    };
+                }
+
                 // Duplicate mobile check
                 var mobileExists = await _context.Users.AnyAsync(x =>
          x.MobileNumber == session.MobileNumber &&
@@ -1337,6 +1377,28 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                         {
                             Success = false,
                             Message = "This email is already registered."
+                        };
+                    }
+                }
+
+                // Duplicate GSTIN check — employer_profiles.gstin has a
+                // unique index, so a second registration reusing the same
+                // GSTIN (e.g. a repeat/test submission, or another branch
+                // of the same company registering separately) would
+                // otherwise crash the insert with a raw Postgres
+                // constraint error instead of a clean, actionable message.
+                if (!string.IsNullOrWhiteSpace(session.Gstn))
+                {
+                    var gstinExists = await _context.EmployerProfiles.AnyAsync(x =>
+                        x.Gstin == session.Gstn);
+
+                    if (gstinExists)
+                    {
+                        return new ReviewSubmitResponseDto
+                        {
+                            Success = false,
+                            Message = "An account with this GSTIN is already registered.",
+                            StepStatus = BuildStepStatus(session)
                         };
                     }
                 }
@@ -1422,6 +1484,9 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                  (byte)ProfileCompletionHelper.CalculateProfileCompletionScore(employer);
 
                 // ── Create Wallet (10 Free Trial Credits) ─────────────────────────
+                var trialCreditsGranted = 10;
+                var trialExpiresAt = DateTime.UtcNow.AddDays(30);
+
                 _context.CreditWallets.Add(new CreditWallet
                 {
                     Wallet_Id = Guid.NewGuid(),
@@ -1429,16 +1494,39 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     EmployerId = employer.EmployerId,
 
                     // Give every new employer 10 free credits
-                    CreditBalance = 10,
+                    CreditBalance = trialCreditsGranted,
 
                     PackageName = "Free Trial",
 
                     // Trial validity (change/remove as needed)
-                    PackExpiresAt = DateTime.UtcNow.AddDays(30),
+                    PackExpiresAt = trialExpiresAt,
 
                     SharedWallet = true,
 
                     UpdatedAt = now
+                });
+
+                // Record the grant in the plan-purchase ledger too.
+                // CreditWalletService.ReconcileWalletBalanceAsync recomputes
+                // the wallet's balance as
+                // (sum of EmployerPlanPurchase.Credits) - (sum of
+                // CreditUsageTransactions.CreditsUsed) every time the wallet
+                // is read, and overwrites CreditBalance with that figure.
+                // Without a matching ledger row here, the free trial credits
+                // above get silently reset to 0 the first time the wallet
+                // page loads.
+                _context.EmployerPlanPurchase.Add(new EmployerPlanPurchase
+                {
+                    EmployerCreditPlanId = Guid.NewGuid(),
+                    EmployerId = employer.EmployerId,
+                    PlanId = Guid.Empty,
+                    PlanName = "Free Trial",
+                    Credits = trialCreditsGranted,
+                    Price = 0,
+                    AssignedAt = now,
+                    ExpiresAt = trialExpiresAt,
+                    IsActive = true,
+                    AssignedBy = user.UserId,
                 });
 
                 // ── Create Notification Settings ─────────────────────

@@ -19,9 +19,8 @@ namespace JobPortal.Application.DTOs.Recruiter
         [MaxLength(100)]
         public string Designation { get; set; } = string.Empty;
 
-        [Required]
-        [EmailAddress]
-        public string ContactPersonEmail { get; set; } = string.Empty;  // personal email
+      
+        public string? ContactPersonEmail { get; set; }  // personal email (optional, unused)
 
         [Required]
         [EmailAddress]
