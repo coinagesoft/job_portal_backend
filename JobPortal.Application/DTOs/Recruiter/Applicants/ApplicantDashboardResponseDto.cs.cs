@@ -18,6 +18,12 @@ namespace JobPortal.Application.DTOs.Recruiter.Applicants
 
         public int Interview { get; set; }
 
+        public int TableInterview { get; set; }
+
+        public int CvSelection { get; set; }
+
+        public int LocationInterview { get; set; }
+
         public int Hired { get; set; }
 
         public int Rejected { get; set; }

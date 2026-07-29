@@ -40,17 +40,19 @@ namespace JobPortal.Services.Implement.Recruiter
 
             response.Badges.Add(new VerificationBadgeDto
             {
-                BadgeName = "GST Verified",
-                Status = profile.GstRegistered ? "Not Approved" : "Pending",
+                BadgeName = "GST",
+                Status = !string.IsNullOrWhiteSpace(profile.GstCertificateUrl)
+                    ? "Uploaded"
+                    : "Not Uploaded",
                 Description = "GST registration verification."
             });
 
             response.Badges.Add(new VerificationBadgeDto
             {
-                BadgeName = "PAN Verified",
-                Status = !string.IsNullOrWhiteSpace(profile.Pan)
-                    ? "Not Approved"
-                    : "Pending",
+                BadgeName = "PAN",
+                Status = !string.IsNullOrWhiteSpace(profile.PanCardUrl)
+                    ? "Uploaded"
+                    : "Not Uploaded",
                 Description = "PAN verification status."
             });
 
@@ -58,8 +60,8 @@ namespace JobPortal.Services.Implement.Recruiter
             {
                 BadgeName = "POE Licensed",
                 Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl)
-                    ? "Approved"
-                    : "Pending",
+                    ? "Uploaded"
+                    : "Not Uploaded",
                 Description = "POE licence verification."
             });
 
@@ -67,8 +69,8 @@ namespace JobPortal.Services.Implement.Recruiter
             {
                 BadgeName = "RPSL Licensed",
                 Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl)
-                    ? "Approved"
-                    : "Pending",
+                    ? "Uploaded"
+                    : "Not Uploaded",
                 Description = "RPSL licence verification."
             });
 
