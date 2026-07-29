@@ -1267,7 +1267,7 @@ namespace JobPortal.Services.Implement.Recruiter
                         EmploymentType = job.EmploymentType,
                         EmploymentMode = job.EmploymentMode,
                         Department = job.Department,
-
+                        ContractPeriod = job.ContractPeriod,
                         DutyHoursPerDay = job.DutyHoursPerDay,
                         PaidOvertime = job.PaidOvertime,
 
