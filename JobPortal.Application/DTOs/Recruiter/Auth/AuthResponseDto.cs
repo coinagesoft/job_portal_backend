@@ -29,6 +29,12 @@ public class AuthResponseDto
 
     public DateTime? ExpiresAt { get; set; }
 
+    // True only when this login just reversed a pending soft-delete
+    // (the account was inside its 30-day recovery window). Lets the
+    // frontend show a distinct "welcome back, your account was
+    // restored" message instead of a generic login success toast.
+    public bool AccountRecovered { get; set; }
+
     // Lets the frontend hide/block restricted pages and actions without
     // waiting for a server round-trip to find out. Always true for the
     // account owner; reflects the sub-user's actual current flags otherwise.

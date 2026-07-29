@@ -126,23 +126,32 @@ public class RecruiterAuthService : IRecruiterAuthService
             }
             var userType = user.UserType;
 
-            if (user.AccountStatus == AccountStatus.Suspended)
+            // A soft-deleted account (still inside its 30-day recovery
+            // window) is also marked AccountStatus.Suspended — same as a
+            // deliberately deactivated account — so it must skip the
+            // generic suspended/rejected checks below. The IsDeleted
+            // block above already decided whether this login attempt is
+            // allowed to proceed.
+            if (!user.IsDeleted)
             {
-                return SendFail(
-                    "Your account has been suspended. Contact support.");
-            }
+                if (user.AccountStatus == AccountStatus.Suspended)
+                {
+                    return SendFail(
+                        "Your account has been suspended. Contact support.");
+                }
 
-            if (user.AccountStatus == AccountStatus.Rejected)
-            {
-                return SendFail(
-                    "Account not found.");
+                if (user.AccountStatus == AccountStatus.Rejected)
+                {
+                    return SendFail(
+                        "Account not found.");
+                }
             }
 
             var employer = await _context.EmployerProfiles
                 .FirstOrDefaultAsync(x =>
                     x.UserId == user.UserId);
 
-            if (employer != null)
+            if (employer != null && !user.IsDeleted)
             {
                 if (employer.AccountStatus == AccountStatus.Suspended)
                 {
@@ -371,13 +380,28 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             if (user == null)
                 return AuthFail("Account not found.");
-         
-            // User account validation
-            if (user.AccountStatus == AccountStatus.Suspended)
-                return AuthFail("Your account has been suspended.");
 
-            if (user.AccountStatus == AccountStatus.Rejected)
-                return AuthFail("Account not found.");
+            // A soft-deleted account is permanently gone once its 30-day
+            // recovery window has passed.
+            if (user.IsDeleted &&
+                (!user.RecoveryExpiry.HasValue || user.RecoveryExpiry.Value <= DateTime.UtcNow))
+            {
+                return AuthFail("This account has been permanently deleted. Please register again.");
+            }
+
+            // User account validation — skipped for a soft-deleted account
+            // still inside its recovery window. Deletion sets the same
+            // AccountStatus.Suspended as deactivation does, so without this
+            // guard a recoverable account would be wrongly rejected here
+            // before it ever gets the chance to be restored below.
+            if (!user.IsDeleted)
+            {
+                if (user.AccountStatus == AccountStatus.Suspended)
+                    return AuthFail("Your account has been suspended.");
+
+                if (user.AccountStatus == AccountStatus.Rejected)
+                    return AuthFail("Account not found.");
+            }
 
             // Recruiter validation
             Guid? employerId = null;
@@ -395,11 +419,14 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 if (employer != null)
                 {
-                    if (employer.AccountStatus == AccountStatus.Suspended)
-                        return AuthFail("Company account suspended.");
+                    if (!user.IsDeleted)
+                    {
+                        if (employer.AccountStatus == AccountStatus.Suspended)
+                            return AuthFail("Company account suspended.");
 
-                    if (employer.AccountStatus == AccountStatus.Rejected)
-                        return AuthFail("Company account rejected.");
+                        if (employer.AccountStatus == AccountStatus.Rejected)
+                            return AuthFail("Company account rejected.");
+                    }
 
                     employerId = employer.EmployerId;
                     // Owner keeps every permission true (the defaults above).
@@ -500,11 +527,14 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             otp.IsVerified = true;
 
+            var accountRecovered = false;
+
             if (user.IsDeleted &&
         user.RecoveryExpiry.HasValue &&
         user.RecoveryExpiry.Value > DateTime.UtcNow)
             {
                 await RecoverDeletedAccountAsync(user);
+                accountRecovered = true;
             }
 
             user.LastLoginAt = DateTime.UtcNow;
@@ -532,7 +562,9 @@ public class RecruiterAuthService : IRecruiterAuthService
             return new AuthResponseDto
             {
                 Success = true,
-                Message = "Login successful.",
+                Message = accountRecovered
+                    ? "Welcome back! Your account has been restored."
+                    : "Login successful.",
                 Token = token,
                 CandidateId = candidateId,
 
@@ -543,6 +575,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                 ProfileStatus = profileStatus,
                 ExpiresAt = expiry,
                 IsSubUser = isSubUser,
+                AccountRecovered = accountRecovered,
                 CanSearchCandidates = canSearchCandidates,
                 CanUnlockProfiles = canUnlockProfiles,
                 CanPostJobs = canPostJobs,
@@ -632,6 +665,8 @@ public class RecruiterAuthService : IRecruiterAuthService
          u.Email != null &&
          u.Email.ToLower() == email);
 
+            var googleAccountRecovered = false;
+
             if (user == null)
             {
                 // Auto-register Candidate
@@ -669,6 +704,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                     }
 
                     await RecoverDeletedAccountAsync(user);
+                    googleAccountRecovered = true;
                 }
                 if (user.AccountStatus == AccountStatus.Suspended)
                     return AuthFail(
@@ -740,7 +776,9 @@ public class RecruiterAuthService : IRecruiterAuthService
             return new AuthResponseDto
             {
                 Success = true,
-                Message = "Google login successful.",
+                Message = googleAccountRecovered
+                    ? "Welcome back! Your account has been restored."
+                    : "Google login successful.",
 
                 Token = token,
 
@@ -755,7 +793,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 ProfileStatus = profileStatus,
 
-
+                AccountRecovered = googleAccountRecovered,
 
                 ExpiresAt = expiry
             };
@@ -870,6 +908,8 @@ public class RecruiterAuthService : IRecruiterAuthService
                     u.Email != null &&
                     u.Email.ToLower() == email);
 
+            var linkedInAccountRecovered = false;
+
             if (user == null)
             {
                 // Auto Register Candidate
@@ -907,6 +947,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                             "This account has been permanently deleted.");
                     }
                     await RecoverDeletedAccountAsync(user);
+                    linkedInAccountRecovered = true;
                 }
                 if (user.AccountStatus == AccountStatus.Suspended)
                 {
@@ -977,7 +1018,9 @@ public class RecruiterAuthService : IRecruiterAuthService
             return new AuthResponseDto
             {
                 Success = true,
-                Message = "LinkedIn login successful.",
+                Message = linkedInAccountRecovered
+                    ? "Welcome back! Your account has been restored."
+                    : "LinkedIn login successful.",
 
                 Token = token,
 
@@ -992,7 +1035,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
                 ProfileStatus = profileStatus,
 
-
+                AccountRecovered = linkedInAccountRecovered,
 
                 ExpiresAt = expiry
             };
