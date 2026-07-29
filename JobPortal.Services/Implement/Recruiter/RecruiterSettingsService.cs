@@ -922,11 +922,9 @@ namespace JobPortal.Services.Implement.Recruiter
         /// not Cascade, so parents must not be deleted before their
         /// children).
         /// </summary>
-        public async Task<DangerZoneActionResponseDto> DeleteAccountAsync(
-            Guid employerId)
+        public async Task<DangerZoneActionResponseDto> DeleteAccountAsync(Guid employerId)
         {
             var employer = await _context.EmployerProfiles
-                .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.EmployerId == employerId);
 
             if (employer == null)
@@ -939,7 +937,6 @@ namespace JobPortal.Services.Implement.Recruiter
             }
 
             var user = await _context.Users
-                .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.UserId == employer.UserId);
 
             if (user == null)
@@ -951,293 +948,42 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            var jobIds = await _context.JobPostings
-                .Where(j => j.EmployerId == employerId)
-                .Select(j => j.JobId)
-                .ToListAsync();
-
-            var subUserIds = await _context.EmployerSubUsers
-                .Where(s => s.EmployerId == employerId)
-                .Select(s => s.UserId)
-                .ToListAsync();
-
-            // Every User row this deletion ultimately removes — the
-            // owner plus every sub-user login — so we can clean up
-            // per-user tables (sessions, OTPs, notifications, invoices,
-            // consent logs, disputes) for all of them in one go.
-            var allUserIds = subUserIds.Append(user.UserId).ToList();
-
-            await using var transaction =
-                await _context.Database.BeginTransactionAsync();
-
-            try
+            // Already deleted
+            if (user.IsDeleted)
             {
-                // ── Job graph (leaves first) ───────────────────
-                await _context.RecruiterNotes
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                if (jobIds.Count > 0)
-                {
-                    await _context.JobEmbeddings
-                        .Where(x => jobIds.Contains(x.JobId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.SavedJobs
-                        .Where(x => jobIds.Contains(x.JobId))
-                        .ExecuteDeleteAsync();
-                }
-
-                await _context.JobApplications
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                await _context.JobPostings
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                // ── Candidate-access / credit-usage records ────
-                await _context.CandidateCvDownloads
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                await _context.CandidateUnlocks
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                await _context.EmployerCandidateAccesses
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                await _context.SubUserCreditAllocation
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                await _context.CreditAllocationHistory
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                await _context.CreditUsageTransactions
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                await _context.EmployerPlanPurchase
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                // ── Billing: invoices → security deposit → payment
-                //    transactions (self-referencing via OriginalTxnId,
-                //    so refund/child rows must go before originals) ──
-                var txnIds = await _context.PaymentTransactions
-                    .Where(x =>
-                        x.EmployerId == employerId ||
-                        allUserIds.Contains(x.UserId))
-                    .Select(x => x.TransactionId)
-                    .ToListAsync();
-
-                if (txnIds.Count > 0)
-                {
-                    await _context.Invoices
-                        .Where(x => txnIds.Contains(x.TransactionId))
-                        .ExecuteDeleteAsync();
-                }
-
-                await _context.SecurityDeposits
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                if (txnIds.Count > 0)
-                {
-                    await _context.PaymentTransactions
-                        .Where(x =>
-                            txnIds.Contains(x.TransactionId) &&
-                            x.OriginalTxnId != null)
-                        .ExecuteDeleteAsync();
-
-                    await _context.PaymentTransactions
-                        .Where(x => txnIds.Contains(x.TransactionId))
-                        .ExecuteDeleteAsync();
-                }
-
-                await _context.EmployerBadges
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                // ── Per-user rows (owner + every sub-user login) ──
-                await _context.Notifications
-                    .Where(x => allUserIds.Contains(x.UserId))
-                    .ExecuteDeleteAsync();
-
-                await _context.ConsentLogs
-                    .Where(x => allUserIds.Contains(x.UserId))
-                    .ExecuteDeleteAsync();
-
-                await _context.Disputes
-                    .Where(x => allUserIds.Contains(x.RaisedBy))
-                    .ExecuteDeleteAsync();
-
-                await _context.UserSessions
-                    .Where(x => allUserIds.Contains(x.UserId))
-                    .ExecuteDeleteAsync();
-
-                await _context.OtpVerifications
-                    .Where(x => x.UserId != null && allUserIds.Contains(x.UserId.Value))
-                    .ExecuteDeleteAsync();
-
-                // ── Employer-level settings, sub-users, wallet ──
-                await _context.EmployerSubUsers
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                await _context.EmployerNotificationSettings
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                await _context.EmployerPreferences
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                await _context.SavedSearches
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                await _context.CreditWallets
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                // ── Root rows ───────────────────────────────────
-                await _context.EmployerProfiles
-                    .Where(x => x.EmployerId == employerId)
-                    .ExecuteDeleteAsync();
-
-                // A login account here can, in some data, ALSO be linked
-                // to a CandidateProfile (same UserId used on both sides —
-                // e.g. someone who signed up as a candidate first, then
-                // separately as an employer with the same mobile number).
-                // CandidateProfile.UserId → User is a Restrict FK, so the
-                // Users delete below would otherwise fail with a raw
-                // Postgres constraint error. Cascade that candidate graph
-                // first, the same way we already cascade the employer one.
-                var linkedCandidateIds = await _context.CandidateProfiles
-                    .Where(cp => allUserIds.Contains(cp.UserId))
-                    .Select(cp => cp.CandidateId)
-                    .ToListAsync();
-
-                if (linkedCandidateIds.Count > 0)
-                {
-                    await _context.CandidateCvDownloads
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.CandidateCvs
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.CandidateEducations
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.CandidateWorkHistories
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.CandidateSkills
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.CandidateDocuments
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.CandidateEmbeddings
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.CandidateNotificationSettings
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.CandidatePreferenceSettings
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.CandidateLogoutSessions
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.KycVerifications
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.PassportVerifications
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.ItiCertificateReviews
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    // This candidate's applications/saves/unlocks — to ANY
-                    // employer, not just this one (already-deleted rows
-                    // for this employer are simply a no-op re-filter here).
-                    await _context.JobApplications
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.SavedJobs
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.CandidateUnlocks
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.EmployerCandidateAccesses
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-
-                    await _context.CandidateProfiles
-                        .Where(x => linkedCandidateIds.Contains(x.CandidateId))
-                        .ExecuteDeleteAsync();
-                }
-
-                // Sub-users' own login accounts only exist to work
-                // under this employer — remove them too, not just the
-                // EmployerSubUsers link row.
-                if (subUserIds.Count > 0)
-                {
-                    await _context.Users
-                        .Where(x => subUserIds.Contains(x.UserId))
-                        .ExecuteDeleteAsync();
-                }
-
-                await _context.Users
-                    .Where(x => x.UserId == user.UserId)
-                    .ExecuteDeleteAsync();
-
-                await transaction.CommitAsync();
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-
-                _logger.LogError(
-                    ex,
-                    "DeleteAccountAsync failed for EmployerId={EmployerId}",
-                    employerId);
-
                 return new DangerZoneActionResponseDto
                 {
                     Success = false,
-                    Message = "Failed to delete account. Please try again or contact support if this keeps happening."
+                    Message = "Account is already scheduled for deletion."
                 };
             }
+
+            // Archive all jobs
+            var jobsAffected = await ArchiveAllJobsAsync(employerId);
+
+            // Soft delete
+            user.IsDeleted = true;
+            user.DeletedAt = DateTime.UtcNow;
+            user.RecoveryExpiry = DateTime.UtcNow.AddDays(30);
+
+            user.AccountStatus = AccountStatus.Suspended;
+            user.SuspensionReason = "Account deleted by employer.";
+
+            user.UpdatedAt = DateTime.UtcNow;
+
+            employer.AccountStatus = AccountStatus.Suspended;
+            employer.UpdatedAt = DateTime.UtcNow;
+
+            // Revoke all sessions
+            await RevokeAllSessionsAsync(user.UserId);
+
+            await _context.SaveChangesAsync();
 
             return new DangerZoneActionResponseDto
             {
                 Success = true,
-                Message = "Your account and all associated data have been permanently deleted.",
-                JobsAffected = jobIds.Count
+                JobsAffected = jobsAffected,
+                Message = "Your account has been deleted. You can recover it within 30 days by logging in again."
             };
         }
 

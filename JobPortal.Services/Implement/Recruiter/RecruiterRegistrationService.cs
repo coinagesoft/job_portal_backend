@@ -501,37 +501,64 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
             if (mobileChanged)
             {
-                var mobileExists = await _context.Users.AnyAsync(u =>
-                    u.MobileNumber == request.MobileNumber &&
-                    u.CountryCode == request.CountryCode &&
-                    u.UserType == UserType.Recruiter);
+                var existingUser = await _context.Users
+                    .FirstOrDefaultAsync(u =>
+                        u.MobileNumber == request.MobileNumber &&
+                        u.CountryCode == request.CountryCode &&
+                        u.UserType == UserType.Recruiter);
 
-                if (mobileExists)
+                if (existingUser != null)
                 {
-                    return new ContactDetailsResponseDto
+                    if (!existingUser.IsDeleted)
                     {
-                        Success = false,
-                        Message = "This mobile number is already registered."
-                    };
+                        return new ContactDetailsResponseDto
+                        {
+                            Success = false,
+                            Message = "This mobile number is already registered."
+                        };
+                    }
+
+                    if (existingUser.RecoveryExpiry.HasValue &&
+                        existingUser.RecoveryExpiry > DateTime.UtcNow)
+                    {
+                        return new ContactDetailsResponseDto
+                        {
+                            Success = false,
+                            Message = "This account is scheduled for deletion. Please log in to recover it."
+                        };
+                    }
                 }
             }
-
             //------------------------------------------------
             // Duplicate check only when email changed
             //------------------------------------------------
 
             if (emailChanged)
             {
-                var emailExists = await _context.Users.AnyAsync(u =>
-                    u.Email == request.CompanyEmail);
+                var existingUser = await _context.Users
+                    .FirstOrDefaultAsync(u =>
+                        u.Email == request.CompanyEmail);
 
-                if (emailExists)
+                if (existingUser != null)
                 {
-                    return new ContactDetailsResponseDto
+                    if (!existingUser.IsDeleted)
                     {
-                        Success = false,
-                        Message = "This email is already registered."
-                    };
+                        return new ContactDetailsResponseDto
+                        {
+                            Success = false,
+                            Message = "This email is already registered."
+                        };
+                    }
+
+                    if (existingUser.RecoveryExpiry.HasValue &&
+                        existingUser.RecoveryExpiry > DateTime.UtcNow)
+                    {
+                        return new ContactDetailsResponseDto
+                        {
+                            Success = false,
+                            Message = "This account is scheduled for deletion. Please log in to recover it."
+                        };
+                    }
                 }
             }
 
@@ -632,17 +659,32 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             }
 
             // Check email already exists
-            var emailExists = await _context.Users
-                .AnyAsync(x => x.Email == request.CompanyEmail);
+            var existingUser = await _context.Users
+      .FirstOrDefaultAsync(x => x.Email == request.CompanyEmail);
 
-            if (emailExists)
+            if (existingUser != null)
             {
-                return new OtpResponseDto
+                if (!existingUser.IsDeleted)
                 {
-                    Success = false,
-                    Message = "This email is already registered."
-                };
+                    return new OtpResponseDto
+                    {
+                        Success = false,
+                        Message = "This email is already registered."
+                    };
+                }
+
+                if (existingUser.RecoveryExpiry.HasValue &&
+                    existingUser.RecoveryExpiry > DateTime.UtcNow)
+                {
+                    return new OtpResponseDto
+                    {
+                        Success = false,
+                        Message = "This account is scheduled for deletion. Please log in to recover it."
+                    };
+                }
             }
+
+          
 
             var otp = GenerateOtp();
 
@@ -880,17 +922,35 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             }
 
             // Check if mobile number already exists
-            var mobileExists = await _context.Users.AnyAsync(x =>
-      x.MobileNumber == request.MobileNumber);
+            var existingUser = await _context.Users
+     .FirstOrDefaultAsync(x =>
+         x.MobileNumber == request.MobileNumber &&
+         x.CountryCode == request.CountryCode &&
+         x.UserType == UserType.Recruiter);
 
-            if (mobileExists)
+            if (existingUser != null)
             {
-                return new OtpResponseDto
+                if (!existingUser.IsDeleted)
                 {
-                    Success = false,
-                    Message = "This mobile number is already registered."
-                };
+                    return new OtpResponseDto
+                    {
+                        Success = false,
+                        Message = "This mobile number is already registered."
+                    };
+                }
+
+                if (existingUser.RecoveryExpiry.HasValue &&
+                    existingUser.RecoveryExpiry > DateTime.UtcNow)
+                {
+                    return new OtpResponseDto
+                    {
+                        Success = false,
+                        Message = "This account is scheduled for deletion. Please log in to recover it."
+                    };
+                }
             }
+
+         
 
             var fullPhone = $"{request.CountryCode}{request.MobileNumber}";
 
@@ -1351,33 +1411,60 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 }
 
                 // Duplicate mobile check
-                var mobileExists = await _context.Users.AnyAsync(x =>
+                var existingUser = await _context.Users
+     .FirstOrDefaultAsync(x =>
          x.MobileNumber == session.MobileNumber &&
          x.CountryCode == session.CountryCode &&
          x.UserType == UserType.Recruiter);
 
-                if (mobileExists)
+                if (existingUser != null)
                 {
-                    return new ReviewSubmitResponseDto
-                    {
-                        Success = false,
-                        Message = "This mobile number is already registered."
-                    };
-                }
-
-                // Duplicate email check
-                if (!string.IsNullOrWhiteSpace(session.CompanyEmail))
-                {
-                    var emailExists = await _context.Users.AnyAsync(x =>
-                        x.Email == session.CompanyEmail);
-
-                    if (emailExists)
+                    if (!existingUser.IsDeleted)
                     {
                         return new ReviewSubmitResponseDto
                         {
                             Success = false,
-                            Message = "This email is already registered."
+                            Message = "This mobile number is already registered."
                         };
+                    }
+
+                    if (existingUser.RecoveryExpiry.HasValue &&
+                        existingUser.RecoveryExpiry > DateTime.UtcNow)
+                    {
+                        return new ReviewSubmitResponseDto
+                        {
+                            Success = false,
+                            Message = "This account is scheduled for deletion. Please log in to recover it."
+                        };
+                    }
+                }
+                // Duplicate email check
+                if (!string.IsNullOrWhiteSpace(session.CompanyEmail))
+                {
+                    var existingEmailUser = await _context.Users
+        .FirstOrDefaultAsync(x =>
+            x.Email == session.CompanyEmail);
+
+                    if (existingEmailUser != null)
+                    {
+                        if (!existingEmailUser.IsDeleted)
+                        {
+                            return new ReviewSubmitResponseDto
+                            {
+                                Success = false,
+                                Message = "This email is already registered."
+                            };
+                        }
+
+                        if (existingEmailUser.RecoveryExpiry.HasValue &&
+                            existingEmailUser.RecoveryExpiry > DateTime.UtcNow)
+                        {
+                            return new ReviewSubmitResponseDto
+                            {
+                                Success = false,
+                                Message = "This account is scheduled for deletion. Please log in to recover it."
+                            };
+                        }
                     }
                 }
 

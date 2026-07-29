@@ -112,7 +112,18 @@ public class RecruiterAuthService : IRecruiterAuthService
                 return SendFail(
                     "No account found. Please register first.");
             }
+            if (user.IsDeleted)
+            {
+                if (!user.RecoveryExpiry.HasValue ||
+                    user.RecoveryExpiry.Value <= DateTime.UtcNow)
+                {
+                    return SendFail(
+                        "This account has been permanently deleted. Please register again.");
+                }
 
+                // Recovery window is still active.
+                // Allow OTP to be sent.
+            }
             var userType = user.UserType;
 
             if (user.AccountStatus == AccountStatus.Suspended)
@@ -360,7 +371,7 @@ public class RecruiterAuthService : IRecruiterAuthService
 
             if (user == null)
                 return AuthFail("Account not found.");
-
+         
             // User account validation
             if (user.AccountStatus == AccountStatus.Suspended)
                 return AuthFail("Your account has been suspended.");
@@ -488,6 +499,13 @@ public class RecruiterAuthService : IRecruiterAuthService
             }
 
             otp.IsVerified = true;
+
+            if (user.IsDeleted &&
+        user.RecoveryExpiry.HasValue &&
+        user.RecoveryExpiry.Value > DateTime.UtcNow)
+            {
+                await RecoverDeletedAccountAsync(user);
+            }
 
             user.LastLoginAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
@@ -641,6 +659,17 @@ public class RecruiterAuthService : IRecruiterAuthService
             }
             else
             {
+                if (user.IsDeleted)
+                {
+                    if (user.RecoveryExpiry.HasValue &&
+                        user.RecoveryExpiry.Value <= DateTime.UtcNow)
+                    {
+                        return AuthFail(
+                            "This account has been permanently deleted.");
+                    }
+
+                    await RecoverDeletedAccountAsync(user);
+                }
                 if (user.AccountStatus == AccountStatus.Suspended)
                     return AuthFail(
                         "Your account has been suspended.");
@@ -869,6 +898,16 @@ public class RecruiterAuthService : IRecruiterAuthService
             }
             else
             {
+                if (user.IsDeleted)
+                {
+                    if (user.RecoveryExpiry.HasValue &&
+                        user.RecoveryExpiry.Value <= DateTime.UtcNow)
+                    {
+                        return AuthFail(
+                            "This account has been permanently deleted.");
+                    }
+                    await RecoverDeletedAccountAsync(user);
+                }
                 if (user.AccountStatus == AccountStatus.Suspended)
                 {
                     return AuthFail(
@@ -1046,7 +1085,25 @@ public class RecruiterAuthService : IRecruiterAuthService
 
         return "complete";
     }
+    private async Task RecoverDeletedAccountAsync(User user)
+    {
+        user.IsDeleted = false;
+        user.DeletedAt = null;
+        user.RecoveryExpiry = null;
 
+        user.AccountStatus = AccountStatus.Active;
+        user.SuspensionReason = null;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        var employer = await _context.EmployerProfiles
+            .FirstOrDefaultAsync(x => x.UserId == user.UserId);
+
+        if (employer != null)
+        {
+            employer.AccountStatus = AccountStatus.Active;
+            employer.UpdatedAt = DateTime.UtcNow;
+        }
+    }
     private async Task<string?> GetUserNameAsync(User user)
     {
         if (user.UserType == UserType.Candidate)
