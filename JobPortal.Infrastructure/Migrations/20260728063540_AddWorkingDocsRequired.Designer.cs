@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260728063540_AddWorkingDocsRequired")]
+    partial class AddWorkingDocsRequired
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2933,71 +2936,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.ToTable("registration_sessions", (string)null);
                 });
 
-            modelBuilder.Entity("JobPortal.Domain.Entities.RegistrationSessionDocument", b =>
-                {
-                    b.Property<Guid>("RegistrationDocumentId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal?>("AiConfidenceScore")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("Category")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CustomDocumentName")
-                        .HasColumnType("text");
-
-                    b.Property<string>("DetectedDocumentType")
-                        .HasColumnType("text");
-
-                    b.Property<string>("DocumentNumber")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("DocumentTypeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateOnly?>("ExpiryDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("FileUrl")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateOnly?>("IssueDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("IssuingAuthority")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ParsedDataJson")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PublicId")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("SessionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UploadedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("RegistrationDocumentId");
-
-                    b.HasIndex("DocumentTypeId");
-
-                    b.HasIndex("SessionId");
-
-                    b.ToTable("RegistrationSessionDocuments");
-                });
-
             modelBuilder.Entity("JobPortal.Domain.Entities.SavedJob", b =>
                 {
                     b.Property<Guid>("SavedJobId")
@@ -3942,24 +3880,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Navigation("JobApplication");
                 });
 
-            modelBuilder.Entity("JobPortal.Domain.Entities.RegistrationSessionDocument", b =>
-                {
-                    b.HasOne("VerificationDocumentMaster", "DocumentType")
-                        .WithMany()
-                        .HasForeignKey("DocumentTypeId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("JobPortal.Domain.Entities.RegistrationSession", "Session")
-                        .WithMany("Documents")
-                        .HasForeignKey("SessionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DocumentType");
-
-                    b.Navigation("Session");
-                });
-
             modelBuilder.Entity("JobPortal.Domain.Entities.SavedJob", b =>
                 {
                     b.HasOne("JobPortal.Domain.Entities.CandidateProfile", "CandidateProfile")
@@ -4090,11 +4010,6 @@ namespace JobPortal.Infrastructure.Migrations
             modelBuilder.Entity("JobPortal.Domain.Entities.JobPosting", b =>
                 {
                     b.Navigation("Applications");
-                });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.RegistrationSession", b =>
-                {
-                    b.Navigation("Documents");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.SupportTicket", b =>

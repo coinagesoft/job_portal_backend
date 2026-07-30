@@ -1,4 +1,5 @@
-﻿using JobPortal.Application.DTOs.Recruiter;
+﻿using JobPortal.Application.DTOs.Admin.CompanyDocuments;
+using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Domain.Common;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
@@ -19,18 +20,22 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     private readonly IFileStorageService _fileStorageService;
     private readonly ITwilioOtpService _twilioOtpService;
     private readonly IEmailService _emailService;
+    private readonly IGeminiCompanyDocumentParserService _geminiCompanyDocumentParserService;
+
     public RecruiterRegistrationService(
         AppDbContext context,
-        ILogger<RecruiterRegistrationService> logger,
+         ILogger<RecruiterRegistrationService> logger,
          IFileStorageService fileStorageService,
          ITwilioOtpService twilioOtpService,
-         IEmailService emailService)
+         IEmailService emailService,
+         IGeminiCompanyDocumentParserService geminiCompanyDocumentParserService)
     {
         _context = context;
         _logger = logger;
         _fileStorageService = fileStorageService;
         _twilioOtpService = twilioOtpService;
         _emailService = emailService;
+        _geminiCompanyDocumentParserService = geminiCompanyDocumentParserService;
 
     }
 
@@ -1056,47 +1061,115 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     // ════════════════════════════════════════════════
     // STEP 4 — Upload Licences → update DB
     // ════════════════════════════════════════════════
-    public async Task<LicencesResponseDto> UploadLicencesAsync(
-       LicencesRequestDto request,
-       string sessionId)
+
+    public async Task<RegistrationDocumentTypesResponseDto> GetRegistrationDocumentTypesAsync()
     {
         try
         {
-            var session = await GetValidSessionAsync(sessionId);
+            var documents = await _context.VerificationDocumentMasters
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.DisplayOrder)
+                .ToListAsync();
+
+            var response = new RegistrationDocumentTypesResponseDto
+            {
+                Success = true,
+                Message = "Document types loaded successfully.",
+
+                MandatoryDocuments = documents
+                    .Where(x => x.IsMandatory)
+                    .Select(Map)
+                    .ToList(),
+
+                OptionalDocuments = documents
+                    .Where(x => !x.IsMandatory)
+                    .Select(Map)
+                    .ToList()
+            };
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading registration document types.");
+
+            return new RegistrationDocumentTypesResponseDto
+            {
+                Success = false,
+                Message = ex.InnerException?.InnerException?.Message
+                    ?? ex.InnerException?.Message
+                    ?? ex.Message
+            };
+        }
+    }
+     public async Task<RegistrationDocumentsResponseDto> UploadLicensesAsync(
+    RegistrationDocumentsRequestDto request)
+{
+        try
+        {
+            var session = await GetValidSessionAsync(request.SessionId);
 
             if (session == null)
             {
-                return new LicencesResponseDto
+                return new RegistrationDocumentsResponseDto
                 {
                     Success = false,
-                    Message = "Session expired. Please start again."
+                    Message = "Session expired. Please start registration again."
                 };
             }
 
             if (session.LastCompletedStep < 3)
             {
-                return new LicencesResponseDto
+                return new RegistrationDocumentsResponseDto
                 {
                     Success = false,
                     Message = "Please complete Step 3 (Contact & OTP) first."
                 };
             }
 
-            if (request.PoeLicence == null)
+            if (request.Documents == null || !request.Documents.Any())
             {
-                return new LicencesResponseDto
+                return new RegistrationDocumentsResponseDto
                 {
                     Success = false,
-                    Message = "POE licence is required."
+                    Message = "Please upload at least one document."
                 };
             }
 
-            if (request.RpslLicence == null)
+            // Load all active document masters
+            var documentMasters = await _context.VerificationDocumentMasters
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.DisplayOrder)
+                .ToListAsync();
+
+            // Validate mandatory documents
+            var mandatoryDocumentIds = documentMasters
+                .Where(x => x.IsMandatory)
+                .Select(x => x.DocumentTypeId)
+                .ToList();
+
+            var uploadedMandatoryIds = request.Documents
+                .Where(x => x.DocumentTypeId.HasValue)
+                .Select(x => x.DocumentTypeId!.Value)
+                .Distinct()
+                .ToList();
+
+            var missingMandatoryDocuments = mandatoryDocumentIds
+                .Except(uploadedMandatoryIds)
+                .ToList();
+
+            if (missingMandatoryDocuments.Any())
             {
-                return new LicencesResponseDto
+                var missingNames = documentMasters
+                    .Where(x => missingMandatoryDocuments.Contains(x.DocumentTypeId))
+                    .Select(x => x.DocumentName)
+                    .ToList();
+
+                return new RegistrationDocumentsResponseDto
                 {
                     Success = false,
-                    Message = "RPSL licence is required."
+                    Message = $"Please upload all mandatory documents. Missing: {string.Join(", ", missingNames)}"
                 };
             }
 
@@ -1110,112 +1183,200 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
             const long maxSize = 5 * 1024 * 1024;
 
-            // POE validation
-            if (!allowedTypes.Contains(request.PoeLicence.ContentType))
+            var uploadedDocuments = new List<RegistrationUploadedDocumentDto>();
+            foreach (var document in request.Documents)
             {
-                return new LicencesResponseDto
+                if (document.File == null || document.File.Length == 0)
                 {
-                    Success = false,
-                    Message = "POE licence must be PDF, JPG or PNG."
-                };
-            }
+                    return new RegistrationDocumentsResponseDto
+                    {
+                        Success = false,
+                        Message = "One or more uploaded files are invalid."
+                    };
+                }
 
-            if (request.PoeLicence.Length > maxSize)
-            {
-                return new LicencesResponseDto
+                if (!allowedTypes.Contains(document.File.ContentType))
                 {
-                    Success = false,
-                    Message = "POE licence must be under 5MB."
-                };
-            }
+                    return new RegistrationDocumentsResponseDto
+                    {
+                        Success = false,
+                        Message = $"{document.File.FileName} must be PDF, JPG or PNG."
+                    };
+                }
 
-            // RPSL validation
-            if (!allowedTypes.Contains(request.RpslLicence.ContentType))
-            {
-                return new LicencesResponseDto
+                if (document.File.Length > maxSize)
                 {
-                    Success = false,
-                    Message = "RPSL licence must be PDF, JPG or PNG."
-                };
-            }
+                    return new RegistrationDocumentsResponseDto
+                    {
+                        Success = false,
+                        Message = $"{document.File.FileName} must be under 5 MB."
+                    };
+                }
 
-            if (request.RpslLicence.Length > maxSize)
-            {
-                return new LicencesResponseDto
+                // Validate Document Type
+                VerificationDocumentMaster? master = null;
+
+                if (document.DocumentTypeId.HasValue)
                 {
-                    Success = false,
-                    Message = "RPSL licence must be under 5MB."
-                };
-            }
+                    master = documentMasters.FirstOrDefault(x =>
+                        x.DocumentTypeId == document.DocumentTypeId.Value);
 
-            // Remove previous uploads if user reuploads
-            await _fileStorageService.DeleteAsync(session.PoeLicencePublicId);
+                    if (master == null)
+                    {
+                        return new RegistrationDocumentsResponseDto
+                        {
+                            Success = false,
+                            Message = $"Invalid document type selected for {document.File.FileName}."
+                        };
+                    }
 
-            await _fileStorageService.DeleteAsync(session.RpslLicencePublicId);
+                    // Check duplicate upload
+                    var existing = await _context.RegistrationSessionDocuments
+      .FirstOrDefaultAsync(x =>
+          x.SessionId == session.SessionId &&
+          x.DocumentTypeId == document.DocumentTypeId &&
+          !x.IsDeleted);
 
-            // Upload POE
-            var poe = await _fileStorageService.UploadDocumentAsync(
-                request.PoeLicence,
-                "jobportalrecruiter_poe/licences/poe");
+                    if (existing != null && !master.AllowMultipleUploads)
+                    {
+                        await _fileStorageService.DeleteAsync(existing.PublicId);
 
-            if (string.IsNullOrWhiteSpace(poe.Url))
-            {
-                return new LicencesResponseDto
+                        _context.RegistrationSessionDocuments.Remove(existing);
+                    }
+
+                    
+                }
+
+                // Upload File
+                var uploadResult = await _fileStorageService.UploadDocumentAsync(
+                    document.File,
+                    $"registration/{session.SessionId}/documents");
+
+                if (string.IsNullOrWhiteSpace(uploadResult.Url))
                 {
-                    Success = false,
-                    Message = "Failed to upload POE licence."
-                };
-            }
+                    return new RegistrationDocumentsResponseDto
+                    {
+                        Success = false,
+                        Message = $"Failed to upload {document.File.FileName}."
+                    };
+                }
 
-            // Upload RPSL
-            var rpsl = await _fileStorageService.UploadDocumentAsync(
-                request.RpslLicence,
-                "jobportalrecruiter_rpsl/licences/rpsl");
+                // Parse Document with Gemini
+                GeminiCompanyDocumentParseResponse? parsed = null;
 
-            if (string.IsNullOrWhiteSpace(rpsl.Url))
-            {
-                // cleanup POE because RPSL failed
-                await _fileStorageService.DeleteAsync(poe.PublicId);
-
-                return new LicencesResponseDto
+                try
                 {
-                    Success = false,
-                    Message = "Failed to upload RPSL licence."
+                    parsed = await _geminiCompanyDocumentParserService
+                        .ParseDocumentAsync(document.File);
+                    // If recruiter uploaded "Other Document",
+                    // try to map Gemini detected document type
+                    if (!document.DocumentTypeId.HasValue &&
+                        !string.IsNullOrWhiteSpace(parsed?.DocumentType))
+                    {
+                        master = documentMasters.FirstOrDefault(x =>
+      parsed.DocumentType!.Contains(
+          x.DocumentName,
+          StringComparison.OrdinalIgnoreCase)
+      ||
+      x.DocumentName.Contains(
+          parsed.DocumentType,
+          StringComparison.OrdinalIgnoreCase));
+
+                        if (master != null)
+                        {
+                            document.DocumentTypeId = master.DocumentTypeId;
+
+                            document.DocumentName = master.DocumentName;
+
+                            document.Category = master.Category;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Gemini parsing failed for {FileName}",
+                        document.File.FileName);
+                }
+
+                // Save Temporary Registration Document
+                var registrationDocument = new RegistrationSessionDocument
+                {
+                    SessionId = session.SessionId,
+
+                    DocumentTypeId = document.DocumentTypeId,
+
+                    CustomDocumentName =
+    document.DocumentTypeId == null
+        ? document.DocumentName
+        : null,
+
+                    Category =
+    document.DocumentTypeId == null
+        ? document.Category
+        : master?.Category,
+
+                    FileName = document.File.FileName,
+
+                    FileUrl = uploadResult.Url,
+
+                    PublicId = uploadResult.PublicId,
+
+                    UploadedAt = DateTime.UtcNow,
+
+                    DetectedDocumentType = parsed?.DocumentType,
+
+                    DocumentNumber = parsed?.DocumentNumber,
+
+                    IssuingAuthority = parsed?.IssuingAuthority,
+
+                    IssueDate = parsed?.IssueDate,
+
+                    ExpiryDate = parsed?.ExpiryDate,
+
+                    ParsedDataJson = parsed?.ParsedData?.GetRawText(),
+
+                    AiConfidenceScore = parsed?.AiConfidenceScore
                 };
+
+                _context.RegistrationSessionDocuments.Add(registrationDocument);
+
+                uploadedDocuments.Add(new RegistrationUploadedDocumentDto
+                {
+                    RegistrationDocumentId = registrationDocument.RegistrationDocumentId,
+
+                    DocumentTypeId = registrationDocument.DocumentTypeId,
+
+                    DocumentName =
+                        registrationDocument.CustomDocumentName ??
+                        master?.DocumentName ??
+                        "Custom Document",
+
+                    FileUrl = registrationDocument.FileUrl,
+
+                    Status = "Uploaded"
+                });
             }
-
-            // Save URLs + PublicIds
-            session.PoeLicenceUrl = poe.Url;
-            session.PoeLicencePublicId = poe.PublicId;
-
-            session.RpslLicenceUrl = rpsl.Url;
-            session.RpslLicencePublicId = rpsl.PublicId;
-
+            // Update Registration Step
             session.CurrentStep = 4;
 
-            session.LastCompletedStep =
-                Math.Max(session.LastCompletedStep, 4);
+            if (session.LastCompletedStep < 4)
+            {
+                session.LastCompletedStep = 4;
+            }
 
             await _context.SaveChangesAsync();
 
             _logger.LogInformation(
-                "Step4 saved — Session:{Id}",
+                "Registration documents uploaded successfully. Session: {SessionId}",
                 session.SessionId);
 
-            return new LicencesResponseDto
+            return new RegistrationDocumentsResponseDto
             {
                 Success = true,
-                Message = "Licences uploaded successfully. Pending admin review.",
+                Message = "Documents uploaded successfully.",
 
-                PoeLicenceUrl = session.PoeLicenceUrl,
-
-                RpslLicenceUrl = session.RpslLicenceUrl,
-
-                BadgesEarned = new List<string>
-            {
-                "Recruitment_Licensed",
-                "RPSL_Licensed"
-            },
+                Documents = uploadedDocuments,
 
                 StepStatus = BuildStepStatus(session)
             };
@@ -1224,9 +1385,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         {
             _logger.LogError(
                 ex,
-                "Upload licences error.");
+                "Error uploading registration documents. Session: {SessionId}",
+                request.SessionId);
 
-            return new LicencesResponseDto
+            return new RegistrationDocumentsResponseDto
             {
                 Success = false,
                 Message =
@@ -1236,6 +1398,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             };
         }
     }
+
 
 
     // ════════════════════════════════════════════════
@@ -1711,5 +1874,21 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         var random = new Random();
 
         return random.Next(100000, 999999).ToString();
+    }
+
+    private static RegistrationDocumentTypeDto Map(
+    VerificationDocumentMaster doc)
+    {
+        return new RegistrationDocumentTypeDto
+        {
+            DocumentTypeId = doc.DocumentTypeId,
+            DocumentName = doc.DocumentName,
+            Category = doc.Category,
+            IsMandatory = doc.IsMandatory,
+            AllowMultipleUploads = doc.AllowMultipleUploads,
+            AllowCustomDocument = doc.AllowCustomDocument,
+            RequiresVerification = doc.RequiresVerification,
+            DisplayOrder = doc.DisplayOrder
+        };
     }
 }

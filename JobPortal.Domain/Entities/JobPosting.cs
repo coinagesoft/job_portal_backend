@@ -28,7 +28,11 @@ public class JobPosting
     public byte? AgeMax { get; set; }
     public GenderPreferred GenderPreferred { get; set; } = GenderPreferred.Any;
     public string? EducationRequired { get; set; }
-    public string? LicenceDocsRequired { get; set; }
+    public string? LicenceDocsRequired { get; set; }      // Personal Documents
+
+    public string? WorkingDocsRequired { get; set; }      // Working Documents
+
+  
     public string? LanguageRequired { get; set; }
     public List<string>? KeySkills { get; set; }
     public bool DisabilityEligible { get; set; } = false;

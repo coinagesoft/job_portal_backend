@@ -2,6 +2,7 @@
 using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.Common;
 using JobPortal.Services.IImplement.IRecruiter;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Recruiter
@@ -341,7 +342,7 @@ namespace JobPortal.API.Controllers.Recruiter
         [ProducesResponseType(typeof(OtpResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ResendEmailOtp(
-    [FromHeader(Name = "X-Session-Id")] string? sessionId)
+      [FromHeader(Name = "X-Session-Id")] string? sessionId)
         {
             if (string.IsNullOrWhiteSpace(sessionId))
             {
@@ -359,35 +360,33 @@ namespace JobPortal.API.Controllers.Recruiter
                 : BadRequest(result);
         }
 
-        // ════════════════════════════════════════════════
-        // STEP 4 — Upload Licences (POE / RPSL)
-        // POST /api/recruiter/registration/upload-licences
-        // Header: X-Session-Id
-        // Body: multipart/form-data
-        //   - poeLicence  (file, optional)
-        //   - rpslLicence (file, optional)
-        //   - skipLicences (bool)
-        // ════════════════════════════════════════════════
-        [HttpPost("upload-licences")]
-        [ProducesResponseType(typeof(LicencesResponseDto), StatusCodes.Status200OK)]
+      
+
+
+        [HttpGet("document-types")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetRegistrationDocumentTypes()
+        {
+            var result = await _service.GetRegistrationDocumentTypesAsync();
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
+
+      
+        [HttpPost("upload-documents")]
+        [ProducesResponseType(typeof(RegistrationDocumentsResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [RequestSizeLimit(15 * 1024 * 1024)]
-        public async Task<IActionResult> UploadLicences(
-       [FromForm] LicencesRequestDto request,
-       [FromHeader(Name = "X-Session-Id")] string? sessionId)
+        public async Task<IActionResult> UploadDocuments(
+    [FromForm] RegistrationDocumentsRequestDto request)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            if (string.IsNullOrWhiteSpace(sessionId))
-                return BadRequest(new
-                {
-                    message = "X-Session-Id header is required."
-                });
-
-            var result = await _service.UploadLicencesAsync(
-                request,
-                sessionId);
+            var result = await _service.UploadLicensesAsync(request);
 
             return result.Success
                 ? Ok(result)

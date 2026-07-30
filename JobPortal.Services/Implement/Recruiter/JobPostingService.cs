@@ -532,11 +532,6 @@ namespace JobPortal.Services.Implement.Recruiter
                     job.KeySkills = request.KeySkills;
                 }
 
-                if (!string.IsNullOrWhiteSpace(request.LicenceDocsRequired))
-                {
-                    job.LicenceDocsRequired = request.LicenceDocsRequired;
-                }
-
                 if (!string.IsNullOrWhiteSpace(request.LanguageRequired))
                 {
                     job.LanguageRequired = request.LanguageRequired;
@@ -698,6 +693,23 @@ namespace JobPortal.Services.Implement.Recruiter
                     job.PassportValidityMonths =
                         (byte)request.PassportValidityMonths.Value;
                 }
+
+                // Licence / Documents Required (Personal + Working docs)
+
+                // Personal Documents
+
+                job.LicenceDocsRequired =
+                    string.IsNullOrWhiteSpace(request.LicenceDocsRequired)
+                        ? null
+                        : request.LicenceDocsRequired.Trim();
+
+
+                // Working Documents
+
+                job.WorkingDocsRequired =
+                    string.IsNullOrWhiteSpace(request.WorkingDocsRequired)
+                        ? null
+                        : request.WorkingDocsRequired.Trim();
 
                 // Step tracking
 
@@ -1300,9 +1312,6 @@ namespace JobPortal.Services.Implement.Recruiter
                         KeySkills =
                             job.KeySkills ?? new List<string>(),
 
-                        LicenceDocsRequired =
-                            job.LicenceDocsRequired,
-
                         LanguageRequired =
                             job.LanguageRequired,
 
@@ -1336,7 +1345,13 @@ namespace JobPortal.Services.Implement.Recruiter
                             job.PassportRequired,
 
                         PassportValidityMonths =
-                            job.PassportValidityMonths
+                            job.PassportValidityMonths,
+
+                        LicenceDocsRequired =
+    job.LicenceDocsRequired,
+
+                        WorkingDocsRequired =
+    job.WorkingDocsRequired
                     },
 
                     // =====================================================

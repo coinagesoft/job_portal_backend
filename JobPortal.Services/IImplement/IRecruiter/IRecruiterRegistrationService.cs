@@ -49,11 +49,13 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task<OtpResponseDto> ResendEmailOtpAsync(
             string sessionId);
 
-      
+
 
         // Step 4 — Upload licences
-        Task<LicencesResponseDto> UploadLicencesAsync(
-            LicencesRequestDto request, string sessionId);
+
+        Task<RegistrationDocumentTypesResponseDto> GetRegistrationDocumentTypesAsync();
+        Task<RegistrationDocumentsResponseDto> UploadLicensesAsync(
+      RegistrationDocumentsRequestDto request);
 
         // Step 5 — Final submit
         Task<ReviewSubmitResponseDto> SubmitRegistrationAsync(

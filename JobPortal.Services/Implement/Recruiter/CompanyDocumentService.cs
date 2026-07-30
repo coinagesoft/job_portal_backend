@@ -2,7 +2,7 @@ using JobPortal.Application.DTOs.Recruiter.CompanyDocuments;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
-using JobPortal.Services.IImplement.IRecruiter; // IFileStorageService lives alongside the existing verification service
+using JobPortal.Services.IImplement.IRecruiter; 
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;

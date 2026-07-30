@@ -386,12 +386,15 @@ public class PublicCompanyService : IPublicCompanyService
             LanguagePreferred = job.LanguageRequired,
 
             RequiredLicencesCertificates =
-             string.IsNullOrWhiteSpace(job.LicenceDocsRequired)
-             ? new List<string>()
-             : job.LicenceDocsRequired
-            .Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(x => x.Trim())
-            .ToList(),
+    (job.LicenceDocsRequired ?? "")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries)
+        .Concat(
+            (job.WorkingDocsRequired ?? "")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+        )
+        .Select(x => x.Trim())
+        .Distinct()
+        .ToList(),
 
             JobDescription = job.JobDescription,
 

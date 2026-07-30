@@ -94,6 +94,8 @@ public class AppDbContext : DbContext
 
     public DbSet<VerificationDocumentMaster> VerificationDocumentMasters { get; set; }
 
+    public DbSet<RegistrationSessionDocument> RegistrationSessionDocuments => Set<RegistrationSessionDocument>();
+
     //public DbSet<JobEmbedding> JobEmbeddings { get; set; }
     public DbSet<JobEmbedding> JobEmbeddings =>
     Set<JobEmbedding>();
@@ -930,6 +932,21 @@ public class AppDbContext : DbContext
                 .WithOne(x => x.NotificationSetting)
                 .HasForeignKey<EmployerNotificationSetting>(x => x.EmployerId);
         });
+
+        m.Entity<RegistrationSessionDocument>()
+    .HasOne(x => x.Session)
+    .WithMany(x => x.Documents)
+    .HasForeignKey(x => x.SessionId)
+    .OnDelete(DeleteBehavior.Cascade);
+
+        m.Entity<RegistrationSessionDocument>()
+            .HasOne(x => x.DocumentType)
+            .WithMany()
+            .HasForeignKey(x => x.DocumentTypeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+
+
         var stringListConverter = new ValueConverter<List<string>?, string?>(
          v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
           v => string.IsNullOrEmpty(v)

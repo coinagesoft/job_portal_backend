@@ -67,4 +67,7 @@ public class RegistrationSession
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
+
+    public ICollection<RegistrationSessionDocument> Documents { get; set; }
+    = new List<RegistrationSessionDocument>();
 }

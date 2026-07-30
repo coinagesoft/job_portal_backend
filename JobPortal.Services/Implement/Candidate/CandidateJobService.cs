@@ -27,7 +27,7 @@ public class CandidateJobService : ICandidateJobService
     }
 
 
- 
+
 
     //public async Task<CandidateCompanyDetailResponseDto?> GetCompanyDetailAsync(
     //Guid employerId)
@@ -116,12 +116,12 @@ public class CandidateJobService : ICandidateJobService
     // ════════════════════════════════════════════════════════
     // 1. JOB LIST — with search filters, sorting, pagination
     // ════════════════════════════════════════════════════════
- 
+
     // ════════════════════════════════════════════════════════
     // 2. JOB DETAIL — single job, full data
     // ════════════════════════════════════════════════════════
-    
-    
+
+
     public async Task<CandidateJobDetailResponseDto> GetJobDetailAsync(Guid jobId)
     {
         try
@@ -132,7 +132,7 @@ public class CandidateJobService : ICandidateJobService
                 .FirstOrDefaultAsync(j =>
                     j.JobId == jobId &&
                     j.JobStatus == JobStatus.Active);
-                    //j.ApplicationDeadline >= DateOnly.FromDateTime(DateTime.UtcNow));
+            //j.ApplicationDeadline >= DateOnly.FromDateTime(DateTime.UtcNow));
 
             if (job == null)
                 return new CandidateJobDetailResponseDto
@@ -183,6 +183,17 @@ public class CandidateJobService : ICandidateJobService
             ? job.ClientName
             : employer.CompanyDisplayName
       ),
+
+                IsClientHiring = job.IsClientHiring,
+
+                ClientName =
+          job.IsClientHiring &&
+          job.ShowClientName &&
+          !string.IsNullOrWhiteSpace(job.ClientName)
+              ? job.ClientName
+              : null,
+
+                ShowClientName = job.ShowClientName,
 
                 CompanyLogoUrl = isConfidential
           ? null
@@ -319,10 +330,13 @@ public class CandidateJobService : ICandidateJobService
           benefits,
 
                 LicenceDocsRequired =
-          job.LicenceDocsRequired,
+    job.LicenceDocsRequired,
+
+                WorkingDocsRequired =
+    job.WorkingDocsRequired,
 
                 LanguageRequired =
-          job.LanguageRequired,
+    job.LanguageRequired,
 
                 // Eligibility
 
@@ -674,7 +688,7 @@ public class CandidateJobService : ICandidateJobService
             };
         }
     }
- 
+
     /// <summary>Map a <see cref="JobPosting"/> to a compact card DTO.</summary>
     private CandidateJobListItemDto MapToCard(JobPosting job)
     {
@@ -797,34 +811,34 @@ public class CandidateJobService : ICandidateJobService
         };
     }
     // ── Salary formatting ─────────────────────────────────
-private static string? FormatSalary(JobPosting job)
-{
-    var symbol = (job.SalaryCurrency ?? "INR").ToUpperInvariant() switch
+    private static string? FormatSalary(JobPosting job)
     {
-        "USD" => "$",
-        "AED" => "AED ",
-        "SAR" => "SAR ",
-        "EUR" => "€",
-        "GBP" => "£",
-        "INR" => "₹",
-        _ => job.SalaryCurrency + " "
-    };
+        var symbol = (job.SalaryCurrency ?? "INR").ToUpperInvariant() switch
+        {
+            "USD" => "$",
+            "AED" => "AED ",
+            "SAR" => "SAR ",
+            "EUR" => "€",
+            "GBP" => "£",
+            "INR" => "₹",
+            _ => job.SalaryCurrency + " "
+        };
 
-    return (job.SalaryDisplayOption ?? "Show Range") switch
-    {
-        "Show Min Only" =>
-            $"{symbol}{job.SalaryMin:N0}+",
+        return (job.SalaryDisplayOption ?? "Show Range") switch
+        {
+            "Show Min Only" =>
+                $"{symbol}{job.SalaryMin:N0}+",
 
-        "Show Max Only" =>
-            $"{symbol}{job.SalaryMax:N0}",
+            "Show Max Only" =>
+                $"{symbol}{job.SalaryMax:N0}",
 
-        "Show Range" =>
-            $"{symbol}{job.SalaryMin:N0} - {symbol}{job.SalaryMax:N0} / month",
+            "Show Range" =>
+                $"{symbol}{job.SalaryMin:N0} - {symbol}{job.SalaryMax:N0} / month",
 
-        _ =>
-            $"{symbol}{job.SalaryMin:N0} - {symbol}{job.SalaryMax:N0} / month"
-    };
-}
+            _ =>
+                $"{symbol}{job.SalaryMin:N0} - {symbol}{job.SalaryMax:N0} / month"
+        };
+    }
     // ── Time-ago string ───────────────────────────────────
     private static string GetTimeAgo(DateTime? publishedAt)
     {
@@ -1051,7 +1065,7 @@ private static string? FormatSalary(JobPosting job)
 
                     // Skills
                     Tags =
-                        BuildTags(job,Tags),
+                        BuildTags(job, Tags),
 
                     KeySkills =
                         (job.KeySkills ?? new List<string>())
@@ -1167,10 +1181,18 @@ private static string? FormatSalary(JobPosting job)
             // Certificates
             //----------------------------------------------------
 
-            var certificates =
-                string.IsNullOrWhiteSpace(job.LicenceDocsRequired)
+            var personalCertificates =
+       string.IsNullOrWhiteSpace(job.LicenceDocsRequired)
+           ? new List<string>()
+           : job.LicenceDocsRequired
+               .Split(',', StringSplitOptions.RemoveEmptyEntries)
+               .Select(x => x.Trim())
+               .ToList();
+
+            var workingCertificates =
+                string.IsNullOrWhiteSpace(job.WorkingDocsRequired)
                     ? new List<string>()
-                    : job.LicenceDocsRequired
+                    : job.WorkingDocsRequired
                         .Split(',', StringSplitOptions.RemoveEmptyEntries)
                         .Select(x => x.Trim())
                         .ToList();
@@ -1252,8 +1274,11 @@ private static string? FormatSalary(JobPosting job)
                 LanguagesRequired =
                     languages,
 
-                CertificatesRequired =
-                    certificates,
+                PersonalDocumentsRequired =
+    personalCertificates,
+
+                WorkingDocumentsRequired =
+    workingCertificates,
 
                 ScreeningQuestions =
                     job.ScreeningQuestions ?? new List<string>(),
@@ -1325,7 +1350,7 @@ private static string? FormatSalary(JobPosting job)
                 .Include(x => x.Cvs)
                 .FirstOrDefaultAsync(x =>
                     x.CandidateId == candidateId);
-                    //x.ProfileStatus == "Active");
+            //x.ProfileStatus == "Active");
 
             if (candidate == null)
                 return ApplyFail("Candidate profile not found.");

@@ -46,7 +46,9 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public List<string> LanguagesRequired { get; set; } = new();
 
-        public List<string> CertificatesRequired { get; set; } = new();
+        public List<string> PersonalDocumentsRequired { get; set; } = new();
+
+        public List<string> WorkingDocumentsRequired { get; set; } = new();
 
         public List<string> ScreeningQuestions { get; set; } = new();
 
