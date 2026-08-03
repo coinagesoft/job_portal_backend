@@ -56,149 +56,9 @@ public class PublicCompanyService : IPublicCompanyService
                 .ToHashSet();
         }
 
-        var cards = jobs.Select(job =>
-        {
-            string experienceDisplay;
-
-            if (job.ExperienceMinYears == 0 &&
-                job.ExperienceMaxYears == 0)
-            {
-                experienceDisplay = "Fresher";
-            }
-            else if (job.ExperienceMaxYears == 0)
-            {
-                experienceDisplay =
-                    $"{job.ExperienceMinYears}+ Years";
-            }
-            else
-            {
-                experienceDisplay =
-                    $"{job.ExperienceMinYears}-{job.ExperienceMaxYears} Years";
-            }
-
-            string jobLocation =
-                job.LocationType == LocationType.Offshore
-                    ? job.OffshoreRegion ?? "Offshore"
-                    : string.Join(", ",
-                        new[]
-                        {
-                    job.OnshoreCity,
-                    job.OnshoreState
-                        }
-                        .Where(x =>
-                            !string.IsNullOrWhiteSpace(x)));
-
-            string companyLocation =
-                string.Join(", ",
-                    new[]
-                    {
-                job.EmployerProfile?.City,
-                job.EmployerProfile?.State
-                    }
-                    .Where(x =>
-                        !string.IsNullOrWhiteSpace(x)));
-
-            return new CandidateJobListItemDto
-            {
-                JobId = job.JobId,
-                EmployerId = job.EmployerId,
-                CompanyLogoUrl =
-                    job.EmployerProfile?.CompanyLogoUrl,
-
-                CompanyName =
-    job.CompanyVisibility == CompanyVisibility.ShowName
-        ? (
-            job.IsClientHiring &&
-            job.ShowClientName &&
-            !string.IsNullOrWhiteSpace(job.ClientName)
-                ? job.ClientName
-                : job.EmployerProfile?.CompanyDisplayName
-          )
-        : "Confidential Company",
-
-                IsClientHiring = job.IsClientHiring,
-                ClientName = job.ClientName,
-                ShowClientName = job.ShowClientName,
-
-                JobTitle = job.JobTitle,
-                CompanyVisibility = job.CompanyVisibility.ToString(),
-                TradeCategory = job.TradeCategory,
-                Department = job.Department,
-                LocationType = job.LocationType.ToString(),
-                EmploymentType =
-                    job.EmploymentType,
-
-                EmploymentMode =
-                    job.EmploymentMode,
-
-                JobType =
-                    job.JobType,
-                IndustryType =
-                    job.EmployerProfile?.IndustryType,
-                Tags = job.Tags ?? new List<string>(),
-                EducationRequired = job.EducationRequired,
-                JobLocation = jobLocation,
-
-                CompanyLocation = companyLocation,
-
-                SalaryRange =
-                    FormatSalary(job) ?? "Confidential",
-
-                SalaryVisibility = job.SalaryDisplayOption.ToString(),
-
-                ExperienceDisplay =
-                    experienceDisplay,
-
-                Vacancies =
-                    job.Vacancies,
-
-                ApplicationsCount =
-                    job.AppliedCount,
-
-                ViewCount =
-                    job.ViewCount,
-
-                PostedOn =
-                    job.PublishedAt,
-
-                TimeAgo =
-                    GetTimeAgo(job.PublishedAt),
-
-                Description =
-                    job.JobDescription.Length > 150
-                        ? job.JobDescription.Substring(0, 150) + "..."
-                        : job.JobDescription,
-
-                Skills =
-                    job.KeySkills?.Take(5).ToList()
-                    ?? new List<string>(),
-
-                IsFeatured =
-                    job.IsFeatured,
-
-                IsUrgentHiring =
-                    job.IsUrgentHiring,
-
-                PassportRequired =
-                    job.PassportRequired,
-
-                IsInternational =
-                    job.IsInternational,
-
-                AiMatchPercentage = null, // set below if candidateId passed
-
-                IsSaved =
-                    candidateId.HasValue &&
-                    candidateId.Value != Guid.Empty &&
-                    savedJobIds.Contains(job.JobId),
-
-                CompanyVerified =
-                    job.EmployerProfile?.Badges?.Any() == true,
-
-                ApplicationDeadline =
-                    job.ApplicationDeadline
-            };
-        }).ToList();
+        var cards = jobs
+            .Select(job => MapToJobListItem(job, savedJobIds.Contains(job.JobId)))
+            .ToList();
 
         // AI match % — only computed when candidateId passed, exactly like GetJobsAsync
         if (candidateId.HasValue && candidateId.Value != Guid.Empty)
@@ -289,6 +149,8 @@ public class PublicCompanyService : IPublicCompanyService
                     s.JobId == job.JobId);
         }
 
+        var similarJobs = await GetSimilarJobsAsync(job);
+
         return new CandidateJobDetailsDto
         {
             JobId = job.JobId,
@@ -306,7 +168,7 @@ public class PublicCompanyService : IPublicCompanyService
           )
         : "Confidential Company",
 
-         
+
             CompanyVisibility = job.CompanyVisibility.ToString(),
             CompanyLocation = companyLocation,
 
@@ -408,7 +270,9 @@ public class PublicCompanyService : IPublicCompanyService
 
             PerksAndBenefits =
                 job.Benefits ??
-                new List<string>()
+                new List<string>(),
+
+            SimilarJobs = similarJobs
         };
     }
     //public async Task<CandidateJobListResponseDto> GetJobsAsync(
@@ -1652,6 +1516,261 @@ public class PublicCompanyService : IPublicCompanyService
         };
     }
 
+
+    /// <summary>
+    /// Maps a JobPosting entity to the card DTO used everywhere jobs are shown
+    /// as a list (all-jobs feed, search results, similar jobs). Kept as a single
+    /// shared method so every list of jobs looks and behaves the same way.
+    /// </summary>
+    private CandidateJobListItemDto MapToJobListItem(JobPosting job, bool isSaved)
+    {
+        string experienceDisplay;
+
+        if (job.ExperienceMinYears == 0 &&
+            job.ExperienceMaxYears == 0)
+        {
+            experienceDisplay = "Fresher";
+        }
+        else if (job.ExperienceMaxYears == 0)
+        {
+            experienceDisplay =
+                $"{job.ExperienceMinYears}+ Years";
+        }
+        else
+        {
+            experienceDisplay =
+                $"{job.ExperienceMinYears}-{job.ExperienceMaxYears} Years";
+        }
+
+        string jobLocation =
+            job.LocationType == LocationType.Offshore
+                ? job.OffshoreRegion ?? "Offshore"
+                : string.Join(", ",
+                    new[]
+                    {
+                job.OnshoreCity,
+                job.OnshoreState
+                    }
+                    .Where(x =>
+                        !string.IsNullOrWhiteSpace(x)));
+
+        string companyLocation =
+            string.Join(", ",
+                new[]
+                {
+            job.EmployerProfile?.City,
+            job.EmployerProfile?.State
+                }
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x)));
+
+        return new CandidateJobListItemDto
+        {
+            JobId = job.JobId,
+            EmployerId = job.EmployerId,
+            CompanyLogoUrl =
+                job.EmployerProfile?.CompanyLogoUrl,
+
+            CompanyName =
+job.CompanyVisibility == CompanyVisibility.ShowName
+    ? (
+        job.IsClientHiring &&
+        job.ShowClientName &&
+        !string.IsNullOrWhiteSpace(job.ClientName)
+            ? job.ClientName
+            : job.EmployerProfile?.CompanyDisplayName
+      )
+    : "Confidential Company",
+
+            IsClientHiring = job.IsClientHiring,
+            ClientName = job.ClientName,
+            ShowClientName = job.ShowClientName,
+
+            JobTitle = job.JobTitle,
+            CompanyVisibility = job.CompanyVisibility.ToString(),
+            TradeCategory = job.TradeCategory,
+            Department = job.Department,
+            LocationType = job.LocationType.ToString(),
+            EmploymentType =
+                job.EmploymentType,
+
+            EmploymentMode =
+                job.EmploymentMode,
+
+            JobType =
+                job.JobType,
+            IndustryType =
+                job.EmployerProfile?.IndustryType,
+            Tags = job.Tags ?? new List<string>(),
+            EducationRequired = job.EducationRequired,
+            JobLocation = jobLocation,
+
+            CompanyLocation = companyLocation,
+
+            SalaryRange =
+                FormatSalary(job) ?? "Confidential",
+
+            SalaryVisibility = job.SalaryDisplayOption.ToString(),
+
+            ExperienceDisplay =
+                experienceDisplay,
+
+            Vacancies =
+                job.Vacancies,
+
+            ApplicationsCount =
+                job.AppliedCount,
+
+            ViewCount =
+                job.ViewCount,
+
+            PostedOn =
+                job.PublishedAt,
+
+            TimeAgo =
+                GetTimeAgo(job.PublishedAt),
+
+            Description =
+                job.JobDescription.Length > 150
+                    ? job.JobDescription.Substring(0, 150) + "..."
+                    : job.JobDescription,
+
+            Skills =
+                job.KeySkills?.Take(5).ToList()
+                ?? new List<string>(),
+
+            IsFeatured =
+                job.IsFeatured,
+
+            IsUrgentHiring =
+                job.IsUrgentHiring,
+
+            PassportRequired =
+                job.PassportRequired,
+
+            IsInternational =
+                job.IsInternational,
+
+            AiMatchPercentage = null,
+
+            IsSaved = isSaved,
+
+            CompanyVerified =
+                job.EmployerProfile?.Badges?.Any() == true,
+
+            ApplicationDeadline =
+                job.ApplicationDeadline
+        };
+    }
+
+    // ────────────────────────────────────────────────────────────
+    // Similar-jobs keyword matching
+    // ────────────────────────────────────────────────────────────
+
+    // Generic/level words stripped out before comparing job titles, so
+    // "Senior Welder" and "Pipe Welder" are recognised as the same trade
+    // ("welder") instead of matching (or failing to match) on noise words.
+    private static readonly HashSet<string> JobTitleStopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "senior","sr","junior","jr","lead","chief","head","assistant","trainee",
+        "apprentice","fresher","experienced","expert","new","the","and","of","for",
+        "a","an","in","on","at","to","with","i","ii","iii","iv","level","grade",
+        "class","gr","no","officer","staff","hiring","urgent","required","wanted"
+    };
+
+    private static List<string> ExtractTitleKeywords(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+            return new List<string>();
+
+        return title
+            .ToLowerInvariant()
+            .Split(new[] { ' ', '-', '/', ',', '(', ')', '&', '.' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(w => w.Trim())
+            .Where(w => w.Length > 2 && !JobTitleStopWords.Contains(w))
+            .Distinct()
+            .ToList();
+    }
+
+    /// <summary>
+    /// Finds jobs genuinely similar to <paramref name="referenceJob"/> — matched
+    /// by shared keywords in the job title (e.g. "Pipe Welder" ↔ "Senior Welder"
+    /// both share "welder") and/or the same trade category / role. A job that
+    /// only shares a trade category but has a completely unrelated title
+    /// (e.g. a stray "Senior" posting) is NOT considered similar — that was the
+    /// bug that let unrelated jobs show up before. Returns an empty list when
+    /// nothing genuinely similar exists, so the UI can hide the section.
+    /// </summary>
+    private async Task<List<CandidateJobListItemDto>> GetSimilarJobsAsync(
+        JobPosting referenceJob,
+        int take = 5)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var referenceKeywords = ExtractTitleKeywords(referenceJob.JobTitle);
+
+        var candidatePool = await _context.JobPostings
+            .AsNoTracking()
+            .Include(x => x.EmployerProfile)
+                .ThenInclude(x => x.Badges)
+            .Where(x =>
+                x.JobId != referenceJob.JobId &&
+                x.JobStatus == JobStatus.Active &&
+                x.IsActive &&
+                !x.IsDeleted &&
+                x.ApplicationDeadline >= today)
+            .ToListAsync();
+
+        var scored = candidatePool
+            .Select(candidate =>
+            {
+                var candidateKeywords = ExtractTitleKeywords(candidate.JobTitle);
+
+                int titleMatches = referenceKeywords
+                    .Count(k => candidateKeywords.Contains(k));
+
+                bool tradeMatch = string.Equals(
+                    candidate.TradeCategory, referenceJob.TradeCategory,
+                    StringComparison.OrdinalIgnoreCase);
+
+                bool roleMatch =
+                    !string.IsNullOrWhiteSpace(referenceJob.Role) &&
+                    string.Equals(candidate.Role, referenceJob.Role,
+                        StringComparison.OrdinalIgnoreCase);
+
+                bool departmentMatch =
+                    !string.IsNullOrWhiteSpace(referenceJob.Department) &&
+                    string.Equals(candidate.Department, referenceJob.Department,
+                        StringComparison.OrdinalIgnoreCase);
+
+                int score =
+                    (titleMatches * 10) +
+                    (tradeMatch ? 3 : 0) +
+                    (roleMatch ? 2 : 0) +
+                    (departmentMatch ? 1 : 0);
+
+                // A job counts as "similar" if it shares a keyword with the
+                // title (e.g. "welder" in both), OR matches on trade
+                // category, OR matches on role. Any one of these three is
+                // enough to qualify — they're then ranked by score below,
+                // so a title-keyword match (worth 10) always outranks a
+                // trade-category-only match (worth 3), keeping the most
+                // relevant jobs at the top even though the bar to appear
+                // at all is lower than a strict title match.
+                bool isRelevant = titleMatches > 0 || tradeMatch || roleMatch;
+
+                return (Candidate: candidate, Score: score, IsRelevant: isRelevant);
+            })
+            .Where(x => x.IsRelevant)
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.Candidate.PublishedAt)
+            .Take(take)
+            .ToList();
+
+        return scored
+            .Select(x => MapToJobListItem(x.Candidate, isSaved: false))
+            .ToList();
+    }
 
     private static string FormatSalary(JobPosting job)
     {
