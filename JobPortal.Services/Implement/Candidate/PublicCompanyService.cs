@@ -235,13 +235,7 @@ public class PublicCompanyService : IPublicCompanyService
 
             CompanyName =
     job.CompanyVisibility == CompanyVisibility.ShowName
-        ? (
-            job.IsClientHiring &&
-            job.ShowClientName &&
-            !string.IsNullOrWhiteSpace(job.ClientName)
-                ? job.ClientName
-                : employer?.CompanyDisplayName
-          )
+        ? employer?.CompanyDisplayName
         : "Confidential Company",
 
 
@@ -1500,13 +1494,7 @@ public class PublicCompanyService : IPublicCompanyService
 
             CompanyName =
     job.CompanyVisibility == CompanyVisibility.ShowName
-        ? (
-            job.IsClientHiring &&
-            job.ShowClientName &&
-            !string.IsNullOrWhiteSpace(job.ClientName)
-                ? job.ClientName
-                : job.EmployerProfile?.CompanyDisplayName
-          )
+        ? job.EmployerProfile?.CompanyDisplayName
         : "Confidential Company",
 
             IsClientHiring = job.IsClientHiring,
@@ -1662,13 +1650,7 @@ public class PublicCompanyService : IPublicCompanyService
 
             CompanyName =
 job.CompanyVisibility == CompanyVisibility.ShowName
-    ? (
-        job.IsClientHiring &&
-        job.ShowClientName &&
-        !string.IsNullOrWhiteSpace(job.ClientName)
-            ? job.ClientName
-            : job.EmployerProfile?.CompanyDisplayName
-      )
+    ? job.EmployerProfile?.CompanyDisplayName
     : "Confidential Company",
 
             IsClientHiring = job.IsClientHiring,

@@ -166,13 +166,9 @@ namespace JobPortal.Services.Implement.Recruiter
                 Role = x.Role,
                 Department = x.Department,
                 CompanyName =
-    x.IsClientHiring &&
-    x.ShowClientName &&
-    !string.IsNullOrWhiteSpace(x.ClientName)
-        ? x.ClientName!
-        : x.EmployerProfile != null
-            ? x.EmployerProfile.CompanyDisplayName
-            : string.Empty,
+    x.EmployerProfile != null
+        ? x.EmployerProfile.CompanyDisplayName
+        : string.Empty,
 
                 IsClientHiring = x.IsClientHiring,
                 ClientName = x.ClientName,
