@@ -22,7 +22,7 @@ public class CandidateProfileService : ICandidateProfileService
     private readonly IFileStorageService _fileStorage;
     private readonly ILogger<CandidateProfileService> _logger;
 
-    private readonly IEmbeddingStorageService _embeddingStorage;  
+    private readonly IEmbeddingStorageService _embeddingStorage;
 
 
     public CandidateProfileService(
@@ -59,6 +59,7 @@ public class CandidateProfileService : ICandidateProfileService
                 CandidateId = c.CandidateId,
                 FullName = c.FullName,
                 Role = c.Role,
+                PrimaryTrade = c.PrimaryTrade,
                 ProfilePhotoUrl = c.ProfilePhotoUrl,
                 MobileNumber = c.User?.MobileNumber,
                 CountryCode = c.User?.CountryCode,

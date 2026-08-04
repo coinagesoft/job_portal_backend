@@ -28,6 +28,13 @@ public class CandidateProfileSummaryData
     public string FullName { get; set; } = string.Empty;
     public string? Role { get; set; }
 
+    /// <summary>
+    /// The candidate's trade category (e.g. "Welder"), kept in sync with
+    /// Role. This is what job feed sorting and apply-eligibility checks
+    /// match against JobPosting.TradeCategory.
+    /// </summary>
+    public string? PrimaryTrade { get; set; }
+
     public string? ProfilePhotoUrl { get; set; }
     public string? MobileNumber { get; set; }
     public string? CountryCode { get; set; }

@@ -24,13 +24,86 @@ public class PublicCompanyService : IPublicCompanyService
         _logger = logger;
         _jobMatching = jobMatching;
     }
+
+    // ════════════════════════════════════════════════════════════
+    // TRADE-MATCH FEED SORTING
+    //
+    // Candidate job feed rule: a candidate's own trade category
+    // (CandidateProfile.PrimaryTrade, e.g. "Welder") drives the
+    // ordering of every job feed — with or without filters applied.
+    // All jobs in the candidate's trade come first (further boosted
+    // when the job's Role also matches the candidate's preferred
+    // role/title), followed by every other trade, each group newest
+    // (or however the caller further sorts) first.
+    // ════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Loads the logged-in candidate's trade category and preferred role
+    /// used to prioritize the job feed. Returns (null, null) for
+    /// anonymous visitors or when the profile can't be found, in which
+    /// case callers fall back to their existing default ordering.
+    /// </summary>
+    private async Task<(string? Trade, string? Role)> GetCandidateTradeRoleAsync(
+        Guid? candidateId)
+    {
+        if (!candidateId.HasValue || candidateId.Value == Guid.Empty)
+            return (null, null);
+
+        var candidate = await _context.CandidateProfiles
+            .AsNoTracking()
+            .Where(c => c.CandidateId == candidateId.Value)
+            .Select(c => new { c.PrimaryTrade, c.Role })
+            .FirstOrDefaultAsync();
+
+        return (candidate?.PrimaryTrade, candidate?.Role);
+    }
+
+    /// <summary>
+    /// Applies trade/role match priority as the primary sort key.
+    /// Callers append their own secondary ordering (newest, salary, etc.)
+    /// with .ThenBy/.ThenByDescending on the returned IOrderedQueryable.
+    /// No-op (query unchanged) when the candidate has no trade on file.
+    /// </summary>
+    private static IOrderedQueryable<JobPosting> ApplyTradeMatchPriority(
+        IQueryable<JobPosting> query,
+        string? candidateTrade,
+        string? candidateRole)
+    {
+        var tradeLower =
+            string.IsNullOrWhiteSpace(candidateTrade)
+                ? null
+                : candidateTrade.Trim().ToLower();
+
+        var roleLower =
+            string.IsNullOrWhiteSpace(candidateRole)
+                ? null
+                : candidateRole.Trim().ToLower();
+
+        return query
+            // 1) Same trade category as the candidate → shown first.
+            .OrderByDescending(j =>
+                tradeLower != null &&
+                j.TradeCategory.ToLower() == tradeLower)
+            // 2) Within that, jobs that also match the candidate's
+            //    preferred role/title rank above same-trade-but-
+            //    different-role jobs.
+            .ThenByDescending(j =>
+                roleLower != null &&
+                j.Role != null &&
+                j.Role.ToLower() == roleLower);
+    }
+
     public async Task<List<CandidateJobListItemDto>> GetAllJobsAsync(Guid? candidateId = null)
     {
         var today =
             DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var jobs =
-            await _context.JobPostings
+        // Candidate's trade/role drive the default ordering of this feed
+        // (works even though no filters are applied here).
+        var (candidateTrade, candidateRole) =
+            await GetCandidateTradeRoleAsync(candidateId);
+
+        var baseQuery = _context.JobPostings
                 .AsNoTracking()
                 .Include(x => x.EmployerProfile)
                     .ThenInclude(x => x.Badges)
@@ -38,8 +111,11 @@ public class PublicCompanyService : IPublicCompanyService
                     x.JobStatus == JobStatus.Active &&
                       x.IsActive &&
                     !x.IsDeleted &&
-                    x.ApplicationDeadline >= today)
-                .OrderByDescending(x => x.IsFeatured)
+                    x.ApplicationDeadline >= today);
+
+        var jobs =
+            await ApplyTradeMatchPriority(baseQuery, candidateTrade, candidateRole)
+                .ThenByDescending(x => x.IsFeatured)
                 .ThenByDescending(x => x.PublishedAt)
                 .ToListAsync();
 
@@ -930,21 +1006,34 @@ public class PublicCompanyService : IPublicCompanyService
 
             //------------------------------------------------
             // Sorting
+            //
+            // Trade-match priority always comes first: all of the
+            // candidate's own trade-category jobs (role-matches boosted
+            // further within that) before any other trade — this applies
+            // whether or not other filters/sort options are in play.
+            // The requested Sort option (newest/oldest/salary) then
+            // orders each of those two groups.
             //------------------------------------------------
+
+            var (candidateTrade, candidateRole) =
+                await GetCandidateTradeRoleAsync(candidateId);
+
+            var tradeSortedQuery =
+                ApplyTradeMatchPriority(query, candidateTrade, candidateRole);
 
             query = request.Sort switch
             {
                 "oldest" =>
-                    query.OrderBy(j => j.PublishedAt),
+                    tradeSortedQuery.ThenBy(j => j.PublishedAt),
 
                 "salary_high" =>
-                    query.OrderByDescending(j => j.SalaryMax),
+                    tradeSortedQuery.ThenByDescending(j => j.SalaryMax),
 
                 "salary_low" =>
-                    query.OrderBy(j => j.SalaryMin),
+                    tradeSortedQuery.ThenBy(j => j.SalaryMin),
 
                 _ =>
-                    query.OrderByDescending(j => j.IsFeatured)
+                    tradeSortedQuery.ThenByDescending(j => j.IsFeatured)
                          .ThenByDescending(j => j.PublishedAt)
             };
             //------------------------------------------------
