@@ -234,6 +234,17 @@ public class PublicCompanyService : IPublicCompanyService
             CompanyVisibility = job.CompanyVisibility.ToString(),
             CompanyLocation = companyLocation,
 
+            IsClientHiring = job.IsClientHiring,
+
+            ClientName =
+                job.IsClientHiring && job.ShowClientName
+                    ? job.ClientName
+                    : null,
+
+            ShowClientName = job.ShowClientName,
+
+            WorkAddressLine = job.WorkAddressLine,
+
             CompanyLocationMapLink =
                 !string.IsNullOrWhiteSpace(employer?.AddressLine1)
                     ? $"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString(employer.AddressLine1)}"
@@ -1429,7 +1440,7 @@ public class PublicCompanyService : IPublicCompanyService
 
                 GstRegistered = company.GstRegistered,
 
-             
+
 
                 IsVerified =
                     company.Badges.Any(x =>
@@ -1989,4 +2000,3 @@ job.CompanyVisibility == CompanyVisibility.ShowName
         return $"https://www.google.com/maps?q={Uri.EscapeDataString(query)}&output=embed";
     }
 }
-
