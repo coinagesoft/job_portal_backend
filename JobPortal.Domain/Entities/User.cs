@@ -32,7 +32,13 @@ namespace JobPortal.Domain.Entities
         public DateTime? LastLoginAt { get; set; }
 
         public string? SuspensionReason { get; set; }
+        public bool IsDeleted { get; set; } = false;
 
+        public DateTime? DeletedAt { get; set; }
+
+        public DateTime? RecoveryExpiry { get; set; }
+
+        public Guid? DeletedByUserId { get; set; }
         public DateTime CreatedAt { get; set; }
 
         public DateTime UpdatedAt { get; set; }

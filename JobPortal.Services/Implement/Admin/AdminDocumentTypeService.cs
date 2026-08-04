@@ -70,7 +70,7 @@ namespace JobPortal.Services.Implement.Admin
                     IsActive = true,
                     AllowMultipleUploads = false,
                     AllowCustomDocument = true,
-                    IsSystemDocument = false,
+                    IsSystemDocument = true,
 
                     DisplayOrder = maxDisplayOrder + 1,
 

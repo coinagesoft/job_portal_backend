@@ -99,26 +99,16 @@ namespace JobPortal.API.Controllers.Recruiter
         /// <summary>
         /// View uploaded document
         /// </summary>
-        [HttpGet("{employerId:guid}/document/{documentType}")]
-        public async Task<IActionResult> GetDocument(
-            Guid employerId,
-            DocumentType documentType)
+        [HttpGet("document-types")]
+        public async Task<IActionResult> GetDocumentTypes()
         {
-            var result = await _verificationService
-                .GetDocumentAsync(
-                    employerId,
-                    documentType);
+            var result = await _verificationService.GetDocumentTypesAsync();
 
-            if (result == null)
+            return Ok(new
             {
-                return NotFound(new
-                {
-                    Success = false,
-                    Message = "Document not found."
-                });
-            }
-
-            return Ok(result);
+                Success = true,
+                Data = result
+            });
         }
     }
 }

@@ -29,19 +29,18 @@ public class PublicCompanyService : IPublicCompanyService
         var today =
             DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var jobs =
-            await _context.JobPostings
-                .AsNoTracking()
-                .Include(x => x.EmployerProfile)
-                    .ThenInclude(x => x.Badges)
-                .Where(x =>
-                    x.JobStatus == JobStatus.Active &&
-                      x.IsActive &&
-                    !x.IsDeleted &&
-                    x.ApplicationDeadline >= today)
-                .OrderByDescending(x => x.IsFeatured)
-                .ThenByDescending(x => x.PublishedAt)
-                .ToListAsync();
+        var jobs = await _context.JobPostings
+      .AsNoTracking()
+      .Include(x => x.EmployerProfile)
+          .ThenInclude(x => x.VerificationDocuments)
+      .Where(x =>
+          x.JobStatus == JobStatus.Active &&
+          x.IsActive &&
+          !x.IsDeleted &&
+          x.ApplicationDeadline >= today)
+      .OrderByDescending(x => x.IsFeatured)
+      .ThenByDescending(x => x.PublishedAt)
+      .ToListAsync();
 
         // Preload saved-job ids for this candidate (only if candidateId passed)
         HashSet<Guid> savedJobIds = new();
@@ -193,7 +192,12 @@ public class PublicCompanyService : IPublicCompanyService
                     savedJobIds.Contains(job.JobId),
 
                 CompanyVerified =
-                    job.EmployerProfile?.Badges?.Any() == true,
+    job.EmployerProfile?.VerificationDocuments
+        .Where(x => !x.IsDeleted && x.DocumentTypeId != null)
+        .Any() == true &&
+    job.EmployerProfile.VerificationDocuments
+        .Where(x => !x.IsDeleted && x.DocumentTypeId != null)
+        .All(x => x.Status == VerificationDocumentStatus.Approved),
 
                 ApplicationDeadline =
                     job.ApplicationDeadline
@@ -1490,11 +1494,7 @@ public class PublicCompanyService : IPublicCompanyService
 
                 GstRegistered = company.GstRegistered,
 
-                HasPoeLicence =
-                    !string.IsNullOrWhiteSpace(company.PoeLicenceUrl),
-
-                HasRpslLicence =
-                    !string.IsNullOrWhiteSpace(company.RpslLicenceUrl),
+             
 
                 IsVerified =
                     company.Badges.Any(x =>

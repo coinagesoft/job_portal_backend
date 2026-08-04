@@ -235,13 +235,7 @@ public class CandidateJobService : ICandidateJobService
                 CompanySize =
           employer.CompanySize?.ToString(),
 
-                HasPoeLicence =
-          !string.IsNullOrWhiteSpace(
-              employer.PoeLicenceUrl),
-
-                HasRpslLicence =
-          !string.IsNullOrWhiteSpace(
-              employer.RpslLicenceUrl),
+           
 
                 // Job
 
@@ -1719,6 +1713,392 @@ public class CandidateJobService : ICandidateJobService
             };
         }
     }
+
+
+    public async Task<List<CandidateJobListItemDto>> GetSimilarJobsAsync(
+       Guid jobId,
+       Guid? candidateId = null)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        // ============================================================
+        // Load Current Job
+        // ============================================================
+
+        var currentJob = await _context.JobPostings
+            .AsNoTracking()
+            .Include(x => x.EmployerProfile)
+                .ThenInclude(x => x.VerificationDocuments)
+            .FirstOrDefaultAsync(x =>
+                x.JobId == jobId &&
+                x.JobStatus == JobStatus.Active &&
+                x.IsActive &&
+                !x.IsDeleted &&
+                x.ApplicationDeadline >= today);
+
+        if (currentJob == null)
+            return new List<CandidateJobListItemDto>();
+
+        // ============================================================
+        // Candidate Saved Jobs
+        // ============================================================
+
+        HashSet<Guid> savedJobIds = new();
+
+        if (candidateId.HasValue)
+        {
+            savedJobIds = (await _context.SavedJobs
+                    .AsNoTracking()
+                    .Where(x => x.CandidateId == candidateId.Value)
+                    .Select(x => x.JobId)
+                    .ToListAsync())
+                .ToHashSet();
+        }
+
+        // ============================================================
+        // Load Potential Similar Jobs
+        // ============================================================
+
+        var jobs = await _context.JobPostings
+            .AsNoTracking()
+            .Include(x => x.EmployerProfile)
+                .ThenInclude(x => x.VerificationDocuments)
+            .Where(x =>
+                x.JobId != currentJob.JobId &&
+                x.JobStatus == JobStatus.Active &&
+                x.IsActive &&
+                !x.IsDeleted &&
+                x.ApplicationDeadline >= today)
+
+            // First-level filtering to remove unrelated jobs
+            .Where(x =>
+
+                // Same Trade
+                (!string.IsNullOrWhiteSpace(currentJob.TradeCategory) &&
+                 x.TradeCategory == currentJob.TradeCategory)
+
+                ||
+
+                // Same Department
+                (!string.IsNullOrWhiteSpace(currentJob.Department) &&
+                 x.Department == currentJob.Department)
+
+                ||
+
+                // Same Industry
+                (!string.IsNullOrWhiteSpace(currentJob.IndustryType) &&
+                 x.IndustryType == currentJob.IndustryType)
+
+                ||
+
+                // Same Role
+                (!string.IsNullOrWhiteSpace(currentJob.Role) &&
+                 x.Role == currentJob.Role)
+            )
+
+            .ToListAsync();
+
+        if (!jobs.Any())
+            return new List<CandidateJobListItemDto>();
+
+        // ============================================================
+        // Rank Jobs
+        // ============================================================
+
+        var rankedJobs = jobs
+           .Select(job =>
+           {
+               int score = 0;
+
+               // ==========================================================
+               // 1. Trade Category (25)
+               // ==========================================================
+
+               if (!string.IsNullOrWhiteSpace(job.TradeCategory) &&
+                   !string.IsNullOrWhiteSpace(currentJob.TradeCategory) &&
+                   job.TradeCategory.Equals(
+                       currentJob.TradeCategory,
+                       StringComparison.OrdinalIgnoreCase))
+               {
+                   score += 25;
+               }
+
+               // ==========================================================
+               // 2. Department (20)
+               // ==========================================================
+
+               if (!string.IsNullOrWhiteSpace(job.Department) &&
+                   !string.IsNullOrWhiteSpace(currentJob.Department) &&
+                   job.Department.Equals(
+                       currentJob.Department,
+                       StringComparison.OrdinalIgnoreCase))
+               {
+                   score += 20;
+               }
+
+               // ==========================================================
+               // 3. Industry (10)
+               // ==========================================================
+
+               if (job.IndustryType == currentJob.IndustryType)
+               {
+                   score += 10;
+               }
+
+               // ==========================================================
+               // 4. Job Title (15)
+               // ==========================================================
+
+               if (!string.IsNullOrWhiteSpace(job.JobTitle) &&
+                   !string.IsNullOrWhiteSpace(currentJob.JobTitle))
+               {
+                   if (job.JobTitle.Equals(
+                           currentJob.JobTitle,
+                           StringComparison.OrdinalIgnoreCase))
+                   {
+                       score += 15;
+                   }
+                   else if (
+                       job.JobTitle.Contains(
+                           currentJob.JobTitle,
+                           StringComparison.OrdinalIgnoreCase)
+                       ||
+                       currentJob.JobTitle.Contains(
+                           job.JobTitle,
+                           StringComparison.OrdinalIgnoreCase))
+                   {
+                       score += 10;
+                   }
+               }
+
+               // ==========================================================
+               // 5. Role (10)
+               // ==========================================================
+
+               if (!string.IsNullOrWhiteSpace(job.Role) &&
+                   !string.IsNullOrWhiteSpace(currentJob.Role))
+               {
+                   if (job.Role.Equals(
+                       currentJob.Role,
+                       StringComparison.OrdinalIgnoreCase))
+                   {
+                       score += 10;
+                   }
+                   else if (
+                       job.Role.Contains(
+                           currentJob.Role,
+                           StringComparison.OrdinalIgnoreCase)
+                       ||
+                       currentJob.Role.Contains(
+                           job.Role,
+                           StringComparison.OrdinalIgnoreCase))
+                   {
+                       score += 5;
+                   }
+               }
+
+               // ==========================================================
+               // 6. Skills (15)
+               // ==========================================================
+
+               if (job.KeySkills?.Any() == true &&
+                   currentJob.KeySkills?.Any() == true)
+               {
+                   int commonSkills =
+                       job.KeySkills
+                           .Intersect(
+                               currentJob.KeySkills,
+                               StringComparer.OrdinalIgnoreCase)
+                           .Count();
+
+                   score += Math.Min(commonSkills * 3, 15);
+               }
+
+               // ==========================================================
+               // 7. Search Keywords (10)
+               // ==========================================================
+
+               if (!string.IsNullOrWhiteSpace(job.SearchKeywords) &&
+                   !string.IsNullOrWhiteSpace(currentJob.SearchKeywords))
+               {
+                   var currentKeywords =
+                       currentJob.SearchKeywords
+                           .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                           .Select(x => x.Trim())
+                           .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                   var otherKeywords =
+                       job.SearchKeywords
+                           .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                           .Select(x => x.Trim());
+
+                   int commonKeywords =
+                       otherKeywords.Count(k =>
+                           currentKeywords.Contains(k));
+
+                   score += Math.Min(commonKeywords * 2, 10);
+               }
+
+               // ==========================================================
+               // 8. Experience (5)
+               // ==========================================================
+
+               bool experienceOverlap =
+                   job.ExperienceMinYears <= currentJob.ExperienceMaxYears &&
+                   job.ExperienceMaxYears >= currentJob.ExperienceMinYears;
+
+               if (experienceOverlap)
+               {
+                   score += 5;
+               }
+
+               // ==========================================================
+               // 9. Location (3)
+               // ==========================================================
+
+               if (job.LocationType == currentJob.LocationType)
+               {
+                   if (job.LocationType == LocationType.Onshore)
+                   {
+                       if (!string.IsNullOrWhiteSpace(job.OnshoreCity) &&
+                           !string.IsNullOrWhiteSpace(currentJob.OnshoreCity) &&
+                           job.OnshoreCity.Equals(
+                               currentJob.OnshoreCity,
+                               StringComparison.OrdinalIgnoreCase))
+                       {
+                           score += 3;
+                       }
+                       else if (!string.IsNullOrWhiteSpace(job.OnshoreState) &&
+                                !string.IsNullOrWhiteSpace(currentJob.OnshoreState) &&
+                                job.OnshoreState.Equals(
+                                   currentJob.OnshoreState,
+                                   StringComparison.OrdinalIgnoreCase))
+                       {
+                           score += 2;
+                       }
+                   }
+                   else
+                   {
+                       if (!string.IsNullOrWhiteSpace(job.OffshoreRegion) &&
+                           !string.IsNullOrWhiteSpace(currentJob.OffshoreRegion) &&
+                           job.OffshoreRegion.Equals(
+                               currentJob.OffshoreRegion,
+                               StringComparison.OrdinalIgnoreCase))
+                       {
+                           score += 3;
+                       }
+                   }
+               }
+
+               // ==========================================================
+               // 10. Employment Type (1)
+               // ==========================================================
+               if (job.EmploymentType == currentJob.EmploymentType)
+               {
+                   score += 1;
+               }
+
+               // ==========================================================
+               // 11. Employment Mode (1)
+               // ==========================================================
+
+               if (job.EmploymentMode == currentJob.EmploymentMode)
+               {
+                   score += 1;
+               }
+
+               return new
+               {
+                   Job = job,
+                   Score = score
+               };
+           })
+
+        // ==========================================================
+        // Keep only good matches
+        // ==========================================================
+
+        .Where(x => x.Score >= 40)
+        .OrderByDescending(x => x.Score)
+        .ThenByDescending(x => x.Job.PublishedAt)
+        .Take(5)
+        .ToList();
+
+        // ==========================================================
+        // Map Result
+        // ==========================================================
+
+        var result = new List<CandidateJobListItemDto>();
+
+        foreach (var item in rankedJobs)
+        {
+            var dto = MapToCard(item.Job);
+
+            //---------------------------------------------------------
+            // Saved Job
+            //---------------------------------------------------------
+
+            dto.IsSaved =
+                candidateId.HasValue &&
+                candidateId.Value != Guid.Empty &&
+                savedJobIds.Contains(item.Job.JobId);
+
+            //---------------------------------------------------------
+            // Company Verification
+            //---------------------------------------------------------
+
+            dto.CompanyVerified =
+                item.Job.EmployerProfile?.VerificationDocuments
+                    .Where(x =>
+                        !x.IsDeleted &&
+                        x.DocumentTypeId != null)
+                    .Any() == true
+
+                &&
+
+                item.Job.EmployerProfile.VerificationDocuments
+                    .Where(x =>
+                        !x.IsDeleted &&
+                        x.DocumentTypeId != null)
+                    .All(x =>
+                        x.Status ==
+                        VerificationDocumentStatus.Approved);
+
+            //---------------------------------------------------------
+            // AI Match
+            //---------------------------------------------------------
+
+            if (candidateId.HasValue &&
+                candidateId.Value != Guid.Empty)
+            {
+                try
+                {
+                    dto.AiMatchPercentage =
+                        await CalculateAiMatchAsync(
+                            candidateId.Value,
+                            item.Job);
+                }
+                catch
+                {
+                    dto.AiMatchPercentage = null;
+                }
+            }
+
+            //---------------------------------------------------------
+            // (Optional) Show Similarity Score
+            //---------------------------------------------------------
+
+            // Uncomment if you later add this property
+            //
+            // dto.MatchScore = item.Score;
+
+            result.Add(dto);
+        }
+
+        return result;
+    }
+
+    // scoring comes in Part 2
 
     // ── Apply helper ──────────────────────────────────────────
     private static ApplyJobResponseDto ApplyFail(string message) =>

@@ -49,6 +49,15 @@ namespace JobPortal.Services.Implement.Recruiter
                 Interview = applications.Count(x =>
                     x.ApplicationStatus == ApplicationStatus.Interview),
 
+                TableInterview = applications.Count(x =>
+                    x.ApplicationStatus == ApplicationStatus.TableInterview),
+
+                CvSelection = applications.Count(x =>
+                    x.ApplicationStatus == ApplicationStatus.CvSelection),
+
+                LocationInterview = applications.Count(x =>
+                    x.ApplicationStatus == ApplicationStatus.LocationInterview),
+
                 Rejected = applications.Count(x =>
                     x.ApplicationStatus == ApplicationStatus.Rejected),
 
@@ -640,6 +649,111 @@ namespace JobPortal.Services.Implement.Recruiter
             {
                 Success = true,
                 Message = "Interview scheduled successfully.",
+                ApplicationId = application.ApplicationId,
+                ApplicationStatus = application.ApplicationStatus.ToString()
+            };
+        }
+
+        public async Task<UpdateApplicantStatusResponseDto> MoveToTableInterviewAsync(
+            Guid employerId,
+            Guid applicationId,
+            UpdateApplicantNoteRequestDto request)
+        {
+            var application = await _context.JobApplications
+                .FirstOrDefaultAsync(x =>
+                    x.ApplicationId == applicationId &&
+                    x.EmployerId == employerId);
+
+            if (application == null)
+            {
+                return new UpdateApplicantStatusResponseDto
+                {
+                    Success = false,
+                    Message = "Application not found."
+                };
+            }
+
+            application.ApplicationStatus = ApplicationStatus.TableInterview;
+            application.StatusUpdatedAt = DateTime.UtcNow;
+
+            application.EmployerInternalNote = request?.Note;
+
+            await _context.SaveChangesAsync();
+
+            return new UpdateApplicantStatusResponseDto
+            {
+                Success = true,
+                Message = "Applicant moved to table interview.",
+                ApplicationId = application.ApplicationId,
+                ApplicationStatus = application.ApplicationStatus.ToString()
+            };
+        }
+
+        public async Task<UpdateApplicantStatusResponseDto> MoveToCvSelectionAsync(
+            Guid employerId,
+            Guid applicationId,
+            UpdateApplicantNoteRequestDto request)
+        {
+            var application = await _context.JobApplications
+                .FirstOrDefaultAsync(x =>
+                    x.ApplicationId == applicationId &&
+                    x.EmployerId == employerId);
+
+            if (application == null)
+            {
+                return new UpdateApplicantStatusResponseDto
+                {
+                    Success = false,
+                    Message = "Application not found."
+                };
+            }
+
+            application.ApplicationStatus = ApplicationStatus.CvSelection;
+            application.StatusUpdatedAt = DateTime.UtcNow;
+
+            application.EmployerInternalNote = request?.Note;
+
+            await _context.SaveChangesAsync();
+
+            return new UpdateApplicantStatusResponseDto
+            {
+                Success = true,
+                Message = "Applicant moved to CV selection.",
+                ApplicationId = application.ApplicationId,
+                ApplicationStatus = application.ApplicationStatus.ToString()
+            };
+        }
+
+        public async Task<UpdateApplicantStatusResponseDto> MoveToLocationInterviewAsync(
+            Guid employerId,
+            Guid applicationId,
+            UpdateApplicantNoteRequestDto request)
+        {
+            var application = await _context.JobApplications
+                .FirstOrDefaultAsync(x =>
+                    x.ApplicationId == applicationId &&
+                    x.EmployerId == employerId);
+
+            if (application == null)
+            {
+                return new UpdateApplicantStatusResponseDto
+                {
+                    Success = false,
+                    Message = "Application not found."
+                };
+            }
+
+            application.ApplicationStatus = ApplicationStatus.LocationInterview;
+            application.StatusUpdatedAt = DateTime.UtcNow;
+
+            application.EmployerInternalNote = request?.Note;
+
+            await _context.SaveChangesAsync();
+
+            return new UpdateApplicantStatusResponseDto
+            {
+                Success = true,
+                Message = "Applicant moved to location interview.",
                 ApplicationId = application.ApplicationId,
                 ApplicationStatus = application.ApplicationStatus.ToString()
             };

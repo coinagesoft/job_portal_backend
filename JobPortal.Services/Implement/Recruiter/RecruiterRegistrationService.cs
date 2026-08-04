@@ -5,6 +5,7 @@ using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.Common;
+using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
@@ -506,37 +507,64 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
             if (mobileChanged)
             {
-                var mobileExists = await _context.Users.AnyAsync(u =>
-                    u.MobileNumber == request.MobileNumber &&
-                    u.CountryCode == request.CountryCode &&
-                    u.UserType == UserType.Recruiter);
+                var existingUser = await _context.Users
+                    .FirstOrDefaultAsync(u =>
+                        u.MobileNumber == request.MobileNumber &&
+                        u.CountryCode == request.CountryCode &&
+                        u.UserType == UserType.Recruiter);
 
-                if (mobileExists)
+                if (existingUser != null)
                 {
-                    return new ContactDetailsResponseDto
+                    if (!existingUser.IsDeleted)
                     {
-                        Success = false,
-                        Message = "This mobile number is already registered."
-                    };
+                        return new ContactDetailsResponseDto
+                        {
+                            Success = false,
+                            Message = "This mobile number is already registered."
+                        };
+                    }
+
+                    if (existingUser.RecoveryExpiry.HasValue &&
+                        existingUser.RecoveryExpiry > DateTime.UtcNow)
+                    {
+                        return new ContactDetailsResponseDto
+                        {
+                            Success = false,
+                            Message = "This account is scheduled for deletion. Please log in to recover it."
+                        };
+                    }
                 }
             }
-
             //------------------------------------------------
             // Duplicate check only when email changed
             //------------------------------------------------
 
             if (emailChanged)
             {
-                var emailExists = await _context.Users.AnyAsync(u =>
-                    u.Email == request.CompanyEmail);
+                var existingUser = await _context.Users
+                    .FirstOrDefaultAsync(u =>
+                        u.Email == request.CompanyEmail);
 
-                if (emailExists)
+                if (existingUser != null)
                 {
-                    return new ContactDetailsResponseDto
+                    if (!existingUser.IsDeleted)
                     {
-                        Success = false,
-                        Message = "This email is already registered."
-                    };
+                        return new ContactDetailsResponseDto
+                        {
+                            Success = false,
+                            Message = "This email is already registered."
+                        };
+                    }
+
+                    if (existingUser.RecoveryExpiry.HasValue &&
+                        existingUser.RecoveryExpiry > DateTime.UtcNow)
+                    {
+                        return new ContactDetailsResponseDto
+                        {
+                            Success = false,
+                            Message = "This account is scheduled for deletion. Please log in to recover it."
+                        };
+                    }
                 }
             }
 
@@ -637,17 +665,32 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             }
 
             // Check email already exists
-            var emailExists = await _context.Users
-                .AnyAsync(x => x.Email == request.CompanyEmail);
+            var existingUser = await _context.Users
+      .FirstOrDefaultAsync(x => x.Email == request.CompanyEmail);
 
-            if (emailExists)
+            if (existingUser != null)
             {
-                return new OtpResponseDto
+                if (!existingUser.IsDeleted)
                 {
-                    Success = false,
-                    Message = "This email is already registered."
-                };
+                    return new OtpResponseDto
+                    {
+                        Success = false,
+                        Message = "This email is already registered."
+                    };
+                }
+
+                if (existingUser.RecoveryExpiry.HasValue &&
+                    existingUser.RecoveryExpiry > DateTime.UtcNow)
+                {
+                    return new OtpResponseDto
+                    {
+                        Success = false,
+                        Message = "This account is scheduled for deletion. Please log in to recover it."
+                    };
+                }
             }
+
+          
 
             var otp = GenerateOtp();
 
@@ -885,22 +928,40 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             }
 
             // Check if mobile number already exists
-            var mobileExists = await _context.Users.AnyAsync(x =>
-      x.MobileNumber == request.MobileNumber);
+            var existingUser = await _context.Users
+     .FirstOrDefaultAsync(x =>
+         x.MobileNumber == request.MobileNumber &&
+         x.CountryCode == request.CountryCode &&
+         x.UserType == UserType.Recruiter);
 
-            if (mobileExists)
+            if (existingUser != null)
             {
-                return new OtpResponseDto
+                if (!existingUser.IsDeleted)
                 {
-                    Success = false,
-                    Message = "This mobile number is already registered."
-                };
+                    return new OtpResponseDto
+                    {
+                        Success = false,
+                        Message = "This mobile number is already registered."
+                    };
+                }
+
+                if (existingUser.RecoveryExpiry.HasValue &&
+                    existingUser.RecoveryExpiry > DateTime.UtcNow)
+                {
+                    return new OtpResponseDto
+                    {
+                        Success = false,
+                        Message = "This account is scheduled for deletion. Please log in to recover it."
+                    };
+                }
             }
+
+         
 
             var fullPhone = $"{request.CountryCode}{request.MobileNumber}";
 
             // ===== QA BYPASS: real Twilio OTP send disabled =====
-             var sent = await _twilioOtpService.SendOtpAsync(fullPhone);
+            var sent = await _twilioOtpService.SendOtpAsync(fullPhone);
             //var sent = true;
             // ===== END QA BYPASS =====
 
@@ -1173,6 +1234,20 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
+            var oldDocuments = await _context.RegistrationSessionDocuments
+    .Where(x => x.SessionId == session.SessionId && !x.IsDeleted)
+    .ToListAsync();
+
+            foreach (var doc in oldDocuments)
+            {
+                if (!string.IsNullOrWhiteSpace(doc.PublicId))
+                {
+                    await _fileStorageService.DeleteAsync(doc.PublicId);
+                }
+            }
+
+            _context.RegistrationSessionDocuments.RemoveRange(oldDocuments);
+
             var allowedTypes = new[]
             {
             "application/pdf",
@@ -1230,19 +1305,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                         };
                     }
 
-                    // Check duplicate upload
-                    var existing = await _context.RegistrationSessionDocuments
-      .FirstOrDefaultAsync(x =>
-          x.SessionId == session.SessionId &&
-          x.DocumentTypeId == document.DocumentTypeId &&
-          !x.IsDeleted);
-
-                    if (existing != null && !master.AllowMultipleUploads)
-                    {
-                        await _fileStorageService.DeleteAsync(existing.PublicId);
-
-                        _context.RegistrationSessionDocuments.Remove(existing);
-                    }
+        
 
                     
                 }
@@ -1298,6 +1361,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                         "Gemini parsing failed for {FileName}",
                         document.File.FileName);
                 }
+
+            
 
                 // Save Temporary Registration Document
                 var registrationDocument = new RegistrationSessionDocument
@@ -1408,7 +1473,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
       ReviewSubmitRequestDto request,
       string ipAddress)
     {
-   
+
         var strategy = _context.Database.CreateExecutionStrategy();
 
         return await strategy.ExecuteAsync(async () =>
@@ -1473,33 +1538,122 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     };
                 }
 
+                // ── Guard against a session that advanced its step counter
+                // without the underlying data actually being saved (e.g. a
+                // client that navigated forward after a failed save). Every
+                // field below is NOT NULL on EmployerProfile/User, so
+                // catching gaps here avoids a raw DB constraint exception
+                // leaking to the client and instead tells them exactly
+                // what's missing and which step to go back to.
+                var missingFields = new List<(string Field, int Step)>();
+
+                if (string.IsNullOrWhiteSpace(session.LegalName)) missingFields.Add(("Company legal name", 2));
+                if (string.IsNullOrWhiteSpace(session.CompanyDisplayName)) missingFields.Add(("Company display name", 2));
+                if (string.IsNullOrWhiteSpace(session.BusinessType)) missingFields.Add(("Business type", 2));
+                if (string.IsNullOrWhiteSpace(session.IndustryType)) missingFields.Add(("Industry type", 2));
+                if (string.IsNullOrWhiteSpace(session.AddressLine1)) missingFields.Add(("Address", 2));
+                if (string.IsNullOrWhiteSpace(session.City)) missingFields.Add(("City", 2));
+                if (string.IsNullOrWhiteSpace(session.Pincode)) missingFields.Add(("Pincode", 2));
+                if (string.IsNullOrWhiteSpace(session.ContactPersonName)) missingFields.Add(("Contact person name", 3));
+                if (string.IsNullOrWhiteSpace(session.Designation)) missingFields.Add(("Designation", 3));
+                if (string.IsNullOrWhiteSpace(session.MobileNumber)) missingFields.Add(("Mobile number", 3));
+                if (string.IsNullOrWhiteSpace(session.CountryCode)) missingFields.Add(("Mobile country code", 3));
+                if (string.IsNullOrWhiteSpace(session.CompanyEmail)) missingFields.Add(("Company email", 3));
+
+                if (missingFields.Count > 0)
+                {
+                    var earliestStep = missingFields.Min(m => m.Step);
+                    var fieldList = string.Join(", ", missingFields.Select(m => m.Field));
+
+                    _logger.LogWarning(
+                        "SubmitRegistrationAsync blocked: session {SessionId} reached step {LastCompletedStep} but is missing required fields: {MissingFields}",
+                        session.SessionId, session.LastCompletedStep, fieldList);
+
+                    return new ReviewSubmitResponseDto
+                    {
+                        Success = false,
+                        Message =
+                            $"Some required details are missing ({fieldList}). Please go back to step {earliestStep} and re-save them before continuing.",
+                        StepStatus = BuildStepStatus(session)
+                    };
+                }
+
                 // Duplicate mobile check
-                var mobileExists = await _context.Users.AnyAsync(x =>
+                var existingUser = await _context.Users
+     .FirstOrDefaultAsync(x =>
          x.MobileNumber == session.MobileNumber &&
          x.CountryCode == session.CountryCode &&
          x.UserType == UserType.Recruiter);
 
-                if (mobileExists)
+                if (existingUser != null)
                 {
-                    return new ReviewSubmitResponseDto
-                    {
-                        Success = false,
-                        Message = "This mobile number is already registered."
-                    };
-                }
-
-                // Duplicate email check
-                if (!string.IsNullOrWhiteSpace(session.CompanyEmail))
-                {
-                    var emailExists = await _context.Users.AnyAsync(x =>
-                        x.Email == session.CompanyEmail);
-
-                    if (emailExists)
+                    if (!existingUser.IsDeleted)
                     {
                         return new ReviewSubmitResponseDto
                         {
                             Success = false,
-                            Message = "This email is already registered."
+                            Message = "This mobile number is already registered."
+                        };
+                    }
+
+                    if (existingUser.RecoveryExpiry.HasValue &&
+                        existingUser.RecoveryExpiry > DateTime.UtcNow)
+                    {
+                        return new ReviewSubmitResponseDto
+                        {
+                            Success = false,
+                            Message = "This account is scheduled for deletion. Please log in to recover it."
+                        };
+                    }
+                }
+                // Duplicate email check
+                if (!string.IsNullOrWhiteSpace(session.CompanyEmail))
+                {
+                    var existingEmailUser = await _context.Users
+        .FirstOrDefaultAsync(x =>
+            x.Email == session.CompanyEmail);
+
+                    if (existingEmailUser != null)
+                    {
+                        if (!existingEmailUser.IsDeleted)
+                        {
+                            return new ReviewSubmitResponseDto
+                            {
+                                Success = false,
+                                Message = "This email is already registered."
+                            };
+                        }
+
+                        if (existingEmailUser.RecoveryExpiry.HasValue &&
+                            existingEmailUser.RecoveryExpiry > DateTime.UtcNow)
+                        {
+                            return new ReviewSubmitResponseDto
+                            {
+                                Success = false,
+                                Message = "This account is scheduled for deletion. Please log in to recover it."
+                            };
+                        }
+                    }
+                }
+
+                // Duplicate GSTIN check — employer_profiles.gstin has a
+                // unique index, so a second registration reusing the same
+                // GSTIN (e.g. a repeat/test submission, or another branch
+                // of the same company registering separately) would
+                // otherwise crash the insert with a raw Postgres
+                // constraint error instead of a clean, actionable message.
+                if (!string.IsNullOrWhiteSpace(session.Gstn))
+                {
+                    var gstinExists = await _context.EmployerProfiles.AnyAsync(x =>
+                        x.Gstin == session.Gstn);
+
+                    if (gstinExists)
+                    {
+                        return new ReviewSubmitResponseDto
+                        {
+                            Success = false,
+                            Message = "An account with this GSTIN is already registered.",
+                            StepStatus = BuildStepStatus(session)
                         };
                     }
                 }
@@ -1569,10 +1723,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                     CompanyDescription = session.CompanyDescription,
 
-                    PoeLicenceUrl = session.PoeLicenceUrl,
-                    PoeLicencePublicId = session.PoeLicencePublicId,
-                    RpslLicenceUrl = session.RpslLicenceUrl,
-                    RpslLicencePublicId = session.RpslLicencePublicId,
+                  
                     AccountStatus = AccountStatus.Pending,
                     SecurityDepositPaid = false,
                     ConsentTimestamp = now,
@@ -1581,10 +1732,77 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
 
                 _context.EmployerProfiles.Add(employer);
+
+                // Copy registration documents to employer verification documents
+                var sessionDocuments = await _context.RegistrationSessionDocuments
+                    .Where(x => x.SessionId == session.SessionId && !x.IsDeleted)
+                    .ToListAsync();
+
+
+                foreach (var doc in sessionDocuments)
+                {
+                    _context.EmployerVerificationDocuments.Add(new EmployerVerificationDocument
+                    {
+                        DocumentId = Guid.NewGuid(),
+
+                        EmployerId = employer.EmployerId,
+
+                        DocumentTypeId = doc.DocumentTypeId,
+
+                        DocumentNumber = doc.DocumentNumber,
+                        IssuingAuthority = doc.IssuingAuthority,
+                        IssueDate = doc.IssueDate,
+                        ExpiryDate = doc.ExpiryDate,
+
+                        FileName = doc.FileName,
+                        FileUrl = doc.FileUrl,
+                        PublicId = doc.PublicId,
+
+                        CustomDocumentName = doc.CustomDocumentName,
+                        Category = doc.Category,
+                        UploadedAt = doc.UploadedAt,
+
+                        Status = VerificationDocumentStatus.Pending,
+
+                        VerifiedBy = null,
+                        VerifiedAt = null,
+                        Remarks = null,
+
+                        IsDeleted = false,
+
+                        DetectedDocumentType = doc.DetectedDocumentType,
+                        AiConfidenceScore = doc.AiConfidenceScore,
+                        ParsedDataJson = doc.ParsedDataJson
+                    });
+                }
+                // Check whether all active standard documents (excluding "Other") were uploaded
+                // Get all required document IDs
+                var requiredDocumentIds = await _context.VerificationDocumentMasters
+                    .Where(x => x.IsActive)
+                    .Select(x => x.DocumentTypeId)
+                    .ToListAsync();
+
+                // Get uploaded standard document IDs from the session
+                var uploadedDocumentIds = sessionDocuments
+                    .Where(x => !x.IsDeleted && x.DocumentTypeId.HasValue)
+                    .Select(x => x.DocumentTypeId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                bool hasAllRequiredDocuments =
+                    requiredDocumentIds.All(id => uploadedDocumentIds.Contains(id));
+
                 employer.ProfileCompletionScore =
-                 (byte)ProfileCompletionHelper.CalculateProfileCompletionScore(employer);
+                    ProfileCompletionHelper.CalculateProfileCompletionScore(
+                        employer,
+                        hasAllRequiredDocuments);
+
+          
 
                 // ── Create Wallet (10 Free Trial Credits) ─────────────────────────
+                var trialCreditsGranted = 10;
+                var trialExpiresAt = DateTime.UtcNow.AddDays(30);
+
                 _context.CreditWallets.Add(new CreditWallet
                 {
                     Wallet_Id = Guid.NewGuid(),
@@ -1592,16 +1810,39 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     EmployerId = employer.EmployerId,
 
                     // Give every new employer 10 free credits
-                    CreditBalance = 10,
+                    CreditBalance = trialCreditsGranted,
 
                     PackageName = "Free Trial",
 
                     // Trial validity (change/remove as needed)
-                    PackExpiresAt = DateTime.UtcNow.AddDays(30),
+                    PackExpiresAt = trialExpiresAt,
 
                     SharedWallet = true,
 
                     UpdatedAt = now
+                });
+
+                // Record the grant in the plan-purchase ledger too.
+                // CreditWalletService.ReconcileWalletBalanceAsync recomputes
+                // the wallet's balance as
+                // (sum of EmployerPlanPurchase.Credits) - (sum of
+                // CreditUsageTransactions.CreditsUsed) every time the wallet
+                // is read, and overwrites CreditBalance with that figure.
+                // Without a matching ledger row here, the free trial credits
+                // above get silently reset to 0 the first time the wallet
+                // page loads.
+                _context.EmployerPlanPurchase.Add(new EmployerPlanPurchase
+                {
+                    EmployerCreditPlanId = Guid.NewGuid(),
+                    EmployerId = employer.EmployerId,
+                    PlanId = Guid.Empty,
+                    PlanName = "Free Trial",
+                    Credits = trialCreditsGranted,
+                    Price = 0,
+                    AssignedAt = now,
+                    ExpiresAt = trialExpiresAt,
+                    IsActive = true,
+                    AssignedBy = user.UserId,
                 });
 
                 // ── Create Notification Settings ─────────────────────
@@ -1707,6 +1948,14 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
+            // Load uploaded registration documents
+            var uploadedDocuments = await _context.RegistrationSessionDocuments
+                .Where(x =>
+                    x.SessionId == session.SessionId &&
+                    !x.IsDeleted)
+                .OrderBy(x => x.UploadedAt)
+                .ToListAsync();
+
             return new ResumeSessionResponseDto
             {
                 Success = true,
@@ -1754,7 +2003,6 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                         AddressLine2 = session.AddressLine2,
 
                         WebsiteUrl = session.WebsiteUrl,
-
                         CompanyLogoUrl = session.CompanyLogoUrl
                     }
                     : null,
@@ -1775,7 +2023,6 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                         MobileVerified = session.MobileVerified,
                         CompanyEmailVerified = session.CompanyEmailVerified
-
                     }
                     : null,
 
@@ -1783,8 +2030,21 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 Step4Data = session.LastCompletedStep >= 4
                     ? new ResumeLicenceDetailsDto
                     {
-                        PoeLicenceUrl = session.PoeLicenceUrl,
-                        RpslLicenceUrl = session.RpslLicenceUrl
+                        Documents = uploadedDocuments.Select(d => new ResumeRegistrationDocumentDto
+                        {
+                            DocumentTypeId = d.DocumentTypeId,
+
+                            DocumentName =
+                                d.CustomDocumentName ??
+                                d.DetectedDocumentType ??
+                                "Custom Document",
+
+                            Category = d.Category,
+
+                            FileUrl = d.FileUrl,
+
+                            Status = "Uploaded"
+                        }).ToList()
                     }
                     : null
             };

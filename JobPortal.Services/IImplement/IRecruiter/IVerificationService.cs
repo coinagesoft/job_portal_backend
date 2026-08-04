@@ -16,8 +16,6 @@ namespace JobPortal.Services.IImplement.IRecruiter
             Guid employerId,
             UploadVerificationDocumentRequestDto request);
 
-        Task<DocumentViewResponseDto?> GetDocumentAsync(
-            Guid employerId,
-            DocumentType documentType);
+        Task<List<DocumentViewResponseDto>> GetDocumentTypesAsync();
     }
 }

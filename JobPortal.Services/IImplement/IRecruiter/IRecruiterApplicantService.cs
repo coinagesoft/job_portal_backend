@@ -39,6 +39,21 @@ public interface IRecruiterApplicantService
         Guid applicationId,
         ScheduleInterviewRequestDto request);
 
+    Task<UpdateApplicantStatusResponseDto> MoveToTableInterviewAsync(
+        Guid employerId,
+        Guid applicationId,
+        UpdateApplicantNoteRequestDto request);
+
+    Task<UpdateApplicantStatusResponseDto> MoveToCvSelectionAsync(
+        Guid employerId,
+        Guid applicationId,
+        UpdateApplicantNoteRequestDto request);
+
+    Task<UpdateApplicantStatusResponseDto> MoveToLocationInterviewAsync(
+        Guid employerId,
+        Guid applicationId,
+        UpdateApplicantNoteRequestDto request);
+
     Task<UpdateApplicantStatusResponseDto> RejectApplicantAsync(
         Guid employerId,
         Guid applicationId,

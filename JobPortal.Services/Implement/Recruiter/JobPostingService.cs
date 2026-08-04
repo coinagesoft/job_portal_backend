@@ -1042,6 +1042,24 @@ namespace JobPortal.Services.Implement.Recruiter
                     };
                 }
 
+                // Defensive re-check, independent of Step 1's own
+                // validation: a Contract-type job must have a
+                // ContractPeriod before it's ever allowed to go live. This
+                // catches drafts that reached this point with missing data
+                // (e.g. an older draft saved before this rule existed, or
+                // any future bug in the step-save validation) rather than
+                // trusting that Step 1 was always enforced correctly.
+                if (request.PublishNow == true &&
+                    string.Equals(job.EmploymentType, "Contract", StringComparison.OrdinalIgnoreCase) &&
+                    string.IsNullOrWhiteSpace(job.ContractPeriod))
+                {
+                    return new PublishingResponseDto
+                    {
+                        Success = false,
+                        Message = "Contract period is required for contract employment."
+                    };
+                }
+
                 // PATCH logic
 
                 if (request.ApplicationDeadline.HasValue)
@@ -1283,7 +1301,7 @@ namespace JobPortal.Services.Implement.Recruiter
                         DutyHoursPerDay = job.DutyHoursPerDay,
                         PaidOvertime = job.PaidOvertime,
 
-                        KeyResponsibilities = 
+                        KeyResponsibilities =
                             job.KeyResponsibilities ?? new List<string>()
                     },
 

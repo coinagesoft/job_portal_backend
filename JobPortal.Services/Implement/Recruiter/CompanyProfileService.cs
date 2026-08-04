@@ -193,12 +193,24 @@ namespace JobPortal.Services.Implement.Recruiter
             if (!string.IsNullOrWhiteSpace(request.TimeZone))
                 profile.TimeZone = request.TimeZone;
 
+            // Check whether all active standard documents (excluding "Other") are uploaded
+            bool hasAllRequiredDocuments =
+                await _context.VerificationDocumentMasters
+                    .Where(x => x.IsActive)
+                    .AllAsync(master =>
+                        _context.EmployerVerificationDocuments.Any(doc =>
+                            doc.EmployerId == employerId &&
+                            !doc.IsDeleted &&
+                            doc.DocumentTypeId == master.DocumentTypeId));
+
             profile.ProfileCompletionScore =
-                ProfileCompletionHelper.CalculateProfileCompletionScore(profile);
+                ProfileCompletionHelper.CalculateProfileCompletionScore(
+                    profile,
+                    hasAllRequiredDocuments);
+
             profile.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
             return true;
         }
 

@@ -134,6 +134,9 @@ builder.Services.AddHttpClient("Razorpay", client =>
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 builder.Services.AddScoped<IPublicCompanyService, PublicCompanyService>();
 builder.Services.AddHttpClient<IGeminiDocumentParserService, GeminiDocumentParserService>();
+
+
+builder.Services.AddHostedService<AccountCleanupService>();
 // ── Firebase ─────────────────────────────────────────────────
 FirebaseApp.Create(new AppOptions()
 {

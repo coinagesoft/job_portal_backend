@@ -42,4 +42,8 @@ public interface ICandidateJobService
     /// Only allowed when WithdrawalAllowed = true and status is not Hired/Rejected.
     /// </summary>
     Task<WithdrawApplicationResponseDto> WithdrawApplicationAsync(Guid applicationId, Guid candidateId);
+
+    Task<List<CandidateJobListItemDto>> GetSimilarJobsAsync(
+    Guid jobId,
+    Guid? candidateId = null);
 }

@@ -10,7 +10,11 @@ namespace JobPortal.Application.DTOs.Recruiter.CompanyProfile
 {
     public class UploadVerificationDocumentRequestDto
     {
-        public DocumentType DocumentType { get; set; } = default!;
+        public Guid? DocumentTypeId { get; set; }
+
+        public string? DocumentName { get; set; }
+
+        public string? Category { get; set; }
 
         public IFormFile File { get; set; } = default!;
     }

@@ -1400,13 +1400,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("address_line2");
 
-                    b.Property<string>("BusinessRegDocPublicId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("BusinessRegDocUrl")
-                        .HasColumnType("text")
-                        .HasColumnName("business_reg_doc_url");
-
                     b.Property<string>("BusinessType")
                         .IsRequired()
                         .HasColumnType("text")
@@ -1483,12 +1476,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("FacebookUrl")
                         .HasColumnType("text");
 
-                    b.Property<string>("GstCertificatePublicId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("GstCertificateUrl")
-                        .HasColumnType("text");
-
                     b.Property<bool>("GstRegistered")
                         .HasColumnType("boolean")
                         .HasColumnName("gst_registered");
@@ -1533,39 +1520,10 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("pan");
 
-                    b.Property<string>("PanCardPublicId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PanCardUrl")
-                        .HasColumnType("text");
-
                     b.Property<string>("Pincode")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("pincode");
-
-                    b.Property<string>("PoeCompanyName")
-                        .HasColumnType("text")
-                        .HasColumnName("poe_company_name");
-
-                    b.Property<bool>("PoeExpiredFlag")
-                        .HasColumnType("boolean")
-                        .HasColumnName("poe_expired_flag");
-
-                    b.Property<string>("PoeLicenceNumber")
-                        .HasColumnType("text")
-                        .HasColumnName("poe_licence_number");
-
-                    b.Property<string>("PoeLicencePublicId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PoeLicenceUrl")
-                        .HasColumnType("text")
-                        .HasColumnName("poe_licence_s3_url");
-
-                    b.Property<DateOnly?>("PoeValidityDate")
-                        .HasColumnType("date")
-                        .HasColumnName("poe_validity_date");
 
                     b.Property<byte>("ProfileCompletionScore")
                         .HasColumnType("smallint")
@@ -1573,29 +1531,6 @@ namespace JobPortal.Infrastructure.Migrations
 
                     b.Property<int>("ReviewCount")
                         .HasColumnType("integer");
-
-                    b.Property<string>("RpslCompanyName")
-                        .HasColumnType("text")
-                        .HasColumnName("rpsl_company_name");
-
-                    b.Property<bool>("RpslExpiredFlag")
-                        .HasColumnType("boolean")
-                        .HasColumnName("rpsl_expired_flag");
-
-                    b.Property<string>("RpslLicenceNumber")
-                        .HasColumnType("text")
-                        .HasColumnName("rpsl_licence_number");
-
-                    b.Property<string>("RpslLicencePublicId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RpslLicenceUrl")
-                        .HasColumnType("text")
-                        .HasColumnName("rpsl_licence_s3_url");
-
-                    b.Property<DateOnly?>("RpslValidityDate")
-                        .HasColumnType("date")
-                        .HasColumnName("rpsl_validity_date");
 
                     b.Property<bool>("SecurityDepositPaid")
                         .HasColumnType("boolean")
@@ -1754,13 +1689,19 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<decimal?>("AiConfidenceScore")
                         .HasColumnType("numeric");
 
+                    b.Property<string>("Category")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CustomDocumentName")
+                        .HasColumnType("text");
+
                     b.Property<string>("DetectedDocumentType")
                         .HasColumnType("text");
 
                     b.Property<string>("DocumentNumber")
                         .HasColumnType("text");
 
-                    b.Property<Guid>("DocumentTypeId")
+                    b.Property<Guid?>("DocumentTypeId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("EmployerId")
@@ -3248,9 +3189,18 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Email")
                         .HasColumnType("text")
                         .HasColumnName("email");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("KycStatus")
                         .IsRequired()
@@ -3278,6 +3228,9 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasDefaultValue("Unpaid")
                         .HasColumnName("payment_status");
+
+                    b.Property<DateTime?>("RecoveryExpiry")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("SuspensionReason")
                         .HasColumnType("text")
@@ -3710,9 +3663,7 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.HasOne("VerificationDocumentMaster", "DocumentType")
                         .WithMany()
-                        .HasForeignKey("DocumentTypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("DocumentTypeId");
 
                     b.HasOne("JobPortal.Domain.Entities.EmployerProfile", "Employer")
                         .WithMany("VerificationDocuments")

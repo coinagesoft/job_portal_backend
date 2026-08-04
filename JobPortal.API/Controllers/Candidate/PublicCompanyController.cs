@@ -1,5 +1,6 @@
 ﻿using JobPortal.Application.DTOs.Candidate.Jobs;
 using JobPortal.Services.IImplement.ICandidate;
+using JobPortal.Services.Implement.Candidate;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -94,4 +95,6 @@ public class PublicCompanyController : ControllerBase
 
         return Ok(result);
     }
+
+ 
 }

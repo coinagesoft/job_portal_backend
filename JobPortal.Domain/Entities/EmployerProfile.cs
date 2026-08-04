@@ -65,38 +65,16 @@ public class EmployerProfile
     /// Surfaced read-only on candidate-facing company/job views.
     /// </summary>
     public int ReviewCount { get; set; } = 0;
-    // POE
-    public string? PoeLicenceUrl { get; set; }
-    public string? PoeLicenceNumber { get; set; }
-    public string? PoeCompanyName { get; set; }
-    public DateOnly? PoeValidityDate { get; set; }
-    public bool PoeExpiredFlag { get; set; } = false;
-    // RPSL
-    public string? RpslLicenceUrl { get; set; }
-    public string? RpslLicenceNumber { get; set; }
-    public string? RpslCompanyName { get; set; }
-    public DateOnly? RpslValidityDate { get; set; }
-    public bool RpslExpiredFlag { get; set; } = false;
-    // Docs
-    public string? BusinessRegDocUrl { get; set; }
-    public string? BusinessRegDocPublicId { get; set; }
-    // GST Certificate (separate from the GstRegistered flag/GSTIN text —
-    // this is the actual uploaded certificate file)
-    public string? GstCertificateUrl { get; set; }
-    public string? GstCertificatePublicId { get; set; }
-    // PAN Card (separate from the Pan text field — the actual uploaded
-    // card/document file)
-    public string? PanCardUrl { get; set; }
-    public string? PanCardPublicId { get; set; }
+ 
+
+
+
     public DateTime? ConsentTimestamp { get; set; }
     public List<string>? CompanyHighlights { get; set; }
     public string TimeZone { get; set; } = "Asia/Kolkata";
 
     public string? CompanyLogoPublicId { get; set; }
 
-    public string? PoeLicencePublicId { get; set; }
-
-    public string? RpslLicencePublicId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

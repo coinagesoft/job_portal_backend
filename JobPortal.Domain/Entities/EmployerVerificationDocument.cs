@@ -15,7 +15,9 @@ namespace JobPortal.Domain.Entities
 
         public Guid EmployerId { get; set; }
 
+        public string? CustomDocumentName { get; set; }
 
+        public string? Category { get; set; }
         public string? DocumentNumber { get; set; }
 
         public string? IssuingAuthority { get; set; }
@@ -57,9 +59,9 @@ namespace JobPortal.Domain.Entities
         public ICollection<EmployerBadge> Badges { get; set; }
             = new List<EmployerBadge>();
 
-        public Guid DocumentTypeId { get; set; }
+        public Guid? DocumentTypeId { get; set; }
 
-        public VerificationDocumentMaster DocumentType { get; set; } = default!;
+        public VerificationDocumentMaster? DocumentType { get; set; } = default!;
 
      
     }

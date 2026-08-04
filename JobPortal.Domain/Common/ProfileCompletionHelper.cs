@@ -9,9 +9,11 @@ namespace JobPortal.Domain.Common
 {
     public static class ProfileCompletionHelper
     {
-        public static byte CalculateProfileCompletionScore(EmployerProfile profile)
+        public static byte CalculateProfileCompletionScore(
+     EmployerProfile profile,
+     bool hasAllRequiredDocuments)
         {
-            int totalFields = 32;
+            int totalFields = 33;
             int completed = 0;
 
             bool HasValue(string? value) => !string.IsNullOrWhiteSpace(value);
@@ -77,6 +79,10 @@ namespace JobPortal.Domain.Common
             if (HasValue(profile.OperatingHours)) completed++;
             if (profile.CompanyHighlights != null && profile.CompanyHighlights.Any()) completed++;
             if (HasValue(profile.TimeZone)) completed++;
+
+            // Required Documents (excluding "Other Document")
+            if (hasAllRequiredDocuments)
+                completed++;
 
             return (byte)Math.Round((double)completed * 100 / totalFields);
         }

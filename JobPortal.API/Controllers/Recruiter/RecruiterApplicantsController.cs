@@ -197,6 +197,75 @@ namespace JobPortal.API.Controllers.Recruiter
         }
 
         // =====================================================
+        // Table Interview
+        // =====================================================
+
+        [HttpPatch("{applicationId}/table-interview")]
+        public async Task<IActionResult> MoveToTableInterview(
+            Guid applicationId,
+            [FromQuery] Guid employerId,
+            [FromBody] UpdateApplicantNoteRequestDto request)
+        {
+            if (await EnforceManageApplicationsAsync() is { } denied) return denied;
+
+            var result =
+                await _service.MoveToTableInterviewAsync(
+                    employerId,
+                    applicationId,
+                    request);
+
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
+        }
+
+        // =====================================================
+        // CV Selection
+        // =====================================================
+
+        [HttpPatch("{applicationId}/cv-selection")]
+        public async Task<IActionResult> MoveToCvSelection(
+            Guid applicationId,
+            [FromQuery] Guid employerId,
+            [FromBody] UpdateApplicantNoteRequestDto request)
+        {
+            if (await EnforceManageApplicationsAsync() is { } denied) return denied;
+
+            var result =
+                await _service.MoveToCvSelectionAsync(
+                    employerId,
+                    applicationId,
+                    request);
+
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
+        }
+
+        // =====================================================
+        // Location Interview
+        // =====================================================
+
+        [HttpPatch("{applicationId}/location-interview")]
+        public async Task<IActionResult> MoveToLocationInterview(
+            Guid applicationId,
+            [FromQuery] Guid employerId,
+            [FromBody] UpdateApplicantNoteRequestDto request)
+        {
+            if (await EnforceManageApplicationsAsync() is { } denied) return denied;
+
+            var result =
+                await _service.MoveToLocationInterviewAsync(
+                    employerId,
+                    applicationId,
+                    request);
+
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
+        }
+
+        // =====================================================
         // Reject Applicant
         // =====================================================
 

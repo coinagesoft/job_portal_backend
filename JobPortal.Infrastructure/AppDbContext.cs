@@ -790,38 +790,6 @@ public class AppDbContext : DbContext
             e.Property(x => x.ProfileCompletionScore)
                 .HasColumnName("profile_completion_score");
 
-            e.Property(x => x.PoeLicenceUrl)
-                .HasColumnName("poe_licence_s3_url");
-
-            e.Property(x => x.PoeLicenceNumber)
-                .HasColumnName("poe_licence_number");
-
-            e.Property(x => x.PoeCompanyName)
-                .HasColumnName("poe_company_name");
-
-            e.Property(x => x.PoeValidityDate)
-                .HasColumnName("poe_validity_date");
-
-            e.Property(x => x.PoeExpiredFlag)
-                .HasColumnName("poe_expired_flag");
-
-            e.Property(x => x.RpslLicenceUrl)
-                .HasColumnName("rpsl_licence_s3_url");
-
-            e.Property(x => x.RpslLicenceNumber)
-                .HasColumnName("rpsl_licence_number");
-
-            e.Property(x => x.RpslCompanyName)
-                .HasColumnName("rpsl_company_name");
-
-            e.Property(x => x.RpslValidityDate)
-                .HasColumnName("rpsl_validity_date");
-
-            e.Property(x => x.RpslExpiredFlag)
-                .HasColumnName("rpsl_expired_flag");
-
-            e.Property(x => x.BusinessRegDocUrl)
-                .HasColumnName("business_reg_doc_url");
 
             e.Property(x => x.ConsentTimestamp)
                 .HasColumnName("consent_timestamp");

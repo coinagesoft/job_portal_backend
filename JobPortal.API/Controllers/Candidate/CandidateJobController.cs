@@ -170,7 +170,23 @@ public class CandidateJobController : ControllerBase
         return result.Success ? Ok(result) : BadRequest(result);
     }
 
-   
+
+    [HttpGet("{jobId:guid}/similar")]
+    public async Task<IActionResult> GetSimilarJobs(
+    Guid jobId,
+    [FromQuery] Guid? candidateId = null)
+    {
+        var result = await _jobService.GetSimilarJobsAsync(jobId, candidateId);
+
+        return Ok(new
+        {
+            success = true,
+            message = "Similar jobs retrieved successfully.",
+            data = result
+        });
+    }
+
+
     [HttpDelete("applications/{applicationId:guid}")]
     [ProducesResponseType(typeof(WithdrawApplicationResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

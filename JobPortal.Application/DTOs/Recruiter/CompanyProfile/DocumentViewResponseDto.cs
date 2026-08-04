@@ -1,15 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace JobPortal.Application.DTOs.Recruiter.CompanyProfile
+﻿namespace JobPortal.Application.DTOs.Recruiter.CompanyProfile
 {
     public class DocumentViewResponseDto
     {
-        public DocumentType DocumentType { get; set; } = default!;
+        public Guid DocumentTypeId { get; set; }
 
-        public string? FileUrl { get; set; }
+        public string DocumentName { get; set; } = default!;
+
+        public string Category { get; set; } = default!;
+
+        public bool IsMandatory { get; set; }
     }
 }

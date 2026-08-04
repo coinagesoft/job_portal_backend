@@ -14,6 +14,9 @@ namespace JobPortal.Domain.Enums.RecruiterEnums
         Interview = 4,
         Rejected = 5,
         Hired = 6,
-        Withdrawn = 7
+        Withdrawn = 7,
+        TableInterview = 8,
+        CvSelection = 9,
+        LocationInterview = 10
     }
 }
