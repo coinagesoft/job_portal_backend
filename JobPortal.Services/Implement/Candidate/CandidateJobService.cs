@@ -176,13 +176,7 @@ public class CandidateJobService : ICandidateJobService
                 // Company
                 CompanyName = isConfidential
     ? null
-    : (
-        job.IsClientHiring &&
-        job.ShowClientName &&
-        !string.IsNullOrWhiteSpace(job.ClientName)
-            ? job.ClientName
-            : employer.CompanyDisplayName
-      ),
+    : employer.CompanyDisplayName,
 
                 IsClientHiring = job.IsClientHiring,
 
@@ -717,13 +711,7 @@ public class CandidateJobService : ICandidateJobService
 
             CompanyName =
     job.CompanyVisibility == CompanyVisibility.ShowName
-        ? (
-            job.IsClientHiring &&
-            job.ShowClientName &&
-            !string.IsNullOrWhiteSpace(job.ClientName)
-                ? job.ClientName
-                : job.EmployerProfile?.CompanyDisplayName
-          )
+        ? job.EmployerProfile?.CompanyDisplayName
         : "Confidential Company",
 
             JobTitle = job.JobTitle,
@@ -1516,13 +1504,7 @@ public class CandidateJobService : ICandidateJobService
 
                 CompanyName =
     job.CompanyVisibility == CompanyVisibility.ShowName
-        ? (
-            job.IsClientHiring &&
-            job.ShowClientName &&
-            !string.IsNullOrWhiteSpace(job.ClientName)
-                ? job.ClientName
-                : job.EmployerProfile?.CompanyDisplayName
-          )
+        ? job.EmployerProfile?.CompanyDisplayName
         : "Confidential Company",
 
                 ApplicationStatus =
@@ -1623,16 +1605,15 @@ public class CandidateJobService : ICandidateJobService
 
                     JobLocation = jobLocation,
 
-                    CompanyName =
-    showCompany
-        ? (
-            job.IsClientHiring &&
-            job.ShowClientName &&
-            !string.IsNullOrWhiteSpace(job.ClientName)
-                ? job.ClientName
-                : job.EmployerProfile?.CompanyDisplayName
-          )
-        : "Confidential Company",
+                    CompanyName = showCompany
+    ? (
+        job.IsClientHiring &&
+        job.ShowClientName &&
+        !string.IsNullOrWhiteSpace(job.ClientName)
+            ? job.ClientName
+            : job.EmployerProfile?.CompanyDisplayName
+      )
+    : "Confidential Company",
 
                     CompanyLogoUrl =
                         showCompany
@@ -2158,6 +2139,7 @@ public class CandidateJobService : ICandidateJobService
         }
 
         return result;
+
     }
 
     // ── Apply helper ──────────────────────────────────────────

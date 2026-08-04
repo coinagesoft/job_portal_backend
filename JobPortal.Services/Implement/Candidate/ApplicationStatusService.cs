@@ -49,13 +49,7 @@ public class ApplicationStatusService : IApplicationStatusService
                     JobId = job.JobId,
                     CompanyName = isConfidential
     ? null
-    : (
-        job.IsClientHiring &&
-        job.ShowClientName &&
-        !string.IsNullOrWhiteSpace(job.ClientName)
-            ? job.ClientName
-            : job.EmployerProfile?.CompanyDisplayName
-      ),
+    : job.EmployerProfile?.CompanyDisplayName,
                     CompanyLogoUrl = isConfidential ? null : job.EmployerProfile?.CompanyLogoUrl,
                     IsConfidentialCompany = isConfidential,
                     City = job.OnshoreCity,
