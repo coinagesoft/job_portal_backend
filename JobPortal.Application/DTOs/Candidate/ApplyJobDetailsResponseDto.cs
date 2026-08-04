@@ -30,6 +30,8 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public string? Department { get; set; }
 
+        public string? JobTradeCategory { get; set; }
+
         public string Location { get; set; } = string.Empty;
 
         // Requirements
@@ -42,7 +44,30 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public bool DisabilityEligible { get; set; }
 
+        /// <summary>
+        /// The candidate's own trade category (from their profile), echoed
+        /// back so the UI can show it in the block message.
+        /// </summary>
+        public string? CandidateTradeCategory { get; set; }
+
+        /// <summary>
+        /// True when the candidate has a trade set on their profile and it
+        /// doesn't match this job's TradeCategory. The candidate cannot
+        /// apply while this is true — the frontend should block the Apply
+        /// action and show a toast explaining why.
+        /// </summary>
+        public bool TradeCategoryMismatch { get; set; }
+
         public bool PassportRequired { get; set; }
+
+        /// <summary>
+        /// True when the logged-in candidate has a passport record on file
+        /// (JobPortal.Domain.Entities.PassportVerification). Used by the
+        /// frontend to block "Apply" (or show a clear "You don't have a
+        /// passport" message) instead of relying on a self-attested
+        /// checkbox when PassportRequired is true.
+        /// </summary>
+        public bool CandidateHasPassport { get; set; }
 
         public List<string> LanguagesRequired { get; set; } = new();
 

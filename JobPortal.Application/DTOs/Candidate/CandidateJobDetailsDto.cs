@@ -83,5 +83,11 @@ namespace JobPortal.Application.DTOs.Candidate
         public List<string> ProfessionalSkills { get; set; } = new();
 
         public List<string> PerksAndBenefits { get; set; } = new();
+
+        // Jobs that share keywords from the job title and/or the same
+        // trade category / role as this job. Empty when nothing genuinely
+        // similar is found — the UI should hide the "Similar Jobs" section
+        // in that case rather than showing unrelated postings.
+        public List<CandidateJobListItemDto> SimilarJobs { get; set; } = new();
     }
 }

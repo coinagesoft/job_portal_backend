@@ -1147,6 +1147,7 @@ public class CandidateJobService : ICandidateJobService
 
             var candidate = await _context.CandidateProfiles
                 .Include(x => x.Cvs)
+                .Include(x => x.PassportVerifications)
                 .FirstOrDefaultAsync(x =>
                     x.CandidateId == candidateId);
 
@@ -1247,6 +1248,9 @@ public class CandidateJobService : ICandidateJobService
                 Department =
                     job.Department,
 
+                JobTradeCategory =
+                    job.TradeCategory,
+
                 Location =
                     location,
 
@@ -1262,8 +1266,21 @@ public class CandidateJobService : ICandidateJobService
                 DisabilityEligible =
                     job.DisabilityEligible,
 
+                CandidateTradeCategory =
+                    candidate.PrimaryTrade,
+
+                TradeCategoryMismatch =
+                    !string.IsNullOrWhiteSpace(candidate.PrimaryTrade) &&
+                    !string.Equals(
+                        candidate.PrimaryTrade.Trim(),
+                        job.TradeCategory?.Trim(),
+                        StringComparison.OrdinalIgnoreCase),
+
                 PassportRequired =
                     job.PassportRequired,
+
+                CandidateHasPassport =
+                    candidate.PassportVerifications.Any(),
 
                 LanguagesRequired =
                     languages,
@@ -1342,6 +1359,7 @@ public class CandidateJobService : ICandidateJobService
 
             var candidate = await _context.CandidateProfiles
                 .Include(x => x.Cvs)
+                .Include(x => x.PassportVerifications)
                 .FirstOrDefaultAsync(x =>
                     x.CandidateId == candidateId);
             //x.ProfileStatus == "Active");
@@ -1355,6 +1373,44 @@ public class CandidateJobService : ICandidateJobService
 
             if (!candidate.Cvs.Any())
                 return ApplyFail("Please upload your CV before applying.");
+
+            //-----------------------------------------------------
+            // Passport (server-side gate — never trust the client's
+            // self-reported "PassportGatePassed" flag on its own).
+            // If the employer marked this job as requiring a passport,
+            // the candidate must actually have a passport record on
+            // file before the application is accepted.
+            //-----------------------------------------------------
+
+            bool candidateHasPassport = candidate.PassportVerifications.Any();
+
+            if (job.PassportRequired && !candidateHasPassport)
+            {
+                return ApplyFail(
+                    "This job requires a valid passport. Please add your passport " +
+                    "details in your profile before applying.");
+            }
+
+            //-----------------------------------------------------
+            // Trade Category Eligibility
+            // Candidates can only apply to jobs in their own trade
+            // category (e.g. a Welder cannot apply to a Web Developer
+            // role). A candidate with no trade set on their profile yet
+            // is allowed through — profile completeness is nudged
+            // elsewhere, not enforced as a hard apply-blocker here.
+            //-----------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(candidate.PrimaryTrade) &&
+                !string.Equals(
+                    candidate.PrimaryTrade.Trim(),
+                    job.TradeCategory?.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return ApplyFail(
+                    $"You can only apply to jobs in your trade category " +
+                    $"({candidate.PrimaryTrade}). This job is listed under " +
+                    $"{job.TradeCategory}.");
+            }
 
             //-----------------------------------------------------
             // Duplicate Application
@@ -1407,7 +1463,14 @@ public class CandidateJobService : ICandidateJobService
 
                 // Optional values
 
-                PassportGatePassed = request.PassportGatePassed ?? false,
+                // Reflects the server-verified passport state, not the
+                // client-submitted flag: passes automatically when the job
+                // doesn't require a passport, otherwise only when the
+                // candidate actually has a passport record on file (this
+                // point is unreachable with PassportRequired=true and no
+                // record, since the check above already returned).
+                PassportGatePassed =
+                    !job.PassportRequired || candidateHasPassport,
 
                 MotivationMessage = request.MotivationMessage,
 
@@ -1714,10 +1777,9 @@ public class CandidateJobService : ICandidateJobService
         }
     }
 
-
     public async Task<List<CandidateJobListItemDto>> GetSimilarJobsAsync(
-       Guid jobId,
-       Guid? candidateId = null)
+   Guid jobId,
+   Guid? candidateId = null)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
@@ -2097,8 +2159,6 @@ public class CandidateJobService : ICandidateJobService
 
         return result;
     }
-
-    // scoring comes in Part 2
 
     // ── Apply helper ──────────────────────────────────────────
     private static ApplyJobResponseDto ApplyFail(string message) =>
