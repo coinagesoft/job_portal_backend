@@ -19,6 +19,12 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public string CompanyVisibility { get; set; } = string.Empty;
 
+        // Client (when the job is posted on behalf of a client)
+        public bool IsClientHiring { get; set; } = false;
+        public string? ClientName { get; set; }
+        public bool ShowClientName { get; set; } = false;
+        public string? WorkAddressLine { get; set; }
+
         // Verification
         public List<string> VerificationBadges { get; set; } = new();
 
