@@ -106,6 +106,7 @@ builder.Services.AddScoped<ICompanyDocumentService, CompanyDocumentService>();
 builder.Services.AddScoped<IDocumentTypeService, DocumentTypeService>();
 builder.Services.AddScoped<IAdminCompanyDocumentService, AdminCompanyDocumentService>();
 builder.Services.AddScoped<IAdminDocumentTypeService, AdminDocumentTypeService>();
+builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 builder.Services.AddScoped<CandidatePagedJobService>();
 builder.Services.AddHttpClient<IGeminiCompanyDocumentParserService, GeminiCompanyDocumentParserService>();
 //builder.Services.AddScoped<IAffindaService, AffindaService>();

@@ -16,6 +16,9 @@ public class AdminUser
     // Example: ADM-000001
     public string AdminIdentifier { get; set; } = default!;
 
+    // Display name for the admin/sub-admin (shown on the Users list, drawer, etc.)
+    public string FullName { get; set; } = default!;
+
     // SuperAdmin | SubAdmin
     public string AdminType { get; set; } = default!;
 

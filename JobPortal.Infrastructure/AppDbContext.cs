@@ -89,7 +89,7 @@ public class AppDbContext : DbContext
     public DbSet<CandidateLogoutSession> CandidateLogoutSessions => Set<CandidateLogoutSession>();
     public DbSet<CandidateEmbedding> CandidateEmbeddings { get; set; }
     public DbSet<CandidateDocument> CandidateDocuments => Set<CandidateDocument>();
-    
+
     public DbSet<EmployerVerificationDocument> EmployerVerificationDocuments { get; set; }
 
     public DbSet<VerificationDocumentMaster> VerificationDocumentMasters { get; set; }
@@ -450,6 +450,10 @@ public class AppDbContext : DbContext
 
             entity.HasIndex(x => x.AdminIdentifier)
                 .IsUnique();
+
+            entity.Property(x => x.FullName)
+                .HasMaxLength(150)
+                .IsRequired();
 
             entity.Property(x => x.AdminType)
                 .HasMaxLength(30)
