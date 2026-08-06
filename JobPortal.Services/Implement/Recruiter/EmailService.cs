@@ -140,4 +140,77 @@ public class EmailService : IEmailService
         <p>Valid for 10 minutes.</p>
         <p>Do not share this OTP.</p>");
     }
+
+    public async Task SendAdminOtpEmailAsync(
+      string email,
+      string otp)
+    {
+        var html = $@"
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <meta charset='UTF-8'>
+</head>
+
+<body style='font-family:Arial;background:#f5f5f5;padding:30px;'>
+
+<div style='max-width:600px;
+background:#fff;
+padding:30px;
+margin:auto;
+border-radius:8px;
+box-shadow:0 2px 10px rgba(0,0,0,0.08);'>
+
+<h2>Hello,</h2>
+
+<p>
+Your One-Time Password (OTP) for <strong>Job Portal Admin Login</strong> is:
+</p>
+
+<div style='
+background:#f3f3f3;
+padding:20px;
+font-size:34px;
+font-weight:bold;
+letter-spacing:8px;
+text-align:center;
+margin:25px 0;
+border-radius:6px;'>
+
+{otp}
+
+</div>
+
+<p>
+This OTP is valid for <strong>5 minutes</strong>.
+</p>
+
+<p>
+For your security, please do not share this OTP with anyone.
+</p>
+
+<p>
+If you did not request this login, you can safely ignore this email.
+</p>
+
+<hr/>
+
+<p style='font-size:12px;color:#888;margin-top:20px;'>
+Regards,<br/>
+<strong>Job Portal Admin Team</strong>
+</p>
+
+</div>
+
+</body>
+
+</html>";
+
+        await SendEmailAsync(
+            email,
+            "Job Portal Admin Login OTP",
+            html);
+    }
 }

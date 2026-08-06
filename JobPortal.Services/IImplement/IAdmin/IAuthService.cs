@@ -1,5 +1,4 @@
 ﻿using JobPortal.Application.DTOs.Admin.Auth;
-using JobPortal.Application.DTOs.Auth;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,18 +10,41 @@ namespace JobPortal.Services.IImplement.IAdmin
 
     public interface IAuthService
     {
-        // Step 1 — Check admin exists before Firebase sends OTP
-        Task<CheckAdminResponseDto> CheckAdminExistsAsync(
-            CheckAdminRequestDto request, string ipAddress);
+        /// <summary>
+        /// Sends OTP to the registered admin email.
+        /// </summary>
+        Task<AdminSendOtpResponseDto> SendOtpAsync(
+            AdminSendOtpRequestDto request,
+            string ipAddress);
 
-        // Step 2 — After Firebase OTP verified on frontend
-        Task<AuthResponseDto> FirebaseLoginAsync(
-            FirebaseLoginRequestDto request, string ipAddress);
+        /// <summary>
+        /// Resends OTP after cooldown.
+        /// </summary>
+        Task<AdminResendOtpResponseDto> ResendOtpAsync(
+            AdminResendOtpRequestDto request,
+            string ipAddress);
 
-        Task<AuthResponseDto> LogoutAsync(string adminId);
+        /// <summary>
+        /// Verifies OTP and signs the admin in.
+        /// </summary>
+        Task<AdminVerifyOtpResponseDto> VerifyOtpAsync(
+            AdminVerifyOtpRequestDto request,
+            string ipAddress,
+            string userAgent);
 
-        Task<FirebaseCustomTokenResponseDto>
-    GenerateFirebaseCustomTokenAsync(
-        FirebaseCustomTokenRequestDto request);
+        Task<RefreshTokenResponseDto> RefreshTokenAsync(
+    RefreshTokenRequestDto request);
+
+        /// <summary>
+        /// Logs the admin out and revokes the active session.
+        /// </summary>
+        Task<LogoutResponseDto> LogoutAsync(
+            Guid adminId);
+
+        /// <summary>
+        /// Returns currently logged-in admin details.
+        /// </summary>
+        Task<CurrentAdminResponseDto> GetCurrentAdminAsync(
+            Guid adminId);
     }
 }

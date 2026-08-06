@@ -1,14 +1,16 @@
 ﻿using FirebaseAdmin.Auth;
 using JobPortal.Application.DTOs.Admin.Auth;
-using JobPortal.Application.DTOs.Auth;
+using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
 using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
+using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.Security.Cryptography;
 
 namespace JobPortal.Services.Implement.Admin;
 
@@ -18,268 +20,757 @@ public class AuthService : IAuthService
     private readonly JwtService _jwtService;
     private readonly ILogger<AuthService> _logger;   
     private readonly IConfiguration _configuration;
+    private readonly IEmailService _emailService;
+
     public AuthService(
         AppDbContext context,
         JwtService jwtService,
         ILogger<AuthService> logger,
-        IConfiguration configuration)                 
+        IConfiguration configuration,
+        IEmailService emailService)                 
     {
         _context = context;
         _jwtService = jwtService;
         _logger = logger;
         _configuration = configuration;
+        _emailService = emailService;
+
     }
-
-    // ════════════════════════════════════════════════════
-    // STEP 1 — Check admin in DB before Firebase sends OTP
-    // ════════════════════════════════════════════════════
-    public async Task<CheckAdminResponseDto> CheckAdminExistsAsync(
-        CheckAdminRequestDto request, string ipAddress)
-    {
-        // +91 + 9876543210 → +919876543210 (E.164)
-        
-        // ── Find user ────────────────────────────────────
-        var user = await _context.Users
-            .FirstOrDefaultAsync(x =>
-                x.MobileNumber == request.MobileNumber &&
-                x.UserType == UserType.Admin);
-
-        if (user == null)
-        {
-            _logger.LogWarning(
-                "Admin check failed — not found: {Phone} IP:{IP}",
-                request.MobileNumber, ipAddress);
-
-            return new CheckAdminResponseDto
-            {
-                Success = false,
-                Message = "This number is not registered as an admin."
-            };
-        }
-
-        // ── Account status checks ─────────────────────────
-        if (user.AccountStatus == AccountStatus.Suspended)
-            return new CheckAdminResponseDto
-            {
-                Success = false,
-                Message = "Account suspended. Contact support."
-            };
-
-        if (user.AccountStatus == AccountStatus.Rejected)
-            return new CheckAdminResponseDto
-            {
-                Success = false,
-                Message = "This number is not registered as an admin." // generic
-            };
-
-        if (user.AccountStatus != AccountStatus.Active)
-            return new CheckAdminResponseDto
-            {
-                Success = false,
-                Message = "Account is not active."
-            };
-
-        // ── AdminUser checks ──────────────────────────────
-        var adminUser = await _context.AdminUsers
-            .FirstOrDefaultAsync(a => a.UserId == user.UserId);
-
-        if (adminUser == null || !adminUser.IsActive)
-            return new CheckAdminResponseDto
-            {
-                Success = false,
-                Message = "Admin account is inactive."
-            };
-
-        // ── Lockout check ─────────────────────────────────
-        if (adminUser.LockedUntil.HasValue &&
-            adminUser.LockedUntil.Value > DateTime.UtcNow)
-        {
-            var mins = (int)Math.Ceiling(
-                (adminUser.LockedUntil.Value - DateTime.UtcNow).TotalMinutes);
-
-            return new CheckAdminResponseDto
-            {
-                Success = false,
-                Message = $"Account locked. Try again in {mins} minute(s)."
-            };
-        }
-
-        // ── All checks passed ─────────────────────────────
-        _logger.LogInformation(
-            "Admin check passed for IP:{IP}", ipAddress); // don't log phone
-
-        return new CheckAdminResponseDto
-        {
-            Success = true,
-            Message = "Admin verified. OTP will be sent.",
-            E164Number = request.MobileNumber
-        };
-    }
-
-    // ════════════════════════════════════════════════════
-    // STEP 2 — Verify Firebase token and return JWT
-    // ════════════════════════════════════════════════════
-    public async Task<AuthResponseDto> FirebaseLoginAsync(
-      FirebaseLoginRequestDto request, string ipAddress)
+    public async Task<AdminSendOtpResponseDto> SendOtpAsync(
+        AdminSendOtpRequestDto request,
+        string ipAddress)
     {
         try
         {
-            // ── Verify Firebase ID token ───────────────────────
-            FirebaseToken decodedToken;
-            try
-            {
-                decodedToken = await FirebaseAuth.DefaultInstance
-                    .VerifyIdTokenAsync(request.FirebaseToken);
-            }
-            catch (FirebaseAuthException fex)
-            {
-                _logger.LogWarning(
-                    "Firebase token invalid: {Reason} IP:{IP}",
-                    fex.AuthErrorCode, ipAddress);
+            var email = request.Email.Trim().ToLower();
 
-                return Fail("Invalid or expired OTP session. Please try again.");
-            }
-
-            // ── Token age check (max 5 minutes) ───────────────
-            var issuedAt = decodedToken.IssuedAtTimeSeconds;
-            var nowSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            if (nowSeconds - issuedAt > 300)
-                return Fail("OTP session expired. Please request a new OTP.");
-
-            // ── Extract phone_number claim ─────────────────────
-            // Firebase gives full E.164: "+919075309705"
-            if (!decodedToken.Claims.TryGetValue(
-                    "phone_number", out var phoneObj)
-                || phoneObj is not string fullPhone
-                || string.IsNullOrWhiteSpace(fullPhone))
-            {
-                _logger.LogWarning(
-                    "phone_number claim missing. Claims: {Claims}",
-                    string.Join(", ", decodedToken.Claims.Keys));
-
-                return Fail("Phone number not found in token.");
-            }
-
-            // ── Split E.164 → countryCode + mobileNumber ──────
-            // fullPhone    = "+919075309705"
-            // countryCode  = "+91"           (from request)
-            // mobileNumber = "9075309705"    (matches DB column)
-
-            if (!fullPhone.StartsWith(request.CountryCode))
-            {
-                _logger.LogWarning(
-                    "Token phone {Phone} does not start with {Code}",
-                    fullPhone, request.CountryCode);
-
-                return Fail("Phone number does not match country code.");
-            }
-
-            var mobileNumber = fullPhone[request.CountryCode.Length..]; // "9075309705"
-
-            // ── DB lookup — match both columns separately ──────
+            // 1. Find User
             var user = await _context.Users
                 .FirstOrDefaultAsync(x =>
-                    x.MobileNumber == mobileNumber &&       // "9075309705"
-                    x.CountryCode == request.CountryCode && // "+91"
+                    x.Email == email &&
                     x.UserType == UserType.Admin);
 
             if (user == null)
             {
-                _logger.LogWarning(
-                    "No admin found — mobile: {Mobile} code: {Code} IP: {IP}",
-                    mobileNumber, request.CountryCode, ipAddress);
-
-                return Fail("Access denied.");
+                return new AdminSendOtpResponseDto
+                {
+                    Success = false,
+                    Message = "Invalid email address."
+                };
             }
 
-            // ── Account status checks ──────────────────────────
-            switch (user.AccountStatus)
+            // 2. Find Admin
+            var admin = await _context.AdminUsers
+                .Include(x => x.Role)
+                .FirstOrDefaultAsync(x =>
+                    x.UserId == user.UserId);
+
+            if (admin == null)
             {
-                case AccountStatus.Suspended:
-                    return Fail("Account suspended. Contact support.");
-                case AccountStatus.Rejected:
-                    return Fail("Access denied.");
-                case AccountStatus.Pending:
-                    return Fail("Account is pending activation.");
+                return new AdminSendOtpResponseDto
+                {
+                    Success = false,
+                    Message = "Admin account not found."
+                };
             }
 
-            // ── AdminUser check ────────────────────────────────
-            var adminUser = await _context.AdminUsers
-                .FirstOrDefaultAsync(a => a.UserId == user.UserId);
-
-            if (adminUser == null || !adminUser.IsActive)
-                return Fail("Admin account is inactive.");
-
-            // ── Lockout check ──────────────────────────────────
-            if (adminUser.LockedUntil.HasValue &&
-                adminUser.LockedUntil.Value > DateTime.UtcNow)
+            if (!admin.IsActive)
             {
-                var mins = (int)Math.Ceiling(
-                    (adminUser.LockedUntil.Value - DateTime.UtcNow).TotalMinutes);
-                return Fail($"Account locked. Try again in {mins} minute(s).");
+                return new AdminSendOtpResponseDto
+                {
+                    Success = false,
+                    Message = "Admin account is inactive."
+                };
             }
 
-            // ── Update last login ──────────────────────────────
-            user.LastLoginAt = DateTime.UtcNow;
-            user.UpdatedAt = DateTime.UtcNow;
+            if (user.AccountStatus != AccountStatus.Active)
+            {
+                return new AdminSendOtpResponseDto
+                {
+                    Success = false,
+                    Message = "Account is not active."
+                };
+            }
+
+            if (admin.LockedUntil.HasValue &&
+                admin.LockedUntil > DateTime.UtcNow)
+            {
+                var minutes = (int)Math.Ceiling(
+                    (admin.LockedUntil.Value - DateTime.UtcNow).TotalMinutes);
+
+                return new AdminSendOtpResponseDto
+                {
+                    Success = false,
+                    Message = $"Account locked. Try again in {minutes} minute(s)."
+                };
+            }
+
+            // 3. Cooldown Check (60 sec)
+            var lastOtp = await _context.AdminEmailOtps
+                .Where(x =>
+                    x.AdminId == admin.AdminId &&
+                    x.Purpose == "Login")
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (lastOtp != null)
+            {
+                var seconds =
+                    (DateTime.UtcNow - lastOtp.CreatedAt).TotalSeconds;
+
+                if (seconds < 60)
+                {
+                    return new AdminSendOtpResponseDto
+                    {
+                        Success = false,
+                        Message = $"Please wait {60 - (int)seconds} seconds before requesting another OTP.",
+                        ResendAfterSeconds = 60 - (int)seconds
+                    };
+                }
+            }
+
+            // 4. Expire previous OTPs
+            var activeOtps = await _context.AdminEmailOtps
+                .Where(x =>
+                    x.AdminId == admin.AdminId &&
+                    !x.IsVerified &&
+                    x.ExpiresAt > DateTime.UtcNow)
+                .ToListAsync();
+
+            foreach (var otp in activeOtps)
+            {
+                otp.ExpiresAt = DateTime.UtcNow;
+            }
+
+            // 5. Generate OTP
+            var otpCode = GenerateOtp();
+
+            var otpEntity = new AdminEmailOtp
+            {
+                OtpId = Guid.NewGuid(),
+                AdminId = admin.AdminId,
+                Email = user.Email,
+                OtpCode = otpCode,
+                Purpose = "Login",
+                Attempts = 0,
+                IsVerified = false,
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(5)
+            };
+
+            _context.AdminEmailOtps.Add(otpEntity);
+
             await _context.SaveChangesAsync();
 
-            // ── Generate JWT ───────────────────────────────────
-            var token = _jwtService.GenerateToken(adminUser.AdminId,UserType.Admin.ToString());
-            var expiry = _jwtService.GetExpiry();
+            // 6. Send Email
+            await _emailService.SendAdminOtpEmailAsync(
+     user.Email,
+     otpCode);
 
-            _logger.LogInformation(
-                "Admin {Identifier} logged in. IP:{IP}",
-                adminUser.AdminIdentifier, ipAddress);
+            // 7. Audit Log
+            _context.AuditLogs.Add(new AuditLog
+            {
+                LogId = Guid.NewGuid(),
+                PerformedByAdminId = admin.AdminId,
+                PerformedByName = admin.AdminIdentifier,
+                PerformedByRole = admin.Role.RoleName,
+                Module = "Authentication",
+                Action = "Send OTP",
+                Description = "Login OTP sent to registered email.",
+                IpAddress = ipAddress,
+                Success = true,
+                CreatedAt = DateTime.UtcNow
+            });
 
-            return new AuthResponseDto
+            await _context.SaveChangesAsync();
+
+            return new AdminSendOtpResponseDto
             {
                 Success = true,
-                Message = "Login successful.",
-                Token = token,
-                Role = adminUser.AdminRole,
-                AdminIdentifier = adminUser.AdminIdentifier,
-                ExpiresAt = expiry
+                Message = "OTP has been sent to your registered email.",
+                ExpiresAt = otpEntity.ExpiresAt,
+                ResendAfterSeconds = 60
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
-                "Unexpected error during Firebase login. IP:{IP}", ipAddress);
+            _logger.LogError(ex, ex.ToString());
 
-            // TEMP — shows real error, remove after fixing
-            return Fail($"DEBUG: {ex.GetType().Name} — {ex.Message} — {ex.InnerException?.Message}");
+            return new AdminSendOtpResponseDto
+            {
+                Success = false,
+                Message = ex.ToString()
+            };
         }
     }
 
-    // ════════════════════════════════════════════════════
-    // LOGOUT — revoke session
-    // ════════════════════════════════════════════════════
-    public async Task<AuthResponseDto> LogoutAsync(string adminId)
+    public async Task<AdminResendOtpResponseDto> ResendOtpAsync(
+    AdminResendOtpRequestDto request,
+    string ipAddress)
+{
+    try
     {
+        var email = request.Email.Trim().ToLower();
+
+        //-------------------------------------------------------
+        // Find User
+        //-------------------------------------------------------
+
+        var user = await _context.Users
+            .FirstOrDefaultAsync(x =>
+                x.Email == email &&
+                x.UserType == UserType.Admin);
+
+        if (user == null)
+        {
+            return new AdminResendOtpResponseDto
+            {
+                Success = false,
+                Message = "Invalid email address."
+            };
+        }
+
+        //-------------------------------------------------------
+        // Find Admin
+        //-------------------------------------------------------
+
+        var admin = await _context.AdminUsers
+            .Include(x => x.Role)
+            .FirstOrDefaultAsync(x => x.UserId == user.UserId);
+
+        if (admin == null || !admin.IsActive)
+        {
+            return new AdminResendOtpResponseDto
+            {
+                Success = false,
+                Message = "Admin account is inactive."
+            };
+        }
+
+        //-------------------------------------------------------
+        // Account Locked?
+        //-------------------------------------------------------
+
+        if (admin.LockedUntil.HasValue &&
+            admin.LockedUntil > DateTime.UtcNow)
+        {
+            var minutes = (int)Math.Ceiling(
+                (admin.LockedUntil.Value - DateTime.UtcNow).TotalMinutes);
+
+            return new AdminResendOtpResponseDto
+            {
+                Success = false,
+                Message = $"Account locked. Try again in {minutes} minute(s)."
+            };
+        }
+
+        //-------------------------------------------------------
+        // Cooldown Check
+        //-------------------------------------------------------
+
+        var latestOtp = await _context.AdminEmailOtps
+            .Where(x =>
+                x.AdminId == admin.AdminId &&
+                x.Purpose == "Login")
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (latestOtp != null)
+        {
+            var seconds =
+                (DateTime.UtcNow - latestOtp.CreatedAt).TotalSeconds;
+
+            if (seconds < 60)
+            {
+                return new AdminResendOtpResponseDto
+                {
+                    Success = false,
+                    Message = $"Please wait {60 - (int)seconds} seconds before requesting another OTP.",
+                    ResendAfterSeconds = 60 - (int)seconds
+                };
+            }
+        }
+
+        //-------------------------------------------------------
+        // Expire Existing OTPs
+        //-------------------------------------------------------
+
+        var activeOtps = await _context.AdminEmailOtps
+            .Where(x =>
+                x.AdminId == admin.AdminId &&
+                !x.IsVerified &&
+                x.ExpiresAt > DateTime.UtcNow)
+            .ToListAsync();
+
+        foreach (var item in activeOtps)
+        {
+            item.ExpiresAt = DateTime.UtcNow;
+        }
+
+        //-------------------------------------------------------
+        // Generate OTP
+        //-------------------------------------------------------
+
+        var otpCode = GenerateOtp();
+
+        var otp = new AdminEmailOtp
+        {
+            OtpId = Guid.NewGuid(),
+            AdminId = admin.AdminId,
+            Email = user.Email,
+            OtpCode = otpCode,
+            Purpose = "Login",
+            Attempts = 0,
+            IsVerified = false,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(5)
+        };
+
+        _context.AdminEmailOtps.Add(otp);
+
+        await _context.SaveChangesAsync();
+
+            //-------------------------------------------------------
+            // Send Email
+            //-------------------------------------------------------
+            await _emailService.SendAdminOtpEmailAsync(
+                user.Email,
+                otpCode);
+
+            //-------------------------------------------------------
+            // Audit Log
+            //-------------------------------------------------------
+
+            _context.AuditLogs.Add(new AuditLog
+        {
+            LogId = Guid.NewGuid(),
+            PerformedByAdminId = admin.AdminId,
+            PerformedByName = admin.AdminIdentifier,
+            PerformedByRole = admin.Role.RoleName,
+            Module = "Authentication",
+            Action = "Resend OTP",
+            Description = "Login OTP resent to registered email.",
+            IpAddress = ipAddress,
+            Success = true,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+
+        return new AdminResendOtpResponseDto
+        {
+            Success = true,
+            Message = "OTP has been resent successfully.",
+            ExpiresAt = otp.ExpiresAt,
+            ResendAfterSeconds = 60
+        };
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error while resending admin OTP.");
+
+        return new AdminResendOtpResponseDto
+        {
+            Success = false,
+            Message = "Unable to resend OTP. Please try again."
+        };
+    }
+}
+
+    public async Task<AdminVerifyOtpResponseDto> VerifyOtpAsync(
+    AdminVerifyOtpRequestDto request,
+    string ipAddress,
+    string userAgent)
+    {
+        using var transaction = await _context.Database.BeginTransactionAsync();
+
         try
         {
-            if (!Guid.TryParse(adminId, out var parsedAdminId))
-                return Fail("Invalid session.");
+            var email = request.Email.Trim().ToLower();
 
-            // Find and expire active session
+            //-------------------------------------------------------
+            // 1. Find User
+            //-------------------------------------------------------
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(x =>
+                    x.Email == email &&
+                    x.UserType == UserType.Admin);
+
+            if (user == null)
+            {
+                return Fail("Invalid email or OTP.");
+            }
+
+            //-------------------------------------------------------
+            // 2. Find Admin
+            //-------------------------------------------------------
+
+            var admin = await _context.AdminUsers
+                .Include(x => x.Role)
+                .FirstOrDefaultAsync(x => x.UserId == user.UserId);
+
+            if (admin == null)
+                return Fail("Admin account not found.");
+
+            if (!admin.IsActive)
+                return Fail("Admin account is inactive.");
+
+            //-------------------------------------------------------
+            // 3. Locked?
+            //-------------------------------------------------------
+
+            if (admin.LockedUntil.HasValue &&
+                admin.LockedUntil > DateTime.UtcNow)
+            {
+                return Fail("Account is temporarily locked.");
+            }
+
+            //-------------------------------------------------------
+            // 4. Latest OTP
+            //-------------------------------------------------------
+
+            var otp = await _context.AdminEmailOtps
+                .Where(x =>
+                    x.AdminId == admin.AdminId &&
+                    x.Purpose == "Login")
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (otp == null)
+                return Fail("OTP not found.");
+
+            //-------------------------------------------------------
+            // 5. Already Used?
+            //-------------------------------------------------------
+
+            if (otp.IsVerified)
+                return Fail("OTP already used.");
+
+            //-------------------------------------------------------
+            // 6. Expired?
+            //-------------------------------------------------------
+
+            if (otp.ExpiresAt < DateTime.UtcNow)
+                return Fail("OTP expired.");
+
+            //-------------------------------------------------------
+            // 7. Validate OTP
+            //-------------------------------------------------------
+
+            if (otp.OtpCode != request.Otp)
+            {
+                otp.Attempts++;
+
+                admin.FailedAttempts++;
+
+                if (admin.FailedAttempts >= 5)
+                {
+                    admin.LockedUntil = DateTime.UtcNow.AddMinutes(15);
+                }
+
+                await _context.SaveChangesAsync();
+
+                return Fail("Invalid OTP.");
+            }
+
+            //-------------------------------------------------------
+            // 8. Success
+            //-------------------------------------------------------
+
+            otp.IsVerified = true;
+
+            admin.FailedAttempts = 0;
+            admin.LockedUntil = null;
+
+            user.LastLoginAt = DateTime.UtcNow;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            //-------------------------------------------------------
+            // 9. JWT
+            //-------------------------------------------------------
+            var jwtId = Guid.NewGuid().ToString();
+
+            var accessToken = _jwtService.GenerateAdminToken(
+                admin,
+                jwtId);
+
+            var refreshToken = _jwtService.GenerateRefreshToken();
+
+            var accessTokenExpiry = _jwtService.GetExpiry();
+
+            var refreshTokenExpiry = DateTime.UtcNow.AddDays(30);
+
+            //-------------------------------------------------------
+            // 10. Session
+            //-------------------------------------------------------
+
+            var session = new AdminSession
+            {
+                SessionId = Guid.NewGuid(),
+
+                AdminId = admin.AdminId,
+
+                JwtId = jwtId,
+
+                RefreshToken = refreshToken,
+
+                RefreshTokenExpiresAt = refreshTokenExpiry,
+
+                IpAddress = ipAddress,
+
+                UserAgent = userAgent,
+
+                LoginAt = DateTime.UtcNow,
+
+                ExpiresAt = accessTokenExpiry,
+
+                IsRevoked = false
+            };
+
+            _context.AdminSessions.Add(session);
+
+            //-------------------------------------------------------
+            // 11. Login Log
+            //-------------------------------------------------------
+
+            _context.AdminLoginLogs.Add(new AdminLoginLog
+            {
+                LoginLogId = Guid.NewGuid(),
+                AdminId = admin.AdminId,
+                Email = user.Email,
+                IpAddress = ipAddress,
+                UserAgent = userAgent,
+                LoginAt = DateTime.UtcNow,
+                IsSuccess = true
+            });
+
+            //-------------------------------------------------------
+            // 12. Audit Log
+            //-------------------------------------------------------
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                LogId = Guid.NewGuid(),
+                PerformedByAdminId = admin.AdminId,
+                PerformedByName = admin.AdminIdentifier,
+                PerformedByRole = admin.Role.RoleName,
+                Module = "Authentication",
+                Action = "Login",
+                Description = "Admin logged in successfully.",
+                IpAddress = ipAddress,
+                UserAgent = userAgent,
+                Success = true,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            //-------------------------------------------------------
+            // 13. Response
+            //-------------------------------------------------------
+
+            return new AdminVerifyOtpResponseDto
+            {
+                Success = true,
+
+                Message = "Login successful.",
+
+                AccessToken = accessToken,
+
+                RefreshToken = refreshToken,
+
+                ExpiresAt = accessTokenExpiry,
+
+                Admin = new AdminProfileDto
+                {
+                    AdminId = admin.AdminId,
+                    UserId = user.UserId,
+                    AdminIdentifier = admin.AdminIdentifier,
+                    Email = user.Email,
+                    AdminType = admin.AdminType,
+                    RoleId = admin.RoleId,
+                    RoleName = admin.Role.RoleName,
+                    IsActive = admin.IsActive
+                },
+
+                Permissions = new List<PermissionDto>()
+            };
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+
+            _logger.LogError(ex,
+                "VerifyOtp failed.");
+
+            return Fail("Unable to verify OTP.");
+        }
+    }
+
+    public async Task<RefreshTokenResponseDto> RefreshTokenAsync(
+    RefreshTokenRequestDto request)
+    {
+        var session = await _context.AdminSessions
+            .Include(x => x.AdminUser)
+                .ThenInclude(x => x.Role)
+            .Include(x => x.AdminUser)
+                .ThenInclude(x => x.User)
+            .FirstOrDefaultAsync(x =>
+                x.RefreshToken == request.RefreshToken);
+
+        if (session == null)
+        {
+            return new RefreshTokenResponseDto
+            {
+                Success = false,
+                Message = "Invalid refresh token."
+            };
+        }
+
+        if (session.IsRevoked)
+        {
+            return new RefreshTokenResponseDto
+            {
+                Success = false,
+                Message = "Session has expired."
+            };
+        }
+
+        if (session.RefreshTokenExpiresAt < DateTime.UtcNow)
+        {
+            return new RefreshTokenResponseDto
+            {
+                Success = false,
+                Message = "Refresh token expired."
+            };
+        }
+
+        var admin = session.AdminUser;
+
+        // Generate a new JWT Id
+        var newJwtId = Guid.NewGuid().ToString();
+
+        // Generate a new access token
+        var accessToken = _jwtService.GenerateAdminToken(
+            admin,
+            newJwtId);
+
+        // Generate a new refresh token
+        var newRefreshToken = _jwtService.GenerateRefreshToken();
+
+        // Rotate session
+        session.JwtId = newJwtId;
+
+        session.RefreshToken = newRefreshToken;
+
+        session.RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(30);
+
+        session.ExpiresAt = _jwtService.GetExpiry();
+
+        await _context.SaveChangesAsync();
+
+        return new RefreshTokenResponseDto
+        {
+            Success = true,
+            Message = "Token refreshed successfully.",
+
+            AccessToken = accessToken,
+
+            RefreshToken = newRefreshToken,
+
+            ExpiresAt = session.ExpiresAt
+        };
+    }
+
+    public async Task<LogoutResponseDto> LogoutAsync(Guid adminId)
+    {
+        using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
+        {
+            //------------------------------------------------------
+            // Find Admin
+            //------------------------------------------------------
+
+            var admin = await _context.AdminUsers
+                .Include(x => x.User)
+                .Include(x => x.Role)
+                .FirstOrDefaultAsync(x => x.AdminId == adminId);
+
+            if (admin == null)
+            {
+                return new LogoutResponseDto
+                {
+                    Success = false,
+                    Message = "Admin not found."
+                };
+            }
+
+            //------------------------------------------------------
+            // Find Active Session
+            //------------------------------------------------------
+
             var session = await _context.AdminSessions
-                .Where(s =>
-                    s.AdminId == parsedAdminId &&
-                    s.ExpiresAt > DateTime.UtcNow)
+                .Where(x =>
+                    x.AdminId == adminId &&
+                    !x.IsRevoked)
+                .OrderByDescending(x => x.LoginAt)
                 .FirstOrDefaultAsync();
 
             if (session != null)
             {
-                // Set expiry to now — token is dead immediately
-                session.ExpiresAt = DateTime.UtcNow;
-                await _context.SaveChangesAsync();
+                session.IsRevoked = true;
+                session.LogoutAt = DateTime.UtcNow;
             }
 
-            _logger.LogInformation(
-                "Admin {AdminId} logged out.", adminId);
+            //------------------------------------------------------
+            // Update Login Log
+            //------------------------------------------------------
 
-            return new AuthResponseDto
+            var loginLog = await _context.AdminLoginLogs
+                .Where(x =>
+                    x.AdminId == adminId &&
+                    x.LogoutAt == null)
+                .OrderByDescending(x => x.LoginAt)
+                .FirstOrDefaultAsync();
+
+            if (loginLog != null)
+            {
+                loginLog.LogoutAt = DateTime.UtcNow;
+            }
+
+            //------------------------------------------------------
+            // Audit Log
+            //------------------------------------------------------
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                LogId = Guid.NewGuid(),
+                PerformedByAdminId = admin.AdminId,
+                PerformedByName = admin.AdminIdentifier,
+                PerformedByRole = admin.Role.RoleName,
+
+                Module = "Authentication",
+                Action = "Logout",
+
+                Description = "Admin logged out successfully.",
+
+                IpAddress = session?.IpAddress ?? "Unknown",
+                UserAgent = session?.UserAgent,
+
+                Success = true,
+
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            return new LogoutResponseDto
             {
                 Success = true,
                 Message = "Logged out successfully."
@@ -287,78 +778,112 @@ public class AuthService : IAuthService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during logout for admin {AdminId}", adminId);
-            return Fail("An error occurred during logout.");
+            await transaction.RollbackAsync();
+
+            _logger.LogError(ex,
+                "Logout failed for AdminId {AdminId}",
+                adminId);
+
+            return new LogoutResponseDto
+            {
+                Success = false,
+                Message = "Unable to logout."
+            };
         }
     }
 
-    public async Task<FirebaseCustomTokenResponseDto>
-        GenerateFirebaseCustomTokenAsync(
-            FirebaseCustomTokenRequestDto request)
+    public async Task<CurrentAdminResponseDto> GetCurrentAdminAsync(Guid adminId)
     {
         try
         {
-            // ── Find admin by mobileNumber + countryCode ───────
-            // DB stores separately: mobile_number="9075309705"
-            //                       country_code="+91"
-            var user = await _context.Users
+            var admin = await _context.AdminUsers
+                .AsNoTracking()
+                .Include(x => x.User)
+                .Include(x => x.Role)
                 .FirstOrDefaultAsync(x =>
-                    x.MobileNumber == request.MobileNumber &&
-                    x.CountryCode == request.CountryCode &&   // ✅ added
-                    x.UserType == UserType.Admin);
+                    x.AdminId == adminId &&
+                    x.IsActive);
 
-            if (user == null)
+            if (admin == null)
             {
-                return new FirebaseCustomTokenResponseDto
+                return new CurrentAdminResponseDto
                 {
                     Success = false,
                     Message = "Admin not found."
                 };
             }
 
-            // ── Build full E.164 for phone_number claim ────────
-            // Firebase login will receive this claim and split it
-            // countryCode="+91" + mobile="9075309705" = "+919075309705"
-            var fullPhone = $"{user.CountryCode}{user.MobileNumber}";
+            if (admin.User.AccountStatus != AccountStatus.Active)
+            {
+                return new CurrentAdminResponseDto
+                {
+                    Success = false,
+                    Message = "Account is inactive."
+                };
+            }
 
-            // ── Firebase UID = userId ──────────────────────────
-            var uid = user.UserId.ToString();
+            var permissions = new List<PermissionDto>();
 
-            // ── Claims — phone_number MUST be full E.164 ──────
-            var claims = new Dictionary<string, object>
-        {
-            { "phone_number", fullPhone },              // ✅ "+919075309705"
-            { "role", user.UserType.ToString() }
-        };
 
-            // ── Generate custom token ──────────────────────────
-            var firebaseToken = await FirebaseAuth.DefaultInstance
-                .CreateCustomTokenAsync(uid, claims);
-
-            return new FirebaseCustomTokenResponseDto
+            return new CurrentAdminResponseDto
             {
                 Success = true,
-                Message = "Firebase custom token generated.",
-                FirebaseToken = firebaseToken,
-                PhoneUsed = fullPhone                       // ✅ helpful for debugging
+                Message = "Admin profile fetched successfully.",
+
+                Admin = new AdminProfileDto
+                {
+                    AdminId = admin.AdminId,
+                    UserId = admin.UserId,
+                    AdminIdentifier = admin.AdminIdentifier,
+
+                    Email = admin.User.Email,
+
+                    AdminType = admin.AdminType,
+
+                    RoleId = admin.RoleId,
+                    RoleName = admin.Role.RoleName,
+
+                    IsActive = admin.IsActive
+                },
+
+                Permissions = permissions
             };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Error generating Firebase custom token for mobile: {Mobile}",
-                request.MobileNumber);
+                "Error fetching current admin profile.");
 
-            return new FirebaseCustomTokenResponseDto
+            return new CurrentAdminResponseDto
             {
                 Success = false,
-                Message = "Failed to generate token. Please try again."  // ✅ no ex.Message
+                Message = "Unable to fetch profile."
             };
         }
     }
-    // ════════════════════════════════════════════════════
-    // Helper
-    // ════════════════════════════════════════════════════
-    private static AuthResponseDto Fail(string message) =>
-        new() { Success = false, Message = message };
+
+    public string GenerateRefreshToken()
+    {
+        var randomBytes = RandomNumberGenerator.GetBytes(64);
+
+        return Convert.ToBase64String(randomBytes);
+    }
+    private static AdminVerifyOtpResponseDto Fail(string message)
+    {
+        return new AdminVerifyOtpResponseDto
+        {
+            Success = false,
+            Message = message
+        };
+    }
+
+    private static string GenerateOtp()
+    {
+        return Random.Shared.Next(100000, 999999).ToString();
+    }
+
+    private static bool IsOtpExpired(DateTime expiresAt)
+    {
+        return expiresAt <= DateTime.UtcNow;
+    }
 }

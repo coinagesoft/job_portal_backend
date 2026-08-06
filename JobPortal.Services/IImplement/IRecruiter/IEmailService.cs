@@ -29,5 +29,9 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task SendOtpEmailAsync(
             string email,
             string otp);
+
+        Task SendAdminOtpEmailAsync(
+    string email,
+    string otp);
     }
 }

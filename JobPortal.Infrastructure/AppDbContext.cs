@@ -96,6 +96,13 @@ public class AppDbContext : DbContext
 
     public DbSet<RegistrationSessionDocument> RegistrationSessionDocuments => Set<RegistrationSessionDocument>();
 
+    public DbSet<AdminRole> AdminRoles => Set<AdminRole>();
+
+
+    public DbSet<AdminEmailOtp> AdminEmailOtps => Set<AdminEmailOtp>();
+
+    public DbSet<AdminLoginLog> AdminLoginLogs => Set<AdminLoginLog>();
+
     //public DbSet<JobEmbedding> JobEmbeddings { get; set; }
     public DbSet<JobEmbedding> JobEmbeddings =>
     Set<JobEmbedding>();
@@ -372,7 +379,7 @@ public class AppDbContext : DbContext
             entity.Property(n => n.IsAcknowledged)
                   .HasDefaultValue(false);
         });
-        // Add inside OnModelCreating():
+
         m.Entity<CandidateLogoutSession>(e =>
         {
             e.ToTable("candidate_logout_sessions");
@@ -433,43 +440,129 @@ public class AppDbContext : DbContext
         });
 
         // ── admin_users ────────────────────────────────────────
-        m.Entity<AdminUser>(e => {
-            e.ToTable("admin_users");
-            e.HasKey(x => x.AdminId);
-            e.Property(x => x.AdminId).HasColumnName("admin_id");
-            e.Property(x => x.UserId).HasColumnName("user_id");
-            e.Property(x => x.AdminIdentifier).HasColumnName("admin_identifier");
-            e.Property(x => x.AdminRole).HasColumnName("admin_role");
-            e.Property(x => x.Permissions).HasColumnName("permissions");
-            e.Property(x => x.FailedAttempts).HasColumnName("failed_attempts");
-            e.Property(x => x.LockedUntil).HasColumnName("locked_until");
-            e.Property(x => x.IsActive).HasColumnName("is_active");
-            e.Property(x => x.CreatedBy).HasColumnName("created_by");
-            e.Property(x => x.CreatedAt).HasColumnName("created_at");
-            e.HasIndex(x => x.AdminIdentifier).IsUnique();
-            e.HasOne(x => x.User)
-             .WithOne()
-             .HasForeignKey<AdminUser>(x => x.UserId)
-             .OnDelete(DeleteBehavior.Restrict);
+        m.Entity<AdminUser>(entity =>
+        {
+            entity.HasKey(x => x.AdminId);
+
+            entity.Property(x => x.AdminIdentifier)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.HasIndex(x => x.AdminIdentifier)
+                .IsUnique();
+
+            entity.Property(x => x.AdminType)
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(x => x.PermissionOverrides)
+                .HasColumnType("jsonb");
+
+            // User (1:1)
+            entity.HasOne(x => x.User)
+                .WithOne()
+                .HasForeignKey<AdminUser>(x => x.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Role (Many -> One)
+            entity.HasOne(x => x.Role)
+                .WithMany(x => x.AdminUsers)
+                .HasForeignKey(x => x.RoleId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // CreatedBy (Self Reference)
+            entity.HasOne(x => x.CreatedByAdmin)
+                .WithMany(x => x.CreatedAdmins)
+                .HasForeignKey(x => x.CreatedBy)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
+        m.Entity<AdminRole>(entity =>
+        {
+            entity.HasKey(x => x.RoleId);
+
+            entity.Property(x => x.RoleName)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.HasIndex(x => x.RoleName)
+                .IsUnique();
+
+            entity.Property(x => x.Permissions)
+                .HasColumnType("jsonb");
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(500);
+        });
         // ── admin_sessions ─────────────────────────────────────
-        m.Entity<AdminSession>(e => {
-            e.ToTable("admin_sessions");
-            e.HasKey(x => x.SessionId);
-            e.Property(x => x.SessionId).HasColumnName("session_id");
-            e.Property(x => x.AdminId).HasColumnName("admin_id");
-            e.Property(x => x.SessionToken).HasColumnName("session_token");
-            e.Property(x => x.IpAddress).HasColumnName("ip_address");
-            e.Property(x => x.TrustedDevice).HasColumnName("trusted_device");
-            e.Property(x => x.CreatedAt).HasColumnName("created_at");
-            e.Property(x => x.ExpiresAt).HasColumnName("expires_at");
-            e.HasOne(x => x.AdminUser)
-             .WithMany()
-             .HasForeignKey(x => x.AdminId)
-             .OnDelete(DeleteBehavior.Cascade);
+        m.Entity<AdminSession>(entity =>
+        {
+            entity.HasKey(x => x.SessionId);
+
+            entity.Property(x => x.JwtId)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(x => x.RefreshToken)
+                .HasMaxLength(500)
+                .IsRequired();
+
+            entity.Property(x => x.IpAddress)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.UserAgent)
+                .HasMaxLength(500);
+
+            entity.HasOne(x => x.AdminUser)
+                .WithMany(x => x.Sessions)
+                .HasForeignKey(x => x.AdminId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
+        m.Entity<AdminEmailOtp>(entity =>
+        {
+            entity.HasKey(x => x.OtpId);
+
+            entity.Property(x => x.Email)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            entity.Property(x => x.OtpCode)
+                .HasMaxLength(10)
+                .IsRequired();
+
+            entity.Property(x => x.Purpose)
+                .HasMaxLength(50)
+                .IsRequired();
+
+            entity.HasOne(x => x.AdminUser)
+                .WithMany()
+                .HasForeignKey(x => x.AdminId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        m.Entity<AdminLoginLog>(entity =>
+        {
+            entity.HasKey(x => x.LoginLogId);
+
+            entity.Property(x => x.Email)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            entity.Property(x => x.IpAddress)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.UserAgent)
+                .HasMaxLength(500);
+
+            entity.Property(x => x.FailureReason)
+                .HasMaxLength(500);
+
+            entity.HasOne(x => x.AdminUser)
+                .WithMany()
+                .HasForeignKey(x => x.AdminId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
         // ── candidate_profiles ─────────────────────────────────
         m.Entity<CandidateProfile>(e => {
             e.ToTable("candidate_profiles");
@@ -902,10 +995,10 @@ public class AppDbContext : DbContext
         });
 
         m.Entity<RegistrationSessionDocument>()
-    .HasOne(x => x.Session)
-    .WithMany(x => x.Documents)
-    .HasForeignKey(x => x.SessionId)
-    .OnDelete(DeleteBehavior.Cascade);
+           .HasOne(x => x.Session)
+           .WithMany(x => x.Documents)
+           .HasForeignKey(x => x.SessionId)
+           .OnDelete(DeleteBehavior.Cascade);
 
         m.Entity<RegistrationSessionDocument>()
             .HasOne(x => x.DocumentType)
@@ -1339,12 +1432,49 @@ public class AppDbContext : DbContext
              .HasForeignKey(x => x.ConfigUpdatedBy);
         });
 
-        m.Entity<AuditLog>(e => {
-            e.ToTable("audit_logs");
-            e.HasKey(x => x.LogId);
-            e.HasOne(x => x.PerformedByAdmin)
-             .WithMany()
-             .HasForeignKey(x => x.PerformedBy);
+        m.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(x => x.LogId);
+
+            entity.Property(x => x.PerformedByName)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            entity.Property(x => x.PerformedByRole)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(x => x.Module)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(x => x.Action)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(x => x.TargetEntityType)
+                .HasMaxLength(100);
+
+            entity.Property(x => x.Description)
+                .HasMaxLength(1000);
+
+            entity.Property(x => x.IpAddress)
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(x => x.UserAgent)
+                .HasMaxLength(500);
+
+            entity.Property(x => x.OldValues)
+                .HasColumnType("jsonb");
+
+            entity.Property(x => x.NewValues)
+                .HasColumnType("jsonb");
+
+            entity.HasOne(x => x.PerformedByAdmin)
+                .WithMany(x => x.AuditLogs)
+                .HasForeignKey(x => x.PerformedByAdminId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         m.Entity<ConsentLog>(e => {

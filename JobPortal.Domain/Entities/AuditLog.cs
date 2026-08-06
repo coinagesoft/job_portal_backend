@@ -6,18 +6,43 @@ using System.Threading.Tasks;
 
 namespace JobPortal.Domain.Entities;
 
+
 public class AuditLog
 {
     public Guid LogId { get; set; }
-    public string ActionType { get; set; } = default!;
-    public Guid PerformedBy { get; set; }
-    public string PerformedByName { get; set; } = default!;  // snapshot
-    public string TargetEntityType { get; set; } = default!;
-    public Guid TargetEntityId { get; set; }
-    public string ActionDetail { get; set; } = default!;     // JSON
-    public string? ChangeReason { get; set; }
+
+    public Guid PerformedByAdminId { get; set; }
+
+    public string PerformedByName { get; set; } = default!;
+
+    public string PerformedByRole { get; set; } = default!;
+
+    // Recruiters, Candidates, Jobs, Plans...
+    public string Module { get; set; } = default!;
+
+    // Create, Update, Delete, Approve...
+    public string Action { get; set; } = default!;
+
+    public string? TargetEntityType { get; set; }
+
+    public Guid? TargetEntityId { get; set; }
+
+    // JSON
+    public string? OldValues { get; set; }
+
+    // JSON
+    public string? NewValues { get; set; }
+
+    public string? Description { get; set; }
+
     public string IpAddress { get; set; } = default!;
+
+    public string? UserAgent { get; set; }
+
+    public bool Success { get; set; } = true;
+
     public DateTime CreatedAt { get; set; }
 
+    // Navigation
     public AdminUser PerformedByAdmin { get; set; } = default!;
 }

@@ -6,13 +6,14 @@ using System.Threading.Tasks;
 
 namespace JobPortal.Application.DTOs.Admin.Auth
 {
-    public class FirebaseCustomTokenResponseDto
+    public class AdminResendOtpResponseDto
     {
         public bool Success { get; set; }
 
-        public string Message { get; set; } = default!;
+        public string Message { get; set; } = string.Empty;
 
-        public string? FirebaseToken { get; set; }
-        public string? PhoneUsed { get; set; }
+        public int ResendAfterSeconds { get; set; }
+
+        public DateTime? ExpiresAt { get; set; }
     }
 }

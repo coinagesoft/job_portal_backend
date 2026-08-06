@@ -1,5 +1,7 @@
 ﻿using JobPortal.Application.DTOs.Admin.Auth;
+using JobPortal.Infrastructure.Extensions;
 using JobPortal.Services.IImplement.IAdmin;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -7,119 +9,132 @@ namespace JobPortal.API.Controllers.Admin
 {
     [ApiController]
     [Route("api/admin/auth")]
-    public class AuthController : ControllerBase
+    public class AdminAuthController : ControllerBase
     {
         private readonly IAuthService _authService;
 
-        public AuthController(
-            IAuthService authService)
+        public AdminAuthController(IAuthService authService)
         {
             _authService = authService;
         }
 
-        /// <summary>
-        /// Step 1 — Verify admin exists in DB before triggering Firebase OTP.
-        /// Call this BEFORE asking Firebase to send OTP on the frontend.
-        /// </summary>
-        [HttpPost("check-admin")]
-        [EnableRateLimiting("auth")]
-        [ProducesResponseType(
-            typeof(CheckAdminResponseDto), 200)]
-        [ProducesResponseType(401)]
-        [ProducesResponseType(423)]
-        public async Task<IActionResult> CheckAdmin(
-            [FromBody]
-            CheckAdminRequestDto request)
+        #region Send OTP
+
+        [HttpPost("send-otp")]
+        [AllowAnonymous]
+        public async Task<IActionResult> SendOtp(
+            [FromBody] AdminSendOtpRequestDto request)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var ip =
-                HttpContext.Connection
-                    .RemoteIpAddress?
-                    .ToString() ?? "unknown";
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-            var response =
-                await _authService
-                    .CheckAdminExistsAsync(
-                        request,
-                        ip);
+            var result = await _authService.SendOtpAsync(
+                request,
+                ipAddress);
 
-            if (!response.Success)
-            {
-                return response.Message switch
-                {
-                    var m when m.Contains("suspended")
-                        => StatusCode(403, response),
+            if (!result.Success)
+                return BadRequest(result);
 
-                    var m when m.Contains("locked")
-                        => StatusCode(423, response),
-
-                    _ => Unauthorized(response)
-                };
-            }
-
-            return Ok(response);
+            return Ok(result);
         }
 
-        [HttpPost("generate-firebase-token")]
-        public async Task<IActionResult>
-    GenerateFirebaseToken(
-        [FromBody]
-        FirebaseCustomTokenRequestDto request)
-        {
-            var response =
-                await _authService
-                    .GenerateFirebaseCustomTokenAsync(
-                        request);
 
-            return Ok(response);
-        }
-
-        /// <summary>
-        /// Step 2 — After Firebase OTP verified on frontend,
-        /// exchange Firebase token for JWT.
-        /// </summary>
-        [HttpPost("firebase-login")]
-        [EnableRateLimiting("auth")]
-        public async Task<IActionResult> FirebaseLogin(
-            [FromBody]
-            FirebaseLoginRequestDto request)
+        [HttpPost("resend-otp")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResendOtp(
+    [FromBody] AdminResendOtpRequestDto request)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var ip =
-                HttpContext.Connection
-                    .RemoteIpAddress?
-                    .ToString() ?? "unknown";
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-            var response =
-                await _authService
-                    .FirebaseLoginAsync(
-                        request,
-                        ip);
+            var result = await _authService.ResendOtpAsync(
+                request,
+                ipAddress);
 
-            if (!response.Success)
-            {
-                return response.Message switch
-                {
-                    var m when m.Contains("suspended")
-                        => StatusCode(403, response),
-
-                    var m when m.Contains("locked")
-                        => StatusCode(423, response),
-
-                    var m when m.Contains("denied")
-                           || m.Contains("Invalid")
-                           || m.Contains("expired")
-                        => Unauthorized(response),
-
-                    _ => BadRequest(response)
-                };
-            }
-
-            return Ok(response);
+            return result.Success ? Ok(result) : BadRequest(result);
         }
+
+        #endregion
+
+        #region Verify OTP
+
+        [HttpPost("verify-otp")]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyOtp(
+            [FromBody] AdminVerifyOtpRequestDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+            var userAgent = Request.Headers.UserAgent.ToString();
+
+            var result = await _authService.VerifyOtpAsync(
+                request,
+                ipAddress,
+                userAgent);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
+
+        [AllowAnonymous]
+        [HttpPost("refresh")]
+        public async Task<IActionResult> RefreshToken(
+    RefreshTokenRequestDto request)
+        {
+            var result =
+                await _authService.RefreshTokenAsync(request);
+
+            if (!result.Success)
+                return Unauthorized(result);
+
+            return Ok(result);
+        }
+
+        #endregion
+
+        #region Logout
+
+        [Authorize]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            var adminId = User.GetAdminId();
+
+            var result = await _authService.LogoutAsync(adminId);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
+
+        #endregion
+
+        #region Current Admin
+
+        [Authorize]
+        [HttpGet("me")]
+        public async Task<IActionResult> Me()
+        {
+            var adminId = User.GetAdminId();
+
+            var result = await _authService.GetCurrentAdminAsync(adminId);
+
+            if (!result.Success)
+                return NotFound(result);
+
+            return Ok(result);
+        }
+
+        #endregion
     }
 }
