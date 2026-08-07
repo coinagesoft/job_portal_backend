@@ -108,6 +108,7 @@ builder.Services.AddScoped<IAdminCompanyDocumentService, AdminCompanyDocumentSer
 builder.Services.AddScoped<IAdminDocumentTypeService, AdminDocumentTypeService>();
 builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IAdminSupportTicketService, AdminSupportTicketService>();
 builder.Services.AddScoped<CandidatePagedJobService>();
 builder.Services.AddHttpClient<IGeminiCompanyDocumentParserService, GeminiCompanyDocumentParserService>();
 //builder.Services.AddScoped<IAffindaService, AffindaService>();
@@ -139,6 +140,7 @@ builder.Services.AddHttpClient<IGeminiDocumentParserService, GeminiDocumentParse
 
 
 builder.Services.AddHostedService<AccountCleanupService>();
+builder.Services.AddHostedService<SupportTicketAutoResolveService>();
 // ── Firebase ─────────────────────────────────────────────────
 FirebaseApp.Create(new AppOptions()
 {

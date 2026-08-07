@@ -180,6 +180,11 @@ namespace JobPortal.Services.Implement.Recruiter
 
             _context.SupportTicketReplies.Add(reply);
 
+            // Keeps last-activity accurate for the 48h auto-resolve job
+            // (SupportTicketAutoResolveService) — the candidate-side
+            // AddReplyAsync already does this.
+            ticket.UpdatedAt = DateTime.UtcNow;
+
             await _context.SaveChangesAsync();
 
             return new AddTicketReplyResponseDto
