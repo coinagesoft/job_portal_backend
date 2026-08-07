@@ -1,5 +1,6 @@
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Entities.AI;
+using JobPortal.Domain.Common;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.Common;
@@ -255,7 +256,9 @@ public class AppDbContext : DbContext
         // ── users ──────────────────────────────────────────────
 
         var userTypeConverter =
-    new EnumToStringConverter<UserType>();
+    new ValueConverter<UserType, string>(
+        v => UserTypeConverterHelper.ToProviderString(v),
+        v => UserTypeConverterHelper.FromProviderString(v));
 
         var accountStatusConverter =
             new EnumToStringConverter<AccountStatus>();
