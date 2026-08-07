@@ -1,4 +1,6 @@
+using JobPortal.API.Middleware;
 using JobPortal.Application.DTOs.Admin.CompanyDocuments;
+using JobPortal.Domain.Enums;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,6 +29,7 @@ namespace JobPortal.API.Controllers.Admin
         }
 
         [HttpPost("{documentId:guid}/verify")]
+        [AuditLog("Verify Company Document", "Company Documents", AuditSeverity.Warning)]
         public async Task<IActionResult> Verify(
             [FromHeader] Guid adminUserId,
             Guid documentId,

@@ -24,14 +24,22 @@ namespace JobPortal.API.Middleware
         public string? Module { get; }
         public AuditSeverity? Severity { get; }
 
+        // Attribute constructors can only take the types the CLR can bake
+        // into metadata as compile-time constants (bool, numeric types,
+        // string, an enum type itself, Type, or object) — Nullable<T> is
+        // NOT on that list, even though AuditSeverity? is a perfectly
+        // normal property type. So the constructor takes a boxed
+        // `object? severity` (an unboxed AuditSeverity value, or null when
+        // omitted) and converts it to AuditSeverity? here, keeping the
+        // nullable, easy-to-check Severity property for callers.
         public AuditLogAttribute(
             string? action = null,
             string? module = null,
-            AuditSeverity? severity = null)
+            object? severity = null)
         {
             Action = action;
             Module = module;
-            Severity = severity;
+            Severity = severity is AuditSeverity s ? s : null;
         }
     }
 }

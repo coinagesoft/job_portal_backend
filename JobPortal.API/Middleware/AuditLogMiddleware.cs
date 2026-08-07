@@ -1,4 +1,5 @@
-﻿using JobPortal.Domain.Entities;
+﻿using JobPortal.Domain.Constants;
+using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Infrastructure.Extensions;
 using JobPortal.Infrastructure.Persistence;
@@ -76,8 +77,20 @@ public class AuditLogMiddleware
 
             var success = context.Response.StatusCode is >= 200 and < 300;
 
+            // Severity is resolved in this order, most explicit wins:
+            //   1. [AuditLog(severity: ...)] on the endpoint itself
+            //   2. AuditActionSeverity's explicit action -> severity map
+            //      (the single source of truth for "how bad is this")
+            //   3. The generic keyword/HTTP-method heuristic, only used
+            //      for actions nobody has classified yet — this is what
+            //      previously made every "delete"/DELETE action Critical
+            //      regardless of how significant it actually was.
             var severity = auditAttribute?.Severity
-                ?? InferSeverity(context.Request.Method, actionName, success);
+                ?? (!success
+                    ? AuditSeverity.Warning
+                    : AuditActionSeverity.TryResolve(actionName, out var mappedSeverity)
+                        ? mappedSeverity
+                        : InferSeverity(context.Request.Method, actionName, success));
 
             var targetEntityType = controllerActionDescriptor?.ControllerName;
 

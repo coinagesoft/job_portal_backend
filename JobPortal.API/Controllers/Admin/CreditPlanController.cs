@@ -1,5 +1,7 @@
 ﻿using JobPortal.API.Controllers.Recruiter;
+using JobPortal.API.Middleware;
 using JobPortal.Application.DTOs.Admin.CreditWallet;
+using JobPortal.Domain.Enums;
 using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.Implement.Admin;
 using Microsoft.AspNetCore.Mvc;
@@ -23,6 +25,7 @@ namespace JobPortal.API.Controllers.Admin
         }
 
         [HttpPost]
+        [AuditLog("Create Credit Plan", "Credit Plans", AuditSeverity.Info)]
         public async Task<IActionResult> CreatePlan(
             [FromBody] CreateCreditPlanRequestDto request,
             [FromHeader(Name = "AdminId")] Guid adminId)
@@ -38,6 +41,7 @@ namespace JobPortal.API.Controllers.Admin
         }
 
         [HttpPut]
+        [AuditLog("Update Credit Plan", "Credit Plans", AuditSeverity.Warning)]
         public async Task<IActionResult> UpdatePlan(
             [FromBody] UpdateCreditPlanRequestDto request,
             [FromHeader(Name = "AdminId")] Guid adminId)
@@ -52,7 +56,10 @@ namespace JobPortal.API.Controllers.Admin
                 : BadRequest(result);
         }
 
+        // Deliberately Critical (not defaulted by the heuristic): removing
+        // a credit plan affects live pricing for employers.
         [HttpDelete("{planId}")]
+        [AuditLog("Delete Credit Plan", "Credit Plans", AuditSeverity.Critical)]
         public async Task<IActionResult> DeletePlan(
             Guid planId,
             [FromHeader(Name = "AdminId")] Guid adminId)

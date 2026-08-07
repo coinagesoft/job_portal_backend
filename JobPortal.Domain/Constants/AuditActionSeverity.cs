@@ -47,5 +47,18 @@ namespace JobPortal.Domain.Constants
                 ? severity
                 : AuditSeverity.Info;
         }
+
+        /// <summary>
+        /// Same as <see cref="Resolve"/> but tells the caller whether the
+        /// action was actually found in the map, rather than silently
+        /// defaulting to Info. Used by AuditLogMiddleware so an explicit,
+        /// deliberate code mapping always wins over the generic keyword
+        /// heuristic — the heuristic only kicks in for actions nobody has
+        /// classified yet.
+        /// </summary>
+        public static bool TryResolve(string action, out AuditSeverity severity)
+        {
+            return Map.TryGetValue(action, out severity);
+        }
     }
 }

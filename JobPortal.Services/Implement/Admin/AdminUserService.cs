@@ -1,4 +1,5 @@
 ﻿using JobPortal.Application.DTOs.Admin.Users;
+using JobPortal.Domain.Constants;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
@@ -281,7 +282,7 @@ public class AdminUserService : IAdminUserService
                 Description = $"Created sub-admin '{fullName}' ({email}) with role '{role.RoleName}'.",
                 IpAddress = ipAddress,
                 Success = true,
-                Severity = AuditSeverity.Warning,
+                Severity = AuditActionSeverity.Resolve("Create Sub Admin"),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -476,7 +477,7 @@ public class AdminUserService : IAdminUserService
                 Description = $"Updated sub-admin '{fullName}' ({target.User.Email}).",
                 IpAddress = ipAddress,
                 Success = true,
-                Severity = AuditSeverity.Warning,
+                Severity = AuditActionSeverity.Resolve("Update Sub Admin"),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -614,7 +615,7 @@ public class AdminUserService : IAdminUserService
                 Description = $"Deleted sub-admin '{target.FullName}' ({target.User.Email}).",
                 IpAddress = ipAddress,
                 Success = true,
-                Severity = AuditSeverity.Critical,
+                Severity = AuditActionSeverity.Resolve("Delete Sub Admin"),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -741,7 +742,7 @@ public class AdminUserService : IAdminUserService
                 Description = $"Suspended sub-admin '{target.FullName}' ({target.User.Email}).",
                 IpAddress = ipAddress,
                 Success = true,
-                Severity = AuditSeverity.Critical,
+                Severity = AuditActionSeverity.Resolve("Suspend Sub Admin"),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -866,7 +867,7 @@ public class AdminUserService : IAdminUserService
                 Description = $"Reactivated sub-admin '{target.FullName}' ({target.User.Email}).",
                 IpAddress = ipAddress,
                 Success = true,
-                Severity = AuditSeverity.Warning,
+                Severity = AuditActionSeverity.Resolve("Activate Sub Admin"),
                 CreatedAt = DateTime.UtcNow
             });
 

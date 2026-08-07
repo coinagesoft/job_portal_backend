@@ -1,4 +1,6 @@
+using JobPortal.API.Middleware;
 using JobPortal.Application.DTOs.Admin.CompanyDocuments;
+using JobPortal.Domain.Enums;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -31,6 +33,7 @@ namespace JobPortal.API.Controllers.Admin
         /// Create a new document type.
         /// </summary>
         [HttpPost]
+        [AuditLog("Create Document Type", "Document Types", AuditSeverity.Info)]
         public async Task<IActionResult> Create(
             [FromBody] CreateDocumentTypeRequestDto request)
         {
@@ -52,6 +55,7 @@ namespace JobPortal.API.Controllers.Admin
         }
 
         [HttpPatch("{id:guid}")]
+        [AuditLog("Update Document Type", "Document Types", AuditSeverity.Warning)]
         public async Task<IActionResult> Update(
             Guid id, [FromBody] UpdateDocumentTypeRequestDto request)
         {
@@ -66,7 +70,14 @@ namespace JobPortal.API.Controllers.Admin
         /// <summary>
         /// Soft delete (deactivate) a document type.
         /// </summary>
+        // Explicitly Warning, not Critical: this is a soft delete
+        // (deactivation) of a reference/config value, not destructive
+        // removal of user data. Without this attribute the generic
+        // "any action with 'delete' in it is Critical" heuristic in
+        // AuditLogMiddleware would tag it Critical, which overstates
+        // the real impact.
         [HttpDelete("{id:guid}")]
+        [AuditLog("Delete Document Type", "Document Types", AuditSeverity.Warning)]
         public async Task<IActionResult> Delete(Guid id)
         {
             var deleted = await _adminDocumentTypeService.DeleteAsync(id);
