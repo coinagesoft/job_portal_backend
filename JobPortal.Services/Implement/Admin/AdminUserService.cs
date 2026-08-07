@@ -638,6 +638,275 @@ public class AdminUserService : IAdminUserService
         }
     }
 
+    public async Task<UpdateSubAdminResponseDto> SuspendSubAdminAsync(
+        Guid subAdminId,
+        SuspendSubAdminRequestDto request,
+        Guid suspendedByAdminId,
+        string ipAddress)
+    {
+        using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
+        {
+            //-------------------------------------------------------
+            // 1. Authorization
+            //-------------------------------------------------------
+
+            var actor = await _context.AdminUsers
+                .Include(x => x.Role)
+                .FirstOrDefaultAsync(x => x.AdminId == suspendedByAdminId);
+
+            if (actor == null || !actor.IsActive)
+                return UpdateFail("Admin account not found or inactive.");
+
+            var actorIsSuperAdmin =
+                string.Equals(actor.AdminType, "SuperAdmin", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(actor.AdminType, "Admin", StringComparison.OrdinalIgnoreCase);
+
+            if (!actorIsSuperAdmin &&
+                !RoleHasPermission(actor.Role?.Permissions, "users"))
+            {
+                return UpdateFail("You do not have permission to suspend sub-admins.");
+            }
+
+            if (subAdminId == suspendedByAdminId)
+                return UpdateFail("You cannot suspend your own account.");
+
+            //-------------------------------------------------------
+            // 2. Load target — only sub-admins can be suspended here.
+            //-------------------------------------------------------
+
+            var target = await _context.AdminUsers
+                .Include(x => x.User)
+                .Include(x => x.Role)
+                .FirstOrDefaultAsync(x => x.AdminId == subAdminId);
+
+            if (target == null || target.User == null)
+                return UpdateFail("Sub admin not found.");
+
+            if (!string.Equals(target.AdminType, "SubAdmin", StringComparison.OrdinalIgnoreCase))
+                return UpdateFail("Only sub-admin accounts can be suspended here.");
+
+            if (target.User.IsDeleted)
+                return UpdateFail("This sub-admin has already been deleted.");
+
+            if (!target.IsActive)
+                return UpdateFail("This sub-admin is already suspended.");
+
+            //-------------------------------------------------------
+            // 3. Suspend — keeps the row intact (unlike delete), just
+            //    blocks login: AdminAuthService.SendOtpAsync/VerifyOtpAsync
+            //    both reject when IsActive is false or AccountStatus isn't
+            //    Active. Any open sessions are revoked immediately too.
+            //-------------------------------------------------------
+
+            var oldValues = new { target.IsActive, target.User.AccountStatus };
+
+            target.IsActive = false;
+            target.UpdatedAt = DateTime.UtcNow;
+
+            target.User.AccountStatus = AccountStatus.Suspended;
+            target.User.SuspensionReason = string.IsNullOrWhiteSpace(request.Reason)
+                ? "Suspended by admin."
+                : request.Reason.Trim();
+            target.User.UpdatedAt = DateTime.UtcNow;
+
+            var activeSessions = await _context.AdminSessions
+                .Where(x => x.AdminId == target.AdminId && !x.IsRevoked)
+                .ToListAsync();
+
+            foreach (var session in activeSessions)
+            {
+                session.IsRevoked = true;
+                session.LogoutAt ??= DateTime.UtcNow;
+            }
+
+            //-------------------------------------------------------
+            // 4. Audit log
+            //-------------------------------------------------------
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                LogId = Guid.NewGuid(),
+                PerformedByAdminId = actor.AdminId,
+                PerformedByName = actor.FullName,
+                PerformedByRole = actor.Role?.RoleName ?? actor.AdminType,
+                Module = "Sub Admin",
+                Action = "Suspend Sub Admin",
+                TargetEntityType = "AdminUser",
+                TargetEntityId = target.AdminId,
+                TargetEntityName = target.FullName,
+                OldValues = JsonSerializer.Serialize(oldValues),
+                NewValues = JsonSerializer.Serialize(new { IsActive = false, AccountStatus = AccountStatus.Suspended, target.User.SuspensionReason }),
+                Description = $"Suspended sub-admin '{target.FullName}' ({target.User.Email}).",
+                IpAddress = ipAddress,
+                Success = true,
+                Severity = AuditSeverity.Critical,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            return new UpdateSubAdminResponseDto
+            {
+                Success = true,
+                Message = "Sub admin suspended successfully.",
+
+                SubAdmin = new SubAdminDto
+                {
+                    AdminId = target.AdminId,
+                    UserId = target.UserId,
+                    AdminIdentifier = target.AdminIdentifier,
+                    FullName = target.FullName,
+                    Email = target.User.Email ?? string.Empty,
+                    MobileNumber = target.User.MobileNumber,
+                    AdminType = target.AdminType,
+                    RoleId = target.RoleId,
+                    RoleName = target.Role?.RoleName ?? string.Empty,
+                    Permissions = SubAdminPermissionsDto.FromKeyList(SafeDeserializePermissions(target.Role?.Permissions)),
+                    IsActive = target.IsActive,
+                    CreatedAt = target.CreatedAt,
+                    LastLoginAt = target.User.LastLoginAt
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+
+            _logger.LogError(ex, "Error while suspending sub-admin {SubAdminId}.", subAdminId);
+
+            return UpdateFail("Unable to suspend sub admin. Please try again.");
+        }
+    }
+
+    public async Task<UpdateSubAdminResponseDto> ActivateSubAdminAsync(
+        Guid subAdminId,
+        Guid activatedByAdminId,
+        string ipAddress)
+    {
+        using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
+        {
+            //-------------------------------------------------------
+            // 1. Authorization
+            //-------------------------------------------------------
+
+            var actor = await _context.AdminUsers
+                .Include(x => x.Role)
+                .FirstOrDefaultAsync(x => x.AdminId == activatedByAdminId);
+
+            if (actor == null || !actor.IsActive)
+                return UpdateFail("Admin account not found or inactive.");
+
+            var actorIsSuperAdmin =
+                string.Equals(actor.AdminType, "SuperAdmin", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(actor.AdminType, "Admin", StringComparison.OrdinalIgnoreCase);
+
+            if (!actorIsSuperAdmin &&
+                !RoleHasPermission(actor.Role?.Permissions, "users"))
+            {
+                return UpdateFail("You do not have permission to activate sub-admins.");
+            }
+
+            //-------------------------------------------------------
+            // 2. Load target
+            //-------------------------------------------------------
+
+            var target = await _context.AdminUsers
+                .Include(x => x.User)
+                .Include(x => x.Role)
+                .FirstOrDefaultAsync(x => x.AdminId == subAdminId);
+
+            if (target == null || target.User == null)
+                return UpdateFail("Sub admin not found.");
+
+            if (!string.Equals(target.AdminType, "SubAdmin", StringComparison.OrdinalIgnoreCase))
+                return UpdateFail("Only sub-admin accounts can be activated here.");
+
+            if (target.User.IsDeleted)
+                return UpdateFail("This sub-admin has been deleted and cannot be reactivated.");
+
+            if (target.IsActive)
+                return UpdateFail("This sub-admin is already active.");
+
+            //-------------------------------------------------------
+            // 3. Reactivate
+            //-------------------------------------------------------
+
+            var oldValues = new { target.IsActive, target.User.AccountStatus };
+
+            target.IsActive = true;
+            target.UpdatedAt = DateTime.UtcNow;
+
+            target.User.AccountStatus = AccountStatus.Active;
+            target.User.SuspensionReason = null;
+            target.User.UpdatedAt = DateTime.UtcNow;
+
+            //-------------------------------------------------------
+            // 4. Audit log
+            //-------------------------------------------------------
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                LogId = Guid.NewGuid(),
+                PerformedByAdminId = actor.AdminId,
+                PerformedByName = actor.FullName,
+                PerformedByRole = actor.Role?.RoleName ?? actor.AdminType,
+                Module = "Sub Admin",
+                Action = "Activate Sub Admin",
+                TargetEntityType = "AdminUser",
+                TargetEntityId = target.AdminId,
+                TargetEntityName = target.FullName,
+                OldValues = JsonSerializer.Serialize(oldValues),
+                NewValues = JsonSerializer.Serialize(new { IsActive = true, AccountStatus = AccountStatus.Active }),
+                Description = $"Reactivated sub-admin '{target.FullName}' ({target.User.Email}).",
+                IpAddress = ipAddress,
+                Success = true,
+                Severity = AuditSeverity.Warning,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            return new UpdateSubAdminResponseDto
+            {
+                Success = true,
+                Message = "Sub admin activated successfully.",
+
+                SubAdmin = new SubAdminDto
+                {
+                    AdminId = target.AdminId,
+                    UserId = target.UserId,
+                    AdminIdentifier = target.AdminIdentifier,
+                    FullName = target.FullName,
+                    Email = target.User.Email ?? string.Empty,
+                    MobileNumber = target.User.MobileNumber,
+                    AdminType = target.AdminType,
+                    RoleId = target.RoleId,
+                    RoleName = target.Role?.RoleName ?? string.Empty,
+                    Permissions = SubAdminPermissionsDto.FromKeyList(SafeDeserializePermissions(target.Role?.Permissions)),
+                    IsActive = target.IsActive,
+                    CreatedAt = target.CreatedAt,
+                    LastLoginAt = target.User.LastLoginAt
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+
+            _logger.LogError(ex, "Error while activating sub-admin {SubAdminId}.", subAdminId);
+
+            return UpdateFail("Unable to activate sub admin. Please try again.");
+        }
+    }
+
     // ── Helpers ─────────────────────────────────────────────────
 
     // Shared by Create and Update so role resolution never drifts between

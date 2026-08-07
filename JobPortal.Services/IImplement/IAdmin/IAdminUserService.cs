@@ -46,5 +46,29 @@ namespace JobPortal.Services.IImplement.IAdmin
             Guid subAdminId,
             Guid deletedByAdminId,
             string ipAddress);
+
+        /// <summary>
+        /// Suspends a sub-admin account: flips IsActive/AccountStatus to
+        /// Suspended and revokes any active sessions, so the account can no
+        /// longer log in but the row (and its history) stays intact — unlike
+        /// DeleteSubAdminAsync, which soft-deletes it. Only a Super Admin —
+        /// or a sub-admin whose role grants the "users" sidebar tab — may
+        /// call this. A sub-admin cannot suspend themselves.
+        /// </summary>
+        Task<UpdateSubAdminResponseDto> SuspendSubAdminAsync(
+            Guid subAdminId,
+            SuspendSubAdminRequestDto request,
+            Guid suspendedByAdminId,
+            string ipAddress);
+
+        /// <summary>
+        /// Reactivates a previously suspended sub-admin account so it can
+        /// log in again. Only a Super Admin — or a sub-admin whose role
+        /// grants the "users" sidebar tab — may call this.
+        /// </summary>
+        Task<UpdateSubAdminResponseDto> ActivateSubAdminAsync(
+            Guid subAdminId,
+            Guid activatedByAdminId,
+            string ipAddress);
     }
 }
