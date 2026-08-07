@@ -1459,6 +1459,15 @@ public class AppDbContext : DbContext
             entity.Property(x => x.TargetEntityType)
                 .HasMaxLength(100);
 
+            entity.Property(x => x.TargetEntityName)
+                .HasMaxLength(200);
+
+            entity.Property(x => x.Severity)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(AuditSeverity.Info)
+                .IsRequired();
+
             entity.Property(x => x.Description)
                 .HasMaxLength(1000);
 

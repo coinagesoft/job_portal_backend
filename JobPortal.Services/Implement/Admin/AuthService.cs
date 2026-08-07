@@ -176,9 +176,11 @@ public class AuthService : IAuthService
                 PerformedByRole = admin.Role.RoleName,
                 Module = "Authentication",
                 Action = "Send OTP",
+                TargetEntityType = "Session",
                 Description = "Login OTP sent to registered email.",
                 IpAddress = ipAddress,
                 Success = true,
+                Severity = AuditSeverity.Info,
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -349,9 +351,11 @@ public class AuthService : IAuthService
                 PerformedByRole = admin.Role.RoleName,
                 Module = "Authentication",
                 Action = "Resend OTP",
+                TargetEntityType = "Session",
                 Description = "Login OTP resent to registered email.",
                 IpAddress = ipAddress,
                 Success = true,
+                Severity = AuditSeverity.Info,
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -556,11 +560,14 @@ public class AuthService : IAuthService
                 PerformedByName = admin.AdminIdentifier,
                 PerformedByRole = admin.Role.RoleName,
                 Module = "Authentication",
-                Action = "Login",
+                Action = "Login Success",
+                TargetEntityType = "Session",
+                TargetEntityName = "Admin Dashboard",
                 Description = "Admin logged in successfully.",
                 IpAddress = ipAddress,
                 UserAgent = userAgent,
                 Success = true,
+                Severity = AuditSeverity.Info,
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -757,12 +764,16 @@ public class AuthService : IAuthService
                 Module = "Authentication",
                 Action = "Logout",
 
+                TargetEntityType = "Session",
+                TargetEntityName = "Admin Dashboard",
+
                 Description = "Admin logged out successfully.",
 
                 IpAddress = session?.IpAddress ?? "Unknown",
                 UserAgent = session?.UserAgent,
 
                 Success = true,
+                Severity = AuditSeverity.Info,
 
                 CreatedAt = DateTime.UtcNow
             });

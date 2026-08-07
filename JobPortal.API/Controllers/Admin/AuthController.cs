@@ -1,4 +1,5 @@
-﻿using JobPortal.Application.DTOs.Admin.Auth;
+﻿using JobPortal.API.Middleware;
+using JobPortal.Application.DTOs.Admin.Auth;
 using JobPortal.Infrastructure.Extensions;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.AspNetCore.Authorization;
@@ -22,6 +23,7 @@ namespace JobPortal.API.Controllers.Admin
 
         [HttpPost("send-otp")]
         [AllowAnonymous]
+        [SkipAuditLog]
         public async Task<IActionResult> SendOtp(
             [FromBody] AdminSendOtpRequestDto request)
         {
@@ -43,6 +45,7 @@ namespace JobPortal.API.Controllers.Admin
 
         [HttpPost("resend-otp")]
         [AllowAnonymous]
+        [SkipAuditLog]
         public async Task<IActionResult> ResendOtp(
     [FromBody] AdminResendOtpRequestDto request)
         {
@@ -64,6 +67,7 @@ namespace JobPortal.API.Controllers.Admin
 
         [HttpPost("verify-otp")]
         [AllowAnonymous]
+        [SkipAuditLog]
         public async Task<IActionResult> VerifyOtp(
             [FromBody] AdminVerifyOtpRequestDto request)
         {
@@ -105,6 +109,7 @@ namespace JobPortal.API.Controllers.Admin
 
         [Authorize]
         [HttpPost("logout")]
+        [SkipAuditLog]
         public async Task<IActionResult> Logout()
         {
             var adminId = User.GetAdminId();

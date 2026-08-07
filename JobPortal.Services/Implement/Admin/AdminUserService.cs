@@ -1,5 +1,6 @@
 ﻿using JobPortal.Application.DTOs.Admin.Users;
 using JobPortal.Domain.Entities;
+using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
@@ -100,62 +101,7 @@ public class AdminUserService : IAdminUserService
             //    made unique per sub-admin since RoleName is unique.
             //-------------------------------------------------------
 
-            var permissionsJson = JsonSerializer.Serialize(permissions);
-
-            AdminRole? role;
-
-            if (string.Equals(roleNameInput, "Custom", StringComparison.OrdinalIgnoreCase))
-            {
-                var uniqueRoleName = $"Custom - {fullName}";
-
-                var suffix = 1;
-
-                while (await _context.AdminRoles.AnyAsync(x => x.RoleName == uniqueRoleName))
-                {
-                    suffix++;
-                    uniqueRoleName = $"Custom - {fullName} ({suffix})";
-                }
-
-                role = new AdminRole
-                {
-                    RoleId = Guid.NewGuid(),
-                    RoleName = uniqueRoleName,
-                    Description = "Custom permission set.",
-                    Permissions = permissionsJson,
-                    IsSystemRole = false,
-                    CreatedBy = createdByAdminId,
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                _context.AdminRoles.Add(role);
-            }
-            else
-            {
-                role = await _context.AdminRoles
-                    .FirstOrDefaultAsync(x => x.RoleName == roleNameInput);
-
-                if (role == null)
-                {
-                    role = new AdminRole
-                    {
-                        RoleId = Guid.NewGuid(),
-                        RoleName = roleNameInput,
-                        Permissions = permissionsJson,
-                        IsSystemRole = false,
-                        CreatedBy = createdByAdminId,
-                        CreatedAt = DateTime.UtcNow
-                    };
-
-                    _context.AdminRoles.Add(role);
-                }
-                else
-                {
-                    // Keep the shared preset role's permissions in sync
-                    // with whatever was picked on the drawer.
-                    role.Permissions = permissionsJson;
-                    role.UpdatedAt = DateTime.UtcNow;
-                }
-            }
+            var role = await ResolveRoleAsync(roleNameInput, permissions, fullName, createdByAdminId, currentRoleId: null);
 
             //-------------------------------------------------------
             // 5. Create the User row backing the sub-admin. Login is
@@ -223,6 +169,7 @@ public class AdminUserService : IAdminUserService
                 Action = "Create Sub Admin",
                 TargetEntityType = "AdminUser",
                 TargetEntityId = admin.AdminId,
+                TargetEntityName = fullName,
                 NewValues = JsonSerializer.Serialize(new
                 {
                     admin.AdminIdentifier,
@@ -235,6 +182,7 @@ public class AdminUserService : IAdminUserService
                 Description = $"Created sub-admin '{fullName}' ({email}) with role '{role.RoleName}'.",
                 IpAddress = ipAddress,
                 Success = true,
+                Severity = AuditSeverity.Warning,
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -278,7 +226,448 @@ public class AdminUserService : IAdminUserService
         }
     }
 
+    public async Task<UpdateSubAdminResponseDto> UpdateSubAdminAsync(
+        Guid subAdminId,
+        UpdateSubAdminRequestDto request,
+        Guid updatedByAdminId,
+        string ipAddress)
+    {
+        using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
+        {
+            //-------------------------------------------------------
+            // 1. Authorization — same rule as create.
+            //-------------------------------------------------------
+
+            var updater = await _context.AdminUsers
+                .Include(x => x.Role)
+                .FirstOrDefaultAsync(x => x.AdminId == updatedByAdminId);
+
+            if (updater == null || !updater.IsActive)
+                return UpdateFail("Admin account not found or inactive.");
+
+            var updaterIsSuperAdmin =
+                string.Equals(updater.AdminType, "SuperAdmin", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(updater.AdminType, "Admin", StringComparison.OrdinalIgnoreCase);
+
+            if (!updaterIsSuperAdmin &&
+                !RoleHasPermission(updater.Role?.Permissions, "subadmin.edit"))
+            {
+                return UpdateFail("You do not have permission to edit sub-admins.");
+            }
+
+            //-------------------------------------------------------
+            // 2. Load target — only sub-admins can be edited here.
+            //-------------------------------------------------------
+
+            var target = await _context.AdminUsers
+                .Include(x => x.Role)
+                .Include(x => x.User)
+                .FirstOrDefaultAsync(x => x.AdminId == subAdminId);
+
+            if (target == null || target.User == null)
+                return UpdateFail("Sub admin not found.");
+
+            if (!string.Equals(target.AdminType, "SubAdmin", StringComparison.OrdinalIgnoreCase))
+                return UpdateFail("Only sub-admin accounts can be edited here.");
+
+            if (target.User.IsDeleted)
+                return UpdateFail("This sub-admin has been deleted.");
+
+            //-------------------------------------------------------
+            // 3. Basic validation
+            //-------------------------------------------------------
+
+            var fullName = request.FullName.Trim();
+            var roleNameInput = request.RoleName.Trim();
+
+            var permissions = (request.Permissions ?? new List<string>())
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .Select(p => p.Trim())
+                .Distinct()
+                .ToList();
+
+            if (permissions.Count == 0)
+                return UpdateFail("At least one permission must be selected.");
+
+            var mobileNumber = string.IsNullOrWhiteSpace(request.MobileNumber)
+                ? null
+                : request.MobileNumber.Trim();
+
+            if (mobileNumber != null)
+            {
+                var mobileTaken = await _context.Users
+                    .AnyAsync(x => x.MobileNumber == mobileNumber && x.UserId != target.UserId);
+
+                if (mobileTaken)
+                    return UpdateFail("A user with this mobile number already exists.");
+            }
+
+            //-------------------------------------------------------
+            // 4. Snapshot old values for the audit log, then apply
+            //    the changes.
+            //-------------------------------------------------------
+
+            var oldValues = new
+            {
+                target.FullName,
+                MobileNumber = target.User.MobileNumber,
+                RoleName = target.Role?.RoleName,
+                Permissions = SafeDeserializePermissions(target.Role?.Permissions),
+                target.IsActive
+            };
+
+            var role = await ResolveRoleAsync(
+                roleNameInput,
+                permissions,
+                fullName,
+                updatedByAdminId,
+                currentRoleId: target.RoleId);
+
+            target.FullName = fullName;
+            target.RoleId = role.RoleId;
+            target.IsActive = request.IsActive;
+            target.UpdatedAt = DateTime.UtcNow;
+
+            target.User.MobileNumber = mobileNumber;
+            target.User.CountryCode = string.IsNullOrWhiteSpace(request.CountryCode)
+                ? target.User.CountryCode
+                : request.CountryCode.Trim();
+            target.User.AccountStatus = request.IsActive ? AccountStatus.Active : AccountStatus.Suspended;
+            target.User.UpdatedAt = DateTime.UtcNow;
+
+            // Deactivating here should also kill any sessions the
+            // sub-admin currently has open.
+            if (!request.IsActive)
+            {
+                var activeSessions = await _context.AdminSessions
+                    .Where(x => x.AdminId == target.AdminId && !x.IsRevoked)
+                    .ToListAsync();
+
+                foreach (var session in activeSessions)
+                {
+                    session.IsRevoked = true;
+                    session.LogoutAt ??= DateTime.UtcNow;
+                }
+            }
+
+            //-------------------------------------------------------
+            // 5. Audit log
+            //-------------------------------------------------------
+
+            var newValues = new
+            {
+                FullName = fullName,
+                MobileNumber = mobileNumber,
+                RoleName = role.RoleName,
+                Permissions = permissions,
+                IsActive = request.IsActive
+            };
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                LogId = Guid.NewGuid(),
+                PerformedByAdminId = updater.AdminId,
+                PerformedByName = updater.FullName,
+                PerformedByRole = updater.Role?.RoleName ?? updater.AdminType,
+                Module = "Sub Admin",
+                Action = "Update Sub Admin",
+                TargetEntityType = "AdminUser",
+                TargetEntityId = target.AdminId,
+                TargetEntityName = fullName,
+                OldValues = JsonSerializer.Serialize(oldValues),
+                NewValues = JsonSerializer.Serialize(newValues),
+                Description = $"Updated sub-admin '{fullName}' ({target.User.Email}).",
+                IpAddress = ipAddress,
+                Success = true,
+                Severity = AuditSeverity.Warning,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            //-------------------------------------------------------
+            // 6. Response
+            //-------------------------------------------------------
+
+            return new UpdateSubAdminResponseDto
+            {
+                Success = true,
+                Message = "Sub admin updated successfully.",
+
+                SubAdmin = new SubAdminDto
+                {
+                    AdminId = target.AdminId,
+                    UserId = target.UserId,
+                    AdminIdentifier = target.AdminIdentifier,
+                    FullName = target.FullName,
+                    Email = target.User.Email ?? string.Empty,
+                    MobileNumber = target.User.MobileNumber,
+                    AdminType = target.AdminType,
+                    RoleId = role.RoleId,
+                    RoleName = role.RoleName,
+                    Permissions = permissions,
+                    IsActive = target.IsActive,
+                    CreatedAt = target.CreatedAt
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+
+            _logger.LogError(ex, "Error while updating sub-admin {SubAdminId}.", subAdminId);
+
+            return UpdateFail("Unable to update sub admin. Please try again.");
+        }
+    }
+
+    public async Task<DeleteSubAdminResponseDto> DeleteSubAdminAsync(
+        Guid subAdminId,
+        Guid deletedByAdminId,
+        string ipAddress)
+    {
+        using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
+        {
+            //-------------------------------------------------------
+            // 1. Authorization
+            //-------------------------------------------------------
+
+            var deleter = await _context.AdminUsers
+                .Include(x => x.Role)
+                .FirstOrDefaultAsync(x => x.AdminId == deletedByAdminId);
+
+            if (deleter == null || !deleter.IsActive)
+                return DeleteFail("Admin account not found or inactive.");
+
+            var deleterIsSuperAdmin =
+                string.Equals(deleter.AdminType, "SuperAdmin", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(deleter.AdminType, "Admin", StringComparison.OrdinalIgnoreCase);
+
+            if (!deleterIsSuperAdmin &&
+                !RoleHasPermission(deleter.Role?.Permissions, "subadmin.delete"))
+            {
+                return DeleteFail("You do not have permission to delete sub-admins.");
+            }
+
+            if (subAdminId == deletedByAdminId)
+                return DeleteFail("You cannot delete your own account.");
+
+            //-------------------------------------------------------
+            // 2. Load target — only sub-admins can be deleted here.
+            //-------------------------------------------------------
+
+            var target = await _context.AdminUsers
+                .Include(x => x.User)
+                .FirstOrDefaultAsync(x => x.AdminId == subAdminId);
+
+            if (target == null || target.User == null)
+                return DeleteFail("Sub admin not found.");
+
+            if (!string.Equals(target.AdminType, "SubAdmin", StringComparison.OrdinalIgnoreCase))
+                return DeleteFail("Only sub-admin accounts can be deleted here.");
+
+            if (target.User.IsDeleted)
+                return DeleteFail("This sub-admin has already been deleted.");
+
+            //-------------------------------------------------------
+            // 3. Soft delete — keeps the row (and its audit-log /
+            //    created-by history) intact instead of a hard DELETE,
+            //    which would break the AuditLogs / AdminSessions /
+            //    CreatedAdmins foreign keys pointing at this admin.
+            //-------------------------------------------------------
+
+            target.IsActive = false;
+            target.UpdatedAt = DateTime.UtcNow;
+
+            target.User.IsDeleted = true;
+            target.User.DeletedAt = DateTime.UtcNow;
+            target.User.AccountStatus = AccountStatus.Suspended;
+            target.User.SuspensionReason = "Sub-admin account removed by admin.";
+            target.User.UpdatedAt = DateTime.UtcNow;
+
+            var activeSessions = await _context.AdminSessions
+                .Where(x => x.AdminId == target.AdminId && !x.IsRevoked)
+                .ToListAsync();
+
+            foreach (var session in activeSessions)
+            {
+                session.IsRevoked = true;
+                session.LogoutAt ??= DateTime.UtcNow;
+            }
+
+            //-------------------------------------------------------
+            // 4. Audit log
+            //-------------------------------------------------------
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                LogId = Guid.NewGuid(),
+                PerformedByAdminId = deleter.AdminId,
+                PerformedByName = deleter.FullName,
+                PerformedByRole = deleter.Role?.RoleName ?? deleter.AdminType,
+                Module = "Sub Admin",
+                Action = "Delete Sub Admin",
+                TargetEntityType = "AdminUser",
+                TargetEntityId = target.AdminId,
+                TargetEntityName = target.FullName,
+                Description = $"Deleted sub-admin '{target.FullName}' ({target.User.Email}).",
+                IpAddress = ipAddress,
+                Success = true,
+                Severity = AuditSeverity.Critical,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            return new DeleteSubAdminResponseDto
+            {
+                Success = true,
+                Message = "Sub admin deleted successfully."
+            };
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+
+            _logger.LogError(ex, "Error while deleting sub-admin {SubAdminId}.", subAdminId);
+
+            return DeleteFail("Unable to delete sub admin. Please try again.");
+        }
+    }
+
     // ── Helpers ─────────────────────────────────────────────────
+
+    // Shared by Create and Update so role resolution never drifts between
+    // the two flows.
+    //   - "Custom": reuses the admin's existing private custom role (if
+    //     nobody else shares it) instead of leaving orphaned roles behind
+    //     on every edit; otherwise creates a new uniquely-named one.
+    //   - Any other name: reuses (and syncs permissions on) a shared
+    //     preset role, creating it the first time it's used.
+    private async Task<AdminRole> ResolveRoleAsync(
+        string roleNameInput,
+        List<string> permissions,
+        string fullName,
+        Guid actingAdminId,
+        Guid? currentRoleId)
+    {
+        var permissionsJson = JsonSerializer.Serialize(permissions);
+
+        if (string.Equals(roleNameInput, "Custom", StringComparison.OrdinalIgnoreCase))
+        {
+            if (currentRoleId.HasValue)
+            {
+                var currentRole = await _context.AdminRoles
+                    .Include(x => x.AdminUsers)
+                    .FirstOrDefaultAsync(x => x.RoleId == currentRoleId.Value);
+
+                var isPrivateCustomRole =
+                    currentRole != null &&
+                    !currentRole.IsSystemRole &&
+                    currentRole.RoleName.StartsWith("Custom - ", StringComparison.Ordinal) &&
+                    currentRole.AdminUsers.Count <= 1;
+
+                if (isPrivateCustomRole)
+                {
+                    currentRole!.Permissions = permissionsJson;
+                    currentRole.UpdatedAt = DateTime.UtcNow;
+                    return currentRole;
+                }
+            }
+
+            var uniqueRoleName = $"Custom - {fullName}";
+            var suffix = 1;
+
+            while (await _context.AdminRoles.AnyAsync(x => x.RoleName == uniqueRoleName))
+            {
+                suffix++;
+                uniqueRoleName = $"Custom - {fullName} ({suffix})";
+            }
+
+            var newRole = new AdminRole
+            {
+                RoleId = Guid.NewGuid(),
+                RoleName = uniqueRoleName,
+                Description = "Custom permission set.",
+                Permissions = permissionsJson,
+                IsSystemRole = false,
+                CreatedBy = actingAdminId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.AdminRoles.Add(newRole);
+
+            return newRole;
+        }
+
+        var role = await _context.AdminRoles
+            .FirstOrDefaultAsync(x => x.RoleName == roleNameInput);
+
+        if (role == null)
+        {
+            role = new AdminRole
+            {
+                RoleId = Guid.NewGuid(),
+                RoleName = roleNameInput,
+                Permissions = permissionsJson,
+                IsSystemRole = false,
+                CreatedBy = actingAdminId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.AdminRoles.Add(role);
+        }
+        else
+        {
+            // Keep the shared preset role's permissions in sync with
+            // whatever was picked on the drawer.
+            role.Permissions = permissionsJson;
+            role.UpdatedAt = DateTime.UtcNow;
+        }
+
+        return role;
+    }
+
+    private static List<string> SafeDeserializePermissions(string? permissionsJson)
+    {
+        if (string.IsNullOrWhiteSpace(permissionsJson))
+            return new List<string>();
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(permissionsJson) ?? new List<string>();
+        }
+        catch
+        {
+            return new List<string>();
+        }
+    }
+
+    private static UpdateSubAdminResponseDto UpdateFail(string message)
+    {
+        return new UpdateSubAdminResponseDto
+        {
+            Success = false,
+            Message = message
+        };
+    }
+
+    private static DeleteSubAdminResponseDto DeleteFail(string message)
+    {
+        return new DeleteSubAdminResponseDto
+        {
+            Success = false,
+            Message = message
+        };
+    }
 
     private async Task<string> GenerateAdminIdentifierAsync()
     {

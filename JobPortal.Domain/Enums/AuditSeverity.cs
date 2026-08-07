@@ -1,12 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace JobPortal.Domain.Enums;
 
-namespace JobPortal.Domain.Enums
+/// <summary>
+/// Severity of an admin-panel audit log entry, shown as a colored badge
+/// on /admin/audit (Info = green, Warning = amber, Critical = red).
+/// </summary>
+public enum AuditSeverity
 {
-    internal class AuditSeverity
-    {
-    }
+    Info = 0,
+    Warning = 1,
+    Critical = 2
 }

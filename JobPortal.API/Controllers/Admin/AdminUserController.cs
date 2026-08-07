@@ -1,4 +1,5 @@
-﻿using JobPortal.Application.DTOs.Admin.Users;
+﻿using JobPortal.API.Middleware;
+using JobPortal.Application.DTOs.Admin.Users;
 using JobPortal.Infrastructure.Extensions;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.AspNetCore.Authorization;
@@ -23,6 +24,7 @@ namespace JobPortal.API.Controllers.Admin
         // POST /api/admin/sub-admins
         // Backs the "Add Sub Admin" drawer on /admin/users.
         [HttpPost]
+        [SkipAuditLog]
         public async Task<IActionResult> CreateSubAdmin(
             [FromBody] CreateSubAdminRequestDto request)
         {
@@ -36,6 +38,64 @@ namespace JobPortal.API.Controllers.Admin
             var result = await _adminUserService.CreateSubAdminAsync(
                 request,
                 createdByAdminId,
+                ipAddress);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
+
+        #endregion
+
+        #region Edit Sub Admin
+
+        // PUT /api/admin/sub-admins/{id}
+        // Backs the "Edit Sub Admin" drawer on /admin/users.
+        [HttpPut("{id:guid}")]
+        [SkipAuditLog]
+        public async Task<IActionResult> UpdateSubAdmin(
+            Guid id,
+            [FromBody] UpdateSubAdminRequestDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var updatedByAdminId = User.GetAdminId();
+
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+            var result = await _adminUserService.UpdateSubAdminAsync(
+                id,
+                request,
+                updatedByAdminId,
+                ipAddress);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
+
+        #endregion
+
+        #region Delete Sub Admin
+
+        // DELETE /api/admin/sub-admins/{id}
+        // Backs the "Remove" action on /admin/users. Soft-deletes the
+        // sub-admin (see AdminUserService.DeleteSubAdminAsync) rather
+        // than hard-deleting the row.
+        [HttpDelete("{id:guid}")]
+        [SkipAuditLog]
+        public async Task<IActionResult> DeleteSubAdmin(Guid id)
+        {
+            var deletedByAdminId = User.GetAdminId();
+
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+            var result = await _adminUserService.DeleteSubAdminAsync(
+                id,
+                deletedByAdminId,
                 ipAddress);
 
             if (!result.Success)
