@@ -18,9 +18,17 @@ namespace JobPortal.Services.IImplement.IAdmin
         Task<AdminSupportTicketThreadResponseDto?> GetTicketThreadAsync(
             Guid ticketId);
 
+        /// <summary>
+        /// Sends an admin reply on a ticket and writes a matching
+        /// AuditLog entry (Module "Help & Support"), the same way
+        /// AdminUserService and AuthService log sub-admin actions and
+        /// logins.
+        /// </summary>
         Task<AdminAddTicketReplyResponseDto> AddReplyAsync(
             Guid ticketId,
             Guid adminId,
-            AdminAddTicketReplyRequestDto request);
+            AdminAddTicketReplyRequestDto request,
+            string ipAddress,
+            string? userAgent);
     }
 }

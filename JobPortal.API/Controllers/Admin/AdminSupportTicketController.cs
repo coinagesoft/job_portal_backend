@@ -1,4 +1,5 @@
-﻿using JobPortal.Application.DTOs.Admin.SupportTicket;
+﻿using JobPortal.API.Middleware;
+using JobPortal.Application.DTOs.Admin.SupportTicket;
 using JobPortal.Infrastructure.Extensions;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.AspNetCore.Authorization;
@@ -88,17 +89,28 @@ namespace JobPortal.API.Controllers.Admin
         /// (see SupportTicketAutoResolveService).
         /// </summary>
         // POST /api/admin/support-tickets/{ticketId}/reply
+        // [SkipAuditLog]: this writes its own richer AuditLog entry
+        // (Module "Help & Support") inside AdminSupportTicketService,
+        // the same way Create/Update/Delete Sub Admin and Login do —
+        // so the generic AuditLogMiddleware is skipped here to avoid a
+        // duplicate, plainer entry.
         [HttpPost("{ticketId:guid}/reply")]
+        [SkipAuditLog]
         public async Task<IActionResult> AddReply(
             Guid ticketId,
             [FromBody] AdminAddTicketReplyRequestDto request)
         {
             var adminId = User.GetAdminId();
 
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            var userAgent = Request.Headers.UserAgent.ToString();
+
             var result = await _supportTicketService.AddReplyAsync(
                 ticketId,
                 adminId,
-                request);
+                request,
+                ipAddress,
+                userAgent);
 
             if (!result.Success)
                 return BadRequest(result);

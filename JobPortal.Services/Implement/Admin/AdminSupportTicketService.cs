@@ -1,10 +1,12 @@
 ﻿using JobPortal.Application.DTOs.Admin.SupportTicket;
 using JobPortal.Domain.Entities;
+using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace JobPortal.Services.Implement.Admin
 {
@@ -265,70 +267,133 @@ namespace JobPortal.Services.Implement.Admin
         public async Task<AdminAddTicketReplyResponseDto> AddReplyAsync(
             Guid ticketId,
             Guid adminId,
-            AdminAddTicketReplyRequestDto request)
+            AdminAddTicketReplyRequestDto request,
+            string ipAddress,
+            string? userAgent)
         {
-            if (string.IsNullOrWhiteSpace(request.Message))
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
             {
+                if (string.IsNullOrWhiteSpace(request.Message))
+                {
+                    return ReplyFail("Message cannot be empty.");
+                }
+
+                //-------------------------------------------------------
+                // 1. Actor lookup — needed for the audit log's
+                //    PerformedByName / PerformedByRole, same as
+                //    AdminUserService.
+                //-------------------------------------------------------
+
+                var admin = await _context.AdminUsers
+                    .Include(x => x.Role)
+                    .FirstOrDefaultAsync(x => x.AdminId == adminId);
+
+                if (admin == null || !admin.IsActive)
+                    return ReplyFail("Admin account not found or inactive.");
+
+                //-------------------------------------------------------
+                // 2. Load target ticket
+                //-------------------------------------------------------
+
+                var ticket = await _context.SupportTickets
+                    .FirstOrDefaultAsync(t => t.TicketId == ticketId);
+
+                if (ticket == null)
+                    return ReplyFail("Ticket not found.");
+
+                if (ticket.Status == "Resolved")
+                {
+                    return ReplyFail(
+                        "This ticket is already resolved and no longer accepts new messages.");
+                }
+
+                //-------------------------------------------------------
+                // 3. Add the reply
+                //-------------------------------------------------------
+
+                var reply = new SupportTicketReply
+                {
+                    ReplyId = Guid.NewGuid(),
+                    TicketId = ticketId,
+                    SenderId = adminId,
+                    SenderType = ReplySenderType.Admin,
+                    Message = request.Message.Trim(),
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.SupportTicketReplies.Add(reply);
+
+                // Admin has no manual status control. The only automatic
+                // transition here is Open -> InProgress the moment support
+                // first responds — resolution stays entirely with the
+                // ticket owner (their own Resolve button) or the 48h
+                // auto-resolve job.
+                var oldStatus = ticket.Status;
+
+                if (ticket.Status == "Open")
+                    ticket.Status = "InProgress";
+
+                if (ticket.AssignedTo == null)
+                    ticket.AssignedTo = adminId;
+
+                ticket.UpdatedAt = DateTime.UtcNow;
+
+                //-------------------------------------------------------
+                // 4. Audit log — same shape as AdminUserService /
+                //    AuthService: PerformedBy*, Module, Action, target
+                //    identifiers, before/after snapshot, Description,
+                //    IpAddress, UserAgent, Severity.
+                //-------------------------------------------------------
+
+                _context.AuditLogs.Add(new AuditLog
+                {
+                    LogId = Guid.NewGuid(),
+                    PerformedByAdminId = admin.AdminId,
+                    PerformedByName = admin.FullName,
+                    PerformedByRole = admin.Role?.RoleName ?? admin.AdminType,
+                    Module = "Help & Support",
+                    Action = "Reply to Ticket",
+                    TargetEntityType = "SupportTicket",
+                    TargetEntityId = ticket.TicketId,
+                    TargetEntityName = ticket.Subject,
+                    OldValues = JsonSerializer.Serialize(new { Status = oldStatus }),
+                    NewValues = JsonSerializer.Serialize(new { ticket.Status, ticket.AssignedTo }),
+                    Description = $"Replied to support ticket '{ticket.Subject}'.",
+                    IpAddress = ipAddress,
+                    UserAgent = userAgent,
+                    Success = true,
+                    Severity = AuditSeverity.Info,
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+
                 return new AdminAddTicketReplyResponseDto
                 {
-                    Success = false,
-                    Message = "Message cannot be empty."
+                    Success = true,
+                    Message = "Reply sent successfully.",
+                    ReplyId = reply.ReplyId,
+                    CreatedAt = reply.CreatedAt
                 };
             }
-
-            var ticket = await _context.SupportTickets
-                .FirstOrDefaultAsync(t => t.TicketId == ticketId);
-
-            if (ticket == null)
+            catch (Exception)
             {
-                return new AdminAddTicketReplyResponseDto
-                {
-                    Success = false,
-                    Message = "Ticket not found."
-                };
+                await transaction.RollbackAsync();
+
+                return ReplyFail("Unable to send reply. Please try again.");
             }
+        }
 
-            if (ticket.Status == "Resolved")
-            {
-                return new AdminAddTicketReplyResponseDto
-                {
-                    Success = false,
-                    Message = "This ticket is already resolved and no longer accepts new messages."
-                };
-            }
-
-            var reply = new SupportTicketReply
-            {
-                ReplyId = Guid.NewGuid(),
-                TicketId = ticketId,
-                SenderId = adminId,
-                SenderType = ReplySenderType.Admin,
-                Message = request.Message.Trim(),
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.SupportTicketReplies.Add(reply);
-
-            // Admin has no manual status control. The only automatic
-            // transition here is Open -> InProgress the moment support
-            // first responds — resolution stays entirely with the ticket
-            // owner (their own Resolve button) or the 48h auto-resolve job.
-            if (ticket.Status == "Open")
-                ticket.Status = "InProgress";
-
-            if (ticket.AssignedTo == null)
-                ticket.AssignedTo = adminId;
-
-            ticket.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
+        private static AdminAddTicketReplyResponseDto ReplyFail(string message)
+        {
             return new AdminAddTicketReplyResponseDto
             {
-                Success = true,
-                Message = "Reply sent successfully.",
-                ReplyId = reply.ReplyId,
-                CreatedAt = reply.CreatedAt
+                Success = false,
+                Message = message
             };
         }
 
