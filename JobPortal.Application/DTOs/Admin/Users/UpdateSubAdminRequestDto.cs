@@ -23,10 +23,14 @@ namespace JobPortal.Application.DTOs.Admin.Users
         [MaxLength(100)]
         public string RoleName { get; set; } = string.Empty;
 
-        // Page/feature access keys selected on the drawer.
-        [Required(ErrorMessage = "At least one permission must be selected.")]
-        [MinLength(1, ErrorMessage = "At least one permission must be selected.")]
-        public List<string> Permissions { get; set; } = new();
+        // Sidebar tab access, one true/false toggle per tab — matches the
+        // "Sidebar Tab Access" list on the Edit Sub Admin drawer 1:1. Keys
+        // are the canonical set from
+        // JobPortal.Domain.Constants.AdminSidebarTabs, kept in sync with
+        // the frontend's TABS list in src/app/admin/users/page.js. At
+        // least one must be true (enforced in AdminUserService).
+        [Required(ErrorMessage = "Permissions are required.")]
+        public SubAdminPermissionsDto Permissions { get; set; } = new();
 
         // Maps to the "Account Status" select (Active/Suspended).
         public bool IsActive { get; set; } = true;

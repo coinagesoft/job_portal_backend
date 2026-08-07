@@ -23,6 +23,105 @@ public class AdminUserService : IAdminUserService
         _logger = logger;
     }
 
+    public async Task<SubAdminListResponseDto> GetSubAdminsAsync(
+        SubAdminListRequestDto request)
+    {
+        try
+        {
+            var page = request.Page < 1 ? 1 : request.Page;
+            var pageSize = request.PageSize is < 1 or > 100 ? 10 : request.PageSize;
+
+            var baseQuery = _context.AdminUsers
+                .AsNoTracking()
+                .Include(x => x.User)
+                .Include(x => x.Role)
+                .Where(x => x.AdminType == "SubAdmin" && !x.User.IsDeleted);
+
+            // Unfiltered counts for the stat cards — computed before the
+            // search/status filter is applied.
+            var totalSubAdmins = await baseQuery.CountAsync();
+            var activeCount = await baseQuery.CountAsync(x => x.IsActive);
+            var suspendedCount = await baseQuery.CountAsync(x => !x.IsActive);
+
+            var query = baseQuery;
+
+            if (!string.IsNullOrWhiteSpace(request.Search))
+            {
+                var search = request.Search.Trim();
+                query = query.Where(x =>
+                    EF.Functions.ILike(x.FullName, $"%{search}%") ||
+                    (x.User.Email != null && EF.Functions.ILike(x.User.Email, $"%{search}%")) ||
+                    EF.Functions.ILike(x.Role.RoleName, $"%{search}%"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.Status))
+            {
+                var wantsActive = request.Status.Trim()
+                    .Equals("Active", StringComparison.OrdinalIgnoreCase);
+                var wantsSuspended = request.Status.Trim()
+                    .Equals("Suspended", StringComparison.OrdinalIgnoreCase);
+
+                if (wantsActive)
+                    query = query.Where(x => x.IsActive);
+                else if (wantsSuspended)
+                    query = query.Where(x => !x.IsActive);
+            }
+
+            var filteredCount = await query.CountAsync();
+
+            // Materialize the page first — SafeDeserializePermissions can't
+            // be translated to SQL, so the DTO mapping has to happen in
+            // memory rather than inside the EF Core .Select().
+            var pageEntities = await query
+                .OrderByDescending(x => x.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var items = pageEntities
+                .Select(x => new SubAdminDto
+                {
+                    AdminId = x.AdminId,
+                    UserId = x.UserId,
+                    AdminIdentifier = x.AdminIdentifier,
+                    FullName = x.FullName,
+                    Email = x.User.Email ?? string.Empty,
+                    MobileNumber = x.User.MobileNumber,
+                    AdminType = x.AdminType,
+                    RoleId = x.RoleId,
+                    RoleName = x.Role.RoleName,
+                    Permissions = SubAdminPermissionsDto.FromKeyList(SafeDeserializePermissions(x.Role.Permissions)),
+                    IsActive = x.IsActive,
+                    CreatedAt = x.CreatedAt,
+                    LastLoginAt = x.User.LastLoginAt
+                })
+                .ToList();
+
+            return new SubAdminListResponseDto
+            {
+                Success = true,
+                Items = items,
+                TotalCount = filteredCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = pageSize == 0 ? 0 : (int)Math.Ceiling(filteredCount / (double)pageSize),
+                TotalSubAdmins = totalSubAdmins,
+                ActiveCount = activeCount,
+                SuspendedCount = suspendedCount
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error while listing sub-admins.");
+
+            return new SubAdminListResponseDto
+            {
+                Success = false,
+                Message = "Unable to load sub admins. Please try again."
+            };
+        }
+    }
+
     public async Task<CreateSubAdminResponseDto> CreateSubAdminAsync(
         CreateSubAdminRequestDto request,
         Guid createdByAdminId,
@@ -36,7 +135,7 @@ public class AdminUserService : IAdminUserService
             // 1. Authorization — only the top-level admin ("Admin" /
             //    "SuperAdmin" — this DB's existing seed data uses
             //    "Admin"), or a sub-admin whose role explicitly grants
-            //    "subadmin.create", may add new sub-admins.
+            //    the "users" sidebar tab, may add new sub-admins.
             //-------------------------------------------------------
 
             var creator = await _context.AdminUsers
@@ -50,8 +149,12 @@ public class AdminUserService : IAdminUserService
                 string.Equals(creator.AdminType, "SuperAdmin", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(creator.AdminType, "Admin", StringComparison.OrdinalIgnoreCase);
 
+            // "users" is the sidebar tab that shows the /admin/users page —
+            // i.e. the tab that lets a sub-admin manage other sub-admins.
+            // This replaces the old granular "subadmin.create" key now
+            // that permissions are tab-level.
             if (!creatorIsSuperAdmin &&
-                !RoleHasPermission(creator.Role?.Permissions, "subadmin.create"))
+                !RoleHasPermission(creator.Role?.Permissions, "users"))
             {
                 return Fail("You do not have permission to create sub-admins.");
             }
@@ -63,14 +166,10 @@ public class AdminUserService : IAdminUserService
             var email = request.Email.Trim().ToLower();
             var fullName = request.FullName.Trim();
             var roleNameInput = request.RoleName.Trim();
-            var permissions = (request.Permissions ?? new List<string>())
-                .Where(p => !string.IsNullOrWhiteSpace(p))
-                .Select(p => p.Trim())
-                .Distinct()
-                .ToList();
+            var permissions = request.Permissions?.ToKeyList() ?? new List<string>();
 
             if (permissions.Count == 0)
-                return Fail("At least one permission must be selected.");
+                return Fail("At least one permission must be turned on.");
 
             var mobileNumber = string.IsNullOrWhiteSpace(request.MobileNumber)
                 ? null
@@ -210,7 +309,7 @@ public class AdminUserService : IAdminUserService
                     AdminType = admin.AdminType,
                     RoleId = role.RoleId,
                     RoleName = role.RoleName,
-                    Permissions = permissions,
+                    Permissions = SubAdminPermissionsDto.FromKeyList(permissions),
                     IsActive = admin.IsActive,
                     CreatedAt = admin.CreatedAt
                 }
@@ -252,7 +351,7 @@ public class AdminUserService : IAdminUserService
                 string.Equals(updater.AdminType, "Admin", StringComparison.OrdinalIgnoreCase);
 
             if (!updaterIsSuperAdmin &&
-                !RoleHasPermission(updater.Role?.Permissions, "subadmin.edit"))
+                !RoleHasPermission(updater.Role?.Permissions, "users"))
             {
                 return UpdateFail("You do not have permission to edit sub-admins.");
             }
@@ -282,14 +381,10 @@ public class AdminUserService : IAdminUserService
             var fullName = request.FullName.Trim();
             var roleNameInput = request.RoleName.Trim();
 
-            var permissions = (request.Permissions ?? new List<string>())
-                .Where(p => !string.IsNullOrWhiteSpace(p))
-                .Select(p => p.Trim())
-                .Distinct()
-                .ToList();
+            var permissions = request.Permissions?.ToKeyList() ?? new List<string>();
 
             if (permissions.Count == 0)
-                return UpdateFail("At least one permission must be selected.");
+                return UpdateFail("At least one permission must be turned on.");
 
             var mobileNumber = string.IsNullOrWhiteSpace(request.MobileNumber)
                 ? null
@@ -409,7 +504,7 @@ public class AdminUserService : IAdminUserService
                     AdminType = target.AdminType,
                     RoleId = role.RoleId,
                     RoleName = role.RoleName,
-                    Permissions = permissions,
+                    Permissions = SubAdminPermissionsDto.FromKeyList(permissions),
                     IsActive = target.IsActive,
                     CreatedAt = target.CreatedAt
                 }
@@ -450,7 +545,7 @@ public class AdminUserService : IAdminUserService
                 string.Equals(deleter.AdminType, "Admin", StringComparison.OrdinalIgnoreCase);
 
             if (!deleterIsSuperAdmin &&
-                !RoleHasPermission(deleter.Role?.Permissions, "subadmin.delete"))
+                !RoleHasPermission(deleter.Role?.Permissions, "users"))
             {
                 return DeleteFail("You do not have permission to delete sub-admins.");
             }

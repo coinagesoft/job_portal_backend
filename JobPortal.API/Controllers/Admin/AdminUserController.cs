@@ -19,6 +19,25 @@ namespace JobPortal.API.Controllers.Admin
             _adminUserService = adminUserService;
         }
 
+        #region List Sub Admins
+
+        // GET /api/admin/sub-admins?search=&status=&page=&pageSize=
+        // Backs the toolbar, table and stat cards on /admin/users.
+        [HttpGet]
+        [SkipAuditLog]
+        public async Task<IActionResult> GetSubAdmins(
+            [FromQuery] SubAdminListRequestDto request)
+        {
+            var result = await _adminUserService.GetSubAdminsAsync(request);
+
+            if (!result.Success)
+                return BadRequest(result);
+
+            return Ok(result);
+        }
+
+        #endregion
+
         #region Add Sub Admin
 
         // POST /api/admin/sub-admins
