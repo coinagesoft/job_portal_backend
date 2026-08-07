@@ -1,5 +1,6 @@
 ﻿using FirebaseAdmin.Auth;
 using JobPortal.Application.DTOs.Admin.Auth;
+using JobPortal.Domain.Constants;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
@@ -180,7 +181,7 @@ public class AuthService : IAuthService
                 Description = "Login OTP sent to registered email.",
                 IpAddress = ipAddress,
                 Success = true,
-                Severity = AuditSeverity.Info,
+                Severity = AuditActionSeverity.Resolve("Send OTP"),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -355,7 +356,7 @@ public class AuthService : IAuthService
                 Description = "Login OTP resent to registered email.",
                 IpAddress = ipAddress,
                 Success = true,
-                Severity = AuditSeverity.Info,
+                Severity = AuditActionSeverity.Resolve("Resend OTP"),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -567,7 +568,7 @@ public class AuthService : IAuthService
                 IpAddress = ipAddress,
                 UserAgent = userAgent,
                 Success = true,
-                Severity = AuditSeverity.Info,
+                Severity = AuditActionSeverity.Resolve("Login Success"),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -773,7 +774,7 @@ public class AuthService : IAuthService
                 UserAgent = session?.UserAgent,
 
                 Success = true,
-                Severity = AuditSeverity.Info,
+                Severity = AuditActionSeverity.Resolve("Logout"),
 
                 CreatedAt = DateTime.UtcNow
             });

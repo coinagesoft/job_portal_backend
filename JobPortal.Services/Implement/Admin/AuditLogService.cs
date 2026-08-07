@@ -41,21 +41,16 @@ namespace JobPortal.Services.Implement.Admin
                     query = query.Where(x => x.CreatedAt >= start && x.CreatedAt < end);
                 }
 
-                if (!string.IsNullOrWhiteSpace(request.ActorType))
+                if (request.ActorType.HasValue)
                 {
-                    var wantsSubAdmin = request.ActorType.Trim()
-                        .Equals("Sub-Admin", StringComparison.OrdinalIgnoreCase)
-                        || request.ActorType.Trim().Equals("SubAdmin", StringComparison.OrdinalIgnoreCase);
-
-                    query = wantsSubAdmin
+                    query = request.ActorType.Value == AuditActorType.SubAdmin
                         ? query.Where(x => x.PerformedByAdmin.AdminType == "SubAdmin")
                         : query.Where(x => x.PerformedByAdmin.AdminType != "SubAdmin");
                 }
 
-                if (!string.IsNullOrWhiteSpace(request.Severity)
-                    && Enum.TryParse<AuditSeverity>(request.Severity.Trim(), true, out var severity))
+                if (request.Severity.HasValue)
                 {
-                    query = query.Where(x => x.Severity == severity);
+                    query = query.Where(x => x.Severity == request.Severity.Value);
                 }
 
                 var totalCount = await query.CountAsync();

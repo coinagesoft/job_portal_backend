@@ -1,4 +1,5 @@
 ﻿using JobPortal.Application.DTOs.Admin.SupportTicket;
+using JobPortal.Domain.Constants;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
@@ -364,7 +365,7 @@ namespace JobPortal.Services.Implement.Admin
                     IpAddress = ipAddress,
                     UserAgent = userAgent,
                     Success = true,
-                    Severity = AuditSeverity.Info,
+                    Severity = AuditActionSeverity.Resolve("Reply to Ticket"),
                     CreatedAt = DateTime.UtcNow
                 });
 
