@@ -14,6 +14,6 @@ namespace JobPortal.Services.IImplement.IAdmin
         Task<List<AdminCandidateListItemDto>> GetCandidatesAsync();
         Task<AdminCandidateDetailDto?> GetCandidateDetailAsync(Guid candidateId);
 
-        Task<bool> UpdateAccountStatusAsync(Guid candidateId, UpdateAccountStatusRequestDto request);
+        Task<bool> UpdateAccountStatusAsync(Guid candidateId, UpdateAccountStatusRequestDto request, AdminAuditContext audit);
     }
 }

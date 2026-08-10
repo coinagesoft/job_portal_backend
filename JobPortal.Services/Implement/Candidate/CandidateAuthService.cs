@@ -82,8 +82,18 @@ public class CandidateAuthService : ICandidateAuthService
                 string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
                 string.IsNullOrWhiteSpace(request.RazorpaySignature))
             {
-                return Fail(
-                    "Payment verification failed.");
+                return Fail("Payment verification failed.");
+            }
+
+            var paymentVerified = VerifyRazorpaySignature(
+                request.RazorpayOrderId,
+                request.RazorpayPaymentId,
+                request.RazorpaySignature
+            );
+
+            if (!paymentVerified)
+            {
+                return Fail("Payment verification failed.");
             }
 
             // Mobile already registered?
@@ -154,6 +164,45 @@ public class CandidateAuthService : ICandidateAuthService
             };
 
             _context.CandidateProfiles.Add(profile);
+            // --------------------------------------------------
+            // STORE CANDIDATE REGISTRATION PAYMENT
+            // --------------------------------------------------
+
+            var paymentTransaction = new PaymentTransaction
+            {
+                TransactionId = Guid.NewGuid(),
+
+                UserId = user.UserId,
+
+                CandidateId = profile.CandidateId,
+
+                TransactionType = "CandidateRegistration",
+
+                PackType = null,
+
+                CreditQuantity = null,
+
+                ValidityMonths = null,
+
+                // ₹100 = 10000 paise
+                AmountPaise = 100,
+
+                GstAmountPaise = 0,
+
+                TotalAmountPaise = 100,
+
+                PaymentMethod = "Razorpay",
+
+                RazorpayOrderId = request.RazorpayOrderId,
+
+                RazorpayPaymentId = request.RazorpayPaymentId,
+
+                PaymentStatus = "Completed",
+
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.PaymentTransactions.Add(paymentTransaction);
 
             // Consume OTP token (prevent reuse)
             verifiedOtp.VerificationToken = null;
@@ -717,6 +766,34 @@ public class CandidateAuthService : ICandidateAuthService
         }
     }
 
+    private bool VerifyRazorpaySignature(
+        string orderId,
+        string paymentId,
+        string signature)
+    {
+        try
+        {
+            var attributes = new Dictionary<string, string>
+        {
+            { "razorpay_order_id", orderId },
+            { "razorpay_payment_id", paymentId },
+            { "razorpay_signature", signature }
+        };
+
+            Utils.verifyPaymentSignature(attributes);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Razorpay signature verification failed. OrderId:{OrderId}",
+                orderId);
+
+            return false;
+        }
+    }
 
     // =====================================================
     // HELPERS

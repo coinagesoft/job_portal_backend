@@ -11,6 +11,7 @@ namespace JobPortal.Domain.Enums.RecruiterEnums
         Pending = 1,
         Approved = 2,
         Rejected = 3,
-        Expired = 4
+        Expired = 4,
+        Resubmission = 5
     }
 }

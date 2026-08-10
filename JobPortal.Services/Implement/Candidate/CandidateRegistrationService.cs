@@ -109,6 +109,39 @@ namespace JobPortal.Services.Implement.Candidate
                     UpdatedAt = DateTime.UtcNow
                 };
                 _context.CandidateProfiles.Add(profile);
+
+               
+
+                // Store the candidate's ₹100 registration payment
+                var paymentTransaction = new PaymentTransaction
+                {
+                    TransactionId = Guid.NewGuid(),
+
+                    UserId = user.UserId,
+
+                    CandidateId = profile.CandidateId,
+
+                    TransactionType = "CandidateRegistration",
+
+                    AmountPaise = 100,
+
+                    GstAmountPaise = 0,
+
+                    TotalAmountPaise = 100,
+
+                    PaymentMethod = "Razorpay",
+
+                    RazorpayOrderId = request.RazorpayOrderId,
+
+                    RazorpayPaymentId = request.RazorpayPaymentId,
+
+                    PaymentStatus = "Completed",
+
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.PaymentTransactions.Add(paymentTransaction);
+
                 await _context.SaveChangesAsync();
                 var token = _jwtService.GenerateToken(user.UserId, user.UserType.ToString(), user.MobileNumber, candidateId: profile.CandidateId);
                 _logger.LogInformation("New candidate registered via Google - UserId:{Id} IP:{IP}", user.UserId, ipAddress);
@@ -188,6 +221,40 @@ namespace JobPortal.Services.Implement.Candidate
                     UpdatedAt = DateTime.UtcNow
                 };
                 _context.CandidateProfiles.Add(profile);
+
+             
+
+                // Store the candidate's ₹100 registration payment
+                var paymentTransaction = new PaymentTransaction
+                {
+                    TransactionId = Guid.NewGuid(),
+
+                    UserId = user.UserId,
+
+                    CandidateId = profile.CandidateId,
+
+                    TransactionType = "CandidateRegistration",
+
+                    AmountPaise = 100,
+
+                    GstAmountPaise = 0,
+
+                    TotalAmountPaise = 100,
+
+                    PaymentMethod = "Razorpay",
+
+                    RazorpayOrderId = request.RazorpayOrderId,
+
+                    RazorpayPaymentId = request.RazorpayPaymentId,
+
+                    PaymentStatus = "Completed",
+
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.PaymentTransactions.Add(paymentTransaction);
+
+
                 await _context.SaveChangesAsync();
                 var token = _jwtService.GenerateToken(user.UserId, user.UserType.ToString(), user.MobileNumber, candidateId: profile.CandidateId);
                 _logger.LogInformation("New candidate registered via LinkedIn - UserId:{Id} IP:{IP}", user.UserId, ipAddress);

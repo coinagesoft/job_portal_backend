@@ -1,7 +1,9 @@
 ﻿using JobPortal.Application.DTOs;
 using JobPortal.Services.IImplement.IAdmin;
+using JobPortal.Services.Implement.Admin;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace JobPortal.API.Controllers.Admin
 {
@@ -32,19 +34,58 @@ namespace JobPortal.API.Controllers.Admin
             return Ok(detail);
         }
 
+
+
         [HttpPatch("{id:guid}/account-status")]
-        public async Task<IActionResult> UpdateAccountStatus(Guid id, [FromBody] UpdateAccountStatusRequestDto request)
+        public async Task<IActionResult> UpdateAccountStatus(
+          Guid id,
+          [FromBody] UpdateAccountStatusRequestDto request)
         {
+            var audit = new AdminAuditContext
+            {
+                AdminId = Guid.Parse(
+                    User.FindFirst(ClaimTypes.NameIdentifier)!.Value
+                ),
+                AdminName = User.FindFirst(ClaimTypes.Name)?.Value ?? "Unknown",
+                AdminRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Admin",
+                IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+                    ?? "unknown",
+                UserAgent = Request.Headers["User-Agent"].ToString()
+            };
+
             try
             {
-                var updated = await _adminCandidateService.UpdateAccountStatusAsync(id, request);
-                if (!updated) return NotFound();
-                return NoContent();
+                var updated = await _adminCandidateService
+                    .UpdateAccountStatusAsync(id, request, audit);
+
+                if (!updated)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Candidate account not found."
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Candidate account status updated successfully."
+                });
             }
             catch (ArgumentException ex)
             {
-                return BadRequest(new { message = ex.Message });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
     }
 }
+
+
+
+
+    
