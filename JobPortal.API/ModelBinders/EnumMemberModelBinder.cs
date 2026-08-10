@@ -1,5 +1,4 @@
-﻿
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.Serialization;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 namespace JobPortal.API.ModelBinders
@@ -44,6 +43,20 @@ namespace JobPortal.API.ModelBinders
 
                     return Task.CompletedTask;
                 }
+            }
+
+            // Match the underlying numeric value (e.g. "0", "1") so Swagger's
+            // generated dropdown — which posts the raw enum value, not the
+            // member name — still binds correctly. Without this, every
+            // numeric selection from Swagger UI fails model binding with a
+            // "not valid for <EnumType>" 400, even for values that are
+            // perfectly valid (e.g. ActorType=0 for Admin).
+            if (int.TryParse(value, out var numericValue) && Enum.IsDefined(enumType, numericValue))
+            {
+                bindingContext.Result = ModelBindingResult.Success(
+                    Enum.ToObject(enumType, numericValue));
+
+                return Task.CompletedTask;
             }
 
             bindingContext.ModelState.TryAddModelError(

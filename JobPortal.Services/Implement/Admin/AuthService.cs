@@ -1,5 +1,6 @@
 ﻿using FirebaseAdmin.Auth;
 using JobPortal.Application.DTOs.Admin.Auth;
+using JobPortal.Domain.Constants;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
@@ -18,7 +19,7 @@ public class AuthService : IAuthService
 {
     private readonly AppDbContext _context;
     private readonly JwtService _jwtService;
-    private readonly ILogger<AuthService> _logger;   
+    private readonly ILogger<AuthService> _logger;
     private readonly IConfiguration _configuration;
     private readonly IEmailService _emailService;
 
@@ -27,7 +28,7 @@ public class AuthService : IAuthService
         JwtService jwtService,
         ILogger<AuthService> logger,
         IConfiguration configuration,
-        IEmailService emailService)                 
+        IEmailService emailService)
     {
         _context = context;
         _jwtService = jwtService;
@@ -176,9 +177,11 @@ public class AuthService : IAuthService
                 PerformedByRole = admin.Role.RoleName,
                 Module = "Authentication",
                 Action = "Send OTP",
+                TargetEntityType = "Session",
                 Description = "Login OTP sent to registered email.",
                 IpAddress = ipAddress,
                 Success = true,
+                Severity = AuditActionSeverity.Resolve("Send OTP"),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -207,128 +210,128 @@ public class AuthService : IAuthService
     public async Task<AdminResendOtpResponseDto> ResendOtpAsync(
     AdminResendOtpRequestDto request,
     string ipAddress)
-{
-    try
     {
-        var email = request.Email.Trim().ToLower();
-
-        //-------------------------------------------------------
-        // Find User
-        //-------------------------------------------------------
-
-        var user = await _context.Users
-            .FirstOrDefaultAsync(x =>
-                x.Email == email &&
-                x.UserType == UserType.Admin);
-
-        if (user == null)
+        try
         {
-            return new AdminResendOtpResponseDto
-            {
-                Success = false,
-                Message = "Invalid email address."
-            };
-        }
+            var email = request.Email.Trim().ToLower();
 
-        //-------------------------------------------------------
-        // Find Admin
-        //-------------------------------------------------------
+            //-------------------------------------------------------
+            // Find User
+            //-------------------------------------------------------
 
-        var admin = await _context.AdminUsers
-            .Include(x => x.Role)
-            .FirstOrDefaultAsync(x => x.UserId == user.UserId);
+            var user = await _context.Users
+                .FirstOrDefaultAsync(x =>
+                    x.Email == email &&
+                    x.UserType == UserType.Admin);
 
-        if (admin == null || !admin.IsActive)
-        {
-            return new AdminResendOtpResponseDto
-            {
-                Success = false,
-                Message = "Admin account is inactive."
-            };
-        }
-
-        //-------------------------------------------------------
-        // Account Locked?
-        //-------------------------------------------------------
-
-        if (admin.LockedUntil.HasValue &&
-            admin.LockedUntil > DateTime.UtcNow)
-        {
-            var minutes = (int)Math.Ceiling(
-                (admin.LockedUntil.Value - DateTime.UtcNow).TotalMinutes);
-
-            return new AdminResendOtpResponseDto
-            {
-                Success = false,
-                Message = $"Account locked. Try again in {minutes} minute(s)."
-            };
-        }
-
-        //-------------------------------------------------------
-        // Cooldown Check
-        //-------------------------------------------------------
-
-        var latestOtp = await _context.AdminEmailOtps
-            .Where(x =>
-                x.AdminId == admin.AdminId &&
-                x.Purpose == "Login")
-            .OrderByDescending(x => x.CreatedAt)
-            .FirstOrDefaultAsync();
-
-        if (latestOtp != null)
-        {
-            var seconds =
-                (DateTime.UtcNow - latestOtp.CreatedAt).TotalSeconds;
-
-            if (seconds < 60)
+            if (user == null)
             {
                 return new AdminResendOtpResponseDto
                 {
                     Success = false,
-                    Message = $"Please wait {60 - (int)seconds} seconds before requesting another OTP.",
-                    ResendAfterSeconds = 60 - (int)seconds
+                    Message = "Invalid email address."
                 };
             }
-        }
 
-        //-------------------------------------------------------
-        // Expire Existing OTPs
-        //-------------------------------------------------------
+            //-------------------------------------------------------
+            // Find Admin
+            //-------------------------------------------------------
 
-        var activeOtps = await _context.AdminEmailOtps
-            .Where(x =>
-                x.AdminId == admin.AdminId &&
-                !x.IsVerified &&
-                x.ExpiresAt > DateTime.UtcNow)
-            .ToListAsync();
+            var admin = await _context.AdminUsers
+                .Include(x => x.Role)
+                .FirstOrDefaultAsync(x => x.UserId == user.UserId);
 
-        foreach (var item in activeOtps)
-        {
-            item.ExpiresAt = DateTime.UtcNow;
-        }
+            if (admin == null || !admin.IsActive)
+            {
+                return new AdminResendOtpResponseDto
+                {
+                    Success = false,
+                    Message = "Admin account is inactive."
+                };
+            }
 
-        //-------------------------------------------------------
-        // Generate OTP
-        //-------------------------------------------------------
+            //-------------------------------------------------------
+            // Account Locked?
+            //-------------------------------------------------------
 
-        var otpCode = GenerateOtp();
+            if (admin.LockedUntil.HasValue &&
+                admin.LockedUntil > DateTime.UtcNow)
+            {
+                var minutes = (int)Math.Ceiling(
+                    (admin.LockedUntil.Value - DateTime.UtcNow).TotalMinutes);
 
-        var otp = new AdminEmailOtp
-        {
-            OtpId = Guid.NewGuid(),
-            AdminId = admin.AdminId,
-            Email = user.Email,
-            OtpCode = otpCode,
-            Purpose = "Login",
-            Attempts = 0,
-            IsVerified = false,
-            CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(5)
-        };
+                return new AdminResendOtpResponseDto
+                {
+                    Success = false,
+                    Message = $"Account locked. Try again in {minutes} minute(s)."
+                };
+            }
 
-        _context.AdminEmailOtps.Add(otp);
+            //-------------------------------------------------------
+            // Cooldown Check
+            //-------------------------------------------------------
 
-        await _context.SaveChangesAsync();
+            var latestOtp = await _context.AdminEmailOtps
+                .Where(x =>
+                    x.AdminId == admin.AdminId &&
+                    x.Purpose == "Login")
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            if (latestOtp != null)
+            {
+                var seconds =
+                    (DateTime.UtcNow - latestOtp.CreatedAt).TotalSeconds;
+
+                if (seconds < 60)
+                {
+                    return new AdminResendOtpResponseDto
+                    {
+                        Success = false,
+                        Message = $"Please wait {60 - (int)seconds} seconds before requesting another OTP.",
+                        ResendAfterSeconds = 60 - (int)seconds
+                    };
+                }
+            }
+
+            //-------------------------------------------------------
+            // Expire Existing OTPs
+            //-------------------------------------------------------
+
+            var activeOtps = await _context.AdminEmailOtps
+                .Where(x =>
+                    x.AdminId == admin.AdminId &&
+                    !x.IsVerified &&
+                    x.ExpiresAt > DateTime.UtcNow)
+                .ToListAsync();
+
+            foreach (var item in activeOtps)
+            {
+                item.ExpiresAt = DateTime.UtcNow;
+            }
+
+            //-------------------------------------------------------
+            // Generate OTP
+            //-------------------------------------------------------
+
+            var otpCode = GenerateOtp();
+
+            var otp = new AdminEmailOtp
+            {
+                OtpId = Guid.NewGuid(),
+                AdminId = admin.AdminId,
+                Email = user.Email,
+                OtpCode = otpCode,
+                Purpose = "Login",
+                Attempts = 0,
+                IsVerified = false,
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(5)
+            };
+
+            _context.AdminEmailOtps.Add(otp);
+
+            await _context.SaveChangesAsync();
 
             //-------------------------------------------------------
             // Send Email
@@ -342,40 +345,42 @@ public class AuthService : IAuthService
             //-------------------------------------------------------
 
             _context.AuditLogs.Add(new AuditLog
-        {
-            LogId = Guid.NewGuid(),
-            PerformedByAdminId = admin.AdminId,
-            PerformedByName = admin.AdminIdentifier,
-            PerformedByRole = admin.Role.RoleName,
-            Module = "Authentication",
-            Action = "Resend OTP",
-            Description = "Login OTP resent to registered email.",
-            IpAddress = ipAddress,
-            Success = true,
-            CreatedAt = DateTime.UtcNow
-        });
+            {
+                LogId = Guid.NewGuid(),
+                PerformedByAdminId = admin.AdminId,
+                PerformedByName = admin.AdminIdentifier,
+                PerformedByRole = admin.Role.RoleName,
+                Module = "Authentication",
+                Action = "Resend OTP",
+                TargetEntityType = "Session",
+                Description = "Login OTP resent to registered email.",
+                IpAddress = ipAddress,
+                Success = true,
+                Severity = AuditActionSeverity.Resolve("Resend OTP"),
+                CreatedAt = DateTime.UtcNow
+            });
 
-        await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
 
-        return new AdminResendOtpResponseDto
+            return new AdminResendOtpResponseDto
+            {
+                Success = true,
+                Message = "OTP has been resent successfully.",
+                ExpiresAt = otp.ExpiresAt,
+                ResendAfterSeconds = 60
+            };
+        }
+        catch (Exception ex)
         {
-            Success = true,
-            Message = "OTP has been resent successfully.",
-            ExpiresAt = otp.ExpiresAt,
-            ResendAfterSeconds = 60
-        };
+            _logger.LogError(ex, "Error while resending admin OTP.");
+
+            return new AdminResendOtpResponseDto
+            {
+                Success = false,
+                Message = "Unable to resend OTP. Please try again."
+            };
+        }
     }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Error while resending admin OTP.");
-
-        return new AdminResendOtpResponseDto
-        {
-            Success = false,
-            Message = "Unable to resend OTP. Please try again."
-        };
-    }
-}
 
     public async Task<AdminVerifyOtpResponseDto> VerifyOtpAsync(
     AdminVerifyOtpRequestDto request,
@@ -556,11 +561,14 @@ public class AuthService : IAuthService
                 PerformedByName = admin.AdminIdentifier,
                 PerformedByRole = admin.Role.RoleName,
                 Module = "Authentication",
-                Action = "Login",
+                Action = "Login Success",
+                TargetEntityType = "Session",
+                TargetEntityName = "Admin Dashboard",
                 Description = "Admin logged in successfully.",
                 IpAddress = ipAddress,
                 UserAgent = userAgent,
                 Success = true,
+                Severity = AuditActionSeverity.Resolve("Login Success"),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -589,6 +597,7 @@ public class AuthService : IAuthService
                     AdminId = admin.AdminId,
                     UserId = user.UserId,
                     AdminIdentifier = admin.AdminIdentifier,
+                    FullName = admin.FullName,
                     Email = user.Email,
                     AdminType = admin.AdminType,
                     RoleId = admin.RoleId,
@@ -756,12 +765,16 @@ public class AuthService : IAuthService
                 Module = "Authentication",
                 Action = "Logout",
 
+                TargetEntityType = "Session",
+                TargetEntityName = "Admin Dashboard",
+
                 Description = "Admin logged out successfully.",
 
                 IpAddress = session?.IpAddress ?? "Unknown",
                 UserAgent = session?.UserAgent,
 
                 Success = true,
+                Severity = AuditActionSeverity.Resolve("Logout"),
 
                 CreatedAt = DateTime.UtcNow
             });
@@ -835,6 +848,7 @@ public class AuthService : IAuthService
                     AdminId = admin.AdminId,
                     UserId = admin.UserId,
                     AdminIdentifier = admin.AdminIdentifier,
+                    FullName = admin.FullName,
 
                     Email = admin.User.Email,
 

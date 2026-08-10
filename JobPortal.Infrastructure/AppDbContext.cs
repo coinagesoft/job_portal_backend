@@ -1,5 +1,6 @@
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Entities.AI;
+using JobPortal.Domain.Common;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.Common;
@@ -89,7 +90,7 @@ public class AppDbContext : DbContext
     public DbSet<CandidateLogoutSession> CandidateLogoutSessions => Set<CandidateLogoutSession>();
     public DbSet<CandidateEmbedding> CandidateEmbeddings { get; set; }
     public DbSet<CandidateDocument> CandidateDocuments => Set<CandidateDocument>();
-    
+
     public DbSet<EmployerVerificationDocument> EmployerVerificationDocuments { get; set; }
 
     public DbSet<VerificationDocumentMaster> VerificationDocumentMasters { get; set; }
@@ -255,7 +256,9 @@ public class AppDbContext : DbContext
         // ── users ──────────────────────────────────────────────
 
         var userTypeConverter =
-    new EnumToStringConverter<UserType>();
+    new ValueConverter<UserType, string>(
+        v => UserTypeConverterHelper.ToProviderString(v),
+        v => UserTypeConverterHelper.FromProviderString(v));
 
         var accountStatusConverter =
             new EnumToStringConverter<AccountStatus>();
@@ -450,6 +453,10 @@ public class AppDbContext : DbContext
 
             entity.HasIndex(x => x.AdminIdentifier)
                 .IsUnique();
+
+            entity.Property(x => x.FullName)
+                .HasMaxLength(150)
+                .IsRequired();
 
             entity.Property(x => x.AdminType)
                 .HasMaxLength(30)
@@ -1454,6 +1461,15 @@ public class AppDbContext : DbContext
 
             entity.Property(x => x.TargetEntityType)
                 .HasMaxLength(100);
+
+            entity.Property(x => x.TargetEntityName)
+                .HasMaxLength(200);
+
+            entity.Property(x => x.Severity)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(AuditSeverity.Info)
+                .IsRequired();
 
             entity.Property(x => x.Description)
                 .HasMaxLength(1000);
