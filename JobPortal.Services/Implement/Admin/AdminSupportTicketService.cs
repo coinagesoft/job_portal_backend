@@ -253,7 +253,6 @@ namespace JobPortal.Services.Implement.Admin
                 Description = ticket.Description,
                 Status = ticket.Status,
                 Priority = ticket.Priority,
-                ResolutionNote = ticket.ResolutionNote,
                 CreatedAt = ticket.CreatedAt,
                 ResolvedAt = ticket.ResolvedAt,
                 LastActivityAt = ticket.UpdatedAt ?? ticket.CreatedAt,

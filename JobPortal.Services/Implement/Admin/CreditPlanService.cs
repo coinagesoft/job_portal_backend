@@ -11,16 +11,16 @@ using System.Threading.Tasks;
 
 namespace JobPortal.Services.Implement.Admin
 {
-  
-        public class CreditPlanService : ICreditPlanService
-        {
-            private readonly AppDbContext _context;
 
-            public CreditPlanService(
-                AppDbContext context)
-            {
-                _context = context;
-            }
+    public class CreditPlanService : ICreditPlanService
+    {
+        private readonly AppDbContext _context;
+
+        public CreditPlanService(
+            AppDbContext context)
+        {
+            _context = context;
+        }
 
         public async Task<CommonResponseDto> CreatePlanAsync(
     CreateCreditPlanRequestDto request,
@@ -54,33 +54,37 @@ namespace JobPortal.Services.Implement.Admin
       UpdateCreditPlanRequestDto request,
       Guid adminId)
         {
-            var plan = new CreditPlan
-            {
-                PlanId = Guid.NewGuid(),
-                PlanName = request.PlanName,
-                Credits = request.Credits,
-                Price = request.Price,
-                ValidityMonths = request.ValidityMonths,
-                IsActive = true,
-                CreatedBy = adminId,
-                CreatedAt = DateTime.UtcNow
-            };
+            var plan = await _context.CreditPlans
+                .FirstOrDefaultAsync(x => x.PlanId == request.PlanId);
 
-            _context.CreditPlans.Add(plan);
+            if (plan == null)
+            {
+                return new CommonResponseDto
+                {
+                    Success = false,
+                    Message = "Plan not found."
+                };
+            }
+
+            plan.PlanName = request.PlanName;
+            plan.Credits = request.Credits;
+            plan.Price = request.Price;
+            plan.ValidityMonths = request.ValidityMonths;
+            plan.IsActive = request.IsActive;
 
             await _context.SaveChangesAsync();
 
             return new CommonResponseDto
             {
                 Success = true,
-                Message = "Credit plan created successfully."
+                Message = "Credit plan updated successfully."
             };
         }
 
-     
 
 
-        public async Task<List<CreditPlanResponseDto>>GetAllPlansAsync(Guid adminId)
+
+        public async Task<List<CreditPlanResponseDto>> GetAllPlansAsync(Guid adminId)
         {
             return await _context.CreditPlans
                 .OrderBy(x => x.Price)
@@ -99,7 +103,7 @@ namespace JobPortal.Services.Implement.Admin
         }
 
 
-        public async Task<CommonResponseDto> DeletePlanAsync(Guid planId,Guid adminId)
+        public async Task<CommonResponseDto> DeletePlanAsync(Guid planId, Guid adminId)
         {
             var plan =
                 await _context.CreditPlans
@@ -127,7 +131,7 @@ namespace JobPortal.Services.Implement.Admin
         }
 
 
-        public async Task<CreditPlanResponseDto?>GetPlanByIdAsync(Guid planId,Guid adminId)
+        public async Task<CreditPlanResponseDto?> GetPlanByIdAsync(Guid planId, Guid adminId)
         {
             var plan = await _context.CreditPlans
                 .AsNoTracking()
