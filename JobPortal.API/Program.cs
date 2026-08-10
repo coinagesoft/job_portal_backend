@@ -122,6 +122,8 @@ builder.Services.AddScoped<IJobMatchingService, JobMatchingService>();
 builder.Services.AddScoped<ICvGenerationService, CvGenerationService>();
 builder.Services.AddScoped<IAiJobDescriptionService, AiJobDescriptionService>();
 builder.Services.AddScoped<IRankedCandidateService, RankedCandidateService>();
+builder.Services.AddScoped<IAdminCandidateService, AdminCandidateService>();
+
 // ── Affinda AI — resume parsing ──────────────────────────────
 // Uses typed HttpClient so each instance gets its own HttpClient
 builder.Services.AddHttpClient<IAffindaService, AffindaService>();
