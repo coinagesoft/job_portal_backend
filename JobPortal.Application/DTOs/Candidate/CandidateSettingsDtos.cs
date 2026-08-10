@@ -149,7 +149,6 @@ public class CandidateTicketItemDto
     public string Description { get; set; } = string.Empty;
     public string Status { get; set; } = "Open";   // Open | InProgress | Resolved | Closed
     public string Priority { get; set; } = "Normal";
-    public string? ResolutionNote { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
 }

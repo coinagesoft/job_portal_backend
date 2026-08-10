@@ -588,7 +588,6 @@ public class CandidateSettingsService : ICandidateSettingsService
             Description = t.Description,
             Status = t.Status,
             Priority = t.Priority,
-            ResolutionNote = t.ResolutionNote,
             CreatedAt = t.CreatedAt,
             ResolvedAt = t.ResolvedAt
         };

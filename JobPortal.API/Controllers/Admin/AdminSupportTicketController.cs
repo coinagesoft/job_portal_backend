@@ -23,16 +23,14 @@ namespace JobPortal.API.Controllers.Admin
         #region List Tickets
 
         /// <summary>
-        /// List support tickets (candidates + recruiters), filterable by
-        /// raiser type, status, category and free-text search, paginated.
+        /// List support tickets (candidates + recruiters).
         /// Backs the tabs, filter bar and table on /admin/helpAndsupport.
         /// </summary>
-        // GET /api/admin/support-tickets?raisedByType=&status=&category=&search=&page=&pageSize=
+        // GET /api/admin/support-tickets
         [HttpGet]
-        public async Task<IActionResult> GetTickets(
-            [FromQuery] AdminSupportTicketListRequestDto request)
+        public async Task<IActionResult> GetTickets()
         {
-            var result = await _supportTicketService.GetTicketsAsync(request);
+            var result = await _supportTicketService.GetTicketsAsync(new AdminSupportTicketListRequestDto());
             return Ok(result);
         }
 

@@ -76,6 +76,7 @@ public class AppDbContext : DbContext
     public DbSet<SupportTicketReply> SupportTicketReplies => Set<SupportTicketReply>();
     // Section 8 — Admin Config
     public DbSet<PlatformConfig> PlatformConfigs => Set<PlatformConfig>();
+    public DbSet<LegalDocument> LegalDocuments => Set<LegalDocument>();
     public DbSet<CountryVerificationConfig> CountryVerificationConfigs => Set<CountryVerificationConfig>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ConsentLog> ConsentLogs => Set<ConsentLog>();
@@ -1428,6 +1429,42 @@ public class AppDbContext : DbContext
             e.HasOne(x => x.UpdatedByAdmin)
              .WithMany()
              .HasForeignKey(x => x.UpdatedBy);
+        });
+
+        m.Entity<LegalDocument>(e => {
+            e.ToTable("legal_documents");
+            e.HasKey(x => x.DocumentId);
+            e.HasIndex(x => x.Type).IsUnique();
+            e.Property(x => x.Type).HasMaxLength(30).IsRequired();
+            e.Property(x => x.Title).HasMaxLength(150).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            e.HasOne(x => x.UpdatedByAdmin)
+             .WithMany()
+             .HasForeignKey(x => x.UpdatedBy)
+             .OnDelete(DeleteBehavior.SetNull);
+
+            // Seed the two documents the Legal Pages admin screen edits so
+            // the API has something to serve out of the box.
+            e.HasData(
+                new
+                {
+                    DocumentId = Guid.Parse("6f2a6c2e-6a3b-4a0a-8a2e-0a6f6a2c2a01"),
+                    Type = "privacy",
+                    Title = "Privacy Policy",
+                    DraftContent = "<h2>Privacy Policy</h2><p>Write or paste your privacy policy here.</p>",
+                    Status = "Draft",
+                    UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new
+                {
+                    DocumentId = Guid.Parse("6f2a6c2e-6a3b-4a0a-8a2e-0a6f6a2c2a02"),
+                    Type = "terms",
+                    Title = "Terms & Conditions",
+                    DraftContent = "<h2>Terms &amp; Conditions</h2><p>Write or paste your terms of service here.</p>",
+                    Status = "Draft",
+                    UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                }
+            );
         });
 
         m.Entity<CountryVerificationConfig>(e => {

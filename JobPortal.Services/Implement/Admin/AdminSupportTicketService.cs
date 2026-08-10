@@ -26,9 +26,6 @@ namespace JobPortal.Services.Implement.Admin
         public async Task<AdminSupportTicketListResponseDto> GetTicketsAsync(
             AdminSupportTicketListRequestDto request)
         {
-            var page = request.Page < 1 ? 1 : request.Page;
-            var pageSize = request.PageSize < 1 ? 10 : request.PageSize;
-
             var query =
                 from t in _context.SupportTickets.AsNoTracking()
                 join u in _context.Users.AsNoTracking() on t.RaisedBy equals u.UserId
@@ -48,49 +45,13 @@ namespace JobPortal.Services.Implement.Admin
                     EmployerAvatar = ep != null ? ep.CompanyLogoUrl : null
                 };
 
-            if (!string.IsNullOrWhiteSpace(request.RaisedByType))
-            {
-                if (request.RaisedByType.Equals("Candidate", StringComparison.OrdinalIgnoreCase))
-                {
-                    query = query.Where(x => x.UserType == UserType.Candidate);
-                }
-                else if (request.RaisedByType.Equals("Recruiter", StringComparison.OrdinalIgnoreCase)
-                      || request.RaisedByType.Equals("Employer", StringComparison.OrdinalIgnoreCase))
-                {
-                    query = query.Where(x => x.UserType == UserType.Recruiter);
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.Status))
-            {
-                query = query.Where(x => x.Ticket.Status == request.Status);
-            }
-
-            if (request.Category.HasValue)
-            {
-                query = query.Where(x => x.Ticket.TicketType == request.Category.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.Search))
-            {
-                var term = $"%{request.Search.Trim()}%";
-
-                query = query.Where(x =>
-                    EF.Functions.ILike(x.Ticket.Subject, term) ||
-                    EF.Functions.ILike(x.Ticket.Description, term) ||
-                    (x.CandidateName != null && EF.Functions.ILike(x.CandidateName, term)) ||
-                    (x.EmployerName != null && EF.Functions.ILike(x.EmployerName, term)));
-            }
-
             var totalCount = await query.CountAsync();
 
-            var pageRows = await query
+            var allRows = await query
                 .OrderByDescending(x => x.Ticket.CreatedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
                 .ToListAsync();
 
-            var ticketIds = pageRows.Select(x => x.Ticket.TicketId).ToList();
+            var ticketIds = allRows.Select(x => x.Ticket.TicketId).ToList();
 
             var replyCounts = await _context.SupportTicketReplies
                 .Where(r => ticketIds.Contains(r.TicketId))
@@ -98,7 +59,7 @@ namespace JobPortal.Services.Implement.Admin
                 .Select(g => new { TicketId = g.Key, Count = g.Count() })
                 .ToDictionaryAsync(x => x.TicketId, x => x.Count);
 
-            var items = pageRows.Select(x =>
+            var items = allRows.Select(x =>
             {
                 var isCandidate = x.UserType == UserType.Candidate;
 
@@ -133,11 +94,9 @@ namespace JobPortal.Services.Implement.Admin
                 Success = true,
                 Items = items,
                 TotalCount = totalCount,
-                Page = page,
-                PageSize = pageSize,
-                TotalPages = pageSize == 0
-                    ? 0
-                    : (int)Math.Ceiling(totalCount / (double)pageSize)
+                Page = 1,
+                PageSize = totalCount,
+                TotalPages = 1
             };
         }
 
@@ -253,7 +212,6 @@ namespace JobPortal.Services.Implement.Admin
                 Description = ticket.Description,
                 Status = ticket.Status,
                 Priority = ticket.Priority,
-                ResolutionNote = ticket.ResolutionNote,
                 CreatedAt = ticket.CreatedAt,
                 ResolvedAt = ticket.ResolvedAt,
                 LastActivityAt = ticket.UpdatedAt ?? ticket.CreatedAt,

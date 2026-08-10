@@ -123,7 +123,6 @@ namespace JobPortal.Services.Implement.Recruiter
                 Description = ticket.Description,
                 Status = ticket.Status,
                 Priority = ticket.Priority,
-                ResolutionNote = ticket.ResolutionNote,
                 CreatedAt = ticket.CreatedAt,
                 ResolvedAt = ticket.ResolvedAt,
                 Replies = replies

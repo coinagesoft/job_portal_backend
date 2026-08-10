@@ -20,8 +20,6 @@ namespace JobPortal.Application.DTOs.Recruiter.SupportTicket
 
         public string Priority { get; set; } = default!;
 
-        public string? ResolutionNote { get; set; }
-
         public DateTime CreatedAt { get; set; }
 
         public DateTime? ResolvedAt { get; set; }
