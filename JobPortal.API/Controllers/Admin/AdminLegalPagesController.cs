@@ -25,6 +25,18 @@ namespace JobPortal.API.Controllers.Admin
             _legalDocumentService = legalDocumentService;
         }
 
+        /// <summary>
+        /// Reads the admin id from the "AdminId" JWT claim (same claim
+        /// AuditLogMiddleware uses). Falls back to null — rather than a fake
+        /// id — when the request isn't authenticated, since UpdatedBy is
+        /// nullable and a made-up guid would just trip the FK constraint.
+        /// </summary>
+        private Guid? GetAdminId()
+        {
+            var claim = User.FindFirst("AdminId")?.Value;
+            return Guid.TryParse(claim, out var id) ? id : (Guid?)null;
+        }
+
         /// <summary>GET api/admin/legal-pages — both documents, for the tabbed editor.</summary>
         [HttpGet]
         public async Task<IActionResult> GetAll()
@@ -52,10 +64,7 @@ namespace JobPortal.API.Controllers.Admin
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            // TODO: replace with the authenticated admin's id once [Authorize] is wired up.
-            var adminId = Guid.Parse("5c1ecae1-543d-11f1-9571-3448ed0f248a");
-
-            var result = await _legalDocumentService.SaveDraftAsync(type, request, adminId);
+            var result = await _legalDocumentService.SaveDraftAsync(type, request, GetAdminId());
 
             if (result == null)
                 return NotFound(new { success = false, message = $"Legal document '{type}' not found." });
@@ -70,9 +79,7 @@ namespace JobPortal.API.Controllers.Admin
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            var adminId = Guid.Parse("5c1ecae1-543d-11f1-9571-3448ed0f248a");
-
-            var result = await _legalDocumentService.PublishAsync(type, request, adminId);
+            var result = await _legalDocumentService.PublishAsync(type, request, GetAdminId());
 
             if (result == null)
                 return NotFound(new { success = false, message = $"Legal document '{type}' not found." });

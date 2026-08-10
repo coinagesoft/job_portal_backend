@@ -38,14 +38,32 @@ namespace JobPortal.Services.Implement.Admin
             return doc == null ? null : Map(doc);
         }
 
+        /// <summary>
+        /// Dates coming in from JSON (e.g. "2026-09-01") deserialize with
+        /// DateTime.Kind = Unspecified, but the "timestamp with time zone"
+        /// columns require Utc — Npgsql throws otherwise. Treat any
+        /// unspecified/local value as UTC rather than rejecting it.
+        /// </summary>
+        private static DateTime? EnsureUtc(DateTime? value)
+        {
+            if (value == null) return null;
+
+            return value.Value.Kind switch
+            {
+                DateTimeKind.Utc => value.Value,
+                DateTimeKind.Local => value.Value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+            };
+        }
+
         public async Task<LegalDocumentAdminDto?> SaveDraftAsync(
-            string type, SaveLegalDocumentRequestDto request, Guid adminId)
+            string type, SaveLegalDocumentRequestDto request, Guid? adminId)
         {
             var doc = await FindAsync(type, tracking: true);
             if (doc == null) return null;
 
             doc.DraftContent = request.Content;
-            doc.DraftEffectiveDate = request.EffectiveDate;
+            doc.DraftEffectiveDate = EnsureUtc(request.EffectiveDate);
             doc.Status = "Draft";
             doc.UpdatedBy = adminId;
             doc.UpdatedAt = DateTime.UtcNow;
@@ -58,12 +76,12 @@ namespace JobPortal.Services.Implement.Admin
         }
 
         public async Task<LegalDocumentAdminDto?> PublishAsync(
-            string type, SaveLegalDocumentRequestDto request, Guid adminId)
+            string type, SaveLegalDocumentRequestDto request, Guid? adminId)
         {
             var doc = await FindAsync(type, tracking: true);
             if (doc == null) return null;
 
-            var effectiveDate = request.EffectiveDate ?? DateTime.UtcNow.Date;
+            var effectiveDate = EnsureUtc(request.EffectiveDate) ?? DateTime.UtcNow.Date;
 
             // Publishing both updates the draft (so the editor reflects exactly
             // what went live) and promotes it to the published copy candidates see.
