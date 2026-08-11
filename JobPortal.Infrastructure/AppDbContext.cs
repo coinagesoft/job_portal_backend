@@ -23,6 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<OtpVerification> OtpVerifications => Set<OtpVerification>();
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
     public DbSet<CreditPlan> CreditPlans { get; set; }
+    public DbSet<MembershipPlan> MembershipPlans { get; set; }
 
     public DbSet<CreditUsageTransaction> CreditUsageTransactions { get; set; }
 
@@ -1022,6 +1023,18 @@ public class AppDbContext : DbContext
         ? new List<string>()
         : JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null)
 );
+
+        m.Entity<MembershipPlan>(e =>
+        {
+            e.ToTable("MembershipPlans");
+            e.HasKey(x => x.PlanId);
+
+            e.Property(x => x.PlanType)
+                .HasConversion<string>();
+
+            e.Property(x => x.Features)
+                .HasConversion(stringListConverter);
+        });
 
         m.Entity<JobPosting>(e =>
         {
