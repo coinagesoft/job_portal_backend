@@ -2,8 +2,10 @@
 using JobPortal.API.Middleware;
 using JobPortal.Application.DTOs.Admin.CreditWallet;
 using JobPortal.Domain.Enums;
+using JobPortal.Infrastructure.Extensions;
 using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.Implement.Admin;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Admin
@@ -12,6 +14,7 @@ namespace JobPortal.API.Controllers.Admin
 
     [ApiController]
     [Route("api/admin/credit-plans")]
+    [Authorize(Roles = "Admin")]
     public class AdminCreditPlanController : ControllerBase
     {
         private readonly ICreditPlanService _service;
@@ -27,13 +30,12 @@ namespace JobPortal.API.Controllers.Admin
         [HttpPost]
         [AuditLog("Create Credit Plan", "Credit Plans", AuditSeverity.Info)]
         public async Task<IActionResult> CreatePlan(
-            [FromBody] CreateCreditPlanRequestDto request,
-            [FromHeader(Name = "AdminId")] Guid adminId)
+            [FromBody] CreateCreditPlanRequestDto request)
         {
             var result =
                 await _service.CreatePlanAsync(
                     request,
-                    adminId);
+                    User.GetAdminId());
 
             return result.Success
                 ? Ok(result)
@@ -43,13 +45,12 @@ namespace JobPortal.API.Controllers.Admin
         [HttpPut]
         [AuditLog("Update Credit Plan", "Credit Plans", AuditSeverity.Warning)]
         public async Task<IActionResult> UpdatePlan(
-            [FromBody] UpdateCreditPlanRequestDto request,
-            [FromHeader(Name = "AdminId")] Guid adminId)
+            [FromBody] UpdateCreditPlanRequestDto request)
         {
             var result =
                 await _service.UpdatePlanAsync(
                     request,
-                    adminId);
+                    User.GetAdminId());
 
             return result.Success
                 ? Ok(result)
@@ -61,13 +62,12 @@ namespace JobPortal.API.Controllers.Admin
         [HttpDelete("{planId}")]
         [AuditLog("Delete Credit Plan", "Credit Plans", AuditSeverity.Critical)]
         public async Task<IActionResult> DeletePlan(
-            Guid planId,
-            [FromHeader(Name = "AdminId")] Guid adminId)
+            Guid planId)
         {
             var result =
                 await _service.DeletePlanAsync(
                     planId,
-                    adminId);
+                    User.GetAdminId());
 
             return result.Success
                 ? Ok(result)
@@ -76,23 +76,22 @@ namespace JobPortal.API.Controllers.Admin
 
         [HttpGet]
         public async Task<IActionResult> GetAllPlans(
-            [FromHeader(Name = "AdminId")] Guid adminId)
+            [FromQuery] string? region = null)
         {
             var result =
-                await _service.GetAllPlansAsync(adminId);
+                await _service.GetAllPlansAsync(User.GetAdminId(), region);
 
             return Ok(result);
         }
 
         [HttpGet("{planId}")]
         public async Task<IActionResult> GetPlanById(
-            Guid planId,
-            [FromHeader(Name = "AdminId")] Guid adminId)
+            Guid planId)
         {
             var result =
                 await _service.GetPlanByIdAsync(
                     planId,
-                    adminId);
+                    User.GetAdminId());
 
             if (result == null)
             {

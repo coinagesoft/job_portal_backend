@@ -11,5 +11,10 @@ namespace JobPortal.Application.DTOs.Admin.CreditWallet
         public bool Success { get; set; }
 
         public string Message { get; set; } = default!;
+
+        // Populated by Create endpoints so callers (e.g. the admin
+        // Plans page) can immediately reference the new record
+        // without a follow-up lookup.
+        public Guid? PlanId { get; set; }
     }
 }

@@ -47,10 +47,17 @@ namespace JobPortal.Services.Implement.Recruiter
         // ─────────────────────────────────────────────────────────────
         // 1. List active plans
         // ─────────────────────────────────────────────────────────────
-        public async Task<List<CreditPlanResponseDto>> GetActivePlansAsync()
+        public async Task<List<CreditPlanResponseDto>> GetActivePlansAsync(string? region = null)
         {
-            return await _context.CreditPlans
-                .Where(p => p.IsActive && p.Price > 0)
+            var query = _context.CreditPlans
+                .Where(p => p.IsActive && p.Price > 0);
+
+            if (!string.IsNullOrWhiteSpace(region))
+            {
+                query = query.Where(p => p.Region == region);
+            }
+
+            return await query
                 .OrderBy(p => p.Price)
                 .Select(p => new CreditPlanResponseDto
                 {
@@ -59,6 +66,8 @@ namespace JobPortal.Services.Implement.Recruiter
                     Credits = p.Credits,
                     Price = p.Price,
                     ValidityMonths = p.ValidityMonths,
+                    Region = p.Region,
+                    Bonus = p.Bonus,
                     IsActive = p.IsActive
                 })
                 .ToListAsync();

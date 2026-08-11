@@ -63,6 +63,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 // ── SERVICES ─────────────────────────────────────────────────
 
 builder.Services.AddScoped<ICreditPlanService, CreditPlanService>();
+builder.Services.AddScoped<IMembershipPlanService, MembershipPlanService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IRecruiterAuthService, RecruiterAuthService>();
 builder.Services.AddScoped<IRecruiterRegistrationService, RecruiterRegistrationService>();

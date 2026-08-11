@@ -15,5 +15,10 @@ namespace JobPortal.Application.DTOs.Admin.CreditWallet
         public decimal Price { get; set; }
 
         public int ValidityMonths { get; set; }
+
+        // Pricing-region code, e.g. "us", "in", "ae". Defaults to "us".
+        public string Region { get; set; } = "us";
+
+        public string? Bonus { get; set; }
     }
 }
