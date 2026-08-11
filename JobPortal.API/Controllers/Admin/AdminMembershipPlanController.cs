@@ -14,7 +14,7 @@ namespace JobPortal.API.Controllers.Admin
     // "Candidate membership" tabs on the admin Plans page.
     [ApiController]
     [Route("api/admin/membership-plans")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     public class AdminMembershipPlanController : ControllerBase
     {
         private readonly IMembershipPlanService _service;

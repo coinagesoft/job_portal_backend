@@ -14,7 +14,7 @@ namespace JobPortal.API.Controllers.Admin
 
     [ApiController]
     [Route("api/admin/credit-plans")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     public class AdminCreditPlanController : ControllerBase
     {
         private readonly ICreditPlanService _service;
