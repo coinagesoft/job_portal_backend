@@ -263,6 +263,7 @@ namespace JobPortal.Services.Implement.Admin
             };
         }
 
+
         public async Task<bool> UpdateAccountStatusAsync(Guid candidateId, UpdateAccountStatusRequestDto request, AdminAuditContext audit)
         {
             var candidate = await _db.CandidateProfiles
@@ -307,5 +308,7 @@ namespace JobPortal.Services.Implement.Admin
             await _db.SaveChangesAsync();
             return true;
         }
+    
+    
     }
 }

@@ -38,25 +38,44 @@ namespace JobPortal.API.Controllers.Admin
 
         [HttpPatch("{id:guid}/account-status")]
         public async Task<IActionResult> UpdateAccountStatus(
-          Guid id,
-          [FromBody] UpdateAccountStatusRequestDto request)
+        Guid id,
+        [FromBody] UpdateAccountStatusRequestDto request)
         {
+            var adminIdClaim = User.FindFirst("AdminId")?.Value;
+
+            if (!Guid.TryParse(adminIdClaim, out var adminId))
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "Admin identity could not be determined."
+                });
+            }
+
             var audit = new AdminAuditContext
             {
-                AdminId = Guid.Parse(
-                    User.FindFirst(ClaimTypes.NameIdentifier)!.Value
-                ),
-                AdminName = User.FindFirst(ClaimTypes.Name)?.Value ?? "Unknown",
-                AdminRole = User.FindFirst(ClaimTypes.Role)?.Value ?? "Admin",
-                IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString()
+                AdminId = adminId,
+
+                AdminName = User.FindFirst(ClaimTypes.Name)?.Value
+                            ?? "Unknown",
+
+                AdminRole = User.FindFirst(ClaimTypes.Role)?.Value
+                            ?? "Admin",
+
+                IpAddress =
+                    HttpContext.Connection.RemoteIpAddress?.ToString()
                     ?? "unknown",
+
                 UserAgent = Request.Headers["User-Agent"].ToString()
             };
 
             try
             {
-                var updated = await _adminCandidateService
-                    .UpdateAccountStatusAsync(id, request, audit);
+                var updated =
+                    await _adminCandidateService.UpdateAccountStatusAsync(
+                        id,
+                        request,
+                        audit);
 
                 if (!updated)
                 {
@@ -70,7 +89,11 @@ namespace JobPortal.API.Controllers.Admin
                 return Ok(new
                 {
                     success = true,
-                    message = "Candidate account status updated successfully."
+                    message = request.AccountStatus.Equals(
+                        "Suspended",
+                        StringComparison.OrdinalIgnoreCase)
+                            ? "Candidate account suspended successfully."
+                            : "Candidate account activated successfully."
                 });
             }
             catch (ArgumentException ex)
