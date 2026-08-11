@@ -33,6 +33,8 @@ namespace JobPortal.Services.Implement.Admin
                 Credits = request.Credits,
                 Price = request.Price,
                 ValidityMonths = request.ValidityMonths,
+                Region = string.IsNullOrWhiteSpace(request.Region) ? "us" : request.Region,
+                Bonus = request.Bonus,
                 IsActive = true,
                 CreatedBy = adminId,
                 CreatedAt = DateTime.UtcNow
@@ -45,7 +47,8 @@ namespace JobPortal.Services.Implement.Admin
             return new CommonResponseDto
             {
                 Success = true,
-                Message = "Credit plan created successfully."
+                Message = "Credit plan created successfully.",
+                PlanId = plan.PlanId
             };
         }
 
@@ -70,7 +73,10 @@ namespace JobPortal.Services.Implement.Admin
             plan.Credits = request.Credits;
             plan.Price = request.Price;
             plan.ValidityMonths = request.ValidityMonths;
+            plan.Region = string.IsNullOrWhiteSpace(request.Region) ? plan.Region : request.Region;
+            plan.Bonus = request.Bonus;
             plan.IsActive = request.IsActive;
+            plan.UpdatedBy = adminId;
 
             await _context.SaveChangesAsync();
 
@@ -84,9 +90,16 @@ namespace JobPortal.Services.Implement.Admin
 
 
 
-        public async Task<List<CreditPlanResponseDto>> GetAllPlansAsync(Guid adminId)
+        public async Task<List<CreditPlanResponseDto>> GetAllPlansAsync(Guid adminId, string? region = null)
         {
-            return await _context.CreditPlans
+            var query = _context.CreditPlans.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(region))
+            {
+                query = query.Where(x => x.Region == region);
+            }
+
+            return await query
                 .OrderBy(x => x.Price)
                 .Select(x =>
                     new CreditPlanResponseDto
@@ -97,6 +110,8 @@ namespace JobPortal.Services.Implement.Admin
                         Price = x.Price,
                         ValidityMonths =
                             x.ValidityMonths,
+                        Region = x.Region,
+                        Bonus = x.Bonus,
                         IsActive = x.IsActive
                     })
                 .ToListAsync();
@@ -148,6 +163,8 @@ namespace JobPortal.Services.Implement.Admin
                 Credits = plan.Credits,
                 Price = plan.Price,
                 ValidityMonths = plan.ValidityMonths,
+                Region = plan.Region,
+                Bonus = plan.Bonus,
                 IsActive = plan.IsActive
             };
         }

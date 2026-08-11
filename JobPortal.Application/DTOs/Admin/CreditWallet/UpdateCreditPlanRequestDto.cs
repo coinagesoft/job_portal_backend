@@ -18,6 +18,10 @@ namespace JobPortal.Application.DTOs.Admin.CreditWallet
 
         public int ValidityMonths { get; set; }
 
+        public string Region { get; set; } = "us";
+
+        public string? Bonus { get; set; }
+
         public bool IsActive { get; set; }
     }
 }

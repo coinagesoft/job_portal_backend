@@ -10,7 +10,7 @@ namespace JobPortal.Services.IImplement.IRecruiter
         /// <summary>
         /// Returns all active plans a recruiter can purchase.
         /// </summary>
-        Task<List<CreditPlanResponseDto>> GetActivePlansAsync();
+        Task<List<CreditPlanResponseDto>> GetActivePlansAsync(string? region = null);
 
         /// <summary>
         /// Creates a Razorpay order for the selected plan.
