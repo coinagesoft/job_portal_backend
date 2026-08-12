@@ -76,3 +76,24 @@ public class HomepageRequestDto
     public string DefaultCountry { get; set; } = "India";
     public string? DefaultCategory { get; set; }
 }
+
+// ── "Suggest a category/location/role we're missing" ──────────────
+// Lets a candidate/recruiter suggest a value that isn't in one of the
+// admin-managed homepage lists. Feeds the admin Suggestions tab.
+
+public class SubmitSuggestionRequestDto
+{
+    /// <summary>Industry | Location | Role | RegistrationIndustry | Department | TradeCategory</summary>
+    public string Type { get; set; } = default!;
+    public string SuggestedName { get; set; } = default!;
+    public string? Note { get; set; }
+    public string? SubmittedByName { get; set; }
+    public string? SubmittedByEmail { get; set; }
+}
+
+public class SubmitSuggestionResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = default!;
+    public Guid? SuggestionId { get; set; }
+}

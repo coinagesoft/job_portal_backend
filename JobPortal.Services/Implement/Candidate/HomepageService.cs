@@ -3,6 +3,7 @@
 // ============================================================
 
 using JobPortal.Application.DTOs.Public;
+using JobPortal.Domain.Entities.Homepage;
 using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IPublic;
@@ -319,6 +320,53 @@ public class HomepageService : IHomepageService
             };
         }
     }
+    public async Task<SubmitSuggestionResponseDto> SubmitSuggestionAsync(
+        SubmitSuggestionRequestDto request, Guid? submittedByUserId)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.SuggestedName))
+                return new SubmitSuggestionResponseDto { Success = false, Message = "SuggestedName is required." };
+
+            if (!Enum.TryParse<HomepageSuggestionType>(request.Type, true, out var type))
+            {
+                return new SubmitSuggestionResponseDto
+                {
+                    Success = false,
+                    Message = "Type must be one of: Industry, Location, Role, RegistrationIndustry, Department, TradeCategory."
+                };
+            }
+
+            var entity = new HomepageSuggestion
+            {
+                SuggestionId = Guid.NewGuid(),
+                Type = type,
+                SuggestedName = request.SuggestedName.Trim(),
+                Note = request.Note,
+                SubmittedByUserId = submittedByUserId,
+                SubmittedByName = request.SubmittedByName,
+                SubmittedByEmail = request.SubmittedByEmail,
+                Status = HomepageSuggestionStatus.Pending,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.HomepageSuggestions.Add(entity);
+            await _context.SaveChangesAsync();
+
+            return new SubmitSuggestionResponseDto
+            {
+                Success = true,
+                Message = "Thanks! Your suggestion has been submitted for review.",
+                SuggestionId = entity.SuggestionId
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "HomepageService.SubmitSuggestionAsync failed.");
+            return new SubmitSuggestionResponseDto { Success = false, Message = "An error occurred while submitting your suggestion." };
+        }
+    }
+
     private static HomepageJobCardDto MapToCard(
         Guid jobId, string jobTitle, string? tradeCategory,
         string? publishingTagsJson, string? keySkillsJson,
@@ -383,41 +431,41 @@ public class HomepageService : IHomepageService
         try { return JsonSerializer.Deserialize<List<string>>(json) ?? new(); }
         catch { return new(); }
     }
-private static string BuildSalaryDisplay(
-    int min,
-    int max,
-    string? currency,
-    string? displayOption)
-{
-    if (string.Equals(displayOption, "Confidential", StringComparison.OrdinalIgnoreCase))
-        return "Confidential";
-
-    var symbol = (currency ?? "INR").ToUpperInvariant() switch
+    private static string BuildSalaryDisplay(
+        int min,
+        int max,
+        string? currency,
+        string? displayOption)
     {
-        "USD" => "$",
-        "AED" => "AED ",
-        "SAR" => "SAR ",
-        "EUR" => "€",
-        "GBP" => "£",
-        "INR" => "₹",
-        _ => "₹"
-    };
+        if (string.Equals(displayOption, "Confidential", StringComparison.OrdinalIgnoreCase))
+            return "Confidential";
 
-    return (displayOption ?? "Show Range") switch
-    {
-        "Show Min Only"
-            => $"{symbol}{min:N0}+",
+        var symbol = (currency ?? "INR").ToUpperInvariant() switch
+        {
+            "USD" => "$",
+            "AED" => "AED ",
+            "SAR" => "SAR ",
+            "EUR" => "€",
+            "GBP" => "£",
+            "INR" => "₹",
+            _ => "₹"
+        };
 
-        "Show Max Only"
-            => $"{symbol}{max:N0}",
+        return (displayOption ?? "Show Range") switch
+        {
+            "Show Min Only"
+                => $"{symbol}{min:N0}+",
 
-        "Show Range"
-            => $"{symbol}{min:N0} - {symbol}{max:N0}",
+            "Show Max Only"
+                => $"{symbol}{max:N0}",
 
-        _
-            => $"{symbol}{min:N0} - {symbol}{max:N0}"
-    };
-}
+            "Show Range"
+                => $"{symbol}{min:N0} - {symbol}{max:N0}",
+
+            _
+                => $"{symbol}{min:N0} - {symbol}{max:N0}"
+        };
+    }
 
     private static string GetTimeAgo(DateTime? dateTime)
     {

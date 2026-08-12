@@ -1,5 +1,6 @@
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Entities.AI;
+using JobPortal.Domain.Entities.Homepage;
 using JobPortal.Domain.Common;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
@@ -83,6 +84,17 @@ public class AppDbContext : DbContext
     public DbSet<ConsentLog> ConsentLogs => Set<ConsentLog>();
     public DbSet<Dispute> Disputes => Set<Dispute>();
     public DbSet<RegistrationSession> RegistrationSessions => Set<RegistrationSession>();
+
+    // Section — Homepage Management (admin CMS for the candidate homepage)
+    public DbSet<HomepageHero> HomepageHeroes => Set<HomepageHero>();
+    public DbSet<HomepageIndustry> HomepageIndustries => Set<HomepageIndustry>();
+    public DbSet<HomepageStatistics> HomepageStatistics => Set<HomepageStatistics>();
+    public DbSet<HomepageLocation> HomepageLocations => Set<HomepageLocation>();
+    public DbSet<HomepageRole> HomepageRoles => Set<HomepageRole>();
+    public DbSet<HomepageRegistrationIndustry> HomepageRegistrationIndustries => Set<HomepageRegistrationIndustry>();
+    public DbSet<HomepageDepartment> HomepageDepartments => Set<HomepageDepartment>();
+    public DbSet<HomepageTradeCategory> HomepageTradeCategories => Set<HomepageTradeCategory>();
+    public DbSet<HomepageSuggestion> HomepageSuggestions => Set<HomepageSuggestion>();
 
     public DbSet<RecruiterNote> RecruiterNotes { get; set; }
     public DbSet<CandidateNotificationSetting> CandidateNotificationSettings => Set<CandidateNotificationSetting>();
@@ -1622,6 +1634,108 @@ public class AppDbContext : DbContext
             e.Property(x => x.CreatedAt).IsRequired();
             e.Property(x => x.UpdatedAt).IsRequired();
             e.Property(x => x.ExpiresAt).IsRequired();
+        });
+
+        // ============================================================
+        // Homepage Management (admin CMS for the candidate homepage)
+        // ============================================================
+
+        var statItemsConverter = new ValueConverter<List<HomepageStatItem>, string>(
+            v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+            v => string.IsNullOrEmpty(v)
+                ? new List<HomepageStatItem>()
+                : JsonSerializer.Deserialize<List<HomepageStatItem>>(v, (JsonSerializerOptions?)null) ?? new List<HomepageStatItem>());
+
+        m.Entity<HomepageHero>(e =>
+        {
+            e.ToTable("homepage_hero");
+            e.HasKey(x => x.HeroId);
+            e.Property(x => x.Headline).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Subheadline).HasMaxLength(400);
+            e.Property(x => x.SearchPlaceholder).HasMaxLength(150);
+            e.Property(x => x.CtaText).HasMaxLength(100);
+            e.Property(x => x.CtaLink).HasMaxLength(300);
+            e.HasOne(x => x.UpdatedByAdmin)
+             .WithMany()
+             .HasForeignKey(x => x.UpdatedBy)
+             .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        m.Entity<HomepageIndustry>(e =>
+        {
+            e.ToTable("homepage_industries");
+            e.HasKey(x => x.IndustryId);
+            e.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            e.HasIndex(x => x.DisplayOrder);
+        });
+
+        m.Entity<HomepageStatistics>(e =>
+        {
+            e.ToTable("homepage_statistics");
+            e.HasKey(x => x.StatisticsId);
+            e.Property(x => x.Items)
+             .HasConversion(statItemsConverter)
+             .HasColumnType("jsonb");
+        });
+
+        m.Entity<HomepageLocation>(e =>
+        {
+            e.ToTable("homepage_locations");
+            e.HasKey(x => x.LocationId);
+            e.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            e.HasIndex(x => x.DisplayOrder);
+        });
+
+        m.Entity<HomepageRole>(e =>
+        {
+            e.ToTable("homepage_roles");
+            e.HasKey(x => x.RoleId);
+            e.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            e.HasIndex(x => x.DisplayOrder);
+        });
+
+        m.Entity<HomepageRegistrationIndustry>(e =>
+        {
+            e.ToTable("homepage_registration_industries");
+            e.HasKey(x => x.RegistrationIndustryId);
+            e.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            e.HasIndex(x => x.DisplayOrder);
+        });
+
+        m.Entity<HomepageDepartment>(e =>
+        {
+            e.ToTable("homepage_departments");
+            e.HasKey(x => x.DepartmentId);
+            e.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            e.HasIndex(x => x.DisplayOrder);
+        });
+
+        m.Entity<HomepageTradeCategory>(e =>
+        {
+            e.ToTable("homepage_trade_categories");
+            e.HasKey(x => x.TradeCategoryId);
+            e.Property(x => x.Name).HasMaxLength(150).IsRequired();
+            e.HasIndex(x => x.DisplayOrder);
+        });
+
+        m.Entity<HomepageSuggestion>(e =>
+        {
+            e.ToTable("homepage_suggestions");
+            e.HasKey(x => x.SuggestionId);
+            e.Property(x => x.Type).HasConversion<string>().HasMaxLength(30).IsRequired();
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+            e.Property(x => x.SuggestedName).HasMaxLength(150).IsRequired();
+            e.HasIndex(x => x.Status);
+
+            e.HasOne(x => x.SubmittedByUser)
+             .WithMany()
+             .HasForeignKey(x => x.SubmittedByUserId)
+             .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(x => x.ReviewedByAdmin)
+             .WithMany()
+             .HasForeignKey(x => x.ReviewedBy)
+             .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }
