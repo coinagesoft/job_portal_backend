@@ -1,5 +1,6 @@
 ﻿using JobPortal.Application.DTOs;
 using JobPortal.Application.DTOs.Admin;
+using JobPortal.Application.DTOs.Admin.CompanyDocuments;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
@@ -120,11 +121,11 @@ namespace JobPortal.Services.Implement.Admin
                             ? e.User.Email
                             : e.ContactEmailPublic,
 
-                    Plan = "",
+                
 
                     // KEEP "Gst" because frontend already expects "gst".
                     // This now represents overall common-document verification.
-                    Gst = overallVerificationStatus,
+                    verificationStatus = overallVerificationStatus,
 
                     // Only Admin-created/common documents
                     DocsVerified = docsVerified,
@@ -610,8 +611,7 @@ namespace JobPortal.Services.Implement.Admin
             };
         }
 
-        public async Task<AdminRecruiterDocumentsResponseDto?>
-    GetRecruiterDocumentsAsync(Guid employerId)
+        public async Task<AdminRecruiterDocumentsResponseDto?>GetRecruiterDocumentsAsync(Guid employerId)
         {
             // --------------------------------------------------
             // EMPLOYER
@@ -670,16 +670,17 @@ namespace JobPortal.Services.Implement.Admin
             //
 
             var documents = await _db.EmployerVerificationDocuments
-                .AsNoTracking()
-                .Where(d =>
-                    d.EmployerId == employerId &&
-                    !d.IsDeleted)
-                .Include(d => d.DocumentType)
-                .OrderBy(d => d.DocumentType != null
-                    ? d.DocumentType.DisplayOrder
-                    : int.MaxValue)
-                .ThenBy(d => d.UploadedAt)
-                .ToListAsync();
+      .AsNoTracking()
+      .Where(d =>
+          d.EmployerId == employerId &&
+          !d.IsDeleted)
+      .Include(d => d.DocumentType)
+      .OrderBy(d =>
+          d.DocumentType != null
+              ? d.DocumentType.DisplayOrder
+              : int.MaxValue)
+      .ThenBy(d => d.UploadedAt)
+      .ToListAsync();
 
             // --------------------------------------------------
             // VERIFICATION CALCULATION
@@ -781,7 +782,6 @@ namespace JobPortal.Services.Implement.Admin
 
                         DocumentTypeId = d.DocumentTypeId,
 
-                        IsCommonDocument = isCommonDocument,
 
                         DocumentName = documentName,
 
@@ -821,11 +821,8 @@ namespace JobPortal.Services.Implement.Admin
                         AiConfidenceScore =
                             d.AiConfidenceScore,
 
-                        MasterDescription =
-                            d.DocumentType?.Description,
 
-                        RequiresVerification =
-                            d.DocumentType?.RequiresVerification ?? false,
+                     
 
                         IsMandatory =
                             d.DocumentType?.IsMandatory ?? false
@@ -860,7 +857,7 @@ namespace JobPortal.Services.Implement.Admin
 
                         Verified = verificationVerified,
 
-                        Pending = verificationPending,
+                        NotUploaded = verificationPending,
 
                         Rejected = verificationRejected,
 
@@ -892,19 +889,18 @@ namespace JobPortal.Services.Implement.Admin
         }
 
         public async Task<bool> UpdateRecruiterDocumentStatusAsync(
-    Guid documentId,
-    UpdateRecruiterDocumentStatusRequestDto request,
-    AdminAuditContext audit)
+     Guid documentId,
+     UpdateRecruiterDocumentStatusRequestDto request,
+     AdminAuditContext audit)
         {
-            var document = await _db.EmployerVerificationDocuments
-                .Include(d => d.Employer)
-                .FirstOrDefaultAsync(d =>
-                    d.DocumentId == documentId &&
-                    !d.IsDeleted);
+            // --------------------------------------------------
+            // VALIDATE REQUEST
+            // --------------------------------------------------
 
-            if (document == null)
+            if (request == null)
             {
-                return false;
+                throw new ArgumentException(
+                    "Document status request is required.");
             }
 
             if (string.IsNullOrWhiteSpace(request.Status))
@@ -922,7 +918,7 @@ namespace JobPortal.Services.Implement.Admin
                     $"Invalid document status: {request.Status}");
             }
 
-            // Rejection and resubmission require remarks
+            // Rejected and Resubmission require remarks
             if ((newStatus == VerificationDocumentStatus.Rejected ||
                  newStatus == VerificationDocumentStatus.Resubmission) &&
                 string.IsNullOrWhiteSpace(request.Remarks))
@@ -931,46 +927,277 @@ namespace JobPortal.Services.Implement.Admin
                     "Remarks are required when rejecting or requesting resubmission.");
             }
 
+            // --------------------------------------------------
+            // GET DOCUMENT
+            // --------------------------------------------------
+
+            var document = await _db.EmployerVerificationDocuments
+                .Include(d => d.Employer)
+                .Include(d => d.DocumentType)
+                .FirstOrDefaultAsync(d =>
+                    d.DocumentId == documentId &&
+                    !d.IsDeleted);
+
+            if (document == null)
+            {
+                return false;
+            }
+
+            // --------------------------------------------------
+            // GET ADMIN
+            // --------------------------------------------------
+            //
+            // IMPORTANT:
+            // audit.AdminId MUST be AdminUser.AdminId
+            // because AuditLogs.PerformedByAdminId has FK
+            // to AdminUsers.AdminId.
+            //
+
+            var admin = await _db.AdminUsers
+                .Include(a => a.Role)
+                .FirstOrDefaultAsync(a =>
+                    a.AdminId == audit.AdminId);
+
+            if (admin == null)
+            {
+                throw new ArgumentException(
+                    "Admin user not found.");
+            }
+
+            // --------------------------------------------------
+            // OLD VALUES
+            // --------------------------------------------------
+
             var oldStatus = document.Status.ToString();
             var oldRemarks = document.Remarks;
+
+            var newRemarks =
+                string.IsNullOrWhiteSpace(request.Remarks)
+                    ? null
+                    : request.Remarks.Trim();
+
+            // --------------------------------------------------
+            // DOCUMENT NAME
+            // --------------------------------------------------
+
+            var documentName =
+                document.DocumentType?.DocumentName
+                ?? document.CustomDocumentName
+                ?? document.DetectedDocumentType
+                ?? document.FileName;
+
+            // --------------------------------------------------
+            // TRANSACTION
+            // --------------------------------------------------
 
             await using var transaction =
                 await _db.Database.BeginTransactionAsync();
 
             try
             {
+                // --------------------------------------------------
+                // UPDATE DOCUMENT STATUS
+                // --------------------------------------------------
+
                 document.Status = newStatus;
 
-                document.Remarks =
-                    string.IsNullOrWhiteSpace(request.Remarks)
-                        ? null
-                        : request.Remarks.Trim();
+                document.Remarks = newRemarks;
 
-                // -----------------------------------------
-                // APPROVED
-                // -----------------------------------------
-
-                if (newStatus == VerificationDocumentStatus.Approved)
-                {
-                    document.VerifiedBy = audit.AdminId;
-                    document.VerifiedAt = DateTime.UtcNow;
-                }
-
-                // -----------------------------------------
-                // REJECTED / RESUBMISSION
-                // -----------------------------------------
-
-                else if (
+                // Approved / Rejected / Resubmission
+                // are all admin-reviewed states.
+                if (newStatus == VerificationDocumentStatus.Approved ||
                     newStatus == VerificationDocumentStatus.Rejected ||
                     newStatus == VerificationDocumentStatus.Resubmission)
                 {
-                    document.VerifiedBy = audit.AdminId;
+                    document.VerifiedBy = admin.AdminId;
                     document.VerifiedAt = DateTime.UtcNow;
                 }
 
-                // -----------------------------------------
-                // AUDIT LOG
-                // -----------------------------------------
+                // --------------------------------------------------
+                // GET EXISTING BADGE
+                // --------------------------------------------------
+
+                var badge = await _db.EmployerBadges
+                    .FirstOrDefaultAsync(b =>
+                        b.VerificationDocumentId == documentId);
+
+                // ==================================================
+                // APPROVED
+                // ==================================================
+
+                if (newStatus ==
+                    VerificationDocumentStatus.Approved)
+                {
+                    if (badge == null)
+                    {
+                        badge = new EmployerBadge
+                        {
+                            BadgeId = Guid.NewGuid(),
+
+                            EmployerId = document.EmployerId,
+
+                            // Dynamic badge
+                            BadgeType = null,
+
+                            VerificationDocumentId =
+                                documentId,
+
+                            BadgeStatus =
+                                BadgeStatus.Approved,
+
+                            IssuedBy =
+                                admin.AdminId,
+
+                            IssuedAt =
+                                DateTime.UtcNow,
+
+                            RevocationReason = null,
+
+                            RevokedAt = null
+                        };
+
+                        _db.EmployerBadges.Add(badge);
+                    }
+                    else
+                    {
+                        badge.BadgeStatus =
+                            BadgeStatus.Approved;
+
+                        badge.RevocationReason = null;
+
+                        badge.RevokedAt = null;
+
+                        badge.IssuedBy =
+                            admin.AdminId;
+
+                        badge.IssuedAt =
+                            DateTime.UtcNow;
+
+                        // Keep badge dynamic
+                        badge.BadgeType = null;
+                    }
+                }
+
+                // ==================================================
+                // REJECTED
+                // ==================================================
+
+                else if (newStatus ==
+                         VerificationDocumentStatus.Rejected)
+                {
+                    if (badge == null)
+                    {
+                        // Create a badge record so the rejected
+                        // document has a badge/status history.
+                        badge = new EmployerBadge
+                        {
+                            BadgeId = Guid.NewGuid(),
+
+                            EmployerId =
+                                document.EmployerId,
+
+                            BadgeType = null,
+
+                            VerificationDocumentId =
+                                documentId,
+
+                            BadgeStatus =
+                                BadgeStatus.Revoked,
+
+                            IssuedBy =
+                                admin.AdminId,
+
+                            IssuedAt =
+                                DateTime.UtcNow,
+
+                            RevokedAt =
+                                DateTime.UtcNow,
+
+                            RevocationReason =
+                                newRemarks
+                        };
+
+                        _db.EmployerBadges.Add(badge);
+                    }
+                    else
+                    {
+                        badge.BadgeStatus =
+                            BadgeStatus.Revoked;
+
+                        badge.RevokedAt =
+                            DateTime.UtcNow;
+
+                        badge.RevocationReason =
+                            newRemarks;
+                    }
+                }
+
+                // ==================================================
+                // RESUBMISSION
+                // ==================================================
+                //
+                // IMPORTANT:
+                // Resubmission gets its own badge status.
+                // It is NOT changed to Revoked.
+                //
+
+                else if (newStatus ==
+                         VerificationDocumentStatus.Resubmission)
+                {
+                    if (badge == null)
+                    {
+                        badge = new EmployerBadge
+                        {
+                            BadgeId = Guid.NewGuid(),
+
+                            EmployerId =
+                                document.EmployerId,
+
+                            // Dynamic badge
+                            BadgeType = null,
+
+                            VerificationDocumentId =
+                                documentId,
+
+                            BadgeStatus =
+                                BadgeStatus.Resubmission,
+
+                            IssuedBy =
+                                admin.AdminId,
+
+                            IssuedAt =
+                                DateTime.UtcNow,
+
+                            RevocationReason = null,
+
+                            RevokedAt = null
+                        };
+
+                        _db.EmployerBadges.Add(badge);
+                    }
+                    else
+                    {
+                        badge.BadgeStatus =
+                            BadgeStatus.Resubmission;
+
+                        badge.RevocationReason = null;
+
+                        badge.RevokedAt = null;
+
+                        badge.IssuedBy =
+                            admin.AdminId;
+
+                        badge.IssuedAt =
+                            DateTime.UtcNow;
+
+                        // Keep badge dynamic
+                        badge.BadgeType = null;
+                    }
+                }
+
+                // ==================================================
+                // AUDIT ACTION
+                // ==================================================
 
                 var action = newStatus switch
                 {
@@ -986,49 +1213,80 @@ namespace JobPortal.Services.Implement.Admin
                     _ => "Update Document Status"
                 };
 
+                // ==================================================
+                // AUDIT SEVERITY
+                // ==================================================
+
+                var severity =
+                    newStatus == VerificationDocumentStatus.Rejected
+                        ? AuditSeverity.Warning
+                        : newStatus ==
+                          VerificationDocumentStatus.Resubmission
+                            ? AuditSeverity.Warning
+                            : AuditSeverity.Info;
+
+                // ==================================================
+                // AUDIT DESCRIPTION
+                // ==================================================
+
                 var description = newStatus switch
                 {
-                    VerificationDocumentStatus.Approved
-                        => "Recruiter verification document approved.",
+                    VerificationDocumentStatus.Approved =>
+                        $"Recruiter verification document approved: " +
+                        $"{documentName}.",
 
-                    VerificationDocumentStatus.Rejected
-                        => $"Recruiter verification document rejected. Reason: {document.Remarks}",
+                    VerificationDocumentStatus.Rejected =>
+                        $"Recruiter verification document rejected: " +
+                        $"{documentName}. " +
+                        $"Reason: {newRemarks}",
 
-                    VerificationDocumentStatus.Resubmission
-                        => $"Recruiter verification document resubmission requested. Message: {document.Remarks}",
+                    VerificationDocumentStatus.Resubmission =>
+                        $"Recruiter verification document resubmission " +
+                        $"requested: {documentName}. " +
+                        $"Message: {newRemarks}",
 
-                    _ => "Recruiter verification document status updated."
+                    _ =>
+                        $"Recruiter verification document status updated: " +
+                        $"{documentName}."
                 };
+
+                // ==================================================
+                // AUDIT LOG
+                // ==================================================
 
                 var auditLog = new AuditLog
                 {
                     LogId = Guid.NewGuid(),
 
-                    PerformedByAdminId = audit.AdminId,
+                    // IMPORTANT:
+                    // This must be AdminUsers.AdminId
+                    PerformedByAdminId =
+                        admin.AdminId,
 
-                    PerformedByName = audit.AdminName,
+                    PerformedByName =
+                        admin.FullName,
 
-                    PerformedByRole = audit.AdminRole,
+                    PerformedByRole =
+                        admin.Role?.RoleName
+                        ?? admin.AdminType,
 
-                    Module = "Recruiters",
+                    Module =
+                        "Recruiters",
 
-                    Action = action,
+                    Action =
+                        action,
 
                     TargetEntityType =
                         "EmployerVerificationDocument",
 
-                    TargetEntityId = document.DocumentId,
+                    TargetEntityId =
+                        document.DocumentId,
 
                     TargetEntityName =
-                        document.DocumentType?.DocumentName
-                        ?? document.CustomDocumentName
-                        ?? document.DetectedDocumentType
-                        ?? document.FileName,
+                        documentName,
 
                     Severity =
-                        newStatus == VerificationDocumentStatus.Rejected
-                            ? AuditSeverity.Warning
-                            : AuditSeverity.Info,
+                        severity,
 
                     OldValues =
                         System.Text.Json.JsonSerializer.Serialize(
@@ -1042,22 +1300,46 @@ namespace JobPortal.Services.Implement.Admin
                         System.Text.Json.JsonSerializer.Serialize(
                             new
                             {
-                                Status = newStatus.ToString(),
-                                Remarks = document.Remarks
+                                Status =
+                                    newStatus.ToString(),
+
+                                Remarks =
+                                    newRemarks,
+
+                                BadgeStatus =
+                                    newStatus ==
+                                    VerificationDocumentStatus.Approved
+                                        ? BadgeStatus.Approved.ToString()
+                                        : newStatus ==
+                                          VerificationDocumentStatus.Rejected
+                                            ? BadgeStatus.Revoked.ToString()
+                                            : newStatus ==
+                                              VerificationDocumentStatus.Resubmission
+                                                ? BadgeStatus.Resubmission.ToString()
+                                                : null
                             }),
 
-                    Description = description,
+                    Description =
+                        description,
 
-                    IpAddress = audit.IpAddress,
+                    IpAddress =
+                        audit.IpAddress,
 
-                    UserAgent = audit.UserAgent,
+                    UserAgent =
+                        audit.UserAgent,
 
-                    Success = true,
+                    Success =
+                        true,
 
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt =
+                        DateTime.UtcNow
                 };
 
                 _db.AuditLogs.Add(auditLog);
+
+                // ==================================================
+                // SAVE
+                // ==================================================
 
                 await _db.SaveChangesAsync();
 
@@ -1072,8 +1354,7 @@ namespace JobPortal.Services.Implement.Admin
             }
         }
 
-        public async Task<AdminRecruiterDocumentChecklistResponseDto?>
-    GetRecruiterDocumentChecklistAsync(Guid employerId)
+        public async Task<AdminRecruiterDocumentChecklistResponseDto?> GetRecruiterDocumentChecklistAsync(Guid employerId)
         {
             // --------------------------------------------------
             // CHECK RECRUITER
@@ -1177,22 +1458,17 @@ namespace JobPortal.Services.Implement.Admin
                         DocumentTypeId =
                             master.DocumentTypeId,
 
-                        Code =
-                            master.Code,
+                     
 
                         DocumentName =
                             master.DocumentName,
 
-                        Category =
-                            master.Category,
+                     
 
-                        IsCommonDocument = true,
 
-                        IsMandatory =
-                            master.IsMandatory,
+                       
 
-                        RequiresVerification =
-                            master.RequiresVerification,
+                    
 
                         Status =
                             selectedDocument == null
@@ -1203,8 +1479,7 @@ namespace JobPortal.Services.Implement.Admin
                             selectedDocument?.DocumentId
                             ?? Guid.Empty,
 
-                        Remarks =
-                            selectedDocument?.Remarks,
+                 
 
                         UploadedAt =
                             selectedDocument?.UploadedAt
@@ -1246,19 +1521,15 @@ namespace JobPortal.Services.Implement.Admin
                         DocumentTypeId =
                             document.DocumentTypeId,
 
-                        Code = null,
 
                         DocumentName =
                             documentName,
 
-                        Category =
-                            document.Category,
+                     
 
                         IsCommonDocument = false,
 
-                        IsMandatory = false,
 
-                        RequiresVerification = false,
 
                         Status =
                             document.Status.ToString(),
@@ -1266,8 +1537,7 @@ namespace JobPortal.Services.Implement.Admin
                         DocumentId =
                             document.DocumentId,
 
-                        Remarks =
-                            document.Remarks,
+                   
 
                         UploadedAt =
                             document.UploadedAt,
@@ -1356,7 +1626,7 @@ namespace JobPortal.Services.Implement.Admin
 
                 Verified = verified,
 
-                Pending = pending,
+                NotUploaded = pending,
 
                 Rejected = rejected,
 
@@ -1370,5 +1640,174 @@ namespace JobPortal.Services.Implement.Admin
             };
         }
 
+   public async Task<DocumentTypeAdminDto?> CreateOptionalDocumentTypeAsync(CreateOptionalDocumentTypeRequestDto request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentException(
+                    "Document type request is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.DocumentName))
+            {
+                throw new ArgumentException(
+                    "Document name is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Category))
+            {
+                throw new ArgumentException(
+                    "Category is required.");
+            }
+
+            var documentName = request.DocumentName.Trim();
+
+            // -----------------------------------------
+            // CHECK DUPLICATE
+            // -----------------------------------------
+
+            var exists = await _db.VerificationDocumentMasters
+                .AnyAsync(x =>
+                    x.DocumentName.ToLower() ==
+                    documentName.ToLower());
+
+            if (exists)
+            {
+                throw new ArgumentException(
+                    "Document type already exists.");
+            }
+
+            // -----------------------------------------
+            // DISPLAY ORDER
+            // -----------------------------------------
+
+            var maxDisplayOrder =
+                await _db.VerificationDocumentMasters
+                    .MaxAsync(x => (int?)x.DisplayOrder)
+                ?? 0;
+
+            // -----------------------------------------
+            // CREATE OPTIONAL DOCUMENT TYPE
+            // -----------------------------------------
+
+            var entity = new VerificationDocumentMaster
+            {
+                DocumentTypeId = Guid.NewGuid(),
+
+                Code = Guid.NewGuid()
+                    .ToString("N")[..8]
+                    .ToUpper(),
+
+                DocumentName = documentName,
+
+                Category = request.Category.Trim(),
+
+                // IMPORTANT:
+                // This API ALWAYS creates NON-MANDATORY document
+                IsMandatory = false,
+
+                // Admin can decide whether verification
+                // is required for this optional document.
+                RequiresVerification = false,
+
+                IsActive = true,
+
+                AllowMultipleUploads = false,
+
+                AllowCustomDocument = true,
+
+                IsSystemDocument = true,
+
+                DisplayOrder = maxDisplayOrder + 1,
+
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _db.VerificationDocumentMasters.Add(entity);
+
+            await _db.SaveChangesAsync();
+
+            return Map(entity);
+        }
+
+        public async Task<DocumentTypeAdminDto?> UpdateDocumentRequirementAsync(
+           Guid documentTypeId,
+           UpdateDocumentRequirementRequestDto request)
+        {
+            if (request == null)
+            {
+                throw new ArgumentException(
+                    "Document requirement request is required.");
+            }
+
+            var documentType = await _db.VerificationDocumentMasters
+                .FirstOrDefaultAsync(x =>
+                    x.DocumentTypeId == documentTypeId);
+
+            if (documentType == null)
+            {
+                return null;
+            }
+
+            documentType.IsMandatory = request.IsMandatory;
+            documentType.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+
+            return Map(documentType);
+        }
+
+        public async Task<List<AdminDocumentRequirementDto>> GetDocumentRequirementsAsync()
+        {
+            var documents = await _db.VerificationDocumentMasters
+                .AsNoTracking()
+                .Where(x =>
+                    x.IsActive &&
+                    x.IsSystemDocument)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new AdminDocumentRequirementDto
+                {
+                    Id = x.DocumentTypeId,
+
+                    DocumentName = x.DocumentName,
+
+                    Category = x.Category,
+
+                    IsMandatory = x.IsMandatory,
+
+                    RequiresVerification = x.RequiresVerification,
+
+                    IsActive = x.IsActive,
+
+                    DisplayOrder = x.DisplayOrder
+                })
+                .ToListAsync();
+
+            return documents;
+        }
+
+        private DocumentTypeAdminDto Map(VerificationDocumentMaster entity)
+        {
+            return new DocumentTypeAdminDto
+            {
+                Id = entity.DocumentTypeId,
+
+                DocumentName = entity.DocumentName,
+
+                Category = entity.Category,
+
+                IsMandatory = entity.IsMandatory,
+
+                IsActive = entity.IsActive,
+
+                RequiresVerification = entity.RequiresVerification,
+
+                AllowMultipleUploads = entity.AllowMultipleUploads,
+
+                DisplayOrder = entity.DisplayOrder,
+
+                Description = entity.Description
+            };
+        }
     }
 }

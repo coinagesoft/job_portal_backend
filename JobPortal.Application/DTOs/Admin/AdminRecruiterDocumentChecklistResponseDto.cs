@@ -19,7 +19,7 @@ namespace JobPortal.Application.DTOs.Admin
 
         public int Verified { get; set; }
 
-        public int Pending { get; set; }
+        public int NotUploaded { get; set; }
 
         public int Rejected { get; set; }
 

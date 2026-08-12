@@ -15,8 +15,7 @@ namespace JobPortal.Application.DTOs
             public string? Sector { get; set; }
             public string Person { get; set; } = default!;
             public string? Email { get; set; }
-            public string Plan { get; set; } = default!;
-            public string Gst { get; set; } = default!;
+            public string verificationStatus { get; set; } = default!;
             public int DocsVerified { get; set; }
             public int DocsTotal { get; set; }
             public string Status { get; set; } = default!;

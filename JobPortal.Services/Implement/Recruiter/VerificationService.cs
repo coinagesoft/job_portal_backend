@@ -150,10 +150,10 @@ public VerificationService(
             // Load Master Document Types (Admin Created)
             // ===========================================================
             var masters = await _context.VerificationDocumentMasters
-                .AsNoTracking()
-                .Where(x => x.IsActive)
-                .OrderBy(x => x.DisplayOrder)
-                .ToListAsync();
+    .AsNoTracking()
+    .Where(x => x.IsActive && x.RequiresVerification)
+    .OrderBy(x => x.DisplayOrder)
+    .ToListAsync();
 
             // ===========================================================
             // Load Employer Uploaded Documents

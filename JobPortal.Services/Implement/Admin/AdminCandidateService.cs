@@ -232,8 +232,7 @@ namespace JobPortal.Services.Implement.Admin
                             "MMM d, yyyy",
                             CultureInfo.InvariantCulture),
 
-                        Amount =
-                            $"₹{t.TotalAmountPaise / 100.0:0.00}",
+                        Amount = $"₹{t.TotalAmountPaise:0.00}",
 
                         Status = t.PaymentStatus
                     })

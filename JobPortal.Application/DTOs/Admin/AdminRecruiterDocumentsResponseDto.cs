@@ -37,7 +37,7 @@ namespace JobPortal.Application.DTOs.Admin
 
             public int Verified { get; set; }
 
-            public int Pending { get; set; }
+            public int NotUploaded { get; set; }
 
             public int Rejected { get; set; }
 
@@ -90,7 +90,6 @@ namespace JobPortal.Application.DTOs.Admin
 
             public decimal? AiConfidenceScore { get; set; }
 
-            public string? MasterDescription { get; set; }
 
             public bool RequiresVerification { get; set; }
 

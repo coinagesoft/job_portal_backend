@@ -27,13 +27,12 @@ namespace JobPortal.API.Controllers.Admin
             return Ok(recruiters);
         }
 
-
         [HttpPatch("{id:guid}/account-status")]
         public async Task<IActionResult> UpdateAccountStatus(
-           Guid id,
-           [FromBody] UpdateAccountStatusRequestDto request)
+            Guid id,
+            [FromBody] UpdateAccountStatusRequestDto request)
         {
-            var adminIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var adminIdClaim = User.FindFirst("AdminId")?.Value;
 
             if (!Guid.TryParse(adminIdClaim, out var performedByAdminId))
             {
@@ -75,11 +74,8 @@ namespace JobPortal.API.Controllers.Admin
                 return Ok(new
                 {
                     success = true,
-                    message = request.AccountStatus.Equals(
-                        "Suspended",
-                        StringComparison.OrdinalIgnoreCase)
-                            ? "Recruiter account suspended successfully."
-                            : "Recruiter account activated successfully."
+                    message = $"Recruiter account status updated to '{request.AccountStatus}' successfully.",
+                    status = request.AccountStatus
                 });
             }
             catch (ArgumentException ex)
@@ -91,7 +87,6 @@ namespace JobPortal.API.Controllers.Admin
                 });
             }
         }
-
 
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetRecruiterDetail(Guid id)
@@ -141,12 +136,13 @@ namespace JobPortal.API.Controllers.Admin
         }
 
 
-
         [HttpPatch("documents/{documentId:guid}/status")]
-        public async Task<IActionResult> UpdateDocumentStatus( Guid documentId,[FromBody] UpdateRecruiterDocumentStatusRequestDto request)
+        public async Task<IActionResult> UpdateDocumentStatus(
+            Guid documentId,
+            [FromBody] UpdateRecruiterDocumentStatusRequestDto request)
         {
             var adminIdClaim =
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                User.FindFirst("AdminId")?.Value;
 
             if (!Guid.TryParse(
                 adminIdClaim,
@@ -226,7 +222,6 @@ namespace JobPortal.API.Controllers.Admin
                 });
             }
         }
-
         [HttpGet("{id:guid}/document-checklist")]
         public async Task<IActionResult> GetDocumentChecklist(Guid id)
         {
@@ -249,5 +244,93 @@ namespace JobPortal.API.Controllers.Admin
                 data = checklist
             });
         }
+
+        [HttpPost("document-types/optional")]
+        public async Task<IActionResult> CreateOptionalDocumentType(
+    [FromBody] CreateOptionalDocumentTypeRequestDto request)
+        {
+            try
+            {
+                var result =
+                    await _adminRecruiterService
+                        .CreateOptionalDocumentTypeAsync(request);
+
+                if (result == null)
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Unable to create document type."
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Optional document type created successfully.",
+                    data = result
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "An error occurred while creating document type.",
+                    error = ex.Message
+                });
+            }
+        }
+
+
+        [HttpPatch("document-types/{documentTypeId:guid}/requirement")]
+        public async Task<IActionResult> UpdateDocumentRequirement(
+            Guid documentTypeId,
+            [FromBody] UpdateDocumentRequirementRequestDto request)
+        {
+            try
+            {
+                var result =
+                    await _adminRecruiterService.UpdateDocumentRequirementAsync(
+                        documentTypeId,
+                        request);
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Document type not found."
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message = request.IsMandatory
+                        ? "Document marked as required successfully."
+                        : "Document marked as optional successfully.",
+                    data = result
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+        }
+
+
     }
 }

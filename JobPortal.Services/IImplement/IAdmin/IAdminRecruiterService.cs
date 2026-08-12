@@ -1,5 +1,6 @@
 ﻿using JobPortal.Application.DTOs;
 using JobPortal.Application.DTOs.Admin;
+using JobPortal.Application.DTOs.Admin.CompanyDocuments;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,16 +22,20 @@ namespace JobPortal.Services.IImplement.IAdmin
     string? userAgent
 );
 
-        Task<AdminRecruiterDetailDto?> GetRecruiterDetailAsync(Guid employerId);
+    Task<AdminRecruiterDetailDto?> GetRecruiterDetailAsync(Guid employerId);
 
-        Task<AdminRecruiterDocumentsResponseDto?> GetRecruiterDocumentsAsync(Guid employerId);
+    Task<AdminRecruiterDocumentsResponseDto?> GetRecruiterDocumentsAsync(Guid employerId);
 
-        Task<bool> UpdateRecruiterDocumentStatusAsync(
-    Guid documentId,
-    UpdateRecruiterDocumentStatusRequestDto request,
-    AdminAuditContext audit);
+     Task<bool> UpdateRecruiterDocumentStatusAsync(Guid documentId,UpdateRecruiterDocumentStatusRequestDto request,AdminAuditContext audit);
 
-        Task<AdminRecruiterDocumentChecklistResponseDto?>
-    GetRecruiterDocumentChecklistAsync(Guid employerId);
+     Task<AdminRecruiterDocumentChecklistResponseDto?>GetRecruiterDocumentChecklistAsync(Guid employerId);
+
+     Task<DocumentTypeAdminDto?> CreateOptionalDocumentTypeAsync(CreateOptionalDocumentTypeRequestDto request);
+
+        Task<DocumentTypeAdminDto?> UpdateDocumentRequirementAsync(Guid documentTypeId,UpdateDocumentRequirementRequestDto request);
+
+        Task<List<AdminDocumentRequirementDto>>
+     GetDocumentRequirementsAsync();
+
     }
 }
