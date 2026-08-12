@@ -1,5 +1,4 @@
 ﻿using JobPortal.Application.DTOs.Admin.AuditLogs;
-using JobPortal.Domain.Enums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.EntityFrameworkCore;
@@ -15,50 +14,15 @@ namespace JobPortal.Services.Implement.Admin
             _context = context;
         }
 
-        public async Task<AuditLogListResponseDto> GetAuditLogsAsync(AuditLogRequestDto request)
+        public async Task<AuditLogListResponseDto> GetAuditLogsAsync()
         {
             try
             {
-                var page = request.Page < 1 ? 1 : request.Page;
-                var pageSize = request.PageSize is < 1 or > 200 ? 20 : request.PageSize;
-
-                var query = _context.AuditLogs
+                var items = await _context.AuditLogs
                     .AsNoTracking()
                     .Include(x => x.PerformedByAdmin)
                         .ThenInclude(x => x.User)
-                    .AsQueryable();
-
-                if (!string.IsNullOrWhiteSpace(request.Action))
-                {
-                    var action = request.Action.Trim();
-                    query = query.Where(x => EF.Functions.ILike(x.Action, $"%{action}%"));
-                }
-
-                if (request.Date.HasValue)
-                {
-                    var start = DateTime.SpecifyKind(request.Date.Value.Date, DateTimeKind.Utc);
-                    var end = start.AddDays(1);
-                    query = query.Where(x => x.CreatedAt >= start && x.CreatedAt < end);
-                }
-
-                if (request.ActorType.HasValue)
-                {
-                    query = request.ActorType.Value == AuditActorType.SubAdmin
-                        ? query.Where(x => x.PerformedByAdmin.AdminType == "SubAdmin")
-                        : query.Where(x => x.PerformedByAdmin.AdminType != "SubAdmin");
-                }
-
-                if (request.Severity.HasValue)
-                {
-                    query = query.Where(x => x.Severity == request.Severity.Value);
-                }
-
-                var totalCount = await query.CountAsync();
-
-                var items = await query
                     .OrderByDescending(x => x.CreatedAt)
-                    .Skip((page - 1) * pageSize)
-                    .Take(pageSize)
                     .Select(x => new AuditLogItemDto
                     {
                         LogId = x.LogId,
@@ -82,10 +46,7 @@ namespace JobPortal.Services.Implement.Admin
                 {
                     Success = true,
                     Items = items,
-                    TotalCount = totalCount,
-                    Page = page,
-                    PageSize = pageSize,
-                    TotalPages = pageSize == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize)
+                    TotalCount = items.Count
                 };
             }
             catch (Exception)

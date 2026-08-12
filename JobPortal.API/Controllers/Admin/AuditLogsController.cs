@@ -20,15 +20,14 @@ namespace JobPortal.API.Controllers.Admin
 
         #region Get Audit Logs
 
-        // GET /api/admin/audit-logs?action=&date=&actorType=&severity=&page=&pageSize=
-        // Backs the filter bar + table on /admin/audit. Read-only —
-        // this is the only endpoint exposed for audit logs.
+        // GET /api/admin/audit-logs
+        // Backs the table on /admin/audit. Read-only, no filters or
+        // pagination — returns every audit log row.
         [HttpGet]
         [SkipAuditLog]
-        public async Task<IActionResult> GetAuditLogs(
-            [FromQuery] AuditLogRequestDto request)
+        public async Task<IActionResult> GetAuditLogs()
         {
-            var result = await _auditLogService.GetAuditLogsAsync(request);
+            var result = await _auditLogService.GetAuditLogsAsync();
 
             if (!result.Success)
                 return BadRequest(result);
