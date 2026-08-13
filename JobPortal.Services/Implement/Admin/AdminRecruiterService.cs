@@ -8,18 +8,14 @@ using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+
 
 namespace JobPortal.Services.Implement.Admin
 {
     public class AdminRecruiterService : IAdminRecruiterService
     {
-        private readonly AppDbContext _db; // rename to your actual DbContext class
+        private readonly AppDbContext _db; 
 
         public AdminRecruiterService(AppDbContext db)
         {
@@ -888,10 +884,8 @@ namespace JobPortal.Services.Implement.Admin
                 parts.Where(x => !string.IsNullOrWhiteSpace(x)));
         }
 
-        public async Task<bool> UpdateRecruiterDocumentStatusAsync(
-     Guid documentId,
-     UpdateRecruiterDocumentStatusRequestDto request,
-     AdminAuditContext audit)
+        public async Task<bool> UpdateRecruiterDocumentStatusAsync(Guid documentId,UpdateRecruiterDocumentStatusRequestDto request,
+        AdminAuditContext audit)
         {
             // --------------------------------------------------
             // VALIDATE REQUEST
@@ -1640,7 +1634,7 @@ namespace JobPortal.Services.Implement.Admin
             };
         }
 
-   public async Task<DocumentTypeAdminDto?> CreateOptionalDocumentTypeAsync(CreateOptionalDocumentTypeRequestDto request)
+        public async Task<DocumentTypeAdminDto?> CreateOptionalDocumentTypeAsync(CreateOptionalDocumentTypeRequestDto request)
         {
             if (request == null)
             {
@@ -1730,9 +1724,7 @@ namespace JobPortal.Services.Implement.Admin
             return Map(entity);
         }
 
-        public async Task<DocumentTypeAdminDto?> UpdateDocumentRequirementAsync(
-           Guid documentTypeId,
-           UpdateDocumentRequirementRequestDto request)
+        public async Task<DocumentTypeAdminDto?> UpdateDocumentRequirementAsync(Guid documentTypeId, UpdateDocumentRequirementRequestDto request)
         {
             if (request == null)
             {
@@ -1750,6 +1742,7 @@ namespace JobPortal.Services.Implement.Admin
             }
 
             documentType.IsMandatory = request.IsMandatory;
+            documentType.RequiresVerification = request.IsMandatory;
             documentType.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
@@ -1784,6 +1777,229 @@ namespace JobPortal.Services.Implement.Admin
                 .ToListAsync();
 
             return documents;
+        }
+
+        public async Task<List<OptionalDocumentTypeDto>> GetOptionalDocumentNamesAsync()
+        {
+            return await _db.VerificationDocumentMasters
+                .AsNoTracking()
+                .Where(x =>
+                    x.IsActive &&
+                    x.IsMandatory == false)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new OptionalDocumentTypeDto
+                {
+                    DocumentTypeId = x.DocumentTypeId,
+                    DocumentName = x.DocumentName
+                })
+                .ToListAsync();
+        }
+
+        public async Task<EmployerDocumentRequestDto> RequestRecruiterDocumentAsync(Guid employerId, RequestRecruiterDocumentDto request, Guid adminId)
+        {
+            if (request == null)
+            {
+                throw new ArgumentException(
+                    "Document request is required.");
+            }
+
+            // --------------------------------------------------
+            // CHECK RECRUITER
+            // --------------------------------------------------
+
+            var employerExists = await _db.EmployerProfiles
+                .AnyAsync(x => x.EmployerId == employerId);
+
+            if (!employerExists)
+            {
+                throw new ArgumentException(
+                    "Recruiter not found.");
+            }
+
+            // --------------------------------------------------
+            // CHECK ADMIN
+            // --------------------------------------------------
+
+            var adminExists = await _db.AdminUsers
+                .AnyAsync(x =>
+                    x.AdminId == adminId &&
+                    x.IsActive);
+
+            if (!adminExists)
+            {
+                throw new ArgumentException(
+                    "Admin user not found or inactive.");
+            }
+
+            // ==================================================
+            // EXISTING OPTIONAL DOCUMENT
+            // ==================================================
+
+            if (request.DocumentTypeId.HasValue)
+            {
+                var documentType =
+                    await _db.VerificationDocumentMasters
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(x =>
+                            x.DocumentTypeId ==
+                                request.DocumentTypeId.Value &&
+                            x.IsActive);
+
+                if (documentType == null)
+                {
+                    throw new ArgumentException(
+                        "Document type not found or inactive.");
+                }
+
+                // Only optional documents can be requested.
+                if (documentType.IsMandatory)
+                {
+                    throw new ArgumentException(
+                        "Mandatory documents cannot be requested.");
+                }
+
+                // Check whether the recruiter already has
+                // a pending request for this document.
+                var alreadyRequested =
+                    await _db.EmployerDocumentRequests
+                        .AnyAsync(x =>
+                            x.EmployerId == employerId &&
+                            x.DocumentTypeId ==
+                                request.DocumentTypeId.Value &&
+                            x.Status == "Pending");
+
+                if (alreadyRequested)
+                {
+                    throw new ArgumentException(
+                        "This document has already been requested.");
+                }
+
+                var entity = new EmployerDocumentRequest
+                {
+                    RequestId = Guid.NewGuid(),
+
+                    EmployerId = employerId,
+
+                    DocumentTypeId =
+                        documentType.DocumentTypeId,
+
+                    CustomDocumentName = null,
+
+                    Message =
+                        string.IsNullOrWhiteSpace(request.Message)
+                            ? null
+                            : request.Message.Trim(),
+
+                    Status = "Pending",
+
+                    RequestedBy = adminId,
+
+                    RequestedAt = DateTime.UtcNow
+                };
+
+                _db.EmployerDocumentRequests.Add(entity);
+
+                await _db.SaveChangesAsync();
+
+                return new EmployerDocumentRequestDto
+                {
+                    RequestId = entity.RequestId,
+
+                    EmployerId = entity.EmployerId,
+
+                    DocumentTypeId = entity.DocumentTypeId,
+
+                    CustomDocumentName = null,
+
+                    DocumentName = documentType.DocumentName,
+
+                    Message = entity.Message,
+
+                    Status = entity.Status,
+
+                    RequestedAt = entity.RequestedAt
+                };
+            }
+
+            // ==================================================
+            // CUSTOM DOCUMENT / OTHER
+            // ==================================================
+
+            if (string.IsNullOrWhiteSpace(
+                request.CustomDocumentName))
+            {
+                throw new ArgumentException(
+                    "Custom document name is required.");
+            }
+
+            var customDocumentName =
+                request.CustomDocumentName.Trim();
+
+            // Check duplicate pending custom request
+            // for this recruiter.
+            var customAlreadyRequested =
+                await _db.EmployerDocumentRequests
+                    .AnyAsync(x =>
+                        x.EmployerId == employerId &&
+                        x.DocumentTypeId == null &&
+                        x.CustomDocumentName != null &&
+                        x.CustomDocumentName.ToLower() ==
+                            customDocumentName.ToLower() &&
+                        x.Status == "Pending");
+
+            if (customAlreadyRequested)
+            {
+                throw new ArgumentException(
+                    "This custom document has already been requested.");
+            }
+
+            var customEntity = new EmployerDocumentRequest
+            {
+                RequestId = Guid.NewGuid(),
+
+                EmployerId = employerId,
+
+                DocumentTypeId = null,
+
+                CustomDocumentName = customDocumentName,
+
+                Message =
+                    string.IsNullOrWhiteSpace(request.Message)
+                        ? null
+                        : request.Message.Trim(),
+
+                Status = "Pending",
+
+                RequestedBy = adminId,
+
+                RequestedAt = DateTime.UtcNow
+            };
+
+            _db.EmployerDocumentRequests.Add(customEntity);
+
+            await _db.SaveChangesAsync();
+
+            return new EmployerDocumentRequestDto
+            {
+                RequestId = customEntity.RequestId,
+
+                EmployerId = customEntity.EmployerId,
+
+                DocumentTypeId = null,
+
+                CustomDocumentName =
+                    customEntity.CustomDocumentName,
+
+                DocumentName =
+                    customEntity.CustomDocumentName,
+
+                Message = customEntity.Message,
+
+                Status = customEntity.Status,
+
+                RequestedAt =
+                    customEntity.RequestedAt
+            };
         }
 
         private DocumentTypeAdminDto Map(VerificationDocumentMaster entity)

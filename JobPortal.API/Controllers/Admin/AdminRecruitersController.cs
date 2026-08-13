@@ -27,6 +27,7 @@ namespace JobPortal.API.Controllers.Admin
             return Ok(recruiters);
         }
 
+
         [HttpPatch("{id:guid}/account-status")]
         public async Task<IActionResult> UpdateAccountStatus(
             Guid id,
@@ -87,6 +88,7 @@ namespace JobPortal.API.Controllers.Admin
                 });
             }
         }
+
 
         [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetRecruiterDetail(Guid id)
@@ -222,6 +224,8 @@ namespace JobPortal.API.Controllers.Admin
                 });
             }
         }
+
+
         [HttpGet("{id:guid}/document-checklist")]
         public async Task<IActionResult> GetDocumentChecklist(Guid id)
         {
@@ -245,9 +249,10 @@ namespace JobPortal.API.Controllers.Admin
             });
         }
 
+
         [HttpPost("document-types/optional")]
         public async Task<IActionResult> CreateOptionalDocumentType(
-    [FromBody] CreateOptionalDocumentTypeRequestDto request)
+        [FromBody] CreateOptionalDocumentTypeRequestDto request)
         {
             try
             {
@@ -291,7 +296,7 @@ namespace JobPortal.API.Controllers.Admin
         }
 
 
-        [HttpPatch("document-types/{documentTypeId:guid}/requirement")]
+        [HttpPatch("document-types/{documentTypeId:guid}/updatStatus/requiredDoc")]
         public async Task<IActionResult> UpdateDocumentRequirement(
             Guid documentTypeId,
             [FromBody] UpdateDocumentRequirementRequestDto request)
@@ -331,6 +336,112 @@ namespace JobPortal.API.Controllers.Admin
             }
         }
 
+
+        [HttpGet("document-types/masterAllDocuments")]
+        public async Task<IActionResult> GetDocumentRequirements()
+        {
+            try
+            {
+                var documents =
+                    await _adminRecruiterService
+                        .GetDocumentRequirementsAsync();
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Document requirements retrieved successfully.",
+                    data = documents
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = "Failed to retrieve document requirements.",
+                    error = ex.Message
+                });
+            }
+        }
+
+
+        [HttpGet("Alloptional/names")]
+        public async Task<IActionResult> GetOptionalDocumentNames()
+        {
+            var documentNames =
+                await _adminRecruiterService.GetOptionalDocumentNamesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = "Optional document names retrieved successfully.",
+                data = documentNames
+            });
+        }
+
+
+        [HttpPost("{employerId:guid}/document-requests")]
+        public async Task<IActionResult> RequestRecruiterDocument(
+          Guid employerId,
+         [FromBody] RequestRecruiterDocumentDto request)
+        {
+            // --------------------------------------------------
+            // GET ADMIN ID FROM JWT
+            // --------------------------------------------------
+
+            var adminIdClaim = User.FindFirst("AdminId")?.Value;
+
+            if (!Guid.TryParse(adminIdClaim, out var adminId))
+            {
+                return Unauthorized(new
+                {
+                    success = false,
+                    message = "Invalid admin authentication."
+                });
+            }
+
+            try
+            {
+                // --------------------------------------------------
+                // REQUEST DOCUMENT
+                // --------------------------------------------------
+
+                var result =
+                    await _adminRecruiterService
+                        .RequestRecruiterDocumentAsync(
+                            employerId,
+                            request,
+                            adminId);
+
+                // --------------------------------------------------
+                // RESPONSE
+                // --------------------------------------------------
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Document request sent successfully.",
+                    data = result
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = ex.Message,
+                    innerException = ex.InnerException?.Message
+                });
+            }
+        }
 
     }
 }

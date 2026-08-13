@@ -14,6 +14,7 @@ namespace JobPortal.Domain.Entities
         public Guid DocumentId { get; set; }
 
         public Guid EmployerId { get; set; }
+        public Guid? RequestId { get; set; }
 
         public string? CustomDocumentName { get; set; }
 
@@ -63,6 +64,7 @@ namespace JobPortal.Domain.Entities
 
         public VerificationDocumentMaster? DocumentType { get; set; } = default!;
 
-     
+        public EmployerDocumentRequest? Request { get; set; }
+
     }
 }

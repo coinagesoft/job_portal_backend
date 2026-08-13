@@ -34,8 +34,11 @@ namespace JobPortal.Services.IImplement.IAdmin
 
         Task<DocumentTypeAdminDto?> UpdateDocumentRequirementAsync(Guid documentTypeId,UpdateDocumentRequirementRequestDto request);
 
-        Task<List<AdminDocumentRequirementDto>>
-     GetDocumentRequirementsAsync();
+        Task<List<AdminDocumentRequirementDto>> GetDocumentRequirementsAsync();
+
+        Task<List<OptionalDocumentTypeDto>> GetOptionalDocumentNamesAsync();
+
+        Task<EmployerDocumentRequestDto> RequestRecruiterDocumentAsync(Guid employerId, RequestRecruiterDocumentDto request, Guid adminId);
 
     }
 }

@@ -39,7 +39,7 @@ public class AppDbContext : DbContext
     public DbSet<SubUserCreditAllocation> SubUserCreditAllocation { get; set; }
     public DbSet<AdminSession> AdminSessions => Set<AdminSession>();
     public DbSet<EmployerPlanPurchase> EmployerPlanPurchase { get; set; }
-
+    public DbSet<EmployerDocumentRequest> EmployerDocumentRequests { get; set; }
     // Section 2 — Candidate
     public DbSet<CandidateProfile> CandidateProfiles => Set<CandidateProfile>();
     public DbSet<CandidateEducation> CandidateEducations => Set<CandidateEducation>();

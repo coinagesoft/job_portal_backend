@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260812122026_employerdocumentrequest1")]
+    partial class employerdocumentrequest1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1427,11 +1430,7 @@ namespace JobPortal.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("CustomDocumentName")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("DocumentTypeId")
-                        .IsRequired()
+                    b.Property<Guid>("DocumentTypeId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("EmployerId")
@@ -1966,9 +1965,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("Remarks")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("RequestId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -1986,8 +1982,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.HasIndex("DocumentTypeId");
 
                     b.HasIndex("EmployerId");
-
-                    b.HasIndex("RequestId");
 
                     b.ToTable("EmployerVerificationDocuments");
                 });
@@ -4097,15 +4091,9 @@ namespace JobPortal.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("JobPortal.Domain.Entities.EmployerDocumentRequest", "Request")
-                        .WithMany()
-                        .HasForeignKey("RequestId");
-
                     b.Navigation("DocumentType");
 
                     b.Navigation("Employer");
-
-                    b.Navigation("Request");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.Invoice", b =>

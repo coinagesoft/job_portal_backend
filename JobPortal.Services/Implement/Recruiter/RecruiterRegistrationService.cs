@@ -1129,46 +1129,361 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         {
             var documents = await _context.VerificationDocumentMasters
                 .AsNoTracking()
-                .Where(x => x.IsActive)
+                .Where(x =>
+                    x.IsActive &&
+                    x.IsMandatory)
                 .OrderBy(x => x.DisplayOrder)
                 .ToListAsync();
 
             var response = new RegistrationDocumentTypesResponseDto
             {
                 Success = true,
-                Message = "Document types loaded successfully.",
+
+                Message = "Mandatory document types loaded successfully.",
 
                 MandatoryDocuments = documents
-                    .Where(x => x.IsMandatory)
                     .Select(Map)
                     .ToList(),
 
-                OptionalDocuments = documents
-                    .Where(x => !x.IsMandatory)
-                    .Select(Map)
-                    .ToList()
+                OptionalDocuments = new List<RegistrationDocumentTypeDto>()
             };
 
             return response;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading registration document types.");
+            _logger.LogError(
+                ex,
+                "Error loading registration document types.");
 
             return new RegistrationDocumentTypesResponseDto
             {
                 Success = false,
-                Message = ex.InnerException?.InnerException?.Message
+
+                Message =
+                    ex.InnerException?.InnerException?.Message
                     ?? ex.InnerException?.Message
                     ?? ex.Message
             };
         }
     }
-     public async Task<RegistrationDocumentsResponseDto> UploadLicensesAsync(
+
+    //    public async Task<RegistrationDocumentsResponseDto> UploadLicensesAsync(
+    //    RegistrationDocumentsRequestDto request)
+    //{
+    //        try
+    //        {
+    //            var session = await GetValidSessionAsync(request.SessionId);
+
+    //            if (session == null)
+    //            {
+    //                return new RegistrationDocumentsResponseDto
+    //                {
+    //                    Success = false,
+    //                    Message = "Session expired. Please start registration again."
+    //                };
+    //            }
+
+    //            if (session.LastCompletedStep < 3)
+    //            {
+    //                return new RegistrationDocumentsResponseDto
+    //                {
+    //                    Success = false,
+    //                    Message = "Please complete Step 3 (Contact & OTP) first."
+    //                };
+    //            }
+
+    //            if (request.Documents == null || !request.Documents.Any())
+    //            {
+    //                return new RegistrationDocumentsResponseDto
+    //                {
+    //                    Success = false,
+    //                    Message = "Please upload at least one document."
+    //                };
+    //            }
+
+    //            // Load all active document masters
+    //            var documentMasters = await _context.VerificationDocumentMasters
+    //                .Where(x => x.IsActive)
+    //                .OrderBy(x => x.DisplayOrder)
+    //                .ToListAsync();
+
+    //            // Validate mandatory documents
+    //            var mandatoryDocumentIds = documentMasters
+    //                .Where(x => x.IsMandatory)
+    //                .Select(x => x.DocumentTypeId)
+    //                .ToList();
+
+    //            var uploadedMandatoryIds = request.Documents
+    //                .Where(x => x.DocumentTypeId.HasValue)
+    //                .Select(x => x.DocumentTypeId!.Value)
+    //                .Distinct()
+    //                .ToList();
+
+    //            var missingMandatoryDocuments = mandatoryDocumentIds
+    //                .Except(uploadedMandatoryIds)
+    //                .ToList();
+
+    //            if (missingMandatoryDocuments.Any())
+    //            {
+    //                var missingNames = documentMasters
+    //                    .Where(x => missingMandatoryDocuments.Contains(x.DocumentTypeId))
+    //                    .Select(x => x.DocumentName)
+    //                    .ToList();
+
+    //                return new RegistrationDocumentsResponseDto
+    //                {
+    //                    Success = false,
+    //                    Message = $"Please upload all mandatory documents. Missing: {string.Join(", ", missingNames)}"
+    //                };
+    //            }
+
+    //            var oldDocuments = await _context.RegistrationSessionDocuments
+    //    .Where(x => x.SessionId == session.SessionId && !x.IsDeleted)
+    //    .ToListAsync();
+
+    //            foreach (var doc in oldDocuments)
+    //            {
+    //                if (!string.IsNullOrWhiteSpace(doc.PublicId))
+    //                {
+    //                    await _fileStorageService.DeleteAsync(doc.PublicId);
+    //                }
+    //            }
+
+    //            _context.RegistrationSessionDocuments.RemoveRange(oldDocuments);
+
+    //            var allowedTypes = new[]
+    //            {
+    //            "application/pdf",
+    //            "image/jpeg",
+    //            "image/jpg",
+    //            "image/png"
+    //        };
+
+    //            const long maxSize = 5 * 1024 * 1024;
+
+    //            var uploadedDocuments = new List<RegistrationUploadedDocumentDto>();
+    //            foreach (var document in request.Documents)
+    //            {
+    //                if (document.File == null || document.File.Length == 0)
+    //                {
+    //                    return new RegistrationDocumentsResponseDto
+    //                    {
+    //                        Success = false,
+    //                        Message = "One or more uploaded files are invalid."
+    //                    };
+    //                }
+
+    //                if (!allowedTypes.Contains(document.File.ContentType))
+    //                {
+    //                    return new RegistrationDocumentsResponseDto
+    //                    {
+    //                        Success = false,
+    //                        Message = $"{document.File.FileName} must be PDF, JPG or PNG."
+    //                    };
+    //                }
+
+    //                if (document.File.Length > maxSize)
+    //                {
+    //                    return new RegistrationDocumentsResponseDto
+    //                    {
+    //                        Success = false,
+    //                        Message = $"{document.File.FileName} must be under 5 MB."
+    //                    };
+    //                }
+
+    //                // Validate Document Type
+    //                VerificationDocumentMaster? master = null;
+
+    //                if (document.DocumentTypeId.HasValue)
+    //                {
+    //                    master = documentMasters.FirstOrDefault(x =>
+    //                        x.DocumentTypeId == document.DocumentTypeId.Value);
+
+    //                    if (master == null)
+    //                    {
+    //                        return new RegistrationDocumentsResponseDto
+    //                        {
+    //                            Success = false,
+    //                            Message = $"Invalid document type selected for {document.File.FileName}."
+    //                        };
+    //                    }
+
+
+
+
+    //                }
+
+    //                // Upload File
+    //                var uploadResult = await _fileStorageService.UploadDocumentAsync(
+    //                    document.File,
+    //                    $"registration/{session.SessionId}/documents");
+
+    //                if (string.IsNullOrWhiteSpace(uploadResult.Url))
+    //                {
+    //                    return new RegistrationDocumentsResponseDto
+    //                    {
+    //                        Success = false,
+    //                        Message = $"Failed to upload {document.File.FileName}."
+    //                    };
+    //                }
+
+    //                // Parse Document with Gemini
+    //                GeminiCompanyDocumentParseResponse? parsed = null;
+
+    //                try
+    //                {
+    //                    parsed = await _geminiCompanyDocumentParserService
+    //                        .ParseDocumentAsync(document.File);
+    //                    // If recruiter uploaded "Other Document",
+    //                    // try to map Gemini detected document type
+    //                    if (!document.DocumentTypeId.HasValue &&
+    //                        !string.IsNullOrWhiteSpace(parsed?.DocumentType))
+    //                    {
+    //                        master = documentMasters.FirstOrDefault(x =>
+    //      parsed.DocumentType!.Contains(
+    //          x.DocumentName,
+    //          StringComparison.OrdinalIgnoreCase)
+    //      ||
+    //      x.DocumentName.Contains(
+    //          parsed.DocumentType,
+    //          StringComparison.OrdinalIgnoreCase));
+
+    //                        if (master != null)
+    //                        {
+    //                            document.DocumentTypeId = master.DocumentTypeId;
+
+    //                            document.DocumentName = master.DocumentName;
+
+    //                            document.Category = master.Category;
+    //                        }
+    //                    }
+    //                }
+    //                catch (Exception ex)
+    //                {
+    //                    _logger.LogWarning(ex,
+    //                        "Gemini parsing failed for {FileName}",
+    //                        document.File.FileName);
+    //                }
+
+
+
+    //                // Save Temporary Registration Document
+    //                var registrationDocument = new RegistrationSessionDocument
+    //                {
+    //                    SessionId = session.SessionId,
+
+    //                    DocumentTypeId = document.DocumentTypeId,
+
+    //                    CustomDocumentName =
+    //    document.DocumentTypeId == null
+    //        ? document.DocumentName
+    //        : null,
+
+    //                    Category =
+    //    document.DocumentTypeId == null
+    //        ? document.Category
+    //        : master?.Category,
+
+    //                    FileName = document.File.FileName,
+
+    //                    FileUrl = uploadResult.Url,
+
+    //                    PublicId = uploadResult.PublicId,
+
+    //                    UploadedAt = DateTime.UtcNow,
+
+    //                    DetectedDocumentType = parsed?.DocumentType,
+
+    //                    DocumentNumber = parsed?.DocumentNumber,
+
+    //                    IssuingAuthority = parsed?.IssuingAuthority,
+
+    //                    IssueDate = parsed?.IssueDate,
+
+    //                    ExpiryDate = parsed?.ExpiryDate,
+
+    //                    ParsedDataJson = parsed?.ParsedData?.GetRawText(),
+
+    //                    AiConfidenceScore = parsed?.AiConfidenceScore
+    //                };
+
+    //                _context.RegistrationSessionDocuments.Add(registrationDocument);
+
+    //                uploadedDocuments.Add(new RegistrationUploadedDocumentDto
+    //                {
+    //                    RegistrationDocumentId = registrationDocument.RegistrationDocumentId,
+
+    //                    DocumentTypeId = registrationDocument.DocumentTypeId,
+
+    //                    DocumentName =
+    //                        registrationDocument.CustomDocumentName ??
+    //                        master?.DocumentName ??
+    //                        "Custom Document",
+
+    //                    FileUrl = registrationDocument.FileUrl,
+
+    //                    Status = "Uploaded"
+    //                });
+    //            }
+    //            // Update Registration Step
+    //            session.CurrentStep = 4;
+
+    //            if (session.LastCompletedStep < 4)
+    //            {
+    //                session.LastCompletedStep = 4;
+    //            }
+
+    //            await _context.SaveChangesAsync();
+
+    //            _logger.LogInformation(
+    //                "Registration documents uploaded successfully. Session: {SessionId}",
+    //                session.SessionId);
+
+    //            return new RegistrationDocumentsResponseDto
+    //            {
+    //                Success = true,
+    //                Message = "Documents uploaded successfully.",
+
+    //                Documents = uploadedDocuments,
+
+    //                StepStatus = BuildStepStatus(session)
+    //            };
+    //        }
+    //        catch (Exception ex)
+    //        {
+    //            _logger.LogError(
+    //                ex,
+    //                "Error uploading registration documents. Session: {SessionId}",
+    //                request.SessionId);
+
+    //            return new RegistrationDocumentsResponseDto
+    //            {
+    //                Success = false,
+    //                Message =
+    //                    ex.InnerException?.InnerException?.Message
+    //                    ?? ex.InnerException?.Message
+    //                    ?? ex.Message
+    //            };
+    //        }
+    //    }
+
+
+
+    // ════════════════════════════════════════════════
+    // STEP 5 — Submit → read from DB session
+    // ════════════════════════════════════════════════
+
+
+    public async Task<RegistrationDocumentsResponseDto> UploadLicensesAsync(
     RegistrationDocumentsRequestDto request)
-{
+    {
         try
         {
+            // --------------------------------------------------
+            // VALIDATE SESSION
+            // --------------------------------------------------
+
             var session = await GetValidSessionAsync(request.SessionId);
 
             if (session == null)
@@ -1180,6 +1495,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
+            // --------------------------------------------------
+            // VALIDATE PREVIOUS STEP
+            // --------------------------------------------------
+
             if (session.LastCompletedStep < 3)
             {
                 return new RegistrationDocumentsResponseDto
@@ -1189,54 +1508,71 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
-            if (request.Documents == null || !request.Documents.Any())
-            {
-                return new RegistrationDocumentsResponseDto
-                {
-                    Success = false,
-                    Message = "Please upload at least one document."
-                };
-            }
+            // --------------------------------------------------
+            // LOAD ACTIVE DOCUMENT MASTERS
+            // --------------------------------------------------
 
-            // Load all active document masters
             var documentMasters = await _context.VerificationDocumentMasters
                 .Where(x => x.IsActive)
                 .OrderBy(x => x.DisplayOrder)
                 .ToListAsync();
 
-            // Validate mandatory documents
-            var mandatoryDocumentIds = documentMasters
-                .Where(x => x.IsMandatory)
-                .Select(x => x.DocumentTypeId)
-                .ToList();
+            // --------------------------------------------------
+            // DOCUMENTS ARE OPTIONAL DURING REGISTRATION
+            // --------------------------------------------------
+            //
+            // IMPORTANT:
+            // Mandatory document types are still marked
+            // IsMandatory = true in the master table.
+            //
+            // But missing mandatory documents DO NOT block
+            // registration anymore.
+            //
+            // Recruiter can:
+            // 1. Upload them now
+            // 2. Skip them and register
+            // 3. Upload them later
+            //
+            // Therefore there is NO mandatory-document
+            // validation here.
+            // --------------------------------------------------
 
-            var uploadedMandatoryIds = request.Documents
-                .Where(x => x.DocumentTypeId.HasValue)
-                .Select(x => x.DocumentTypeId!.Value)
-                .Distinct()
-                .ToList();
+            // --------------------------------------------------
+            // IF NO DOCUMENTS WERE PROVIDED
+            // --------------------------------------------------
+            //
+            // Allow the recruiter to continue without uploading.
+            //
 
-            var missingMandatoryDocuments = mandatoryDocumentIds
-                .Except(uploadedMandatoryIds)
-                .ToList();
-
-            if (missingMandatoryDocuments.Any())
+            if (request.Documents == null || !request.Documents.Any())
             {
-                var missingNames = documentMasters
-                    .Where(x => missingMandatoryDocuments.Contains(x.DocumentTypeId))
-                    .Select(x => x.DocumentName)
-                    .ToList();
+                session.CurrentStep = 4;
+
+                if (session.LastCompletedStep < 4)
+                {
+                    session.LastCompletedStep = 4;
+                }
+
+                await _context.SaveChangesAsync();
 
                 return new RegistrationDocumentsResponseDto
                 {
-                    Success = false,
-                    Message = $"Please upload all mandatory documents. Missing: {string.Join(", ", missingNames)}"
+                    Success = true,
+                    Message = "Documents skipped successfully.",
+                    Documents = new List<RegistrationUploadedDocumentDto>(),
+                    StepStatus = BuildStepStatus(session)
                 };
             }
 
+            // --------------------------------------------------
+            // DELETE OLD SESSION DOCUMENTS
+            // --------------------------------------------------
+
             var oldDocuments = await _context.RegistrationSessionDocuments
-    .Where(x => x.SessionId == session.SessionId && !x.IsDeleted)
-    .ToListAsync();
+                .Where(x =>
+                    x.SessionId == session.SessionId &&
+                    !x.IsDeleted)
+                .ToListAsync();
 
             foreach (var doc in oldDocuments)
             {
@@ -1248,6 +1584,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
             _context.RegistrationSessionDocuments.RemoveRange(oldDocuments);
 
+            // --------------------------------------------------
+            // FILE VALIDATION
+            // --------------------------------------------------
+
             var allowedTypes = new[]
             {
             "application/pdf",
@@ -1258,10 +1598,21 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
             const long maxSize = 5 * 1024 * 1024;
 
-            var uploadedDocuments = new List<RegistrationUploadedDocumentDto>();
+            var uploadedDocuments =
+                new List<RegistrationUploadedDocumentDto>();
+
+            // --------------------------------------------------
+            // PROCESS DOCUMENTS
+            // --------------------------------------------------
+
             foreach (var document in request.Documents)
             {
-                if (document.File == null || document.File.Length == 0)
+                // ----------------------------------------------
+                // FILE REQUIRED
+                // ----------------------------------------------
+
+                if (document.File == null ||
+                    document.File.Length == 0)
                 {
                     return new RegistrationDocumentsResponseDto
                     {
@@ -1270,159 +1621,210 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     };
                 }
 
+                // ----------------------------------------------
+                // FILE TYPE
+                // ----------------------------------------------
+
                 if (!allowedTypes.Contains(document.File.ContentType))
                 {
                     return new RegistrationDocumentsResponseDto
                     {
                         Success = false,
-                        Message = $"{document.File.FileName} must be PDF, JPG or PNG."
+                        Message =
+                            $"{document.File.FileName} must be PDF, JPG or PNG."
                     };
                 }
+
+                // ----------------------------------------------
+                // FILE SIZE
+                // ----------------------------------------------
 
                 if (document.File.Length > maxSize)
                 {
                     return new RegistrationDocumentsResponseDto
                     {
                         Success = false,
-                        Message = $"{document.File.FileName} must be under 5 MB."
+                        Message =
+                            $"{document.File.FileName} must be under 5 MB."
                     };
                 }
 
-                // Validate Document Type
+                // ----------------------------------------------
+                // DOCUMENT TYPE
+                // ----------------------------------------------
+
                 VerificationDocumentMaster? master = null;
 
                 if (document.DocumentTypeId.HasValue)
                 {
                     master = documentMasters.FirstOrDefault(x =>
-                        x.DocumentTypeId == document.DocumentTypeId.Value);
+                        x.DocumentTypeId ==
+                        document.DocumentTypeId.Value);
 
                     if (master == null)
                     {
                         return new RegistrationDocumentsResponseDto
                         {
                             Success = false,
-                            Message = $"Invalid document type selected for {document.File.FileName}."
+                            Message =
+                                $"Invalid document type selected for {document.File.FileName}."
                         };
                     }
-
-        
-
-                    
                 }
 
-                // Upload File
-                var uploadResult = await _fileStorageService.UploadDocumentAsync(
-                    document.File,
-                    $"registration/{session.SessionId}/documents");
+                // ----------------------------------------------
+                // UPLOAD FILE
+                // ----------------------------------------------
+
+                var uploadResult =
+                    await _fileStorageService.UploadDocumentAsync(
+                        document.File,
+                        $"registration/{session.SessionId}/documents");
 
                 if (string.IsNullOrWhiteSpace(uploadResult.Url))
                 {
                     return new RegistrationDocumentsResponseDto
                     {
                         Success = false,
-                        Message = $"Failed to upload {document.File.FileName}."
+                        Message =
+                            $"Failed to upload {document.File.FileName}."
                     };
                 }
 
-                // Parse Document with Gemini
+                // ----------------------------------------------
+                // GEMINI PARSING
+                // ----------------------------------------------
+
                 GeminiCompanyDocumentParseResponse? parsed = null;
 
                 try
                 {
-                    parsed = await _geminiCompanyDocumentParserService
-                        .ParseDocumentAsync(document.File);
-                    // If recruiter uploaded "Other Document",
-                    // try to map Gemini detected document type
+                    parsed =
+                        await _geminiCompanyDocumentParserService
+                            .ParseDocumentAsync(document.File);
+
+                    // ------------------------------------------
+                    // MAP "OTHER" DOCUMENT USING GEMINI
+                    // ------------------------------------------
+
                     if (!document.DocumentTypeId.HasValue &&
                         !string.IsNullOrWhiteSpace(parsed?.DocumentType))
                     {
                         master = documentMasters.FirstOrDefault(x =>
-      parsed.DocumentType!.Contains(
-          x.DocumentName,
-          StringComparison.OrdinalIgnoreCase)
-      ||
-      x.DocumentName.Contains(
-          parsed.DocumentType,
-          StringComparison.OrdinalIgnoreCase));
+                            parsed.DocumentType!.Contains(
+                                x.DocumentName,
+                                StringComparison.OrdinalIgnoreCase)
+                            ||
+                            x.DocumentName.Contains(
+                                parsed.DocumentType,
+                                StringComparison.OrdinalIgnoreCase));
 
                         if (master != null)
                         {
-                            document.DocumentTypeId = master.DocumentTypeId;
+                            document.DocumentTypeId =
+                                master.DocumentTypeId;
 
-                            document.DocumentName = master.DocumentName;
+                            document.DocumentName =
+                                master.DocumentName;
 
-                            document.Category = master.Category;
+                            document.Category =
+                                master.Category;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex,
+                    _logger.LogWarning(
+                        ex,
                         "Gemini parsing failed for {FileName}",
                         document.File.FileName);
                 }
 
-            
+                // --------------------------------------------------
+                // SAVE REGISTRATION SESSION DOCUMENT
+                // --------------------------------------------------
 
-                // Save Temporary Registration Document
-                var registrationDocument = new RegistrationSessionDocument
-                {
-                    SessionId = session.SessionId,
+                var registrationDocument =
+                    new RegistrationSessionDocument
+                    {
+                        SessionId =
+                            session.SessionId,
 
-                    DocumentTypeId = document.DocumentTypeId,
+                        DocumentTypeId =
+                            document.DocumentTypeId,
 
-                    CustomDocumentName =
-    document.DocumentTypeId == null
-        ? document.DocumentName
-        : null,
+                        CustomDocumentName =
+                            document.DocumentTypeId == null
+                                ? document.DocumentName
+                                : null,
 
-                    Category =
-    document.DocumentTypeId == null
-        ? document.Category
-        : master?.Category,
+                        Category =
+                            document.DocumentTypeId == null
+                                ? document.Category
+                                : master?.Category,
 
-                    FileName = document.File.FileName,
+                        FileName =
+                            document.File.FileName,
 
-                    FileUrl = uploadResult.Url,
+                        FileUrl =
+                            uploadResult.Url,
 
-                    PublicId = uploadResult.PublicId,
+                        PublicId =
+                            uploadResult.PublicId,
 
-                    UploadedAt = DateTime.UtcNow,
+                        UploadedAt =
+                            DateTime.UtcNow,
 
-                    DetectedDocumentType = parsed?.DocumentType,
+                        DetectedDocumentType =
+                            parsed?.DocumentType,
 
-                    DocumentNumber = parsed?.DocumentNumber,
+                        DocumentNumber =
+                            parsed?.DocumentNumber,
 
-                    IssuingAuthority = parsed?.IssuingAuthority,
+                        IssuingAuthority =
+                            parsed?.IssuingAuthority,
 
-                    IssueDate = parsed?.IssueDate,
+                        IssueDate =
+                            parsed?.IssueDate,
 
-                    ExpiryDate = parsed?.ExpiryDate,
+                        ExpiryDate =
+                            parsed?.ExpiryDate,
 
-                    ParsedDataJson = parsed?.ParsedData?.GetRawText(),
+                        ParsedDataJson =
+                            parsed?.ParsedData?.GetRawText(),
 
-                    AiConfidenceScore = parsed?.AiConfidenceScore
-                };
+                        AiConfidenceScore =
+                            parsed?.AiConfidenceScore
+                    };
 
-                _context.RegistrationSessionDocuments.Add(registrationDocument);
+                _context.RegistrationSessionDocuments
+                    .Add(registrationDocument);
 
-                uploadedDocuments.Add(new RegistrationUploadedDocumentDto
-                {
-                    RegistrationDocumentId = registrationDocument.RegistrationDocumentId,
+                uploadedDocuments.Add(
+                    new RegistrationUploadedDocumentDto
+                    {
+                        RegistrationDocumentId =
+                            registrationDocument.RegistrationDocumentId,
 
-                    DocumentTypeId = registrationDocument.DocumentTypeId,
+                        DocumentTypeId =
+                            registrationDocument.DocumentTypeId,
 
-                    DocumentName =
-                        registrationDocument.CustomDocumentName ??
-                        master?.DocumentName ??
-                        "Custom Document",
+                        DocumentName =
+                            registrationDocument.CustomDocumentName
+                            ?? master?.DocumentName
+                            ?? "Custom Document",
 
-                    FileUrl = registrationDocument.FileUrl,
+                        FileUrl =
+                            registrationDocument.FileUrl,
 
-                    Status = "Uploaded"
-                });
+                        Status = "Uploaded"
+                    });
             }
-            // Update Registration Step
+
+            // --------------------------------------------------
+            // COMPLETE STEP 4
+            // --------------------------------------------------
+
             session.CurrentStep = 4;
 
             if (session.LastCompletedStep < 4)
@@ -1436,9 +1838,14 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 "Registration documents uploaded successfully. Session: {SessionId}",
                 session.SessionId);
 
+            // --------------------------------------------------
+            // RESPONSE
+            // --------------------------------------------------
+
             return new RegistrationDocumentsResponseDto
             {
                 Success = true,
+
                 Message = "Documents uploaded successfully.",
 
                 Documents = uploadedDocuments,
@@ -1456,6 +1863,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             return new RegistrationDocumentsResponseDto
             {
                 Success = false,
+
                 Message =
                     ex.InnerException?.InnerException?.Message
                     ?? ex.InnerException?.Message
@@ -1464,11 +1872,6 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         }
     }
 
-
-
-    // ════════════════════════════════════════════════
-    // STEP 5 — Submit → read from DB session
-    // ════════════════════════════════════════════════
     public async Task<ReviewSubmitResponseDto> SubmitRegistrationAsync(
       ReviewSubmitRequestDto request,
       string ipAddress)

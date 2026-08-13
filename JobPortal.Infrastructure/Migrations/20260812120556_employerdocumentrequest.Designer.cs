@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260812120556_employerdocumentrequest")]
+    partial class employerdocumentrequest
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1421,49 +1424,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.ToTable("EmployerCandidateAccesses");
                 });
 
-            modelBuilder.Entity("JobPortal.Domain.Entities.EmployerDocumentRequest", b =>
-                {
-                    b.Property<Guid>("RequestId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CustomDocumentName")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("DocumentTypeId")
-                        .IsRequired()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("EmployerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Message")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("RequestedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("RequestedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("RequestedByAdminAdminId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("RequestId");
-
-                    b.HasIndex("DocumentTypeId");
-
-                    b.HasIndex("EmployerId");
-
-                    b.HasIndex("RequestedByAdminAdminId");
-
-                    b.ToTable("EmployerDocumentRequests");
-                });
-
             modelBuilder.Entity("JobPortal.Domain.Entities.EmployerNotificationSetting", b =>
                 {
                     b.Property<Guid>("NotifPrefId")
@@ -1966,9 +1926,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("Remarks")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("RequestId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -1986,8 +1943,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.HasIndex("DocumentTypeId");
 
                     b.HasIndex("EmployerId");
-
-                    b.HasIndex("RequestId");
 
                     b.ToTable("EmployerVerificationDocuments");
                 });
@@ -3998,33 +3953,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Navigation("VerificationDocument");
                 });
 
-            modelBuilder.Entity("JobPortal.Domain.Entities.EmployerDocumentRequest", b =>
-                {
-                    b.HasOne("VerificationDocumentMaster", "DocumentType")
-                        .WithMany()
-                        .HasForeignKey("DocumentTypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("JobPortal.Domain.Entities.EmployerProfile", "Employer")
-                        .WithMany()
-                        .HasForeignKey("EmployerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("JobPortal.Domain.Entities.AdminUser", "RequestedByAdmin")
-                        .WithMany()
-                        .HasForeignKey("RequestedByAdminAdminId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DocumentType");
-
-                    b.Navigation("Employer");
-
-                    b.Navigation("RequestedByAdmin");
-                });
-
             modelBuilder.Entity("JobPortal.Domain.Entities.EmployerNotificationSetting", b =>
                 {
                     b.HasOne("JobPortal.Domain.Entities.EmployerProfile", "EmployerProfile")
@@ -4097,15 +4025,9 @@ namespace JobPortal.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("JobPortal.Domain.Entities.EmployerDocumentRequest", "Request")
-                        .WithMany()
-                        .HasForeignKey("RequestId");
-
                     b.Navigation("DocumentType");
 
                     b.Navigation("Employer");
-
-                    b.Navigation("Request");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.Invoice", b =>
