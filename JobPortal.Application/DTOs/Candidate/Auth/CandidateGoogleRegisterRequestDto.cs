@@ -26,5 +26,10 @@ namespace JobPortal.Application.DTOs.Candidate.Auth
         public string RazorpayPaymentId { get; set; } = default!;
         [Required(ErrorMessage = "Payment verification required.")]
         public string RazorpaySignature { get; set; } = default!;
+
+        // The MembershipPlan (PlanType.Candidate) the paid order was
+        // created for — echoed back from /api/candidate/auth/create-order.
+        [Required(ErrorMessage = "Membership plan is required.")]
+        public Guid PlanId { get; set; }
     }
 }

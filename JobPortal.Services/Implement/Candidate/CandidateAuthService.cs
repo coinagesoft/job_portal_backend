@@ -6,12 +6,14 @@ using JobPortal.Domain.Enums.common;
 using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.ICandidate;
+using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Services.Implement.Recruiter;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Razorpay.Api;
+using System.Linq;
 
 
 namespace JobPortal.Services.Implement.Candidate;
@@ -23,6 +25,7 @@ public class CandidateAuthService : ICandidateAuthService
     private readonly IEmailService _emailService;
     private readonly ILogger<CandidateAuthService> _logger;
     private readonly ITwilioOtpService _twilioOtpService;
+    private readonly IMembershipPlanService _membershipPlanService;
     private const int OtpExpiryMinutes = 10;
     private readonly IConfiguration _config;
 
@@ -30,6 +33,9 @@ public class CandidateAuthService : ICandidateAuthService
 
     private const int MaxOtpAttempts = 5;
 
+    // Default pricing region for the candidate membership fee when the
+    // caller doesn't specify one — this flow is currently India-focused.
+    private const string DefaultCandidateMembershipRegion = "in";
 
     public CandidateAuthService(
         AppDbContext context,
@@ -37,6 +43,7 @@ public class CandidateAuthService : ICandidateAuthService
         IEmailService emailService,
         ITwilioOtpService twilioOtpService,
          IConfiguration config,
+        IMembershipPlanService membershipPlanService,
         ILogger<CandidateAuthService> logger)
     {
         _context = context;
@@ -45,6 +52,35 @@ public class CandidateAuthService : ICandidateAuthService
         _logger = logger;
         _config = config;
         _twilioOtpService = twilioOtpService;
+        _membershipPlanService = membershipPlanService;
+    }
+
+    // Resolves the active candidate membership plan to charge: prefers
+    // an exact region match, falls back to the "in" (India) default
+    // region, and finally to any active Candidate plan if neither
+    // region has one configured yet. Returns null if the admin hasn't
+    // configured any active candidate membership plan at all.
+    private async Task<JobPortal.Application.DTOs.Admin.MembershipPlan.MembershipPlanResponseDto?> ResolveCandidateMembershipPlanAsync(string? region)
+    {
+        var normalizedRegion = string.IsNullOrWhiteSpace(region)
+            ? DefaultCandidateMembershipRegion
+            : region.Trim().ToLowerInvariant();
+
+        var regionPlans = await _membershipPlanService.GetActivePlansAsync(PlanType.Candidate, normalizedRegion);
+        var plan = regionPlans.OrderBy(p => p.Price).FirstOrDefault();
+        if (plan != null)
+            return plan;
+
+        if (normalizedRegion != DefaultCandidateMembershipRegion)
+        {
+            var defaultRegionPlans = await _membershipPlanService.GetActivePlansAsync(PlanType.Candidate, DefaultCandidateMembershipRegion);
+            plan = defaultRegionPlans.OrderBy(p => p.Price).FirstOrDefault();
+            if (plan != null)
+                return plan;
+        }
+
+        var anyPlans = await _membershipPlanService.GetActivePlansAsync(PlanType.Candidate, null);
+        return anyPlans.OrderBy(p => p.Price).FirstOrDefault();
     }
 
     // =====================================================
@@ -94,6 +130,35 @@ public class CandidateAuthService : ICandidateAuthService
             if (!paymentVerified)
             {
                 return Fail("Payment verification failed.");
+            }
+
+            // A given Razorpay payment can only ever fund one
+            // registration — block replay of the same paymentId against
+            // a second Register call.
+            var paymentAlreadyUsed = await _context.PaymentTransactions
+                .AnyAsync(t =>
+                    t.RazorpayPaymentId == request.RazorpayPaymentId &&
+                    t.PaymentStatus == "Completed");
+
+            if (paymentAlreadyUsed)
+            {
+                return Fail("This payment has already been used to complete a registration.");
+            }
+
+            // Resolve the plan the order was created for — the price is
+            // always re-read from here, never trusted from the client,
+            // so admin price changes are reflected and the paid amount
+            // can't be tampered with in transit.
+            var membershipPlan = await _context.MembershipPlans
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p =>
+                    p.PlanId == request.PlanId &&
+                    p.PlanType == PlanType.Candidate &&
+                    p.IsActive);
+
+            if (membershipPlan == null)
+            {
+                return Fail("Selected membership plan is no longer available. Please refresh and try again.");
             }
 
             // Mobile already registered?
@@ -151,6 +216,8 @@ public class CandidateAuthService : ICandidateAuthService
             _context.Users.Add(user);
 
             // Create profile
+            var membershipAmountPaise = (int)Math.Round(membershipPlan.Price * 100, MidpointRounding.AwayFromZero);
+
             var profile = new CandidateProfile
             {
                 CandidateId = Guid.NewGuid(),
@@ -159,6 +226,9 @@ public class CandidateAuthService : ICandidateAuthService
                 ProfileStatus = "Incomplete",
                 ProfileCompletionPct = 0,
                 AvailabilityStatus = "Available",
+                IsMember = true,
+                MembershipPlanId = membershipPlan.PlanId,
+                MembershipPurchasedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -178,18 +248,19 @@ public class CandidateAuthService : ICandidateAuthService
 
                 TransactionType = "CandidateRegistration",
 
-                PackType = null,
+                PackType = membershipPlan.PlanName,
 
                 CreditQuantity = null,
 
                 ValidityMonths = null,
 
-                // ₹100 = 10000 paise
-                AmountPaise = 100,
+                // Sourced from the admin-configured MembershipPlan price,
+                // not from anything the client sent.
+                AmountPaise = membershipAmountPaise,
 
                 GstAmountPaise = 0,
 
-                TotalAmountPaise = 100,
+                TotalAmountPaise = membershipAmountPaise,
 
                 PaymentMethod = "Razorpay",
 
@@ -720,14 +791,32 @@ public class CandidateAuthService : ICandidateAuthService
     {
         try
         {
+            // Amount is never taken from the client — it's always the
+            // active, admin-managed Candidate MembershipPlan price for
+            // the requested (or default) pricing region. This is what
+            // lets the admin Plans page actually control what candidates
+            // get charged.
+            var plan = await ResolveCandidateMembershipPlanAsync(request.Region);
 
-            _logger.LogInformation(
-    "KeyId:{KeyId}",
-    _config["Razorpay:KeyId"]);
+            if (plan == null)
+            {
+                return new CreateCandidateOrderResponseDto
+                {
+                    Success = false,
+                    Message = "Candidate membership is not available right now. Please try again later."
+                };
+            }
 
-            _logger.LogInformation(
-                "KeySecret:{KeySecret}",
-                _config["Razorpay:KeySecret"]);
+            if (plan.Price <= 0)
+            {
+                return new CreateCandidateOrderResponseDto
+                {
+                    Success = false,
+                    Message = "This membership plan doesn't require payment."
+                };
+            }
+
+            var amountPaise = (int)Math.Round(plan.Price * 100, MidpointRounding.AwayFromZero);
 
             var client = new RazorpayClient(
             _config["Razorpay:KeyId"],
@@ -735,9 +824,9 @@ public class CandidateAuthService : ICandidateAuthService
 
             var options = new Dictionary<string, object>
         {
-            { "amount", request.Amount * 100 }, // paisa
+            { "amount", amountPaise }, // paisa — server-resolved, not client-supplied
             { "currency", "INR" },
-            { "receipt", Guid.NewGuid().ToString() }
+            { "receipt", $"CANDMEM-{plan.PlanId.ToString("N")[..12]}" }
         };
 
             Order order = client.Order.Create(options);
@@ -747,8 +836,12 @@ public class CandidateAuthService : ICandidateAuthService
                 {
                     Success = true,
                     OrderId = order["id"].ToString(),
-                    Amount = request.Amount,
+                    Amount = plan.Price,
+                    AmountPaise = amountPaise,
                     Currency = "INR",
+                    RazorpayKeyId = _config["Razorpay:KeyId"] ?? string.Empty,
+                    PlanId = plan.PlanId,
+                    PlanName = plan.PlanName,
                     Message = "Order created successfully."
                 });
         }
@@ -761,7 +854,7 @@ public class CandidateAuthService : ICandidateAuthService
             return new CreateCandidateOrderResponseDto
             {
                 Success = false,
-                Message = ex.ToString()
+                Message = "Payment gateway error. Please try again."
             };
         }
     }

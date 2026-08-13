@@ -19,6 +19,9 @@ public class CandidateRegisterRequestDto
     public string? Email { get; set; }
 
     [Required]
+    public Guid PlanId { get; set; }
+
+    [Required]
     public string RazorpayPaymentId { get; set; } = string.Empty;
 
     [Required]

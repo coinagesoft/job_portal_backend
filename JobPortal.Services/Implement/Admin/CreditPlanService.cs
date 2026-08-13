@@ -83,14 +83,15 @@ namespace JobPortal.Services.Implement.Admin
             return new CommonResponseDto
             {
                 Success = true,
-                Message = "Credit plan updated successfully."
+                Message = "Credit plan updated successfully.",
+                PlanId = plan.PlanId
             };
         }
 
 
 
 
-        public async Task<List<CreditPlanResponseDto>> GetAllPlansAsync(Guid adminId, string? region = null)
+        public async Task<List<AdminCreditPlanResponseDto>> GetAllPlansAsync(Guid adminId, string? region = null)
         {
             var query = _context.CreditPlans.AsQueryable();
 
@@ -102,7 +103,7 @@ namespace JobPortal.Services.Implement.Admin
             return await query
                 .OrderBy(x => x.Price)
                 .Select(x =>
-                    new CreditPlanResponseDto
+                    new AdminCreditPlanResponseDto
                     {
                         PlanId = x.PlanId,
                         PlanName = x.PlanName,
@@ -110,8 +111,6 @@ namespace JobPortal.Services.Implement.Admin
                         Price = x.Price,
                         ValidityMonths =
                             x.ValidityMonths,
-                        Region = x.Region,
-                        Bonus = x.Bonus,
                         IsActive = x.IsActive
                     })
                 .ToListAsync();
@@ -134,19 +133,41 @@ namespace JobPortal.Services.Implement.Admin
                 };
             }
 
-            plan.IsActive = false;
+            // Employers who already purchased this plan hold a row in
+            // EmployerPlanPurchase referencing it by PlanId. Hard-deleting
+            // the plan out from under that purchase history would either
+            // violate the FK or, if cascade delete is configured, silently
+            // erase what those employers paid for. Guard against that
+            // instead of letting it fail with a raw DB exception — steer
+            // the admin to deactivate (soft-delete) in that case, which
+            // still hides the plan from new purchases.
+            var hasPurchaseHistory = await _context.EmployerPlanPurchase
+                .AnyAsync(x => x.PlanId == planId);
+
+            if (hasPurchaseHistory)
+            {
+                return new CommonResponseDto
+                {
+                    Success = false,
+                    Message = "This plan has already been purchased by one or more employers and can't be deleted. Deactivate it instead to hide it from new purchases.",
+                    PlanId = plan.PlanId
+                };
+            }
+
+            _context.CreditPlans.Remove(plan);
 
             await _context.SaveChangesAsync();
 
             return new CommonResponseDto
             {
                 Success = true,
-                Message = "Plan deactivated."
+                Message = "Plan deleted successfully.",
+                PlanId = planId
             };
         }
 
 
-        public async Task<CreditPlanResponseDto?> GetPlanByIdAsync(Guid planId, Guid adminId)
+        public async Task<AdminCreditPlanResponseDto?> GetPlanByIdAsync(Guid planId, Guid adminId)
         {
             var plan = await _context.CreditPlans
                 .AsNoTracking()
@@ -156,15 +177,13 @@ namespace JobPortal.Services.Implement.Admin
             if (plan == null)
                 return null;
 
-            return new CreditPlanResponseDto
+            return new AdminCreditPlanResponseDto
             {
                 PlanId = plan.PlanId,
                 PlanName = plan.PlanName,
                 Credits = plan.Credits,
                 Price = plan.Price,
                 ValidityMonths = plan.ValidityMonths,
-                Region = plan.Region,
-                Bonus = plan.Bonus,
                 IsActive = plan.IsActive
             };
         }
