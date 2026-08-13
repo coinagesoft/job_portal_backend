@@ -49,6 +49,28 @@ namespace JobPortal.Services.Implement.Candidate
             _twilioOtpService = twilioOtpService;
             _httpClientFactory = httpClientFactory;
         }
+
+        // Same trust model as CandidateAuthService.RegisterAsync: never
+        // trust a client-supplied amount, always re-read the plan (and
+        // its price) from the DB using only the PlanId, and require it
+        // to still be an active Candidate plan.
+        private async Task<MembershipPlan?> ResolveAndValidateCandidatePlanAsync(Guid planId)
+        {
+            return await _context.MembershipPlans
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p =>
+                    p.PlanId == planId &&
+                    p.PlanType == PlanType.Candidate &&
+                    p.IsActive);
+        }
+
+        private async Task<bool> IsPaymentAlreadyUsedAsync(string razorpayPaymentId)
+        {
+            return await _context.PaymentTransactions
+                .AnyAsync(t =>
+                    t.RazorpayPaymentId == razorpayPaymentId &&
+                    t.PaymentStatus == "Completed");
+        }
         public async Task<AuthResponseDto> GoogleRegisterAsync(CandidateGoogleRegisterRequestDto request, string ipAddress)
         {
             try
@@ -61,6 +83,18 @@ namespace JobPortal.Services.Implement.Candidate
                 {
                     return AuthFail("Payment verification failed.");
                 }
+
+                if (await IsPaymentAlreadyUsedAsync(request.RazorpayPaymentId))
+                {
+                    return AuthFail("This payment has already been used to complete a registration.");
+                }
+
+                var membershipPlan = await ResolveAndValidateCandidatePlanAsync(request.PlanId);
+                if (membershipPlan == null)
+                {
+                    return AuthFail("Selected membership plan is no longer available. Please refresh and try again.");
+                }
+
                 var httpClient = _httpClientFactory.CreateClient();
                 httpClient.DefaultRequestHeaders.Authorization =
                     new AuthenticationHeaderValue("Bearer", request.AccessToken);
@@ -97,6 +131,8 @@ namespace JobPortal.Services.Implement.Candidate
                     UpdatedAt = DateTime.UtcNow
                 };
                 _context.Users.Add(user);
+                var googleMembershipAmountPaise = (int)Math.Round(membershipPlan.Price * 100, MidpointRounding.AwayFromZero);
+
                 var profile = new JobPortal.Domain.Entities.CandidateProfile
                 {
                     CandidateId = Guid.NewGuid(),
@@ -105,14 +141,16 @@ namespace JobPortal.Services.Implement.Candidate
                     ProfileStatus = "Incomplete",
                     ProfileCompletionPct = 0,
                     AvailabilityStatus = "Available",
+                    IsMember = true,
+                    MembershipPlanId = membershipPlan.PlanId,
+                    MembershipPurchasedAt = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
                 _context.CandidateProfiles.Add(profile);
 
-               
-
-                // Store the candidate's ₹100 registration payment
+                // Store the candidate's registration payment — amount is
+                // sourced from the admin-configured MembershipPlan.
                 var paymentTransaction = new PaymentTransaction
                 {
                     TransactionId = Guid.NewGuid(),
@@ -123,11 +161,13 @@ namespace JobPortal.Services.Implement.Candidate
 
                     TransactionType = "CandidateRegistration",
 
-                    AmountPaise = 100,
+                    PackType = membershipPlan.PlanName,
+
+                    AmountPaise = googleMembershipAmountPaise,
 
                     GstAmountPaise = 0,
 
-                    TotalAmountPaise = 100,
+                    TotalAmountPaise = googleMembershipAmountPaise,
 
                     PaymentMethod = "Razorpay",
 
@@ -174,6 +214,18 @@ namespace JobPortal.Services.Implement.Candidate
                 {
                     return AuthFail("Payment verification failed.");
                 }
+
+                if (await IsPaymentAlreadyUsedAsync(request.RazorpayPaymentId))
+                {
+                    return AuthFail("This payment has already been used to complete a registration.");
+                }
+
+                var membershipPlan = await ResolveAndValidateCandidatePlanAsync(request.PlanId);
+                if (membershipPlan == null)
+                {
+                    return AuthFail("Selected membership plan is no longer available. Please refresh and try again.");
+                }
+
                 // No code exchange here — reuse the access token from the verify step
                 var httpClient = _httpClientFactory.CreateClient();
                 httpClient.DefaultRequestHeaders.Authorization =
@@ -209,6 +261,8 @@ namespace JobPortal.Services.Implement.Candidate
                     UpdatedAt = DateTime.UtcNow
                 };
                 _context.Users.Add(user);
+                var linkedInMembershipAmountPaise = (int)Math.Round(membershipPlan.Price * 100, MidpointRounding.AwayFromZero);
+
                 var profile = new JobPortal.Domain.Entities.CandidateProfile
                 {
                     CandidateId = Guid.NewGuid(),
@@ -217,14 +271,16 @@ namespace JobPortal.Services.Implement.Candidate
                     ProfileStatus = "Incomplete",
                     ProfileCompletionPct = 0,
                     AvailabilityStatus = "Available",
+                    IsMember = true,
+                    MembershipPlanId = membershipPlan.PlanId,
+                    MembershipPurchasedAt = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
                 _context.CandidateProfiles.Add(profile);
 
-             
-
-                // Store the candidate's ₹100 registration payment
+                // Store the candidate's registration payment — amount is
+                // sourced from the admin-configured MembershipPlan.
                 var paymentTransaction = new PaymentTransaction
                 {
                     TransactionId = Guid.NewGuid(),
@@ -235,11 +291,13 @@ namespace JobPortal.Services.Implement.Candidate
 
                     TransactionType = "CandidateRegistration",
 
-                    AmountPaise = 100,
+                    PackType = membershipPlan.PlanName,
+
+                    AmountPaise = linkedInMembershipAmountPaise,
 
                     GstAmountPaise = 0,
 
-                    TotalAmountPaise = 100,
+                    TotalAmountPaise = linkedInMembershipAmountPaise,
 
                     PaymentMethod = "Razorpay",
 

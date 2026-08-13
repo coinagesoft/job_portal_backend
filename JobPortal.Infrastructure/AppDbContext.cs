@@ -626,6 +626,9 @@ public class AppDbContext : DbContext
             e.Property(x => x.NoticePeriod).HasColumnName("NoticePeriod");
             e.Property(x => x.CreatedAt).HasColumnName("created_at");
             e.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+            e.Property(x => x.IsMember).HasColumnName("is_member");
+            e.Property(x => x.MembershipPlanId).HasColumnName("membership_plan_id");
+            e.Property(x => x.MembershipPurchasedAt).HasColumnName("membership_purchased_at");
             e.HasOne(x => x.User).WithOne()
              .HasForeignKey<CandidateProfile>(x => x.UserId)
              .OnDelete(DeleteBehavior.Restrict);

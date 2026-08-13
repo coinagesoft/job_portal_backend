@@ -53,6 +53,17 @@ public class CandidateProfile
     public DateTime UpdatedAt { get; set; }
 
     // ===========================
+    // Candidate lifetime membership (the one-time ₹100-style fee taken
+    // at registration). Price/name/region come from the admin-managed
+    // MembershipPlan (PlanType = Candidate) that was active at the time
+    // of purchase — see CandidateAuthService.RegisterAsync /
+    // CandidateRegistrationService.GoogleRegisterAsync/LinkedInRegisterAsync.
+    // ===========================
+    public bool IsMember { get; set; } = false;
+    public Guid? MembershipPlanId { get; set; }
+    public DateTime? MembershipPurchasedAt { get; set; }
+
+    // ===========================
     // Portal-generated CV (built from current profile data, kept
     // separate from the originally uploaded resume in Cvs below —
     // the original is retained as an audit/backup copy).
