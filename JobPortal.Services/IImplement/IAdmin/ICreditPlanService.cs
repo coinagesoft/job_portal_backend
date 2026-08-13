@@ -17,9 +17,9 @@ namespace JobPortal.Services.IImplement.IAdmin
 
         Task<CommonResponseDto> DeletePlanAsync(Guid planId, Guid adminId);
 
-        Task<List<CreditPlanResponseDto>> GetAllPlansAsync(Guid adminId, string? region = null);
+        Task<List<AdminCreditPlanResponseDto>> GetAllPlansAsync(Guid adminId, string? region = null);
 
-        Task<CreditPlanResponseDto?> GetPlanByIdAsync(Guid planId, Guid adminId);
+        Task<AdminCreditPlanResponseDto?> GetPlanByIdAsync(Guid planId, Guid adminId);
 
 
     }
