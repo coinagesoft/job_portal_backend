@@ -41,6 +41,22 @@ public class HomepageController : ControllerBase
     }
 
     /// <summary>
+    /// GET api/public/homepage/data
+    /// Everything managed from the Admin "Homepage Management" screen in one
+    /// call: Hero, Industries, Statistics, Locations, Roles, Registration
+    /// Industries, Departments, Trade Categories — active items only, in
+    /// display order. No authentication required.
+    /// </summary>
+    [HttpGet("homepage/data")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(PublicHomepageContentResponseDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetHomepageManagementData()
+    {
+        var result = await _homepageService.GetHomepageManagementDataAsync();
+        return result.Success ? Ok(result) : StatusCode(500, result);
+    }
+
+    /// <summary>
     /// POST api/public/homepage/suggestions
     /// "Don't see your industry/location/role?" — lets a candidate or
     /// recruiter suggest a value for one of the admin-managed homepage

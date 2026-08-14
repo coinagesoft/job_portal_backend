@@ -320,6 +320,146 @@ public class HomepageService : IHomepageService
             };
         }
     }
+    public async Task<PublicHomepageContentResponseDto> GetHomepageManagementDataAsync()
+    {
+        try
+        {
+            var hero = await _context.HomepageHeroes
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
+
+            var industries = await _context.HomepageIndustries
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new PublicIndustryDto
+                {
+                    IndustryId = x.IndustryId,
+                    Name = x.Name,
+                    Slug = x.Slug,
+                    IconUrl = x.IconUrl,
+                    JobCount = x.JobCountOverride ?? 0,
+                    DisplayOrder = x.DisplayOrder
+                })
+                .ToListAsync();
+
+            var statistics = await _context.HomepageStatistics
+                .AsNoTracking()
+                .FirstOrDefaultAsync();
+
+            var statisticItems = (statistics?.Items ?? new List<HomepageStatItem>())
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new PublicStatItemDto
+                {
+                    Label = x.Label,
+                    Value = x.Value,
+                    Suffix = x.Suffix,
+                    IconSlug = x.IconSlug,
+                    DisplayOrder = x.DisplayOrder
+                })
+                .ToList();
+
+            var locations = await _context.HomepageLocations
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new PublicLocationDto
+                {
+                    LocationId = x.LocationId,
+                    Name = x.Name,
+                    Country = x.Country,
+                    ImageUrl = x.ImageUrl,
+                    JobCount = x.JobCountOverride ?? 0,
+                    DisplayOrder = x.DisplayOrder
+                })
+                .ToListAsync();
+
+            var roles = await _context.HomepageRoles
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new PublicRoleDto
+                {
+                    RoleId = x.RoleId,
+                    Name = x.Name,
+                    IconUrl = x.IconUrl,
+                    JobCount = x.JobCountOverride ?? 0,
+                    DisplayOrder = x.DisplayOrder
+                })
+                .ToListAsync();
+
+            var registrationIndustries = await _context.HomepageRegistrationIndustries
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new PublicNamedListItemDto
+                {
+                    Id = x.RegistrationIndustryId,
+                    Name = x.Name,
+                    DisplayOrder = x.DisplayOrder
+                })
+                .ToListAsync();
+
+            var departments = await _context.HomepageDepartments
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new PublicNamedListItemDto
+                {
+                    Id = x.DepartmentId,
+                    Name = x.Name,
+                    DisplayOrder = x.DisplayOrder
+                })
+                .ToListAsync();
+
+            var tradeCategories = await _context.HomepageTradeCategories
+                .AsNoTracking()
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new PublicNamedListItemDto
+                {
+                    Id = x.TradeCategoryId,
+                    Name = x.Name,
+                    DisplayOrder = x.DisplayOrder
+                })
+                .ToListAsync();
+
+            return new PublicHomepageContentResponseDto
+            {
+                Success = true,
+                Message = "Homepage content loaded.",
+                Hero = new PublicHeroDto
+                {
+                    Headline = hero?.Headline ?? string.Empty,
+                    Subheadline = hero?.Subheadline,
+                    SearchPlaceholder = hero?.SearchPlaceholder,
+                    CtaText = hero?.CtaText,
+                    CtaLink = hero?.CtaLink,
+                    BannerImageUrl = hero?.BannerImageUrl
+                },
+                Industries = industries,
+                Statistics = statisticItems,
+                Locations = locations,
+                Roles = roles,
+                RegistrationIndustries = registrationIndustries,
+                Departments = departments,
+                TradeCategories = tradeCategories
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "HomepageService.GetHomepageManagementDataAsync failed.");
+
+            return new PublicHomepageContentResponseDto
+            {
+                Success = false,
+                Message = "An error occurred while loading homepage content."
+            };
+        }
+    }
+
     public async Task<SubmitSuggestionResponseDto> SubmitSuggestionAsync(
         SubmitSuggestionRequestDto request, Guid? submittedByUserId)
     {
