@@ -141,6 +141,8 @@ public class HomepageRole
 
     public string? IconUrl { get; set; }
 
+    public string? IconPublicId { get; set; }
+
     public int? JobCountOverride { get; set; }
 
     public int DisplayOrder { get; set; }

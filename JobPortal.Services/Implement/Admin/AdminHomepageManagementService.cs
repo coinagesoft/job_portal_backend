@@ -443,6 +443,25 @@ namespace JobPortal.Services.Implement.Admin
             return MapRole(entity);
         }
 
+        public async Task<RoleDto?> UploadRoleIconAsync(Guid roleId, IFormFile file)
+        {
+            var entity = await _context.HomepageRoles.FirstOrDefaultAsync(x => x.RoleId == roleId);
+            if (entity == null) return null;
+
+            // Stores the file via the file storage provider and gets back a short,
+            // public URL (e.g. https://jobportal.coinage.in/uploads/homepage/roles/xxx.png)
+            // instead of persisting a raw base64 string on the entity/response.
+            var upload = await _fileStorageService.UploadImageAsync(file, "homepage/roles");
+
+            entity.IconUrl = upload.Url;
+            entity.IconPublicId = upload.PublicId;
+            entity.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return MapRole(entity);
+        }
+
         private static RoleDto MapRole(HomepageRole x) => new()
         {
             RoleId = x.RoleId,
