@@ -111,6 +111,7 @@ builder.Services.AddScoped<IAdminDocumentTypeService, AdminDocumentTypeService>(
 builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IAdminRevenueService, AdminRevenueService>();
+builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IAdminSupportTicketService, AdminSupportTicketService>();
 builder.Services.AddScoped<ILegalDocumentService, LegalDocumentService>();
 builder.Services.AddScoped<ILegalDocumentPublicService, LegalDocumentPublicService>();
