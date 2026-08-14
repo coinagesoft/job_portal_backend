@@ -268,6 +268,21 @@ namespace JobPortal.API.Controllers.Admin
             return Ok(new { success = true, message = "Role status updated.", data = result });
         }
 
+        [HttpPost("roles/{roleId:guid}/icon")]
+        [AuditLog("Upload Role Icon", "Homepage Management", AuditSeverity.Info)]
+        public async Task<IActionResult> UploadRoleIcon(Guid roleId, IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest(new { success = false, message = "No file uploaded." });
+
+            // File is stored by the file storage provider; the response/DB only ever
+            // carries back the short public URL (never a base64 data URI).
+            var result = await _service.UploadRoleIconAsync(roleId, file);
+            if (result == null) return NotFound(new { success = false, message = "Role not found." });
+
+            return Ok(new { success = true, message = "Role icon uploaded.", data = result });
+        }
+
         // ============================================================
         // Registration Industries
         // ============================================================
