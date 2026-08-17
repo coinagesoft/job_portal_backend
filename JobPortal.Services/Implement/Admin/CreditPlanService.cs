@@ -111,6 +111,8 @@ namespace JobPortal.Services.Implement.Admin
                         Price = x.Price,
                         ValidityMonths =
                             x.ValidityMonths,
+                        Region = x.Region,
+                        Bonus = x.Bonus,
                         IsActive = x.IsActive
                     })
                 .ToListAsync();
@@ -184,6 +186,8 @@ namespace JobPortal.Services.Implement.Admin
                 Credits = plan.Credits,
                 Price = plan.Price,
                 ValidityMonths = plan.ValidityMonths,
+                Region = plan.Region,
+                Bonus = plan.Bonus,
                 IsActive = plan.IsActive
             };
         }

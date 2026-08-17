@@ -85,7 +85,8 @@ namespace JobPortal.Services.Implement.Admin
             return new CommonResponseDto
             {
                 Success = true,
-                Message = "Membership plan updated successfully."
+                Message = "Membership plan updated successfully.",
+                PlanId = plan.PlanId
             };
         }
 

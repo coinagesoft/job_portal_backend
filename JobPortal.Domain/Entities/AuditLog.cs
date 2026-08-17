@@ -49,8 +49,16 @@ public class AuditLog
 
     public bool Success { get; set; } = true;
 
+    // The admin session (see AdminSession) that was active when this
+    // action was performed. Resolved from the "jti" claim on the
+    // request's JWT. Null for actions that write their own AuditLog
+    // row outside of a normal authenticated admin request.
+    public Guid? SessionId { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     // Navigation
     public AdminUser PerformedByAdmin { get; set; } = default!;
+
+    public AdminSession? Session { get; set; }
 }

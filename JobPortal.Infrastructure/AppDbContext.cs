@@ -1569,6 +1569,11 @@ public class AppDbContext : DbContext
                 .WithMany(x => x.AuditLogs)
                 .HasForeignKey(x => x.PerformedByAdminId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Session)
+                .WithMany()
+                .HasForeignKey(x => x.SessionId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         m.Entity<ConsentLog>(e => {

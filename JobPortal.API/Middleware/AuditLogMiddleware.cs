@@ -62,6 +62,22 @@ public class AuditLogMiddleware
             if (admin == null)
                 return;
 
+            // The access token's "jti" claim maps 1:1 to the AdminSession
+            // row created at login (AdminSession.JwtId), so it's used to
+            // attribute this audit entry to the session that produced it.
+            var jwtId = user.FindFirst("jti")?.Value;
+
+            Guid? sessionId = null;
+
+            if (!string.IsNullOrEmpty(jwtId))
+            {
+                sessionId = await dbContext.AdminSessions
+                    .AsNoTracking()
+                    .Where(x => x.JwtId == jwtId)
+                    .Select(x => (Guid?)x.SessionId)
+                    .FirstOrDefaultAsync();
+            }
+
             var controllerActionDescriptor = endpoint!
                 .Metadata
                 .GetMetadata<ControllerActionDescriptor>();
@@ -114,6 +130,7 @@ public class AuditLogMiddleware
                 UserAgent = context.GetUserAgent(),
                 Success = success,
                 Severity = severity,
+                SessionId = sessionId,
                 CreatedAt = DateTime.UtcNow
             });
 

@@ -569,6 +569,7 @@ public class AuthService : IAuthService
                 UserAgent = userAgent,
                 Success = true,
                 Severity = AuditActionSeverity.Resolve("Login Success"),
+                SessionId = session.SessionId,
                 CreatedAt = DateTime.UtcNow
             });
 
