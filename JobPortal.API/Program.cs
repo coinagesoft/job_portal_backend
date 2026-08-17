@@ -110,10 +110,13 @@ builder.Services.AddScoped<IAdminCompanyDocumentService, AdminCompanyDocumentSer
 builder.Services.AddScoped<IAdminDocumentTypeService, AdminDocumentTypeService>();
 builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IAdminRevenueService, AdminRevenueService>();
+builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IAdminSupportTicketService, AdminSupportTicketService>();
 builder.Services.AddScoped<ILegalDocumentService, LegalDocumentService>();
 builder.Services.AddScoped<ILegalDocumentPublicService, LegalDocumentPublicService>();
 builder.Services.AddScoped<IAdminHomepageManagementService, AdminHomepageManagementService>();
+builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
 builder.Services.AddScoped<CandidatePagedJobService>();
 builder.Services.AddHttpClient<IGeminiCompanyDocumentParserService, GeminiCompanyDocumentParserService>();
 //builder.Services.AddScoped<IAffindaService, AffindaService>();

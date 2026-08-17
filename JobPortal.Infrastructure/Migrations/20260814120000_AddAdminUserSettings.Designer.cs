@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260814120000_AddAdminUserSettings")]
+    partial class AddAdminUserSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -331,9 +334,6 @@ namespace JobPortal.Infrastructure.Migrations
                     .HasMaxLength(100)
                     .HasColumnType("character varying(100)");
 
-                b.Property<Guid?>("SessionId")
-                    .HasColumnType("uuid");
-
                 b.Property<string>("Severity")
                     .IsRequired()
                     .ValueGeneratedOnAdd()
@@ -362,8 +362,6 @@ namespace JobPortal.Infrastructure.Migrations
                 b.HasKey("LogId");
 
                 b.HasIndex("PerformedByAdminId");
-
-                b.HasIndex("SessionId");
 
                 b.ToTable("AuditLogs");
             });
@@ -4170,14 +4168,7 @@ namespace JobPortal.Infrastructure.Migrations
                     .OnDelete(DeleteBehavior.Restrict)
                     .IsRequired();
 
-                b.HasOne("JobPortal.Domain.Entities.AdminSession", "Session")
-                    .WithMany()
-                    .HasForeignKey("SessionId")
-                    .OnDelete(DeleteBehavior.SetNull);
-
                 b.Navigation("PerformedByAdmin");
-
-                b.Navigation("Session");
             });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.CandidateCv", b =>

@@ -2,12 +2,7 @@
 
 namespace JobPortal.Application.DTOs.Admin.CreditWallet
 {
-    // Used only by the Admin credit-plan GET endpoints. Deliberately
-    // excludes Region and Bonus — the admin create/update forms don't
-    // collect either value, so surfacing them here was just showing
-    // meaningless defaults (bug #50). Region/Bonus are still used
-    // internally (see CreditPlan entity) and on the recruiter-facing
-    // CreditPlanResponseDto, which this does NOT replace.
+    // Used only by the Admin credit-plan GET endpoints.
     public class AdminCreditPlanResponseDto
     {
         public Guid PlanId { get; set; }
@@ -19,6 +14,13 @@ namespace JobPortal.Application.DTOs.Admin.CreditWallet
         public decimal Price { get; set; }
 
         public int ValidityMonths { get; set; }
+
+        // Pricing-region code, e.g. "us", "in", "ae". The admin
+        // create/update forms collect this (CreateCreditPlanRequestDto /
+        // UpdateCreditPlanRequestDto), so it belongs in the response too.
+        public string Region { get; set; } = default!;
+
+        public string? Bonus { get; set; }
 
         public bool IsActive { get; set; }
     }

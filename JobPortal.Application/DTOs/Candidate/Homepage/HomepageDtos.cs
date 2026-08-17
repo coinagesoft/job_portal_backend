@@ -97,3 +97,80 @@ public class SubmitSuggestionResponseDto
     public string Message { get; set; } = default!;
     public Guid? SuggestionId { get; set; }
 }
+
+// ── GET api/public/homepage/data ───────────────────────────────────
+// Everything managed from the Admin "Homepage Management" screen
+// (Hero / Industries / Statistics / Locations / Roles /
+// Registration Industries / Departments / Trade Categories), read-only,
+// active items only, in display order. This is separate from
+// HomepageResponseDto above, which carries live job-listing sections.
+
+public class PublicHomepageContentResponseDto
+{
+    public bool Success { get; set; } = true;
+    public string Message { get; set; } = string.Empty;
+
+    public PublicHeroDto Hero { get; set; } = new();
+    public List<PublicIndustryDto> Industries { get; set; } = new();
+    public List<PublicStatItemDto> Statistics { get; set; } = new();
+    public List<PublicLocationDto> Locations { get; set; } = new();
+    public List<PublicRoleDto> Roles { get; set; } = new();
+    public List<PublicNamedListItemDto> RegistrationIndustries { get; set; } = new();
+    public List<PublicNamedListItemDto> Departments { get; set; } = new();
+    public List<PublicNamedListItemDto> TradeCategories { get; set; } = new();
+}
+
+public class PublicHeroDto
+{
+    public string Headline { get; set; } = default!;
+    public string? Subheadline { get; set; }
+    public string? SearchPlaceholder { get; set; }
+    public string? CtaText { get; set; }
+    public string? CtaLink { get; set; }
+    public string? BannerImageUrl { get; set; }
+}
+
+public class PublicIndustryDto
+{
+    public Guid IndustryId { get; set; }
+    public string Name { get; set; } = default!;
+    public string? Slug { get; set; }
+    public string? IconUrl { get; set; }
+    public int JobCount { get; set; }
+    public int DisplayOrder { get; set; }
+}
+
+public class PublicStatItemDto
+{
+    public string Label { get; set; } = default!;
+    public string Value { get; set; } = default!;
+    public string? Suffix { get; set; }
+    public string? IconSlug { get; set; }
+    public int DisplayOrder { get; set; }
+}
+
+public class PublicLocationDto
+{
+    public Guid LocationId { get; set; }
+    public string Name { get; set; } = default!;
+    public string? Country { get; set; }
+    public string? ImageUrl { get; set; }
+    public int JobCount { get; set; }
+    public int DisplayOrder { get; set; }
+}
+
+public class PublicRoleDto
+{
+    public Guid RoleId { get; set; }
+    public string Name { get; set; } = default!;
+    public string? IconUrl { get; set; }
+    public int JobCount { get; set; }
+    public int DisplayOrder { get; set; }
+}
+
+public class PublicNamedListItemDto
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = default!;
+    public int DisplayOrder { get; set; }
+}

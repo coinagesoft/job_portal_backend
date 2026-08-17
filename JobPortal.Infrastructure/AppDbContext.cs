@@ -39,6 +39,7 @@ public class AppDbContext : DbContext
     public DbSet<EmployerCandidateAccess> EmployerCandidateAccesses { get; set; }
     public DbSet<SubUserCreditAllocation> SubUserCreditAllocation { get; set; }
     public DbSet<AdminSession> AdminSessions => Set<AdminSession>();
+    public DbSet<AdminUserSettings> AdminUserSettings => Set<AdminUserSettings>();
     public DbSet<EmployerPlanPurchase> EmployerPlanPurchase { get; set; }
     public DbSet<EmployerDocumentRequest> EmployerDocumentRequests { get; set; }
     // Section 2 — Candidate
@@ -1459,6 +1460,18 @@ public class AppDbContext : DbContext
              .HasForeignKey(x => x.UpdatedBy);
         });
 
+        m.Entity<AdminUserSettings>(e => {
+            e.ToTable("admin_user_settings");
+            e.HasKey(x => x.SettingsId);
+            e.Property(x => x.Language).HasMaxLength(30).IsRequired();
+            e.Property(x => x.SessionTimeout).HasMaxLength(20).IsRequired();
+            e.HasIndex(x => x.AdminId).IsUnique();
+            e.HasOne(x => x.AdminUser)
+             .WithMany()
+             .HasForeignKey(x => x.AdminId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
         m.Entity<LegalDocument>(e => {
             e.ToTable("legal_documents");
             e.HasKey(x => x.DocumentId);
@@ -1556,6 +1569,11 @@ public class AppDbContext : DbContext
                 .WithMany(x => x.AuditLogs)
                 .HasForeignKey(x => x.PerformedByAdminId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Session)
+                .WithMany()
+                .HasForeignKey(x => x.SessionId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         m.Entity<ConsentLog>(e => {

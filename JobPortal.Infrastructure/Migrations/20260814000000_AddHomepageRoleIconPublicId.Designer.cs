@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260814000000_AddHomepageRoleIconPublicId")]
+    partial class AddHomepageRoleIconPublicId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -331,9 +334,6 @@ namespace JobPortal.Infrastructure.Migrations
                     .HasMaxLength(100)
                     .HasColumnType("character varying(100)");
 
-                b.Property<Guid?>("SessionId")
-                    .HasColumnType("uuid");
-
                 b.Property<string>("Severity")
                     .IsRequired()
                     .ValueGeneratedOnAdd()
@@ -362,8 +362,6 @@ namespace JobPortal.Infrastructure.Migrations
                 b.HasKey("LogId");
 
                 b.HasIndex("PerformedByAdminId");
-
-                b.HasIndex("SessionId");
 
                 b.ToTable("AuditLogs");
             });
@@ -3399,36 +3397,6 @@ namespace JobPortal.Infrastructure.Migrations
                 b.ToTable("platform_config", (string)null);
             });
 
-            modelBuilder.Entity("JobPortal.Domain.Entities.AdminUserSettings", b =>
-            {
-                b.Property<Guid>("SettingsId")
-                    .ValueGeneratedOnAdd()
-                    .HasColumnType("uuid");
-
-                b.Property<Guid>("AdminId")
-                    .HasColumnType("uuid");
-
-                b.Property<string>("Language")
-                    .IsRequired()
-                    .HasMaxLength(30)
-                    .HasColumnType("character varying(30)");
-
-                b.Property<string>("SessionTimeout")
-                    .IsRequired()
-                    .HasMaxLength(20)
-                    .HasColumnType("character varying(20)");
-
-                b.Property<DateTime>("UpdatedAt")
-                    .HasColumnType("timestamp with time zone");
-
-                b.HasKey("SettingsId");
-
-                b.HasIndex("AdminId")
-                    .IsUnique();
-
-                b.ToTable("admin_user_settings", (string)null);
-            });
-
             modelBuilder.Entity("JobPortal.Domain.Entities.RecruiterNote", b =>
             {
                 b.Property<Guid>("RecruiterNoteId")
@@ -4170,14 +4138,7 @@ namespace JobPortal.Infrastructure.Migrations
                     .OnDelete(DeleteBehavior.Restrict)
                     .IsRequired();
 
-                b.HasOne("JobPortal.Domain.Entities.AdminSession", "Session")
-                    .WithMany()
-                    .HasForeignKey("SessionId")
-                    .OnDelete(DeleteBehavior.SetNull);
-
                 b.Navigation("PerformedByAdmin");
-
-                b.Navigation("Session");
             });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.CandidateCv", b =>
@@ -4719,17 +4680,6 @@ namespace JobPortal.Infrastructure.Migrations
                     .IsRequired();
 
                 b.Navigation("UpdatedByAdmin");
-            });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.AdminUserSettings", b =>
-            {
-                b.HasOne("JobPortal.Domain.Entities.AdminUser", "AdminUser")
-                    .WithMany()
-                    .HasForeignKey("AdminId")
-                    .OnDelete(DeleteBehavior.Cascade)
-                    .IsRequired();
-
-                b.Navigation("AdminUser");
             });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.RecruiterNote", b =>

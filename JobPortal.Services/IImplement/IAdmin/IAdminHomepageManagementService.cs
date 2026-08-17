@@ -44,6 +44,7 @@ namespace JobPortal.Services.IImplement.IAdmin
         Task<RoleDto?> UpdateRoleAsync(Guid roleId, UpdateRoleRequestDto request);
         Task<bool> DeleteRoleAsync(Guid roleId);
         Task<RoleDto?> ToggleRoleAsync(Guid roleId);
+        Task<RoleDto?> UploadRoleIconAsync(Guid roleId, IFormFile file);
 
         // Registration Industries
         Task<List<NamedListItemDto>> GetRegistrationIndustriesAsync();

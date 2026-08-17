@@ -39,7 +39,8 @@ namespace JobPortal.Services.Implement.Admin
                         Description = x.Description,
                         UserAgent = x.UserAgent,
                         OldValues = x.OldValues,
-                        NewValues = x.NewValues
+                        NewValues = x.NewValues,
+                        SessionId = x.SessionId
                     })
                     .ToListAsync();
 
