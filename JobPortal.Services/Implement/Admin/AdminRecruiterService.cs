@@ -607,7 +607,7 @@ namespace JobPortal.Services.Implement.Admin
             };
         }
 
-        public async Task<AdminRecruiterDocumentsResponseDto?>GetRecruiterDocumentsAsync(Guid employerId)
+        public async Task<AdminRecruiterDocumentsResponseDto?> GetRecruiterDocumentsAsync(Guid employerId)
         {
             // --------------------------------------------------
             // EMPLOYER
@@ -623,19 +623,18 @@ namespace JobPortal.Services.Implement.Admin
             }
 
             // --------------------------------------------------
-            // COMMON / ADMIN-CREATED DOCUMENT TYPES
+            // ACTIVE / MANDATORY DOCUMENT TYPES
             // --------------------------------------------------
             //
-            // VerificationDocumentMaster contains the
-            // admin-created/common document definitions.
-            //
-            // Only ACTIVE master documents participate in
-            // verification calculation.
+            // Only active mandatory master documents
+            // participate in verification calculation.
             //
 
-            var commonDocumentTypes = await _db.VerificationDocumentMasters
+            var mandatoryDocumentTypes = await _db.VerificationDocumentMasters
                 .AsNoTracking()
-                .Where(d => d.IsActive)
+                .Where(d =>
+                    d.IsActive &&
+                    d.IsMandatory)
                 .Select(d => new
                 {
                     d.DocumentTypeId,
@@ -648,8 +647,8 @@ namespace JobPortal.Services.Implement.Admin
                 })
                 .ToListAsync();
 
-            var commonDocumentTypeIds =
-                commonDocumentTypes
+            var mandatoryDocumentTypeIds =
+                mandatoryDocumentTypes
                     .Select(d => d.DocumentTypeId)
                     .ToHashSet();
 
@@ -657,57 +656,56 @@ namespace JobPortal.Services.Implement.Admin
             // ALL RECRUITER DOCUMENTS
             // --------------------------------------------------
             //
-            // IMPORTANT:
-            // Do NOT filter by DocumentTypeId here.
+            // Do NOT filter by DocumentTypeId.
             //
-            // This means:
-            // Common documents     -> included
+            // Mandatory documents -> included
+            // Optional documents  -> included
             // Additional documents -> included
             //
 
             var documents = await _db.EmployerVerificationDocuments
-      .AsNoTracking()
-      .Where(d =>
-          d.EmployerId == employerId &&
-          !d.IsDeleted)
-      .Include(d => d.DocumentType)
-      .OrderBy(d =>
-          d.DocumentType != null
-              ? d.DocumentType.DisplayOrder
-              : int.MaxValue)
-      .ThenBy(d => d.UploadedAt)
-      .ToListAsync();
+                .AsNoTracking()
+                .Where(d =>
+                    d.EmployerId == employerId &&
+                    !d.IsDeleted)
+                .Include(d => d.DocumentType)
+                .OrderBy(d =>
+                    d.DocumentType != null
+                        ? d.DocumentType.DisplayOrder
+                        : int.MaxValue)
+                .ThenBy(d => d.UploadedAt)
+                .ToListAsync();
 
             // --------------------------------------------------
             // VERIFICATION CALCULATION
             // --------------------------------------------------
             //
-            // ONLY documents linked to VerificationDocumentMaster
-            // participate in verification.
+            // ONLY mandatory master documents participate
+            // in verification calculation.
             //
-            // Additional documents are ignored here.
+            // Optional/additional documents are ignored here.
             //
 
-            var commonDocuments = documents
+            var mandatoryDocuments = documents
                 .Where(d =>
                     d.DocumentTypeId.HasValue &&
-                    commonDocumentTypeIds.Contains(d.DocumentTypeId.Value))
+                    mandatoryDocumentTypeIds.Contains(d.DocumentTypeId.Value))
                 .ToList();
 
-            var verificationTotal = commonDocumentTypeIds.Count;
+            var verificationTotal = mandatoryDocumentTypeIds.Count;
 
-            var verificationVerified = commonDocumentTypeIds.Count(
+            var verificationVerified = mandatoryDocumentTypeIds.Count(
                 documentTypeId =>
-                    commonDocuments.Any(d =>
+                    mandatoryDocuments.Any(d =>
                         d.DocumentTypeId == documentTypeId &&
                         d.Status ==
                             JobPortal.Domain.Enums.RecruiterEnums
                                 .VerificationDocumentStatus.Approved)
             );
 
-            var verificationRejected = commonDocumentTypeIds.Count(
+            var verificationRejected = mandatoryDocumentTypeIds.Count(
                 documentTypeId =>
-                    commonDocuments.Any(d =>
+                    mandatoryDocuments.Any(d =>
                         d.DocumentTypeId == documentTypeId &&
                         d.Status ==
                             JobPortal.Domain.Enums.RecruiterEnums
@@ -734,9 +732,10 @@ namespace JobPortal.Services.Implement.Admin
             }
             else if (verificationVerified == verificationTotal)
             {
-                // IMPORTANT:
-                // Even if an additional document is rejected,
-                // this remains Verified.
+                // All mandatory documents are approved.
+                //
+                // Optional/additional document status does not
+                // affect recruiter verification.
                 verificationStatus = "Verified";
             }
             else if (verificationRejected > 0)
@@ -757,11 +756,6 @@ namespace JobPortal.Services.Implement.Admin
             var documentDtos = documents
                 .Select(d =>
                 {
-                    var isCommonDocument =
-                        d.DocumentTypeId.HasValue &&
-                        commonDocumentTypeIds.Contains(
-                            d.DocumentTypeId.Value);
-
                     var documentName =
                         d.DocumentType?.DocumentName
                         ?? d.CustomDocumentName
@@ -777,7 +771,6 @@ namespace JobPortal.Services.Implement.Admin
                         DocumentId = d.DocumentId,
 
                         DocumentTypeId = d.DocumentTypeId,
-
 
                         DocumentName = documentName,
 
@@ -817,9 +810,8 @@ namespace JobPortal.Services.Implement.Admin
                         AiConfidenceScore =
                             d.AiConfidenceScore,
 
-
-                     
-
+                        // Use IsMandatory from the master document.
+                        // Additional documents are not mandatory.
                         IsMandatory =
                             d.DocumentType?.IsMandatory ?? false
                     };
@@ -866,7 +858,7 @@ namespace JobPortal.Services.Implement.Admin
                 Documents = documentDtos
             };
         }
-
+       
         private static string BuildAddress(EmployerProfile employer)
         {
             var parts = new[]
@@ -1348,11 +1340,12 @@ namespace JobPortal.Services.Implement.Admin
             }
         }
 
-        public async Task<AdminRecruiterDocumentChecklistResponseDto?> GetRecruiterDocumentChecklistAsync(Guid employerId)
+        public async Task<AdminRecruiterDocumentChecklistResponseDto?>
+            GetRecruiterDocumentChecklistAsync(Guid employerId)
         {
-            // --------------------------------------------------
+            // ==================================================
             // CHECK RECRUITER
-            // --------------------------------------------------
+            // ==================================================
 
             var employerExists = await _db.EmployerProfiles
                 .AsNoTracking()
@@ -1363,9 +1356,10 @@ namespace JobPortal.Services.Implement.Admin
                 return null;
             }
 
-            // --------------------------------------------------
-            // ADMIN-CREATED / COMMON DOCUMENT TYPES
-            // --------------------------------------------------
+
+            // ==================================================
+            // GET ACTIVE DOCUMENT MASTER TYPES
+            // ==================================================
 
             var documentMasters = await _db.VerificationDocumentMasters
                 .AsNoTracking()
@@ -1382,21 +1376,10 @@ namespace JobPortal.Services.Implement.Admin
                 })
                 .ToListAsync();
 
-            var commonDocumentTypeIds = documentMasters
-                .Select(d => d.DocumentTypeId)
-                .ToHashSet();
 
-            // --------------------------------------------------
-            // ALL RECRUITER DOCUMENTS
-            // --------------------------------------------------
-            //
-            // IMPORTANT:
-            // We intentionally DO NOT filter DocumentTypeId here.
-            //
-            // Therefore:
-            // Common documents     -> included
-            // Additional documents -> included
-            //
+            // ==================================================
+            // GET ALL RECRUITER UPLOADED DOCUMENTS
+            // ==================================================
 
             var employerDocuments = await _db.EmployerVerificationDocuments
                 .AsNoTracking()
@@ -1406,45 +1389,170 @@ namespace JobPortal.Services.Implement.Admin
                 .OrderByDescending(d => d.UploadedAt)
                 .ToListAsync();
 
-            // --------------------------------------------------
+
+            // ==================================================
+            // GET ADMIN DOCUMENT REQUESTS
+            // ==================================================
+            //
+            // Cancelled requests are ignored.
+            //
+            // RequestId is the main identifier for a requested
+            // additional document.
+            //
+            // ==================================================
+
+            var documentRequests = await _db.EmployerDocumentRequests
+                .AsNoTracking()
+                .Where(r =>
+                    r.EmployerId == employerId &&
+                    r.Status != "Cancelled")
+                .OrderByDescending(r => r.RequestedAt)
+                .ToListAsync();
+
+
+            // ==================================================
             // CHECKLIST
-            // --------------------------------------------------
+            // ==================================================
 
             var checklist =
                 new List<AdminRecruiterDocumentChecklistDto>();
 
-            // --------------------------------------------------
-            // COMMON DOCUMENTS
-            // --------------------------------------------------
+
+            // ==================================================
+            // 1. MASTER DOCUMENTS
+            // ==================================================
             //
-            // One checklist item per master document type.
+            // These come from VerificationDocumentMaster.
             //
-            // If multiple files exist for the same common
-            // document type, use the most relevant upload.
+            // IsMandatory = true
+            //      -> Mandatory
             //
+            // IsMandatory = false
+            //      -> Optional
+            //
+            // BUT if admin has specifically requested the master
+            // document, category becomes RequestedAdditional.
+            //
+            // ==================================================
 
             foreach (var master in documentMasters)
             {
+                // --------------------------------------------------
+                // Check whether admin has requested this master
+                // document type.
+                // --------------------------------------------------
+
+                var matchingRequest = documentRequests
+                    .Where(r =>
+                        r.DocumentTypeId.HasValue &&
+                        r.DocumentTypeId.Value ==
+                        master.DocumentTypeId)
+                    .OrderByDescending(r => r.RequestedAt)
+                    .FirstOrDefault();
+
+
+                // --------------------------------------------------
+                // Find uploaded documents for this master type.
+                // --------------------------------------------------
+
                 var uploadedDocuments = employerDocuments
                     .Where(d =>
                         d.DocumentTypeId == master.DocumentTypeId)
                     .OrderByDescending(d => d.UploadedAt)
                     .ToList();
 
+
                 EmployerVerificationDocument? selectedDocument = null;
 
-                if (uploadedDocuments.Any())
+
+                // --------------------------------------------------
+                // If admin requested this particular document,
+                // FIRST look for the document uploaded for that
+                // specific request.
+                // --------------------------------------------------
+
+                if (matchingRequest != null)
                 {
-                    // Prefer approved document if available.
                     selectedDocument = uploadedDocuments
+                        .FirstOrDefault(d =>
+                            d.RequestId ==
+                            matchingRequest.RequestId);
+                }
+
+
+                // --------------------------------------------------
+                // If there is no request-specific upload,
+                // prefer an approved document.
+                // --------------------------------------------------
+
+                selectedDocument ??=
+                    uploadedDocuments
                         .FirstOrDefault(d =>
                             d.Status ==
                             VerificationDocumentStatus.Approved);
 
-                    // Otherwise latest upload.
-                    selectedDocument ??=
-                        uploadedDocuments.First();
+
+                // --------------------------------------------------
+                // Otherwise use latest upload.
+                // --------------------------------------------------
+
+                selectedDocument ??=
+                    uploadedDocuments.FirstOrDefault();
+
+
+                // --------------------------------------------------
+                // DOCUMENT CATEGORY
+                // --------------------------------------------------
+
+                string documentCategory;
+
+                if (matchingRequest != null)
+                {
+                    // Admin specifically requested this document
+                    documentCategory =
+                        "RequestedAdditional";
                 }
+                else if (master.IsMandatory)
+                {
+                    documentCategory =
+                        "Mandatory";
+                }
+                else
+                {
+                    documentCategory =
+                        "Optional";
+                }
+
+
+                // --------------------------------------------------
+                // STATUS
+                // --------------------------------------------------
+
+                var status =
+                    selectedDocument == null
+                        ? "NotUploaded"
+                        : selectedDocument.Status.ToString();
+
+
+                // --------------------------------------------------
+                // VERIFICATION
+                // --------------------------------------------------
+                //
+                // Requested documents always require verification.
+                //
+                // Otherwise use master RequiresVerification.
+                //
+                // --------------------------------------------------
+
+                var requiresVerification =
+                    matchingRequest != null
+                        ? true
+                        : master.RequiresVerification;
+
+
+                // --------------------------------------------------
+                // ADD MASTER DOCUMENT TO CHECKLIST
+                // --------------------------------------------------
 
                 checklist.Add(
                     new AdminRecruiterDocumentChecklistDto
@@ -1452,28 +1560,24 @@ namespace JobPortal.Services.Implement.Admin
                         DocumentTypeId =
                             master.DocumentTypeId,
 
-                     
-
                         DocumentName =
                             master.DocumentName,
 
-                     
+                        DocumentCategory =
+                            documentCategory,
 
+                        IsMandatory =
+                            master.IsMandatory,
 
-                       
-
-                    
+                        RequiresVerification =
+                            requiresVerification,
 
                         Status =
-                            selectedDocument == null
-                                ? "Pending"
-                                : selectedDocument.Status.ToString(),
+                            status,
 
                         DocumentId =
                             selectedDocument?.DocumentId
                             ?? Guid.Empty,
-
-                 
 
                         UploadedAt =
                             selectedDocument?.UploadedAt
@@ -1484,22 +1588,137 @@ namespace JobPortal.Services.Implement.Admin
                     });
             }
 
-            // --------------------------------------------------
-            // ADDITIONAL DOCUMENTS
-            // --------------------------------------------------
+
+            // ==================================================
+            // 2. REQUESTED "OTHER" DOCUMENTS
+            // ==================================================
             //
-            // Additional documents have no matching
-            // VerificationDocumentMaster record.
+            // Admin can select "Other".
             //
-            // They ARE displayed in checklist.
-            // They DO NOT participate in verification.
+            // In that case:
             //
+            // DocumentTypeId = null
+            // CustomDocumentName = actual requested name
+            //
+            // The EmployerDocumentRequest is the source of truth.
+            //
+            // ==================================================
+
+            var customRequests = documentRequests
+                .Where(r =>
+                    !r.DocumentTypeId.HasValue &&
+                    !string.IsNullOrWhiteSpace(
+                        r.CustomDocumentName))
+                .ToList();
+
+
+            foreach (var request in customRequests)
+            {
+                var requestedName =
+                    request.CustomDocumentName!.Trim();
+
+
+                // --------------------------------------------------
+                // Find uploaded document using RequestId.
+                //
+                // DO NOT match by document name.
+                //
+                // RequestId is the reliable relationship.
+                // --------------------------------------------------
+
+                var selectedDocument =
+                    employerDocuments
+                        .Where(d =>
+                            d.RequestId ==
+                            request.RequestId)
+                        .OrderByDescending(d => d.UploadedAt)
+                        .FirstOrDefault();
+
+
+                // --------------------------------------------------
+                // ADD REQUESTED ADDITIONAL DOCUMENT
+                // --------------------------------------------------
+
+                checklist.Add(
+                    new AdminRecruiterDocumentChecklistDto
+                    {
+                        DocumentTypeId =
+                            request.DocumentTypeId,
+
+                        DocumentName =
+                            requestedName,
+
+                        DocumentCategory =
+                            "RequestedAdditional",
+
+                        IsMandatory =
+                            false,
+
+                        RequiresVerification =
+                            true,
+
+                        Status =
+                            selectedDocument == null
+                                ? "NotUploaded"
+                                : selectedDocument.Status.ToString(),
+
+                        DocumentId =
+                            selectedDocument?.DocumentId
+                            ?? Guid.Empty,
+
+                        UploadedAt =
+                            selectedDocument?.UploadedAt
+                            ?? default,
+
+                        VerifiedAt =
+                            selectedDocument?.VerifiedAt
+                    });
+            }
+
+
+            // ==================================================
+            // 3. NORMAL ADDITIONAL DOCUMENTS
+            // ==================================================
+            //
+            // Your database design says that normal additional
+            // documents are stored directly in
+            // EmployerVerificationDocument.
+            //
+            // They are identified by:
+            //
+            // Category = "Other"
+            //
+            // AND
+            //
+            // RequestId = null
+            //
+            // Therefore they are NOT RequestedAdditional.
+            //
+            // ==================================================
+
+            // ==================================================
+            // 3. NORMAL ADDITIONAL DOCUMENTS
+            // ==================================================
+            //
+            // Normal additional documents are directly stored in
+            // EmployerVerificationDocument.
+            //
+            // They are identified by:
+            //
+            // Category = "Additional"
+            // RequestId = null
+            //
+            // They are NOT RequestedAdditional.
+            //
+            // ==================================================
 
             var additionalDocuments = employerDocuments
                 .Where(d =>
-                    !d.DocumentTypeId.HasValue ||
-                    !commonDocumentTypeIds.Contains(
-                        d.DocumentTypeId.Value))
+                    !d.RequestId.HasValue &&
+                    string.Equals(
+                        d.Category,
+                        "Additional",
+                        StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             foreach (var document in additionalDocuments)
@@ -1507,6 +1726,7 @@ namespace JobPortal.Services.Implement.Admin
                 var documentName =
                     document.CustomDocumentName
                     ?? document.DetectedDocumentType
+                    ?? document.FileName
                     ?? "Additional Document";
 
                 checklist.Add(
@@ -1515,23 +1735,23 @@ namespace JobPortal.Services.Implement.Admin
                         DocumentTypeId =
                             document.DocumentTypeId,
 
-
                         DocumentName =
                             documentName,
 
-                     
+                        DocumentCategory =
+                            "Additional",
 
-                        IsCommonDocument = false,
+                        IsMandatory =
+                            false,
 
-
+                        RequiresVerification =
+                            false,
 
                         Status =
                             document.Status.ToString(),
 
                         DocumentId =
                             document.DocumentId,
-
-                   
 
                         UploadedAt =
                             document.UploadedAt,
@@ -1541,41 +1761,95 @@ namespace JobPortal.Services.Implement.Admin
                     });
             }
 
-            // --------------------------------------------------
-            // VERIFICATION CALCULATION
-            // --------------------------------------------------
+            // ==================================================
+            // 4. VERIFICATION CALCULATION
+            // ==================================================
             //
-            // ONLY COMMON DOCUMENTS.
+            // Verification includes:
             //
-            // Additional documents are completely ignored here.
+            // Mandatory
+            // Optional
+            // RequestedAdditional
             //
+            // Normal Additional documents are excluded.
+            //
+            // RequiresVerification is the source of truth.
+            //
+            // ==================================================
 
-            var commonChecklist = checklist
-                .Where(d => d.IsCommonDocument)
+            var verificationChecklist = checklist
+                .Where(d => d.RequiresVerification)
                 .ToList();
 
+
+            // ==================================================
+            // VERIFICATION TOTAL
+            // ==================================================
+
             var verificationTotal =
-                commonChecklist.Count;
+                verificationChecklist.Count;
+
+
+            // ==================================================
+            // VERIFIED
+            // ==================================================
 
             var verified =
-                commonChecklist.Count(d =>
+                verificationChecklist.Count(d =>
                     d.Status.Equals(
                         VerificationDocumentStatus.Approved.ToString(),
                         StringComparison.OrdinalIgnoreCase));
 
+
+            // ==================================================
+            // REJECTED
+            // ==================================================
+
             var rejected =
-                commonChecklist.Count(d =>
+                verificationChecklist.Count(d =>
                     d.Status.Equals(
                         VerificationDocumentStatus.Rejected.ToString(),
                         StringComparison.OrdinalIgnoreCase));
 
-            var pending =
-                verificationTotal - verified - rejected;
 
-            if (pending < 0)
-            {
-                pending = 0;
-            }
+            // ==================================================
+            // NOT UPLOADED
+            // ==================================================
+            //
+            // IMPORTANT:
+            //
+            // Count ALL checklist documents that are not uploaded.
+            //
+            // This includes:
+            //
+            // Mandatory
+            // Optional
+            // RequestedAdditional
+            // Additional (if ever represented as NotUploaded)
+            //
+            // ==================================================
+
+            var notUploaded =
+                checklist.Count(d =>
+                    d.Status.Equals(
+                        "NotUploaded",
+                        StringComparison.OrdinalIgnoreCase));
+
+
+            // ==================================================
+            // PENDING VERIFICATION
+            // ==================================================
+
+            var pendingVerification =
+                verificationChecklist.Count(d =>
+                    d.Status.Equals(
+                        VerificationDocumentStatus.Pending.ToString(),
+                        StringComparison.OrdinalIgnoreCase));
+
+
+            // ==================================================
+            // VERIFICATION PERCENTAGE
+            // ==================================================
 
             var verificationPercentage =
                 verificationTotal == 0
@@ -1584,45 +1858,63 @@ namespace JobPortal.Services.Implement.Admin
                         verified * 100.0 /
                         verificationTotal);
 
+
+            // ==================================================
+            // VERIFICATION STATUS
+            // ==================================================
+
             string verificationStatus;
 
             if (verificationTotal == 0)
             {
-                verificationStatus = "Pending";
+                verificationStatus =
+                    "Pending";
             }
             else if (verified == verificationTotal)
             {
-                verificationStatus = "Verified";
+                verificationStatus =
+                    "Verified";
             }
             else if (rejected > 0)
             {
-                verificationStatus = "Rejected";
+                verificationStatus =
+                    "Rejected";
             }
             else
             {
-                verificationStatus = "Pending";
+                verificationStatus =
+                    "Pending";
             }
 
-            // --------------------------------------------------
+
+            // ==================================================
             // RESPONSE
-            // --------------------------------------------------
+            // ==================================================
 
             return new AdminRecruiterDocumentChecklistResponseDto
             {
-                EmployerId = employerId,
+                EmployerId =
+                    employerId,
 
-                // All checklist items:
-                // common + additional
-                Total = checklist.Count,
+                // All:
+                // Mandatory + Optional + Additional
+                // + RequestedAdditional
+                Total =
+                    checklist.Count,
 
-                // Only common documents
-                VerificationTotal = verificationTotal,
+                // Verification:
+                // Mandatory + Optional + RequestedAdditional
+                VerificationTotal =
+                    verificationTotal,
 
-                Verified = verified,
+                Verified =
+                    verified,
 
-                NotUploaded = pending,
+                NotUploaded =
+                    notUploaded,
 
-                Rejected = rejected,
+                Rejected =
+                    rejected,
 
                 VerificationPercentage =
                     verificationPercentage,
@@ -1630,10 +1922,10 @@ namespace JobPortal.Services.Implement.Admin
                 VerificationStatus =
                     verificationStatus,
 
-                Documents = checklist
+                Documents =
+                    checklist
             };
         }
-
         public async Task<DocumentTypeAdminDto?> CreateOptionalDocumentTypeAsync(CreateOptionalDocumentTypeRequestDto request)
         {
             if (request == null)

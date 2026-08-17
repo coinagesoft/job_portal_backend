@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace JobPortal.Application.DTOs.Admin
 {
@@ -10,17 +6,57 @@ namespace JobPortal.Application.DTOs.Admin
     {
         public Guid? DocumentTypeId { get; set; }
 
-
         public string DocumentName { get; set; } = default!;
 
+        // --------------------------------------------------
+        // DOCUMENT CATEGORY
+        // --------------------------------------------------
+        //
+        // Possible values:
+        //
+        // Mandatory
+        // Optional
+        // Additional
+        // RequestedAdditional
+        //
+        public string DocumentCategory { get; set; } = string.Empty;
 
-        public bool IsCommonDocument { get; set; }
+        // --------------------------------------------------
+        // MANDATORY
+        // --------------------------------------------------
+        //
+        // true  = Mandatory
+        // false = Optional / Non-Mandatory
+        //
+        public bool IsMandatory { get; set; }
 
+        // --------------------------------------------------
+        // VERIFICATION
+        // --------------------------------------------------
+        //
+        // true  = Document participates in verification
+        // false = Document does not participate
+        //
+        public bool RequiresVerification { get; set; }
 
-        public string Status { get; set; } = "Pending";
+        // --------------------------------------------------
+        // DOCUMENT STATUS
+        // --------------------------------------------------
+        //
+        // Possible values:
+        //
+        // NotUploaded
+        // Pending
+        // Approved
+        // Rejected
+        //
+        public string Status { get; set; } = "NotUploaded";
+
+        // --------------------------------------------------
+        // UPLOADED DOCUMENT
+        // --------------------------------------------------
 
         public Guid DocumentId { get; set; }
-
 
         public DateTime UploadedAt { get; set; }
 

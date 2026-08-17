@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace JobPortal.Application.DTOs.Admin
 {
@@ -10,17 +7,21 @@ namespace JobPortal.Application.DTOs.Admin
     {
         public Guid EmployerId { get; set; }
 
-        // Number of items displayed in checklist
-        // Includes common + additional documents
+        // All documents displayed in the checklist:
+        // Mandatory + Optional + Additional + RequestedAdditional
         public int Total { get; set; }
 
-        // Verification is ONLY based on common documents
+        // All documents that require verification:
+        // Mandatory + Optional + RequestedAdditional
         public int VerificationTotal { get; set; }
 
+        // Documents requiring verification that are Approved
         public int Verified { get; set; }
 
+        // Documents requiring verification that have not been uploaded
         public int NotUploaded { get; set; }
 
+        // Documents requiring verification that are Rejected
         public int Rejected { get; set; }
 
         public int VerificationPercentage { get; set; }

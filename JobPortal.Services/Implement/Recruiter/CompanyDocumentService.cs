@@ -33,144 +33,376 @@ namespace JobPortal.Services.Implement.Recruiter
             _geminiCompanyDocumentParserService = geminiCompanyDocumentParserService;
         }
 
-        public async Task<CompanyDocumentResponseDto?> UploadAsync(Guid employerId, UploadCompanyDocumentRequestDto request)
+        public async Task<CompanyDocumentResponseDto?> UploadAsync(
+          Guid employerId,
+          UploadCompanyDocumentRequestDto request)
         {
             try
             {
+                // ==================================================
+                // VALIDATE REQUEST
+                // ==================================================
+
+                if (request == null)
+                {
+                    throw new Exception("Request is required.");
+                }
+
                 if (request.File == null || request.File.Length == 0)
+                {
                     throw new Exception("File is required.");
+                }
 
-                // Upload file first
-                var upload = await _fileStorageService.UploadDocumentAsync(
-                    request.File,
-                    StorageFolder);
 
-                // Parse using Gemini
-                var parsed = await _geminiCompanyDocumentParserService
-                    .ParseDocumentAsync(request.File);
+                // ==================================================
+                // UPLOAD FILE
+                // ==================================================
+
+                var upload =
+                    await _fileStorageService.UploadDocumentAsync(
+                        request.File,
+                        StorageFolder);
+
+
+                // ==================================================
+                // PARSE DOCUMENT USING GEMINI
+                // ==================================================
+
+                var parsed =
+                    await _geminiCompanyDocumentParserService
+                        .ParseDocumentAsync(request.File);
+
 
                 _logger.LogInformation(
-    "Gemini Result => Success:{Success}, Type:{Type}, Confidence:{Confidence}, Json:{Json}",
-    parsed.Success,
-    parsed.DocumentType,
-    parsed.AiConfidenceScore,
-    parsed.ParsedData?.GetRawText());
+                    "Gemini Result => Success:{Success}, Type:{Type}, Confidence:{Confidence}, Json:{Json}",
+                    parsed.Success,
+                    parsed.DocumentType,
+                    parsed.AiConfidenceScore,
+                    parsed.ParsedData?.GetRawText());
+
 
                 if (!parsed.Success)
+                {
                     throw new Exception(parsed.Message);
+                }
+
+
+                // ==================================================
+                // MASTER DOCUMENT
+                // ==================================================
+                //
+                // IMPORTANT:
+                //
+                // We ONLY READ VerificationDocumentMaster here.
+                //
+                // We NEVER CREATE a VerificationDocumentMaster.
+                //
+                // If DocumentTypeId is null:
+                //     this is an Additional document.
+                //
+                // Additional documents are stored directly in
+                // EmployerVerificationDocuments.
+                //
+                // ==================================================
 
                 VerificationDocumentMaster? master = null;
 
-                // Existing master document selected
+
+                // ==================================================
+                // CASE 1:
+                // EXISTING MASTER DOCUMENT
+                // ==================================================
+
                 if (request.DocumentTypeId.HasValue)
                 {
-                    master = await _context.VerificationDocumentMasters
-                        .FirstOrDefaultAsync(x =>
-                            x.DocumentTypeId == request.DocumentTypeId.Value &&
-                            x.IsActive);
-
-                    if (master == null)
-                        throw new Exception("Document type not found.");
-                }
-                else
-                {
-                    // "Other" document uploaded
-                    master = await _context.VerificationDocumentMasters
-                        .FirstOrDefaultAsync(x =>
-                            x.DocumentName.ToLower() == parsed.DocumentType.ToLower() &&
-                            x.IsActive);
+                    master =
+                        await _context.VerificationDocumentMasters
+                            .FirstOrDefaultAsync(x =>
+                                x.DocumentTypeId ==
+                                    request.DocumentTypeId.Value &&
+                                x.IsActive);
 
                     if (master == null)
                     {
-                        master = new VerificationDocumentMaster
+                        throw new Exception(
+                            "Document type not found.");
+                    }
+                }
+
+
+                // ==================================================
+                // CASE 2:
+                // ADDITIONAL DOCUMENT
+                // ==================================================
+                //
+                // When DocumentTypeId is null:
+                //
+                // master = null
+                // DocumentTypeId = null
+                // Category = Additional
+                //
+                // NO VerificationDocumentMaster is created.
+                //
+                // ==================================================
+
+                var isAdditionalDocument =
+                    master == null;
+
+
+                // ==================================================
+                // HANDLE EXISTING MASTER DOCUMENT
+                // ==================================================
+                //
+                // This logic applies ONLY to master documents.
+                //
+                // Additional documents do not use the master
+                // AllowMultipleUploads configuration.
+                //
+                // ==================================================
+
+                if (master != null)
+                {
+                    if (!master.AllowMultipleUploads)
+                    {
+                        var existingDocuments =
+                            await _context
+                                .EmployerVerificationDocuments
+                                .Where(x =>
+                                    x.EmployerId == employerId &&
+                                    x.DocumentTypeId ==
+                                        master.DocumentTypeId &&
+                                    !x.IsDeleted)
+                                .ToListAsync();
+
+
+                        foreach (var existing in existingDocuments)
                         {
-                            DocumentTypeId = Guid.NewGuid(),
-                            Code = Guid.NewGuid().ToString("N")[..8].ToUpper(),
-                            DocumentName = parsed.DocumentType,
-                            Category = string.IsNullOrWhiteSpace(request.Category)
-                                ? "Other"
-                                : request.Category,
-                            Description = request.DocumentName,
-                            IsMandatory = false,
-                            IsActive = true,
-                            RequiresVerification = true,
-                            IsSystemDocument = false,
-                            AllowMultipleUploads = false,
-                            AllowCustomDocument = true,
-                            DisplayOrder = 999
-                        };
+                            // --------------------------------------------------
+                            // Delete old file from storage
+                            // --------------------------------------------------
 
-                        _context.VerificationDocumentMasters.Add(master);
-                        await _context.SaveChangesAsync();
+                            if (!string.IsNullOrWhiteSpace(
+                                existing.PublicId))
+                            {
+                                await _fileStorageService
+                                    .DeleteAsync(existing.PublicId);
+                            }
+
+
+                            // --------------------------------------------------
+                            // Mark old document as deleted
+                            // --------------------------------------------------
+
+                            existing.IsDeleted = true;
+
+
+                            // --------------------------------------------------
+                            // Reset related badges
+                            // --------------------------------------------------
+
+                            var badges =
+                                await _context.EmployerBadges
+                                    .Where(x =>
+                                        x.VerificationDocumentId ==
+                                        existing.DocumentId)
+                                    .ToListAsync();
+
+
+                            foreach (var badge in badges)
+                            {
+                                badge.BadgeStatus =
+                                    BadgeStatus.Pending;
+                            }
+                        }
                     }
                 }
 
-                // Only one active document allowed
-                if (!master.AllowMultipleUploads)
-                {
-                    var existingDocuments = await _context.EmployerVerificationDocuments
-                        .Where(x =>
-                            x.EmployerId == employerId &&
-                            x.DocumentTypeId == master.DocumentTypeId &&
-                            !x.IsDeleted)
-                        .ToListAsync();
 
-                    foreach (var existing in existingDocuments)
+                // ==================================================
+                // CREATE EMPLOYER DOCUMENT
+                // ==================================================
+
+                var entity =
+                    new EmployerVerificationDocument
                     {
-                        if (!string.IsNullOrWhiteSpace(existing.PublicId))
-                            await _fileStorageService.DeleteAsync(existing.PublicId);
+                        DocumentId =
+                            Guid.NewGuid(),
 
-                        existing.IsDeleted = true;
+                        EmployerId =
+                            employerId,
 
-                        var badges = await _context.EmployerBadges
-                            .Where(x => x.VerificationDocumentId == existing.DocumentId)
-                            .ToListAsync();
 
-                        foreach (var badge in badges)
-                            badge.BadgeStatus = BadgeStatus.Pending;
-                    }
-                }
+                        // --------------------------------------------------
+                        // DOCUMENT TYPE
+                        // --------------------------------------------------
+                        //
+                        // Master document:
+                        //     master.DocumentTypeId
+                        //
+                        // Additional:
+                        //     null
+                        //
+                        DocumentTypeId =
+                            master?.DocumentTypeId,
 
-                var entity = new EmployerVerificationDocument
-                {
-                    DocumentId = Guid.NewGuid(),
-                    EmployerId = employerId,
-                    DocumentTypeId = master.DocumentTypeId,
 
-                    // Populate these once Gemini exposes them
-                   
-                    DocumentNumber = parsed.DocumentNumber,
-                    IssuingAuthority = parsed.IssuingAuthority,
-                    IssueDate = parsed.IssueDate,
-                    ExpiryDate = parsed.ExpiryDate,
+                        // --------------------------------------------------
+                        // REQUEST ID
+                        // --------------------------------------------------
+                        //
+                        // This method is for normal uploads.
+                        //
+                        // Requested documents should be uploaded through
+                        // the request-specific upload flow so RequestId
+                        // can be stored correctly.
+                        //
+                        RequestId =
+                            null,
 
-                    ParsedDataJson = parsed.ParsedData?.GetRawText(),
-                    AiConfidenceScore = parsed.AiConfidenceScore,
-                    DetectedDocumentType = parsed.DocumentType,
 
-                    FileName = request.File.FileName,
-                    FileUrl = upload.Url,
-                    PublicId = upload.PublicId,
+                        // --------------------------------------------------
+                        // CUSTOM DOCUMENT NAME
+                        // --------------------------------------------------
+                        //
+                        // Only Additional documents need a custom name.
+                        //
+                        CustomDocumentName =
+                            isAdditionalDocument
+                                ? (
+                                    !string.IsNullOrWhiteSpace(
+                                        request.DocumentName)
+                                        ? request.DocumentName
+                                        : parsed.DocumentType
+                                  )
+                                : null,
 
-                    Status = VerificationDocumentStatus.Pending,
-                    UploadedAt = DateTime.UtcNow,
-                    IsDeleted = false,
 
-                    DocumentType = master
-                };
+                        // --------------------------------------------------
+                        // CATEGORY
+                        // --------------------------------------------------
+                        //
+                        // Existing master:
+                        //     master.Category
+                        //
+                        // Additional:
+                        //     Additional
+                        //
+                        Category =
+                            isAdditionalDocument
+                                ? "Additional"
+                                : master!.Category,
 
-                _context.EmployerVerificationDocuments.Add(entity);
 
-                _context.EmployerBadges.Add(new EmployerBadge
-                {
-                    BadgeId = Guid.NewGuid(),
-                    EmployerId = employerId,
-                    VerificationDocumentId = entity.DocumentId,
-                    BadgeStatus = BadgeStatus.Pending,
-                    IssuedAt = DateTime.UtcNow
-                });
+                        // --------------------------------------------------
+                        // DOCUMENT DETAILS FROM GEMINI
+                        // --------------------------------------------------
+
+                        DocumentNumber =
+                            parsed.DocumentNumber,
+
+                        IssuingAuthority =
+                            parsed.IssuingAuthority,
+
+                        IssueDate =
+                            parsed.IssueDate,
+
+                        ExpiryDate =
+                            parsed.ExpiryDate,
+
+
+                        // --------------------------------------------------
+                        // AI PARSED DATA
+                        // --------------------------------------------------
+
+                        ParsedDataJson =
+                            parsed.ParsedData?.GetRawText(),
+
+                        AiConfidenceScore =
+                            parsed.AiConfidenceScore,
+
+                        DetectedDocumentType =
+                            parsed.DocumentType,
+
+
+                        // --------------------------------------------------
+                        // FILE DETAILS
+                        // --------------------------------------------------
+
+                        FileName =
+                            request.File.FileName,
+
+                        FileUrl =
+                            upload.Url,
+
+                        PublicId =
+                            upload.PublicId,
+
+
+                        // --------------------------------------------------
+                        // VERIFICATION STATUS
+                        // --------------------------------------------------
+
+                        Status =
+                            VerificationDocumentStatus.Pending,
+
+                        UploadedAt =
+                            DateTime.UtcNow,
+
+                        IsDeleted =
+                            false,
+
+
+                        // --------------------------------------------------
+                        // NAVIGATION
+                        // --------------------------------------------------
+
+                        DocumentType =
+                            master
+                    };
+
+
+                // ==================================================
+                // SAVE DOCUMENT
+                // ==================================================
+
+                _context.EmployerVerificationDocuments
+                    .Add(entity);
+
+
+                // ==================================================
+                // CREATE BADGE
+                // ==================================================
+
+                _context.EmployerBadges.Add(
+                    new EmployerBadge
+                    {
+                        BadgeId =
+                            Guid.NewGuid(),
+
+                        EmployerId =
+                            employerId,
+
+                        VerificationDocumentId =
+                            entity.DocumentId,
+
+                        BadgeStatus =
+                            BadgeStatus.Pending,
+
+                        IssuedAt =
+                            DateTime.UtcNow
+                    });
+
+
+                // ==================================================
+                // SAVE CHANGES
+                // ==================================================
 
                 await _context.SaveChangesAsync();
+
+
+                // ==================================================
+                // RESPONSE
+                // ==================================================
 
                 return Map(entity);
             }
@@ -185,38 +417,150 @@ namespace JobPortal.Services.Implement.Recruiter
             }
         }
 
-
         public async Task<List<CompanyDocumentResponseDto>> GetMyDocumentsAsync(Guid employerId)
         {
             var docs = await _context.EmployerVerificationDocuments
-         .AsNoTracking()
-         .Include(x => x.DocumentType)
-         .Where(x => x.EmployerId == employerId && !x.IsDeleted)
-         .OrderByDescending(x => x.UploadedAt)
-         .ToListAsync();
+                .AsNoTracking()
+                .Include(x => x.DocumentType)
+                .Where(x =>
+                    x.EmployerId == employerId &&
+                    !x.IsDeleted)
+                .OrderByDescending(x => x.UploadedAt)
+                .ToListAsync();
 
-            return docs.Select(Map).ToList();
+            return docs.Select(x => new CompanyDocumentResponseDto
+            {
+                DocumentId = x.DocumentId,
+
+                DocumentTypeId = x.DocumentTypeId,
+
+                DocumentName =
+                    x.DocumentType?.DocumentName
+                    ?? x.CustomDocumentName
+                    ?? x.DetectedDocumentType
+                    ?? "Additional Document",
+
+                Category =
+                    x.DocumentType?.Category
+                    ?? x.Category,
+
+                DocumentNumber = x.DocumentNumber,
+
+                IssuingAuthority = x.IssuingAuthority,
+
+                IssueDate = x.IssueDate,
+
+                ExpiryDate = x.ExpiryDate,
+
+                FileName = x.FileName,
+
+                FileUrl = x.FileUrl,
+
+                PublicId = x.PublicId,
+
+                // Convert enum number to string
+                Status = x.Status.ToString(),
+
+                VerifiedBy = x.VerifiedBy,
+
+                UploadedAt = x.UploadedAt,
+
+                VerifiedAt = x.VerifiedAt,
+
+                Remarks = x.Remarks,
+
+                DetectedDocumentType = x.DetectedDocumentType,
+
+
+                // Use IsMandatory instead of IsMasterDocument
+                IsMandatory = x.DocumentType?.IsMandatory ?? false
+            }).ToList();
         }
 
-        public async Task<CompanyDocumentResponseDto?> GetByIdAsync(Guid employerId, Guid documentId)
+        public async Task<CompanyDocumentResponseDto?> GetByIdAsync(
+        Guid employerId,
+        Guid documentId)
         {
             var doc = await _context.EmployerVerificationDocuments
                 .AsNoTracking()
+                .Include(x => x.DocumentType)
                 .FirstOrDefaultAsync(x =>
                     x.EmployerId == employerId &&
                     x.DocumentId == documentId &&
                     !x.IsDeleted);
 
-            return doc == null ? null : Map(doc);
+            if (doc == null)
+            {
+                return null;
+            }
+
+            return new CompanyDocumentResponseDto
+            {
+                DocumentId = doc.DocumentId,
+
+                DocumentTypeId = doc.DocumentTypeId,
+
+                DocumentName =
+                    doc.DocumentType?.DocumentName
+                    ?? doc.CustomDocumentName
+                    ?? doc.DetectedDocumentType
+                    ?? "Additional Document",
+
+                Category =
+                    doc.DocumentType?.Category
+                    ?? doc.Category,
+
+                DocumentNumber = doc.DocumentNumber,
+
+                IssuingAuthority = doc.IssuingAuthority,
+
+                IssueDate = doc.IssueDate,
+
+                ExpiryDate = doc.ExpiryDate,
+
+                FileName = doc.FileName,
+
+                FileUrl = doc.FileUrl,
+
+                PublicId = doc.PublicId,
+
+                DetectedDocumentType =
+                    doc.DetectedDocumentType,
+
+                AiConfidenceScore =
+                    doc.AiConfidenceScore,
+
+                Status =
+                    doc.Status.ToString(),
+
+                VerifiedBy =
+                    doc.VerifiedBy,
+
+                UploadedAt =
+                    doc.UploadedAt,
+
+                VerifiedAt =
+                    doc.VerifiedAt,
+
+                Remarks =
+                    doc.Remarks,
+
+                IsMandatory =
+                    doc.DocumentType?.IsMandatory ?? false
+            };
         }
 
         public async Task<CompanyDocumentResponseDto?> UpdateAsync(
-           Guid employerId,
-           Guid documentId,
-           UpdateCompanyDocumentRequestDto request)
+         Guid employerId,
+         Guid documentId,
+         UpdateCompanyDocumentRequestDto request)
         {
             try
             {
+                // ==================================================
+                // FIND EXISTING DOCUMENT
+                // ==================================================
+
                 var doc = await _context.EmployerVerificationDocuments
                     .Include(x => x.DocumentType)
                     .FirstOrDefaultAsync(x =>
@@ -225,75 +569,233 @@ namespace JobPortal.Services.Implement.Recruiter
                         !x.IsDeleted);
 
                 if (doc == null)
-                    return null;
-
-                // Replace uploaded file
-                if (request.File != null && request.File.Length > 0)
                 {
-                    // Delete old file
-                    if (!string.IsNullOrWhiteSpace(doc.PublicId))
-                    {
-                        await _fileStorageService.DeleteAsync(doc.PublicId);
-                    }
-
-                    // Upload new file
-                    var upload = await _fileStorageService.UploadDocumentAsync(
-                        request.File,
-                        StorageFolder);
-
-                    // Parse using Gemini
-                    var parsed = await _geminiCompanyDocumentParserService
-                        .ParseDocumentAsync(request.File);
-
-                    if (!parsed.Success)
-                        throw new Exception(parsed.Message);
-
-                    doc.FileName = request.File.FileName;
-                    doc.FileUrl = upload.Url;
-                    doc.PublicId = upload.PublicId;
-
-                    doc.ParsedDataJson = parsed.ParsedData?.GetRawText();
-                    doc.AiConfidenceScore = parsed.AiConfidenceScore;
-                    doc.DetectedDocumentType = parsed.DocumentType;
-
-                    //When parser exposes these fields:
-                    doc.DocumentNumber = parsed.DocumentNumber;
-                    doc.IssuingAuthority = parsed.IssuingAuthority;
-                    doc.IssueDate = parsed.IssueDate;
-                    doc.ExpiryDate = parsed.ExpiryDate;
+                    return null;
                 }
 
-                // Reset verification
-                doc.Status = VerificationDocumentStatus.Pending;
-                doc.VerifiedAt = null;
-                doc.VerifiedBy = null;
-                doc.Remarks = null;
-                doc.UploadedAt = DateTime.UtcNow;
 
-                var badges = await _context.EmployerBadges
-                    .Where(x => x.VerificationDocumentId == documentId)
-                    .ToListAsync();
+                // ==================================================
+                // KEEP EXISTING DOCUMENT TYPE / CATEGORY
+                // ==================================================
+                //
+                // IMPORTANT:
+                //
+                // We do NOT create or change a
+                // VerificationDocumentMaster here.
+                //
+                // Existing master document:
+                //     DocumentTypeId remains unchanged.
+                //
+                // Normal Additional:
+                //     DocumentTypeId remains NULL.
+                //     Category remains Additional.
+                //
+                // Requested Additional:
+                //     RequestId remains unchanged.
+                //
+                // ==================================================
+
+
+                // ==================================================
+                // REPLACE UPLOADED FILE
+                // ==================================================
+
+                if (request.File != null &&
+                    request.File.Length > 0)
+                {
+                    // --------------------------------------------------
+                    // DELETE OLD FILE
+                    // --------------------------------------------------
+
+                    if (!string.IsNullOrWhiteSpace(doc.PublicId))
+                    {
+                        await _fileStorageService
+                            .DeleteAsync(doc.PublicId);
+                    }
+
+
+                    // --------------------------------------------------
+                    // UPLOAD NEW FILE
+                    // --------------------------------------------------
+
+                    var upload =
+                        await _fileStorageService
+                            .UploadDocumentAsync(
+                                request.File,
+                                StorageFolder);
+
+
+                    // --------------------------------------------------
+                    // PARSE NEW FILE USING GEMINI
+                    // --------------------------------------------------
+
+                    var parsed =
+                        await _geminiCompanyDocumentParserService
+                            .ParseDocumentAsync(request.File);
+
+
+                    if (!parsed.Success)
+                    {
+                        throw new Exception(parsed.Message);
+                    }
+
+
+                    // --------------------------------------------------
+                    // UPDATE FILE INFORMATION
+                    // --------------------------------------------------
+
+                    doc.FileName =
+                        request.File.FileName;
+
+                    doc.FileUrl =
+                        upload.Url;
+
+                    doc.PublicId =
+                        upload.PublicId;
+
+
+                    // --------------------------------------------------
+                    // UPDATE GEMINI INFORMATION
+                    // --------------------------------------------------
+                    //
+                    // Gemini information is only information about
+                    // the uploaded file.
+                    //
+                    // It must NOT create/change DocumentTypeId.
+                    //
+                    // --------------------------------------------------
+
+                    doc.ParsedDataJson =
+                        parsed.ParsedData?.GetRawText();
+
+                    doc.AiConfidenceScore =
+                        parsed.AiConfidenceScore;
+
+                    doc.DetectedDocumentType =
+                        parsed.DocumentType;
+
+
+                    // --------------------------------------------------
+                    // UPDATE PARSED DOCUMENT DETAILS
+                    // --------------------------------------------------
+
+                    doc.DocumentNumber =
+                        parsed.DocumentNumber;
+
+                    doc.IssuingAuthority =
+                        parsed.IssuingAuthority;
+
+                    doc.IssueDate =
+                        parsed.IssueDate;
+
+                    doc.ExpiryDate =
+                        parsed.ExpiryDate;
+                }
+
+
+                // ==================================================
+                // PRESERVE DOCUMENT CATEGORY
+                // ==================================================
+                //
+                // Do NOT change Additional into a Master document.
+                //
+                // If it is already an Additional document:
+                //
+                //     Category = Additional
+                //     DocumentTypeId = null
+                //
+                // If it is RequestedAdditional:
+                //
+                //     RequestId != null
+                //
+                // Keep the existing relationship.
+                //
+                // ==================================================
+
+                if (!doc.RequestId.HasValue &&
+                    string.Equals(
+                        doc.Category,
+                        "Additional",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    doc.DocumentTypeId = null;
+                    doc.Category = "Additional";
+                }
+
+
+                // ==================================================
+                // RESET VERIFICATION
+                // ==================================================
+
+                doc.Status =
+                    VerificationDocumentStatus.Pending;
+
+                doc.VerifiedAt =
+                    null;
+
+                doc.VerifiedBy =
+                    null;
+
+                doc.Remarks =
+                    null;
+
+                doc.UploadedAt =
+                    DateTime.UtcNow;
+
+
+                // ==================================================
+                // UPDATE BADGES
+                // ==================================================
+
+                var badges =
+                    await _context.EmployerBadges
+                        .Where(x =>
+                            x.VerificationDocumentId ==
+                            documentId)
+                        .ToListAsync();
+
 
                 if (badges.Any())
                 {
                     foreach (var badge in badges)
                     {
-                        badge.BadgeStatus = BadgeStatus.Pending;
+                        badge.BadgeStatus =
+                            BadgeStatus.Pending;
                     }
                 }
                 else
                 {
-                    _context.EmployerBadges.Add(new EmployerBadge
-                    {
-                        BadgeId = Guid.NewGuid(),
-                        EmployerId = employerId,
-                        VerificationDocumentId = doc.DocumentId,
-                        BadgeStatus = BadgeStatus.Pending,
-                        IssuedAt = DateTime.UtcNow
-                    });
+                    _context.EmployerBadges.Add(
+                        new EmployerBadge
+                        {
+                            BadgeId =
+                                Guid.NewGuid(),
+
+                            EmployerId =
+                                employerId,
+
+                            VerificationDocumentId =
+                                doc.DocumentId,
+
+                            BadgeStatus =
+                                BadgeStatus.Pending,
+
+                            IssuedAt =
+                                DateTime.UtcNow
+                        });
                 }
 
+
+                // ==================================================
+                // SAVE
+                // ==================================================
+
                 await _context.SaveChangesAsync();
+
+
+                // ==================================================
+                // RESPONSE
+                // ==================================================
 
                 return Map(doc);
             }
@@ -358,7 +860,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 DetectedDocumentType = doc.DetectedDocumentType,
                 AiConfidenceScore = doc.AiConfidenceScore,
 
-                Status = doc.Status,
+                Status = doc.Status.ToString(),
                 UploadedAt = doc.UploadedAt,
                 VerifiedAt = doc.VerifiedAt,
                 Remarks = doc.Remarks

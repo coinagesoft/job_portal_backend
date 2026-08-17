@@ -52,9 +52,7 @@ namespace JobPortal.Application.DTOs.Admin
 
             public Guid? DocumentTypeId { get; set; }
 
-            // true = linked with VerificationDocumentMaster
-            // false = additional/custom document
-            public bool IsCommonDocument { get; set; }
+         
 
             public string DocumentName { get; set; } = default!;
 
