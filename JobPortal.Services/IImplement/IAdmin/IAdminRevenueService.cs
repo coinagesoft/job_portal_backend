@@ -7,21 +7,17 @@ namespace JobPortal.Services.IImplement.IAdmin
     // Backs Admin ▸ Revenue (https://.../admin/revenue) only.
     public interface IAdminRevenueService
     {
-        Task<RevenueSummaryDto> GetSummaryAsync(
-            string? country,
-            DateOnly? dateFrom,
-            DateOnly? dateTo);
+        // Filters (country / date range / type / search / period) were
+        // removed for the testing phase so the tester gets one
+        // unambiguous number to reconcile against the plan → purchase →
+        // membership flow. Re-add the parameters here (and in
+        // AdminRevenueService) once QA sign-off is done and the filters
+        // need to come back for the real admin panel.
+        Task<RevenueSummaryDto> GetSummaryAsync();
 
-        Task<RevenueByCountryDto> GetRevenueByCountryAsync(
-            string period,
-            string? country);
+        Task<RevenueByCountryDto> GetRevenueByCountryAsync();
 
         Task<RevenueTransactionsResponseDto> GetTransactionsAsync(
-            string type,
-            string? country,
-            string? search,
-            DateOnly? dateFrom,
-            DateOnly? dateTo,
             int page,
             int pageSize);
 

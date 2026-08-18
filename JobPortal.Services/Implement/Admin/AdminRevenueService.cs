@@ -85,12 +85,12 @@ namespace JobPortal.Services.Implement.Admin
         // ------------------------------------------------------------
         // SUMMARY CARDS
         // ------------------------------------------------------------
-        public async Task<RevenueSummaryDto> GetSummaryAsync(
-            string? country,
-            DateOnly? dateFrom,
-            DateOnly? dateTo)
+        // Filters removed for QA testing — always all-time, all-country.
+        public async Task<RevenueSummaryDto> GetSummaryAsync()
         {
-            country = string.IsNullOrWhiteSpace(country) ? null : country.Trim();
+            string? country = null;
+            DateOnly? dateFrom = null;
+            DateOnly? dateTo = null;
 
             var (start, end) = ResolveDateWindow(dateFrom, dateTo);
 
@@ -171,17 +171,12 @@ namespace JobPortal.Services.Implement.Admin
         // ------------------------------------------------------------
         // REVENUE BY COUNTRY + COMPOSITION
         // ------------------------------------------------------------
-        public async Task<RevenueByCountryDto> GetRevenueByCountryAsync(
-            string period,
-            string? country)
+        // Filters removed for QA testing — always the current calendar
+        // month ("monthly"), all countries.
+        public async Task<RevenueByCountryDto> GetRevenueByCountryAsync()
         {
-            period = string.Equals(period, "yearly", StringComparison.OrdinalIgnoreCase)
-                ? "yearly"
-                : "monthly";
-
-            country = string.IsNullOrWhiteSpace(country) || country.Equals("All countries", StringComparison.OrdinalIgnoreCase)
-                ? null
-                : country.Trim();
+            const string period = "monthly";
+            string? country = null;
 
             var now = DateTime.UtcNow;
             var start = period == "yearly"
@@ -249,20 +244,18 @@ namespace JobPortal.Services.Implement.Admin
         // ------------------------------------------------------------
         // TRANSACTIONS TABLE
         // ------------------------------------------------------------
+        // Filters (type/country/search/date range) removed for QA testing —
+        // returns every completed transaction, newest first. Pagination is
+        // kept (it isn't a data filter).
         public async Task<RevenueTransactionsResponseDto> GetTransactionsAsync(
-            string type,
-            string? country,
-            string? search,
-            DateOnly? dateFrom,
-            DateOnly? dateTo,
             int page,
             int pageSize)
         {
-            type = string.IsNullOrWhiteSpace(type) ? "all" : type.Trim().ToLowerInvariant();
-            country = string.IsNullOrWhiteSpace(country) || country.Equals("All countries", StringComparison.OrdinalIgnoreCase)
-                ? null
-                : country.Trim();
-            search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+            const string type = "all";
+            string? country = null;
+            string? search = null;
+            DateOnly? dateFrom = null;
+            DateOnly? dateTo = null;
             page = page < 1 ? 1 : page;
             pageSize = pageSize is < 1 or > 100 ? 10 : pageSize;
 
