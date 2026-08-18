@@ -7,26 +7,59 @@ namespace JobPortal.Application.DTOs.Admin
     {
         public Guid EmployerId { get; set; }
 
-        // All documents displayed in the checklist:
-        // Mandatory + Optional + Additional + RequestedAdditional
+        // ==================================================
+        // ALL DOCUMENTS
+        // ==================================================
+        //
+        // Mandatory
+        // Optional
+        // Additional
+        // RequestedAdditional
+        //
         public int Total { get; set; }
 
-        // All documents that require verification:
-        // Mandatory + Optional + RequestedAdditional
+
+        // ==================================================
+        // DOCUMENTS REQUIRING VERIFICATION
+        // ==================================================
+        //
+        // Mandatory
+        // Optional
+        // RequestedAdditional
+        //
         public int VerificationTotal { get; set; }
 
-        // Documents requiring verification that are Approved
+
+        // ==================================================
+        // VERIFICATION COUNTS
+        // ==================================================
+
+        // Uploaded and Approved
         public int Verified { get; set; }
 
-        // Documents requiring verification that have not been uploaded
+
+        // Uploaded but waiting for admin verification
+        public int Pending { get; set; }
+
+
+        // Required for verification but not uploaded
         public int NotUploaded { get; set; }
 
-        // Documents requiring verification that are Rejected
+
+        // Uploaded but rejected
         public int Rejected { get; set; }
 
-        public int VerificationPercentage { get; set; }
+
+        // ==================================================
+        // VERIFICATION STATUS
+        // ==================================================
 
         public string VerificationStatus { get; set; } = "Pending";
+
+
+        // ==================================================
+        // DOCUMENTS
+        // ==================================================
 
         public List<AdminRecruiterDocumentChecklistDto> Documents { get; set; }
             = new();
