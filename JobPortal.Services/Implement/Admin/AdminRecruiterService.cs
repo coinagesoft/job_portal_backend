@@ -418,7 +418,6 @@ namespace JobPortal.Services.Implement.Admin
 
                     // Dynamic badge name/type from database.
                     // No predefined badge names.
-                    BadgeType = b.BadgeType?.ToString(),
 
                     BadgeStatus = b.BadgeStatus.ToString(),
 

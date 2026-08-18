@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -38,6 +39,8 @@ namespace JobPortal.Domain.Entities
 
             public VerificationDocumentMaster DocumentType { get; set; } = default!;
 
-            public AdminUser RequestedByAdmin { get; set; } = default!;
-        }
+
+        [ForeignKey(nameof(RequestedBy))]
+        public AdminUser RequestedByAdmin { get; set; } = default!;
+    }
     }

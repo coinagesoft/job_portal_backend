@@ -1758,5 +1758,50 @@ public class AppDbContext : DbContext
              .HasForeignKey(x => x.ReviewedBy)
              .OnDelete(DeleteBehavior.SetNull);
         });
+
+      
+
+        m.Entity<EmployerDocumentRequest>(e =>
+        {
+            e.ToTable("EmployerDocumentRequests");
+
+            e.HasKey(x => x.RequestId);
+
+      
+
+            e.HasOne(x => x.Employer)
+                .WithMany()
+                .HasForeignKey(x => x.EmployerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
+
+            e.HasOne(x => x.DocumentType)
+                .WithMany()
+                .HasForeignKey(x => x.DocumentTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
+            e.HasOne(x => x.RequestedByAdmin)
+                .WithMany()
+                .HasForeignKey(x => x.RequestedBy)
+                .HasPrincipalKey(x => x.AdminId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
+
+            e.Property(x => x.Status)
+                .HasMaxLength(30)
+                .IsRequired();
+
+            e.Property(x => x.CustomDocumentName)
+                .HasMaxLength(200);
+
+            e.Property(x => x.Message)
+                .HasMaxLength(1000);
+
+            e.Property(x => x.RequestedAt)
+                .IsRequired();
+        });
     }
 }
