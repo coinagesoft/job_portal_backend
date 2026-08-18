@@ -22,17 +22,32 @@ namespace JobPortal.Services.IImplement.IAdmin
     string? userAgent
 );
 
-    Task<AdminRecruiterDetailDto?> GetRecruiterDetailAsync(Guid employerId);
+        Task<AdminRecruiterDetailDto?> GetRecruiterDetailAsync(Guid employerId);
 
-    Task<AdminRecruiterDocumentsResponseDto?> GetRecruiterDocumentsAsync(Guid employerId);
+        // Backs the "Transaction History" table on the recruiter detail page
+        // (/admin/recruiters/details?id=). Same transaction+invoice rows as
+        // GetRecruiterDetailAsync's Transactions field, exposed as its own
+        // lightweight endpoint. Returns null if the recruiter doesn't exist.
+        Task<List<RecruiterTransactionDto>?> GetRecruiterTransactionsAsync(Guid employerId);
 
-     Task<bool> UpdateRecruiterDocumentStatusAsync(Guid documentId,UpdateRecruiterDocumentStatusRequestDto request,AdminAuditContext audit);
+        // Generates the GST-compliant invoice PDF for one of this recruiter's
+        // transactions on demand (nothing is stored on S3 — same pattern as
+        // RecruiterInvoiceService/AdminRevenueService). Returns null if the
+        // transaction doesn't exist, doesn't belong to this employer, or has
+        // no invoice on file.
+        Task<(byte[] Bytes, string FileName)?> DownloadRecruiterInvoicePdfAsync(
+            Guid employerId,
+            Guid transactionId);
 
-     Task<AdminRecruiterDocumentChecklistResponseDto?>GetRecruiterDocumentChecklistAsync(Guid employerId);
+        Task<AdminRecruiterDocumentsResponseDto?> GetRecruiterDocumentsAsync(Guid employerId);
 
-     Task<DocumentTypeAdminDto?> CreateOptionalDocumentTypeAsync(CreateOptionalDocumentTypeRequestDto request);
+        Task<bool> UpdateRecruiterDocumentStatusAsync(Guid documentId, UpdateRecruiterDocumentStatusRequestDto request, AdminAuditContext audit);
 
-        Task<DocumentTypeAdminDto?> UpdateDocumentRequirementAsync(Guid documentTypeId,UpdateDocumentRequirementRequestDto request);
+        Task<AdminRecruiterDocumentChecklistResponseDto?> GetRecruiterDocumentChecklistAsync(Guid employerId);
+
+        Task<DocumentTypeAdminDto?> CreateOptionalDocumentTypeAsync(CreateOptionalDocumentTypeRequestDto request);
+
+        Task<DocumentTypeAdminDto?> UpdateDocumentRequirementAsync(Guid documentTypeId, UpdateDocumentRequirementRequestDto request);
 
         Task<List<AdminDocumentRequirementDto>> GetDocumentRequirementsAsync();
 

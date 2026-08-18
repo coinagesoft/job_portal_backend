@@ -113,6 +113,57 @@ namespace JobPortal.API.Controllers.Admin
             });
         }
 
+        // GET /api/admin/recruiters/{id}/transactions
+        // Backs the "Transaction History" table on the recruiter detail
+        // page (/admin/recruiters/details?id=). Every membership /
+        // credit-pack / fee payment made by this recruiter, each with an
+        // invoice number + a downloadable invoice URL when one exists.
+        [HttpGet("{id:guid}/transactions")]
+        public async Task<IActionResult> GetRecruiterTransactions(Guid id)
+        {
+            var transactions = await _adminRecruiterService
+                .GetRecruiterTransactionsAsync(id);
+
+            if (transactions == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Recruiter not found."
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                message = "Recruiter transactions retrieved successfully.",
+                data = transactions
+            });
+        }
+
+        // GET /api/admin/recruiters/{id}/transactions/{transactionId}/invoice/download
+        // Streams a freshly generated invoice PDF for one of this
+        // recruiter's transactions (nothing is stored on S3, so it's
+        // regenerated on every request). Returns 404 if the transaction
+        // doesn't exist, isn't this recruiter's, or has no invoice.
+        [HttpGet("{id:guid}/transactions/{transactionId:guid}/invoice/download")]
+        public async Task<IActionResult> DownloadRecruiterInvoice(Guid id, Guid transactionId)
+        {
+            var result = await _adminRecruiterService
+                .DownloadRecruiterInvoicePdfAsync(id, transactionId);
+
+            if (result == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Invoice not found for this transaction."
+                });
+            }
+
+            return File(result.Value.Bytes, "application/pdf", result.Value.FileName);
+        }
+
         [HttpGet("{id:guid}/documents")]
         public async Task<IActionResult> GetRecruiterDocuments(Guid id)
         {
