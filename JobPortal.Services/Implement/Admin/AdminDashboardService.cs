@@ -153,10 +153,10 @@ namespace JobPortal.Services.Implement.Admin
         // ------------------------------------------------------------
         // 2. REGISTRATION GROWTH
         // ------------------------------------------------------------
-        public async Task<RegistrationGrowthResponseDto> GetRegistrationGrowthAsync(string range)
+        // Filter removed for QA testing — always "week" (last 7 days).
+        public async Task<RegistrationGrowthResponseDto> GetRegistrationGrowthAsync()
         {
-            range = (range ?? "week").Trim().ToLowerInvariant();
-            if (range != "month" && range != "year") range = "week";
+            const string range = "week";
 
             var now = DateTime.UtcNow;
 
@@ -262,6 +262,21 @@ namespace JobPortal.Services.Implement.Admin
         // ------------------------------------------------------------
         // 3. RECRUITERS BY INDUSTRY
         // ------------------------------------------------------------
+        // Shows the top 5 industries by recruiter count: the 4 largest
+        // named industries, plus a single "Other" slice that folds in
+        // (a) any profile whose IndustryType is literally blank/"Other",
+        // and (b) every industry outside the top 4. Before grouping,
+        // industry names are normalized (trimmed, whitespace collapsed,
+        // compared case-insensitively) so casing/spacing typos like
+        // "Manufacturing" vs "manufacturing " don't get counted as two
+        // separate industries. Note: this does NOT merge genuinely
+        // different labels for the same real-world industry (e.g.
+        // "Construction" vs "Construction & Infrastructure") — those are
+        // different strings with different meaning, so collapsing them
+        // automatically would risk hiding a real data-entry difference.
+        // If those need to be treated as one industry, they should be
+        // unified at the source (fix the stored IndustryType values, or
+        // maintain an explicit alias map) rather than guessed here.
         public async Task<RecruitersByIndustryResponseDto> GetRecruitersByIndustryAsync()
         {
             var rows = await _db.EmployerProfiles
@@ -272,21 +287,57 @@ namespace JobPortal.Services.Implement.Admin
 
             var total = rows.Count;
 
-            var grouped = rows
-                .Select(i => string.IsNullOrWhiteSpace(i) ? "Other" : i)
-                .GroupBy(i => i)
-                .Select(g => new { Industry = g.Key, Count = g.Count() })
+            var normalized = rows
+                .Select(raw =>
+                {
+                    var cleaned = string.IsNullOrWhiteSpace(raw)
+                        ? null
+                        : System.Text.RegularExpressions.Regex.Replace(raw.Trim(), @"\s+", " ");
+
+                    var isOther = cleaned == null || cleaned.Equals("Other", StringComparison.OrdinalIgnoreCase);
+
+                    return new
+                    {
+                        // Key used purely for grouping — case-insensitive,
+                        // whitespace-normalized.
+                        Key = isOther ? "other" : cleaned!.ToLowerInvariant(),
+                        // Display label shown to the user; the raw "Other"
+                        // bucket always displays as "Other".
+                        Display = isOther ? "Other" : cleaned!,
+                        IsOther = isOther
+                    };
+                })
+                .ToList();
+
+            var grouped = normalized
+                .GroupBy(x => x.Key)
+                .Select(g => new
+                {
+                    IsOther = g.Key == "other",
+                    // Use whichever exact casing occurs most often within
+                    // the group as the display label.
+                    Display = g.GroupBy(x => x.Display)
+                        .OrderByDescending(dg => dg.Count())
+                        .First().Key,
+                    Count = g.Count()
+                })
+                .ToList();
+
+            var explicitOther = grouped.FirstOrDefault(g => g.IsOther);
+            var namedIndustries = grouped
+                .Where(g => !g.IsOther)
                 .OrderByDescending(g => g.Count)
                 .ToList();
 
             const int topN = 4;
-            var top = grouped.Take(topN).ToList();
-            var otherCount = grouped.Skip(topN).Sum(g => g.Count);
+            var top = namedIndustries.Take(topN).ToList();
+            var overflowCount = namedIndustries.Skip(topN).Sum(g => g.Count);
+            var otherCount = (explicitOther?.Count ?? 0) + overflowCount;
 
             var slices = top
                 .Select(g => new IndustrySliceDto
                 {
-                    Industry = g.Industry,
+                    Industry = g.Display,
                     Count = g.Count,
                     Percentage = total > 0 ? Math.Round(g.Count * 100m / total, 1) : 0
                 })
@@ -312,10 +363,10 @@ namespace JobPortal.Services.Implement.Admin
         // ------------------------------------------------------------
         // 4. REVENUE & CREDIT GROWTH
         // ------------------------------------------------------------
-        public async Task<RevenueCreditGrowthResponseDto> GetRevenueCreditGrowthAsync(int months)
+        // Filter removed for QA testing — always the last 6 months.
+        public async Task<RevenueCreditGrowthResponseDto> GetRevenueCreditGrowthAsync()
         {
-            if (months <= 0) months = 6;
-            if (months > 24) months = 24;
+            const int months = 6;
 
             var now = DateTime.UtcNow;
             var currentMonthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
