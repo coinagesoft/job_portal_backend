@@ -43,11 +43,14 @@ namespace JobPortal.API.Controllers.Admin
             });
         }
 
-        // GET /api/admin/dashboard/registration-growth?range=week|month|year
+        // GET /api/admin/dashboard/registration-growth
+        // Filter (range=week|month|year) temporarily removed for QA testing,
+        // same as Admin ▸ Revenue. Always returns the "week" view (last 7
+        // days). See IAdminDashboardService for how to restore it.
         [HttpGet("registration-growth")]
-        public async Task<IActionResult> GetRegistrationGrowth([FromQuery] string range = "week")
+        public async Task<IActionResult> GetRegistrationGrowth()
         {
-            var data = await _service.GetRegistrationGrowthAsync(range);
+            var data = await _service.GetRegistrationGrowthAsync();
 
             return Ok(new
             {
@@ -71,11 +74,13 @@ namespace JobPortal.API.Controllers.Admin
             });
         }
 
-        // GET /api/admin/dashboard/revenue-credit-growth?months=6
+        // GET /api/admin/dashboard/revenue-credit-growth
+        // Filter (months) temporarily removed for QA testing, same as
+        // Admin ▸ Revenue. Always returns the last 6 months.
         [HttpGet("revenue-credit-growth")]
-        public async Task<IActionResult> GetRevenueCreditGrowth([FromQuery] int months = 6)
+        public async Task<IActionResult> GetRevenueCreditGrowth()
         {
-            var data = await _service.GetRevenueCreditGrowthAsync(months);
+            var data = await _service.GetRevenueCreditGrowthAsync();
 
             return Ok(new
             {

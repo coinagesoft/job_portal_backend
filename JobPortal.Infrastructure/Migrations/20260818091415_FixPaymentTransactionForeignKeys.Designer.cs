@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260818091415_FixPaymentTransactionForeignKeys")]
+    partial class FixPaymentTransactionForeignKeys
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1475,10 +1478,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("CustomDocumentName")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("DocumentTypeId")
                         .HasColumnType("text");
 
                     b.Property<Guid?>("DocumentTypeId")
@@ -1489,8 +1488,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Message")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
                         .HasColumnType("text");
 
                     b.Property<DateTime>("RequestedAt")
@@ -1499,20 +1496,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<Guid>("RequestedBy")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.HasKey("RequestId");
-
-                    b.HasIndex("DocumentTypeId");
-
-                    b.HasIndex("EmployerId");
-
-                    b.HasIndex("RequestedBy");
-
-                    b.ToTable("EmployerDocumentRequests", (string)null);
                     b.Property<Guid>("RequestedByAdminAdminId")
                         .HasColumnType("uuid");
 
@@ -3318,86 +3301,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<Guid?>("CandidateId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("CandidateProfileCandidateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreditQuantity")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("CreditsAddedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("EmployerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("EmployerProfileEmployerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("GatewayRefundId")
-                        .HasColumnType("text");
-
-                    b.Property<int>("GstAmountPaise")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("InvoiceUrl")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("OriginalTxnId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PackType")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PaymentMethod")
-                        .HasColumnType("text");
-
-                    b.Property<string>("PaymentStatus")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("RazorpayOrderId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("RazorpayPaymentId")
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("RefundProcessedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("RefundReason")
-                        .HasColumnType("text");
-
-                    b.Property<string>("StripePaymentIntentId")
-                        .HasColumnType("text");
-
-                    b.Property<int>("TotalAmountPaise")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("TransactionType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<byte?>("ValidityMonths")
-                        .HasColumnType("smallint");
-
-                    b.HasKey("TransactionId");
-
-                    b.HasIndex("CandidateProfileCandidateId");
-
-                    b.HasIndex("EmployerProfileEmployerId");
-
-                    b.HasIndex("OriginalTxnId");
-
-                    b.HasIndex("RefundProcessedBy");
-
-                    b.HasIndex("UserId");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4498,21 +4401,17 @@ namespace JobPortal.Infrastructure.Migrations
                     b.HasOne("VerificationDocumentMaster", "DocumentType")
                         .WithMany()
                         .HasForeignKey("DocumentTypeId")
-                        .OnDelete(DeleteBehavior.Restrict)
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("JobPortal.Domain.Entities.EmployerProfile", "Employer")
                         .WithMany()
                         .HasForeignKey("EmployerId")
-                        .OnDelete(DeleteBehavior.Restrict)
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.HasOne("JobPortal.Domain.Entities.AdminUser", "RequestedByAdmin")
                         .WithMany()
-                        .HasForeignKey("RequestedBy")
-                        .OnDelete(DeleteBehavior.Restrict)
                         .HasForeignKey("RequestedByAdminAdminId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -4798,11 +4697,6 @@ namespace JobPortal.Infrastructure.Migrations
                 {
                     b.HasOne("JobPortal.Domain.Entities.CandidateProfile", "CandidateProfile")
                         .WithMany()
-                        .HasForeignKey("CandidateProfileCandidateId");
-
-                    b.HasOne("JobPortal.Domain.Entities.EmployerProfile", "EmployerProfile")
-                        .WithMany()
-                        .HasForeignKey("EmployerProfileEmployerId")
                         .HasForeignKey("CandidateId")
                         .OnDelete(DeleteBehavior.Restrict);
 

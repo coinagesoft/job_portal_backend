@@ -23,14 +23,15 @@ namespace JobPortal.API.Controllers.Admin
             _service = service;
         }
 
-        // GET /api/admin/revenue/summary?country=India&dateFrom=2026-07-01&dateTo=2026-07-31
+        // GET /api/admin/revenue/summary
+        // Filters temporarily removed for QA testing of the plan → purchase
+        // → membership → revenue flow. Always returns the all-time,
+        // all-country figures so there's one number for the tester to
+        // reconcile by hand. See IAdminRevenueService for how to restore them.
         [HttpGet("summary")]
-        public async Task<IActionResult> GetSummary(
-            [FromQuery] string? country,
-            [FromQuery] DateOnly? dateFrom,
-            [FromQuery] DateOnly? dateTo)
+        public async Task<IActionResult> GetSummary()
         {
-            var data = await _service.GetSummaryAsync(country, dateFrom, dateTo);
+            var data = await _service.GetSummaryAsync();
 
             return Ok(new
             {
@@ -40,13 +41,13 @@ namespace JobPortal.API.Controllers.Admin
             });
         }
 
-        // GET /api/admin/revenue/by-country?period=monthly&country=India
+        // GET /api/admin/revenue/by-country
+        // Filters temporarily removed for QA testing (see GetSummary above).
+        // Always returns the current calendar month, all countries.
         [HttpGet("by-country")]
-        public async Task<IActionResult> GetByCountry(
-            [FromQuery] string period = "monthly",
-            [FromQuery] string? country = null)
+        public async Task<IActionResult> GetByCountry()
         {
-            var data = await _service.GetRevenueByCountryAsync(period, country);
+            var data = await _service.GetRevenueByCountryAsync();
 
             return Ok(new
             {
@@ -56,19 +57,17 @@ namespace JobPortal.API.Controllers.Admin
             });
         }
 
-        // GET /api/admin/revenue/transactions?type=all&country=&search=&dateFrom=&dateTo=&page=1&pageSize=10
+        // GET /api/admin/revenue/transactions?page=1&pageSize=10
+        // Filters (type/country/search/date range) temporarily removed for
+        // QA testing (see GetSummary above). Pagination is kept since it's
+        // not a data filter — without it the list could try to return every
+        // row at once.
         [HttpGet("transactions")]
         public async Task<IActionResult> GetTransactions(
-            [FromQuery] string type = "all",
-            [FromQuery] string? country = null,
-            [FromQuery] string? search = null,
-            [FromQuery] DateOnly? dateFrom = null,
-            [FromQuery] DateOnly? dateTo = null,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
-            var data = await _service.GetTransactionsAsync(
-                type, country, search, dateFrom, dateTo, page, pageSize);
+            var data = await _service.GetTransactionsAsync(page, pageSize);
 
             return Ok(new
             {

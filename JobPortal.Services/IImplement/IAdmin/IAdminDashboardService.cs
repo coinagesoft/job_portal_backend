@@ -12,14 +12,16 @@ namespace JobPortal.Services.IImplement.IAdmin
         // Stats widgets: 4 primary cards + 3 secondary cards.
         Task<StatsWidgetsResponseDto> GetStatsWidgetsAsync();
 
-        // Registration Growth line chart. range: "week" | "month" | "year".
-        Task<RegistrationGrowthResponseDto> GetRegistrationGrowthAsync(string range);
+        // Registration Growth line chart.
+        // Filter removed for QA testing — always "week" (last 7 days).
+        Task<RegistrationGrowthResponseDto> GetRegistrationGrowthAsync();
 
         // Recruiters by Industry donut chart.
         Task<RecruitersByIndustryResponseDto> GetRecruitersByIndustryAsync();
 
-        // Revenue & Credit Growth stacked bar chart, last N months.
-        Task<RevenueCreditGrowthResponseDto> GetRevenueCreditGrowthAsync(int months);
+        // Revenue & Credit Growth stacked bar chart.
+        // Filter removed for QA testing — always the last 6 months.
+        Task<RevenueCreditGrowthResponseDto> GetRevenueCreditGrowthAsync();
 
         // Platform Overview panel (Plans / Users / Audit Logs / Legal Pages).
         Task<PlatformOverviewResponseDto> GetPlatformOverviewAsync();

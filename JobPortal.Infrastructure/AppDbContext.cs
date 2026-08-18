@@ -1419,6 +1419,28 @@ public class AppDbContext : DbContext
              .WithMany()
              .HasForeignKey(x => x.RefundProcessedBy)
              .OnDelete(DeleteBehavior.SetNull);
+            // IMPORTANT: without these two, EF Core cannot match the bare
+            // "EmployerId"/"CandidateId" columns to the EmployerProfile/
+            // CandidateProfile navigations by convention (it would need a
+            // property literally named "EmployerProfileId"/"CandidateProfileId").
+            // Previously this caused EF to silently create two extra shadow
+            // columns ("EmployerProfileEmployerId", "CandidateProfileCandidateId")
+            // that were never populated by application code, so every
+            // t.EmployerProfile / t.CandidateProfile navigation always came
+            // back null — which is why Admin > Revenue "by-country" always
+            // showed "Unknown"/"UNK" even for transactions with a real
+            // EmployerId/CandidateId set. Pinning the FK to the real column
+            // fixes this for both existing and future rows; no data
+            // migration is needed, only a schema migration to drop the
+            // unused shadow columns.
+            e.HasOne(x => x.EmployerProfile)
+             .WithMany()
+             .HasForeignKey(x => x.EmployerId)
+             .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.CandidateProfile)
+             .WithMany()
+             .HasForeignKey(x => x.CandidateId)
+             .OnDelete(DeleteBehavior.Restrict);
         });
 
         m.Entity<Invoice>(e => {
