@@ -188,7 +188,7 @@ public class CandidateLoginService : ICandidateLoginService
                 await _context.SaveChangesAsync();
 
                 // ===== QA BYPASS: real email OTP send disabled =====
-                 await _emailService.SendOtpEmailAsync(identifier, otpCode);
+                await _emailService.SendOtpEmailAsync(identifier, otpCode);
                 //_logger.LogInformation(
                 //    "QA BYPASS - Candidate Login Email OTP send skipped. Static OTP 123456 applies.");
                 // ===== END QA BYPASS =====
@@ -201,7 +201,7 @@ public class CandidateLoginService : ICandidateLoginService
                     "TWILIO SEND OTP - Phone:{Phone}", phoneNumber);
 
                 // ===== QA BYPASS: real Twilio OTP send disabled =====
-                 var sent = await _twilioOtpService.SendOtpAsync(phoneNumber);
+                var sent = await _twilioOtpService.SendOtpAsync(phoneNumber);
                 //var sent = true;
                 // ===== END QA BYPASS =====
 
@@ -660,7 +660,7 @@ public class CandidateLoginService : ICandidateLoginService
             .Select(x => (Guid?)x.CandidateId)
             .FirstOrDefaultAsync();
 
-        var token = _jwtService.GenerateToken(
+        var (token, expiry) = await _jwtService.GenerateTokenAsync(
             user.UserId,
             user.UserType.ToString(),
             user.MobileNumber,
@@ -668,7 +668,7 @@ public class CandidateLoginService : ICandidateLoginService
             candidateId,
             false);        // isSubUser — never applicable in the candidate app
 
-        return (token, _jwtService.GetExpiry(), candidateId);
+        return (token, expiry, candidateId);
     }
 
     private async Task<string> GetProfileStatusAsync(User user)

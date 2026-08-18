@@ -502,7 +502,7 @@ public class AuthService : IAuthService
 
             var refreshToken = _jwtService.GenerateRefreshToken();
 
-            var accessTokenExpiry = _jwtService.GetExpiry();
+            var accessTokenExpiry = _jwtService.GetAdminExpiry();
 
             var refreshTokenExpiry = DateTime.UtcNow.AddDays(30);
 
@@ -678,7 +678,7 @@ public class AuthService : IAuthService
 
         session.RefreshTokenExpiresAt = DateTime.UtcNow.AddDays(30);
 
-        session.ExpiresAt = _jwtService.GetExpiry();
+        session.ExpiresAt = _jwtService.GetAdminExpiry();
 
         await _context.SaveChangesAsync();
 

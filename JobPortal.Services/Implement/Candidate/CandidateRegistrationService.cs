@@ -183,7 +183,7 @@ namespace JobPortal.Services.Implement.Candidate
                 _context.PaymentTransactions.Add(paymentTransaction);
 
                 await _context.SaveChangesAsync();
-                var token = _jwtService.GenerateToken(user.UserId, user.UserType.ToString(), user.MobileNumber, candidateId: profile.CandidateId);
+                var (token, _) = await _jwtService.GenerateTokenAsync(user.UserId, user.UserType.ToString(), user.MobileNumber, candidateId: profile.CandidateId);
                 _logger.LogInformation("New candidate registered via Google - UserId:{Id} IP:{IP}", user.UserId, ipAddress);
                 return new AuthResponseDto
                 {
@@ -314,7 +314,7 @@ namespace JobPortal.Services.Implement.Candidate
 
 
                 await _context.SaveChangesAsync();
-                var token = _jwtService.GenerateToken(user.UserId, user.UserType.ToString(), user.MobileNumber, candidateId: profile.CandidateId);
+                var (token, _) = await _jwtService.GenerateTokenAsync(user.UserId, user.UserType.ToString(), user.MobileNumber, candidateId: profile.CandidateId);
                 _logger.LogInformation("New candidate registered via LinkedIn - UserId:{Id} IP:{IP}", user.UserId, ipAddress);
                 return new AuthResponseDto
                 {

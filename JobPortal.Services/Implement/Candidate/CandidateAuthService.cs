@@ -281,8 +281,8 @@ public class CandidateAuthService : ICandidateAuthService
             await _context.SaveChangesAsync();
 
             // Generate JWT
-            var token =
-                _jwtService.GenerateToken(
+            var (token, _) =
+                await _jwtService.GenerateTokenAsync(
                     user.UserId,
                     user.UserType.ToString(),
                     user.MobileNumber,

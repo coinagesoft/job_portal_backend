@@ -1096,7 +1096,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                 .FirstOrDefaultAsync();
         }
 
-        var token = _jwtService.GenerateToken(
+        var (token, expiry) = await _jwtService.GenerateTokenAsync(
             user.UserId,
             user.UserType.ToString(),
             user.MobileNumber,
@@ -1104,7 +1104,7 @@ public class RecruiterAuthService : IRecruiterAuthService
             candidateId,
             isSubUser);
 
-        return (token, _jwtService.GetExpiry(), candidateId);
+        return (token, expiry, candidateId);
     }
     private async Task<string> GetProfileStatusAsync(User user)
     {

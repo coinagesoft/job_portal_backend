@@ -1,4 +1,6 @@
 ﻿using JobPortal.Domain.Entities;
+using JobPortal.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -11,11 +13,56 @@ namespace JobPortal.Infrastructure.JWT
     public class JwtService
     {
         private readonly IConfiguration _configuration;
+        private readonly AppDbContext _context;
+
+        // Mirrors the option list on the /admin/settings screen
+        // (AdminSettingsService.AllowedSessionTimeouts). Kept here too so
+        // token expiry stays in lock-step with whatever the admin picked.
+        private static readonly Dictionary<string, double> SessionTimeoutMinutesByLabel = new()
+        {
+            ["15 Minutes"] = 15,
+            ["30 Minutes"] = 30,
+            ["1 Hour"] = 60,
+            ["2 Hours"] = 120,
+            // "Never" isn't literally infinite (JWTs need a hard expiry to
+            // validate), so use a long-lived window that's effectively
+            // "doesn't time out" for practical purposes.
+            ["Never"] = 60 * 24 * 365 * 10
+        };
 
         public JwtService(
-            IConfiguration configuration)
+            IConfiguration configuration,
+            AppDbContext context)
         {
             _configuration = configuration;
+            _context = context;
+        }
+
+        /// <summary>
+        /// Resolves how long a Candidate/Employer session should last, based
+        /// on the Session Timeout the admin configured on the
+        /// "/admin/settings" screen (falls back to Jwt:ExpiryMinutes when no
+        /// admin has ever saved a setting). This is what makes the admin's
+        /// "Session Timeout" control actually apply to candidate/employer
+        /// logins instead of only being persisted and never read.
+        /// </summary>
+        private async Task<double> GetCandidateEmployerSessionTimeoutMinutesAsync()
+        {
+            var fallbackMinutes = Convert.ToDouble(_configuration["Jwt:ExpiryMinutes"]);
+
+            var configuredTimeout = await _context.AdminUserSettings
+                .AsNoTracking()
+                .OrderByDescending(x => x.UpdatedAt)
+                .Select(x => x.SessionTimeout)
+                .FirstOrDefaultAsync();
+
+            if (configuredTimeout != null &&
+                SessionTimeoutMinutesByLabel.TryGetValue(configuredTimeout, out var minutes))
+            {
+                return minutes;
+            }
+
+            return fallbackMinutes;
         }
 
         //public string GenerateToken(User user,AdminUser adminUser)
@@ -80,7 +127,7 @@ namespace JobPortal.Infrastructure.JWT
         //}
 
 
-        public string GenerateToken(
+        public async Task<(string Token, DateTime Expiry)> GenerateTokenAsync(
      Guid userId,
      string role,
      string? mobileNumber = null,
@@ -141,19 +188,37 @@ namespace JobPortal.Infrastructure.JWT
                 key,
                 SecurityAlgorithms.HmacSha256);
 
+            var sessionTimeoutMinutes = await GetCandidateEmployerSessionTimeoutMinutesAsync();
+            var expiry = DateTime.UtcNow.AddMinutes(sessionTimeoutMinutes);
+
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],
                 audience: _configuration["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(
-                    Convert.ToDouble(
-                        _configuration["Jwt:ExpiryMinutes"])),
+                expires: expiry,
                 signingCredentials: credentials);
 
-            return new JwtSecurityTokenHandler()
-                .WriteToken(token);
+            return (new JwtSecurityTokenHandler().WriteToken(token), expiry);
         }
-        public DateTime GetExpiry()
+
+        /// <summary>
+        /// Expiry timestamp a freshly-issued Candidate/Employer token would
+        /// get right now — kept in sync with GenerateTokenAsync so callers
+        /// that need to report "expires at" without generating a new token
+        /// (e.g. refresh-token flows) see the same admin-configured value.
+        /// </summary>
+        public async Task<DateTime> GetExpiryAsync()
+        {
+            var sessionTimeoutMinutes = await GetCandidateEmployerSessionTimeoutMinutesAsync();
+            return DateTime.UtcNow.AddMinutes(sessionTimeoutMinutes);
+        }
+
+        /// <summary>
+        /// Fixed-config expiry (Jwt:ExpiryMinutes) — used for the Admin's own
+        /// panel session, which is intentionally NOT affected by the
+        /// candidate/employer "Session Timeout" setting on /admin/settings.
+        /// </summary>
+        public DateTime GetAdminExpiry()
         {
             return DateTime.UtcNow.AddMinutes(
                 Convert.ToDouble(
