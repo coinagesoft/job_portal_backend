@@ -37,5 +37,23 @@ namespace JobPortal.API.Controllers.Admin
         }
 
         #endregion
+
+        #region Export CSV
+
+        // GET /api/admin/audit-logs/export/csv?action=&date=&actorType=&severity=
+        // Backs the "Export CSV" button on /admin/audit. Same filters as
+        // the on-screen filter bar; returns every matching row (no
+        // pagination) as a downloadable CSV file.
+        [HttpGet("export/csv")]
+        [SkipAuditLog]
+        public async Task<IActionResult> ExportCsv([FromQuery] AuditLogRequestDto request)
+        {
+            var bytes = await _auditLogService.ExportAuditLogsCsvAsync(request);
+            var fileName = $"audit-logs-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv";
+
+            return File(bytes, "text/csv", fileName);
+        }
+
+        #endregion
     }
 }

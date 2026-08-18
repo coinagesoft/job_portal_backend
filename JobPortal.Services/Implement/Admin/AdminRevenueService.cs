@@ -1,4 +1,12 @@
-﻿using JobPortal.Application.DTOs.Admin.Revenue;
+﻿using iText.IO.Font.Constants;
+using iText.Kernel.Colors;
+using iText.Kernel.Font;
+using iText.Kernel.Geom;
+using iText.Kernel.Pdf;
+using iText.Layout;
+using iText.Layout.Element;
+using iText.Layout.Properties;
+using JobPortal.Application.DTOs.Admin.Revenue;
 using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
@@ -307,10 +315,6 @@ namespace JobPortal.Services.Implement.Admin
                 InvoiceDate = _db.Invoices
                     .Where(i => i.TransactionId == t.TransactionId)
                     .Select(i => (DateOnly?)i.InvoiceDate)
-                    .FirstOrDefault(),
-                InvoiceUrl = _db.Invoices
-                    .Where(i => i.TransactionId == t.TransactionId)
-                    .Select(i => i.InvoiceS3Url)
                     .FirstOrDefault()
             });
 
@@ -344,7 +348,14 @@ namespace JobPortal.Services.Implement.Admin
                 PaymentStatus = r.PaymentStatus,
                 InvoiceNumber = r.InvoiceNumber,
                 InvoiceDate = r.InvoiceDate,
-                InvoiceUrl = r.InvoiceUrl
+
+                // The PDF is generated on demand (see DownloadInvoicePdfAsync)
+                // rather than stored, so this just signals to the frontend
+                // that a downloadable invoice exists for this transaction —
+                // same pattern used on the employer/recruiter side.
+                InvoiceUrl = r.InvoiceNumber != null
+                    ? $"/api/admin/revenue/transactions/{r.TransactionId}/invoice/download"
+                    : null
             }).ToList();
 
             return new RevenueTransactionsResponseDto
@@ -391,7 +402,7 @@ namespace JobPortal.Services.Implement.Admin
             var invoice = await _db.Invoices
                 .AsNoTracking()
                 .Where(i => i.TransactionId == transactionId)
-                .Select(i => new { i.InvoiceNumber, i.InvoiceDate, i.InvoiceS3Url })
+                .Select(i => new { i.InvoiceNumber, i.InvoiceDate })
                 .FirstOrDefaultAsync();
 
             return new RevenueTransactionDto
@@ -408,9 +419,240 @@ namespace JobPortal.Services.Implement.Admin
                 PaymentStatus = t.PaymentStatus,
                 InvoiceNumber = invoice?.InvoiceNumber,
                 InvoiceDate = invoice?.InvoiceDate,
-                InvoiceUrl = invoice?.InvoiceS3Url
+                InvoiceUrl = invoice?.InvoiceNumber != null
+                    ? $"/api/admin/revenue/transactions/{transactionId}/invoice/download"
+                    : null
             };
         }
+
+        // ------------------------------------------------------------
+        // INVOICE PDF (generated on demand — see RecruiterInvoiceService
+        // for the employer-side twin of this; kept separate here since
+        // admin transactions can be billed to either an employer or a
+        // candidate, and admin has no per-user auth scoping to apply).
+        // ------------------------------------------------------------
+        public async Task<(byte[] Bytes, string FileName)?> DownloadInvoicePdfAsync(
+            Guid transactionId)
+        {
+            var data = await (
+                from invoice in _db.Invoices
+                join transaction in _db.PaymentTransactions
+                on invoice.TransactionId equals transaction.TransactionId
+                where invoice.TransactionId == transactionId
+                select new { Invoice = invoice, Transaction = transaction }
+            ).AsNoTracking().FirstOrDefaultAsync();
+
+            if (data == null)
+            {
+                return null;
+            }
+
+            EmployerProfile? employer = null;
+            CandidateProfile? candidate = null;
+            string? contactEmail = null;
+
+            if (data.Transaction.EmployerId.HasValue)
+            {
+                employer = await _db.EmployerProfiles
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(e => e.EmployerId == data.Transaction.EmployerId.Value);
+
+                contactEmail = !string.IsNullOrWhiteSpace(employer?.ContactEmailPublic)
+                    ? employer!.ContactEmailPublic
+                    : await _db.Users
+                        .Where(u => u.UserId == data.Transaction.UserId)
+                        .Select(u => u.Email)
+                        .FirstOrDefaultAsync();
+            }
+            else if (data.Transaction.CandidateId.HasValue)
+            {
+                candidate = await _db.CandidateProfiles
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.CandidateId == data.Transaction.CandidateId.Value);
+
+                contactEmail = await _db.Users
+                    .Where(u => u.UserId == data.Transaction.UserId)
+                    .Select(u => u.Email)
+                    .FirstOrDefaultAsync();
+            }
+
+            var bytes = BuildInvoicePdf(data.Invoice, data.Transaction, employer, candidate, contactEmail);
+            var fileName = $"{data.Invoice.InvoiceNumber}.pdf";
+
+            return (bytes, fileName);
+        }
+
+        private static byte[] BuildInvoicePdf(
+            Invoice invoice,
+            PaymentTransaction transaction,
+            EmployerProfile? employer,
+            CandidateProfile? candidate,
+            string? contactEmail)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new PdfWriter(stream);
+            using var pdf = new PdfDocument(writer);
+            var document = new Document(pdf, PageSize.A4);
+            document.SetMargins(36, 36, 36, 36);
+
+            var titleFont = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
+            var regularFont = PdfFontFactory.CreateFont(StandardFonts.HELVETICA);
+            var brandColor = new DeviceRgb(230, 126, 24);
+
+            // ── Header ──────────────────────────────────────────
+            document.Add(
+                new Paragraph("JobBox")
+                    .SetFont(titleFont)
+                    .SetFontSize(22)
+                    .SetFontColor(brandColor)
+                    .SetMarginBottom(0));
+
+            document.Add(
+                new Paragraph("TAX INVOICE")
+                    .SetFont(titleFont)
+                    .SetFontSize(13)
+                    .SetMarginTop(2)
+                    .SetMarginBottom(16));
+
+            // ── Invoice meta ────────────────────────────────────
+            var metaTable = new Table(UnitValue.CreatePercentArray(new float[] { 1, 1 }))
+                .UseAllAvailableWidth()
+                .SetMarginBottom(14);
+
+            metaTable.AddCell(PlainCell($"Invoice No: {invoice.InvoiceNumber}", regularFont));
+            metaTable.AddCell(PlainCell($"Invoice Date: {invoice.InvoiceDate:dd MMM yyyy}", regularFont));
+            metaTable.AddCell(PlainCell(
+                $"Payment Ref: {transaction.RazorpayPaymentId ?? transaction.RazorpayOrderId ?? "-"}",
+                regularFont));
+            metaTable.AddCell(PlainCell($"Status: {transaction.PaymentStatus}", regularFont));
+            document.Add(metaTable);
+
+            // ── Billed to ───────────────────────────────────────
+            document.Add(new Paragraph("Billed To").SetFont(titleFont).SetFontSize(11).SetMarginBottom(2));
+            document.Add(new Paragraph(employer?.CompanyDisplayName ?? candidate?.FullName ?? "-")
+                .SetFont(regularFont).SetFontSize(10));
+
+            if (employer != null)
+            {
+                var addressLine = string.Join(", ", new[]
+                {
+                    employer.AddressLine1,
+                    employer.AddressLine2,
+                    employer.City,
+                    employer.State,
+                    employer.Pincode,
+                    employer.Country
+                }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+                if (!string.IsNullOrWhiteSpace(addressLine))
+                {
+                    document.Add(new Paragraph(addressLine).SetFont(regularFont).SetFontSize(9));
+                }
+
+                if (employer.GstRegistered && !string.IsNullOrWhiteSpace(employer.Gstin))
+                {
+                    document.Add(new Paragraph($"GSTIN: {employer.Gstin}").SetFont(regularFont).SetFontSize(9));
+                }
+
+                if (!string.IsNullOrWhiteSpace(employer.Pan))
+                {
+                    document.Add(new Paragraph($"PAN: {employer.Pan}").SetFont(regularFont).SetFontSize(9));
+                }
+
+                if (!string.IsNullOrWhiteSpace(employer.ContactPhone))
+                {
+                    document.Add(new Paragraph($"Phone: {employer.ContactPhone}").SetFont(regularFont).SetFontSize(9));
+                }
+            }
+            else if (candidate != null)
+            {
+                var addressLine = string.Join(", ", new[]
+                {
+                    candidate.CurrentCity,
+                    candidate.CurrentState,
+                    candidate.Pincode,
+                    candidate.Nationality
+                }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+                if (!string.IsNullOrWhiteSpace(addressLine))
+                {
+                    document.Add(new Paragraph(addressLine).SetFont(regularFont).SetFontSize(9));
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(contactEmail))
+            {
+                document.Add(new Paragraph($"Email: {contactEmail}").SetFont(regularFont).SetFontSize(9));
+            }
+
+            // ── Line item ───────────────────────────────────────
+            var itemsTable = new Table(UnitValue.CreatePercentArray(new float[] { 5, 2, 2 }))
+                .UseAllAvailableWidth()
+                .SetMarginTop(20);
+
+            itemsTable.AddHeaderCell(HeaderCell("Description", titleFont));
+            itemsTable.AddHeaderCell(HeaderCell("Validity", titleFont));
+            itemsTable.AddHeaderCell(HeaderCell("Amount (Rs.)", titleFont));
+
+            itemsTable.AddCell(BodyCell(
+                $"{transaction.PackType ?? transaction.TransactionType ?? "Plan"} ({transaction.CreditQuantity ?? 0} credits)",
+                regularFont));
+            itemsTable.AddCell(BodyCell($"{transaction.ValidityMonths ?? 0} month(s)", regularFont));
+            itemsTable.AddCell(BodyCell(invoice.InvoiceAmount.ToString("N2"), regularFont));
+
+            document.Add(itemsTable);
+
+            // ── Totals ──────────────────────────────────────────
+            var totalsTable = new Table(UnitValue.CreatePercentArray(new float[] { 3, 1 }))
+                .UseAllAvailableWidth()
+                .SetMarginTop(10);
+
+            totalsTable.AddCell(TotalsLabelCell("Subtotal", regularFont));
+            totalsTable.AddCell(TotalsValueCell($"Rs. {invoice.InvoiceAmount:N2}", regularFont));
+
+            totalsTable.AddCell(TotalsLabelCell("GST (18%)", regularFont));
+            totalsTable.AddCell(TotalsValueCell($"Rs. {invoice.InvoiceGst:N2}", regularFont));
+
+            totalsTable.AddCell(TotalsLabelCell("Total", titleFont));
+            totalsTable.AddCell(TotalsValueCell($"Rs. {invoice.InvoiceTotal:N2}", titleFont));
+
+            document.Add(totalsTable);
+
+            document.Add(
+                new Paragraph("\nThis is a system-generated invoice and does not require a signature.")
+                    .SetFont(regularFont)
+                    .SetFontSize(8)
+                    .SetFontColor(ColorConstants.GRAY)
+                    .SetMarginTop(24));
+
+            document.Close();
+            return stream.ToArray();
+        }
+
+        private static Cell PlainCell(string text, PdfFont font) =>
+            new Cell()
+                .Add(new Paragraph(text).SetFont(font).SetFontSize(9))
+                .SetBorder(iText.Layout.Borders.Border.NO_BORDER);
+
+        private static Cell HeaderCell(string text, PdfFont font) =>
+            new Cell()
+                .Add(new Paragraph(text).SetFont(font).SetFontSize(9))
+                .SetBackgroundColor(new DeviceRgb(245, 245, 245));
+
+        private static Cell BodyCell(string text, PdfFont font) =>
+            new Cell().Add(new Paragraph(text).SetFont(font).SetFontSize(9));
+
+        private static Cell TotalsLabelCell(string text, PdfFont font) =>
+            new Cell()
+                .Add(new Paragraph(text).SetFont(font).SetFontSize(10))
+                .SetBorder(iText.Layout.Borders.Border.NO_BORDER)
+                .SetTextAlignment(TextAlignment.RIGHT);
+
+        private static Cell TotalsValueCell(string text, PdfFont font) =>
+            new Cell()
+                .Add(new Paragraph(text).SetFont(font).SetFontSize(10))
+                .SetBorder(iText.Layout.Borders.Border.NO_BORDER)
+                .SetTextAlignment(TextAlignment.RIGHT);
 
         // ------------------------------------------------------------
         // SHARED HELPERS

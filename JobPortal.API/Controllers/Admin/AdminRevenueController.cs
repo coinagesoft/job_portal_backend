@@ -101,14 +101,16 @@ namespace JobPortal.API.Controllers.Admin
         }
 
         // GET /api/admin/revenue/transactions/{transactionId}/invoice/download
-        // Redirects to the invoice's stored S3 URL. Returns 404 when the
+        // Streams a freshly generated invoice PDF (same on-demand pattern
+        // as the employer/recruiter invoice download — nothing is stored
+        // on S3, so there's nothing to redirect to). Returns 404 when the
         // transaction has no invoice on file yet.
         [HttpGet("transactions/{transactionId:guid}/invoice/download")]
         public async Task<IActionResult> DownloadInvoice(Guid transactionId)
         {
-            var data = await _service.GetTransactionInvoiceAsync(transactionId);
+            var result = await _service.DownloadInvoicePdfAsync(transactionId);
 
-            if (data?.InvoiceUrl == null)
+            if (result == null)
             {
                 return NotFound(new
                 {
@@ -117,7 +119,7 @@ namespace JobPortal.API.Controllers.Admin
                 });
             }
 
-            return Redirect(data.InvoiceUrl);
+            return File(result.Value.Bytes, "application/pdf", result.Value.FileName);
         }
     }
 }

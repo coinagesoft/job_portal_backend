@@ -23,5 +23,12 @@ namespace JobPortal.Services.IImplement.IAdmin
 
         Task<RevenueTransactionDto?> GetTransactionInvoiceAsync(
             Guid transactionId);
+
+        // Generates the GST-compliant invoice PDF for a completed
+        // transaction on demand (mirrors RecruiterInvoiceService's
+        // DownloadInvoicePdfAsync) since invoices aren't stored on
+        // S3 — this is what /invoice/download streams back.
+        Task<(byte[] Bytes, string FileName)?> DownloadInvoicePdfAsync(
+            Guid transactionId);
     }
 }
