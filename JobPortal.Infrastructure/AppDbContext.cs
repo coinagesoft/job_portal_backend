@@ -1777,9 +1777,10 @@ public class AppDbContext : DbContext
 
 
             e.HasOne(x => x.DocumentType)
-                .WithMany()
-                .HasForeignKey(x => x.DocumentTypeId)
-                .OnDelete(DeleteBehavior.Restrict);
+    .WithMany()
+    .HasForeignKey(x => x.DocumentTypeId)
+    .IsRequired(false)
+    .OnDelete(DeleteBehavior.Restrict);
 
 
             e.HasOne(x => x.RequestedByAdmin)

@@ -12,19 +12,16 @@ namespace JobPortal.Application.DTOs.Recruiter.CompanyProfile
     {
         public Guid? DocumentTypeId { get; set; }
 
-        public string? DocumentName { get; set; }
+        // For requested admin documents
+        public Guid? RequestId { get; set; }
 
-        public string? Category { get; set; }
+        // Used for "Other" custom documents
+        public string? CustomDocumentName { get; set; }
+
+        // For predefined Additional document choices
 
         public IFormFile File { get; set; } = default!;
     }
 
-    public enum DocumentType
-    {
-        POE,
-        RPSL,
-        BUSINESS_REGISTRATION,
-        GST,
-        PAN
-    }
+ 
 }

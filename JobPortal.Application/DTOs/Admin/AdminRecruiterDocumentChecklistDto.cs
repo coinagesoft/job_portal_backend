@@ -4,57 +4,81 @@ namespace JobPortal.Application.DTOs.Admin
 {
     public class AdminRecruiterDocumentChecklistDto
     {
+        // ==================================================
+        // DOCUMENT TYPE
+        // ==================================================
+
         public Guid? DocumentTypeId { get; set; }
 
         public string DocumentName { get; set; } = default!;
 
-        // --------------------------------------------------
-        // DOCUMENT CATEGORY
-        // --------------------------------------------------
+
+        // ==================================================
+        // BUSINESS CATEGORY
+        // ==================================================
         //
-        // Possible values:
+        // Examples:
+        // Tax
+        // License
+        // Registration
+        // Identity
+        // Other
+        //
+        public string? Category { get; set; }
+
+
+        // ==================================================
+        // DOCUMENT CATEGORY
+        // ==================================================
         //
         // Mandatory
         // Optional
         // Additional
         // RequestedAdditional
         //
-        public string DocumentCategory { get; set; } = string.Empty;
+        public string DocumentCategory { get; set; } = "Additional";
 
-        // --------------------------------------------------
-        // MANDATORY
-        // --------------------------------------------------
-        //
-        // true  = Mandatory
-        // false = Optional / Non-Mandatory
-        //
+
+        // ==================================================
+        // DOCUMENT RULES
+        // ==================================================
+
         public bool IsMandatory { get; set; }
 
-        // --------------------------------------------------
-        // VERIFICATION
-        // --------------------------------------------------
-        //
-        // true  = Document participates in verification
-        // false = Document does not participate
-        //
         public bool RequiresVerification { get; set; }
 
-        // --------------------------------------------------
-        // DOCUMENT STATUS
-        // --------------------------------------------------
-        //
-        // Possible values:
+
+        // ==================================================
+        // STATUS
+        // ==================================================
         //
         // NotUploaded
         // Pending
         // Approved
         // Rejected
+        // Expired
+        // Resubmission
         //
         public string Status { get; set; } = "NotUploaded";
 
-        // --------------------------------------------------
+
+        // ==================================================
+        // REQUEST MESSAGE
+        // ==================================================
+        //
+        // Only populated for RequestedAdditional documents.
+        //
+        // Mandatory    -> null
+        // Optional     -> null
+        // Additional   -> null
+        // Requested    -> admin's message
+        //
+        public string? Message { get; set; }
+
+
+        // ==================================================
         // UPLOADED DOCUMENT
-        // --------------------------------------------------
+        // ==================================================
 
         public Guid DocumentId { get; set; }
 

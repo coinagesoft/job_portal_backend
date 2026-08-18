@@ -7,26 +7,76 @@ namespace JobPortal.Application.DTOs.Admin
     {
         public Guid EmployerId { get; set; }
 
-        // All documents displayed in the checklist:
-        // Mandatory + Optional + Additional + RequestedAdditional
+        // ==================================================
+        // ALL DOCUMENTS
+        // ==================================================
+        // Mandatory
+        // Optional
+        // Additional
+        // RequestedAdditional
         public int Total { get; set; }
 
-        // All documents that require verification:
-        // Mandatory + Optional + RequestedAdditional
+
+        // ==================================================
+        // DOCUMENTS REQUIRING VERIFICATION
+        // ==================================================
+        // Mandatory
+        // Optional where RequiresVerification = true
+        // RequestedAdditional
+        //
+        // Normal Additional documents are excluded.
         public int VerificationTotal { get; set; }
 
-        // Documents requiring verification that are Approved
+
+        // ==================================================
+        // VERIFIED
+        // ==================================================
+        // Documents requiring verification
+        // whose status is Approved.
         public int Verified { get; set; }
 
-        // Documents requiring verification that have not been uploaded
+
+        // ==================================================
+        // NOT UPLOADED
+        // ==================================================
+        // Documents requiring verification
+        // for which no file has been uploaded.
+        //
+        // Status = NotUploaded
         public int NotUploaded { get; set; }
 
-        // Documents requiring verification that are Rejected
+
+        // ==================================================
+        // PENDING
+        // ==================================================
+        // Documents that have been uploaded but are
+        // waiting for admin verification.
+        //
+        // Status = Pending
+        public int Pending { get; set; }
+
+
+        // ==================================================
+        // REJECTED
+        // ==================================================
+        // Documents requiring verification
+        // whose status is Rejected.
         public int Rejected { get; set; }
 
-        public int VerificationPercentage { get; set; }
 
+        // ==================================================
+        // OVERALL VERIFICATION STATUS
+        // ==================================================
+        //
+        // Pending
+        // Verified
+        // Rejected
         public string VerificationStatus { get; set; } = "Pending";
+
+
+        // ==================================================
+        // DOCUMENT CHECKLIST
+        // ==================================================
 
         public List<AdminRecruiterDocumentChecklistDto> Documents { get; set; }
             = new();

@@ -22,7 +22,8 @@ public class GeminiCompanyDocumentParserService
         _configuration = configuration;
     }
 
-    public async Task<GeminiCompanyDocumentParseResponse> ParseDocumentAsync(IFormFile document)
+    public async Task<GeminiCompanyDocumentParseResponse> ParseDocumentAsync(
+        IFormFile document)
     {
         if (document == null || document.Length == 0)
         {
@@ -34,7 +35,9 @@ public class GeminiCompanyDocumentParserService
         }
 
         var apiKey = _configuration["Gemini:ApiKey"];
-        var model = _configuration["Gemini:Model"] ?? "gemini-2.5-flash-lite";
+        var model =
+            _configuration["Gemini:Model"]
+            ?? "gemini-2.5-flash-lite";
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
@@ -45,15 +48,37 @@ public class GeminiCompanyDocumentParserService
             };
         }
 
-        // ── Read File ─────────────────────────────────────────────────────
+        // ===========================================================
+        // READ FILE
+        // ===========================================================
+
         using var memoryStream = new MemoryStream();
+
         await document.CopyToAsync(memoryStream);
 
         var bytes = memoryStream.ToArray();
-        var base64 = Convert.ToBase64String(bytes);
-        var mimeType = document.ContentType;
 
-        // ── Prompt ────────────────────────────────────────────────────────
+        var base64 =
+            Convert.ToBase64String(bytes);
+
+        var mimeType =
+            document.ContentType;
+
+
+        // ===========================================================
+        // PROMPT
+        // ===========================================================
+        //
+        // Existing parsing logic is preserved.
+        //
+        // Only added instruction:
+        // return fields with null when the field is not available.
+        //
+        // This allows our application to calculate extraction
+        // completeness correctly.
+        //
+        // ===========================================================
+
         var prompt = """
 You are an OCR and business document extraction engine.
 
@@ -99,6 +124,8 @@ Tasks:
 5. Return ONLY valid JSON.
 6. Do NOT return markdown.
 7. Do NOT explain anything.
+8. For important fields that are not available or cannot be extracted,
+   return the field with a null value instead of completely omitting it.
 
 Return format:
 
@@ -113,27 +140,35 @@ Return format:
 }
 """;
 
-        // ── Request Body ──────────────────────────────────────────────────
+
+        // ===========================================================
+        // REQUEST BODY
+        // ===========================================================
+
         var requestBody = new
         {
             contents = new object[]
             {
-            new
-            {
-                parts = new object[]
+                new
                 {
-                    new { text = prompt },
-                    new
+                    parts = new object[]
                     {
-                        inline_data = new
+                        new
                         {
-                            mime_type = mimeType,
-                            data = base64
+                            text = prompt
+                        },
+                        new
+                        {
+                            inline_data = new
+                            {
+                                mime_type = mimeType,
+                                data = base64
+                            }
                         }
                     }
                 }
-            }
             },
+
             generationConfig = new
             {
                 temperature = 0.1,
@@ -143,231 +178,569 @@ Return format:
             }
         };
 
-        var json = JsonSerializer.Serialize(requestBody);
+
+        var json =
+            JsonSerializer.Serialize(requestBody);
 
         using var content =
-            new StringContent(json, Encoding.UTF8, "application/json");
+            new StringContent(
+                json,
+                Encoding.UTF8,
+                "application/json");
+
 
         var endpoint =
             $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
+
 
         HttpResponseMessage response;
 
         try
         {
-            response = await _httpClient.PostAsync(endpoint, content);
+            response =
+                await _httpClient.PostAsync(
+                    endpoint,
+                    content);
         }
         catch (Exception ex)
         {
             return new GeminiCompanyDocumentParseResponse
             {
                 Success = false,
-                Message = $"Network error contacting Gemini: {ex.Message}"
+                Message =
+                    $"Network error contacting Gemini: {ex.Message}"
             };
         }
 
-        var responseBody = await response.Content.ReadAsStringAsync();
+
+        var responseBody =
+            await response.Content.ReadAsStringAsync();
+
+
+        // ===========================================================
+        // GEMINI ERROR
+        // ===========================================================
 
         if (!response.IsSuccessStatusCode)
         {
             return new GeminiCompanyDocumentParseResponse
             {
                 Success = false,
-                Message = $"Gemini API error ({(int)response.StatusCode}): {responseBody}",
-                RawResponse = responseBody
+                Message =
+                    $"Gemini API error ({(int)response.StatusCode}): {responseBody}",
+
+                RawResponse =
+                    responseBody
             };
         }
 
-        // ── Parse Gemini Envelope ─────────────────────────────────────────
-        using var jsonDocument = JsonDocument.Parse(responseBody);
 
-        var root = jsonDocument.RootElement;
+        // ===========================================================
+        // PARSE GEMINI ENVELOPE
+        // ===========================================================
 
-        if (!root.TryGetProperty("candidates", out var candidates) ||
+        using var jsonDocument =
+            JsonDocument.Parse(responseBody);
+
+        var root =
+            jsonDocument.RootElement;
+
+
+        if (!root.TryGetProperty(
+                "candidates",
+                out var candidates) ||
             candidates.GetArrayLength() == 0)
         {
             return new GeminiCompanyDocumentParseResponse
             {
                 Success = false,
-                Message = "Gemini returned no candidates.",
-                RawResponse = responseBody
+
+                Message =
+                    "Gemini returned no candidates.",
+
+                RawResponse =
+                    responseBody
             };
         }
 
-        var jsonText = candidates[0]
-            .GetProperty("content")
-            .GetProperty("parts")[0]
-            .GetProperty("text")
-            .GetString();
+
+        var jsonText =
+            candidates[0]
+                .GetProperty("content")
+                .GetProperty("parts")[0]
+                .GetProperty("text")
+                .GetString();
+
 
         if (string.IsNullOrWhiteSpace(jsonText))
         {
             return new GeminiCompanyDocumentParseResponse
             {
                 Success = false,
-                Message = "Gemini returned an empty response.",
-                RawResponse = responseBody
+
+                Message =
+                    "Gemini returned an empty response.",
+
+                RawResponse =
+                    responseBody
             };
         }
+
+
+        // ===========================================================
+        // CLEAN JSON
+        // ===========================================================
 
         jsonText = jsonText
             .Replace("```json", "")
             .Replace("```", "")
             .Trim();
 
+
         JsonDocument parsedDocument;
 
         try
         {
-            parsedDocument = JsonDocument.Parse(jsonText);
+            parsedDocument =
+                JsonDocument.Parse(jsonText);
         }
         catch (JsonException ex)
         {
             return new GeminiCompanyDocumentParseResponse
             {
                 Success = false,
-                Message = $"Unable to parse Gemini JSON: {ex.Message}",
-                RawResponse = jsonText
+
+                Message =
+                    $"Unable to parse Gemini JSON: {ex.Message}",
+
+                RawResponse =
+                    jsonText
             };
         }
+
+
         using (parsedDocument)
         {
-            var parsedRoot = parsedDocument.RootElement;
+            var parsedRoot =
+                parsedDocument.RootElement;
+
 
             string? documentType = null;
+
             JsonElement? fields = null;
+
+            // =======================================================
+            // IMPORTANT:
+            // This will now be calculated from extracted fields.
+            // =======================================================
+
             decimal? aiConfidence = null;
 
+
             string? documentNumber = null;
+
             string? issuingAuthority = null;
+
             DateOnly? issueDate = null;
+
             DateOnly? expiryDate = null;
 
-            if (parsedRoot.TryGetProperty("documentType", out var typeElement))
-                documentType = typeElement.GetString();
 
-            if (parsedRoot.TryGetProperty("fields", out var fieldElement))
+            // =======================================================
+            // DOCUMENT TYPE
+            // =======================================================
+
+            if (parsedRoot.TryGetProperty(
+                    "documentType",
+                    out var typeElement))
             {
-                fields = fieldElement.Clone();
+                documentType =
+                    typeElement.GetString();
+            }
 
-                // -------- Document Number --------
+
+            // =======================================================
+            // FIELDS
+            // =======================================================
+
+            if (parsedRoot.TryGetProperty(
+                    "fields",
+                    out var fieldElement))
+            {
+                fields =
+                    fieldElement.Clone();
+
+
+                // ===================================================
+                // DOCUMENT NUMBER
+                // ===================================================
+
                 string[] documentNumberKeys =
                 {
-            "documentNumber",
-            "certificateNumber",
-            "registrationNumber",
-            "licenseNumber",
-            "consentNumber",
-            "gstNumber",
-            "panNumber",
-            "cin",
-            "iecNumber"
-        };
+                    "documentNumber",
+                    "certificateNumber",
+                    "registrationNumber",
+                    "licenseNumber",
+                    "consentNumber",
+                    "gstNumber",
+                    "panNumber",
+                    "cin",
+                    "iecNumber"
+                };
+
 
                 foreach (var key in documentNumberKeys)
                 {
-                    if (fieldElement.TryGetProperty(key, out var value))
+                    if (fieldElement.TryGetProperty(
+                            key,
+                            out var value))
                     {
-                        documentNumber = value.GetString();
+                        if (value.ValueKind ==
+                            JsonValueKind.String)
+                        {
+                            documentNumber =
+                                value.GetString();
+                        }
 
-                        if (!string.IsNullOrWhiteSpace(documentNumber))
+                        if (!string.IsNullOrWhiteSpace(
+                                documentNumber))
+                        {
                             break;
+                        }
                     }
                 }
 
-                // -------- Issuing Authority --------
+
+                // ===================================================
+                // ISSUING AUTHORITY
+                // ===================================================
+
                 string[] authorityKeys =
                 {
-            "issuingAuthority",
-            "issuingOffice",
-            "issuedBy",
-            "authority"
-        };
+                    "issuingAuthority",
+                    "issuingOffice",
+                    "issuedBy",
+                    "authority"
+                };
+
 
                 foreach (var key in authorityKeys)
                 {
-                    if (fieldElement.TryGetProperty(key, out var value))
+                    if (fieldElement.TryGetProperty(
+                            key,
+                            out var value))
                     {
-                        issuingAuthority = value.GetString();
+                        if (value.ValueKind ==
+                            JsonValueKind.String)
+                        {
+                            issuingAuthority =
+                                value.GetString();
+                        }
 
-                        if (!string.IsNullOrWhiteSpace(issuingAuthority))
+                        if (!string.IsNullOrWhiteSpace(
+                                issuingAuthority))
+                        {
                             break;
+                        }
                     }
                 }
 
-                // -------- Issue Date --------
+
+                // ===================================================
+                // ISSUE DATE
+                // ===================================================
+
                 string[] issueDateKeys =
                 {
-            "issueDate",
-            "dateOfIssue",
-            "issuedOn",
-            "validFrom"
-        };
+                    "issueDate",
+                    "dateOfIssue",
+                    "issuedOn",
+                    "validFrom"
+                };
+
 
                 foreach (var key in issueDateKeys)
                 {
-                    if (fieldElement.TryGetProperty(key, out var value))
+                    if (fieldElement.TryGetProperty(
+                            key,
+                            out var value))
                     {
-                        if (DateOnly.TryParse(value.GetString(), out var parsed))
+                        if (value.ValueKind ==
+                            JsonValueKind.String &&
+                            DateOnly.TryParse(
+                                value.GetString(),
+                                out var parsed))
                         {
-                            issueDate = parsed;
+                            issueDate =
+                                parsed;
+
                             break;
                         }
                     }
                 }
 
-                // -------- Expiry Date --------
+
+                // ===================================================
+                // EXPIRY DATE
+                // ===================================================
+
                 string[] expiryDateKeys =
                 {
-            "expiryDate",
-            "expiry",
-            "validTill",
-            "validTo",
-            "expiresOn"
-        };
+                    "expiryDate",
+                    "expiry",
+                    "validTill",
+                    "validTo",
+                    "expiresOn"
+                };
+
 
                 foreach (var key in expiryDateKeys)
                 {
-                    if (fieldElement.TryGetProperty(key, out var value))
+                    if (fieldElement.TryGetProperty(
+                            key,
+                            out var value))
                     {
-                        if (DateOnly.TryParse(value.GetString(), out var parsed))
+                        if (value.ValueKind ==
+                            JsonValueKind.String &&
+                            DateOnly.TryParse(
+                                value.GetString(),
+                                out var parsed))
                         {
-                            expiryDate = parsed;
+                            expiryDate =
+                                parsed;
+
                             break;
                         }
                     }
                 }
             }
 
-            if (parsedRoot.TryGetProperty("confidence", out var confidenceElement) &&
-                confidenceElement.ValueKind == JsonValueKind.Object &&
-                confidenceElement.TryGetProperty("overall", out var overall))
+
+            // =======================================================
+            // DOCUMENT-WISE AI EXTRACTION SCORE
+            // =======================================================
+            //
+            // IMPORTANT:
+            //
+            // We DO NOT use Gemini's confidence.overall anymore.
+            //
+            // Score:
+            //
+            // Non-empty extracted fields
+            // --------------------------------
+            // Total fields returned by Gemini
+            //
+            // Example:
+            //
+            // 4 extracted / 5 fields = 0.80
+            //
+            // Database:
+            //
+            // AiConfidenceScore = 0.80
+            //
+            // GET API:
+            //
+            // aiExtractionPercentage = 80
+            //
+            // =======================================================
+
+            if (fields.HasValue &&
+                fields.Value.ValueKind ==
+                    JsonValueKind.Object)
             {
-                if (overall.ValueKind == JsonValueKind.Number)
-                {
-                    aiConfidence = overall.GetDecimal();
-                }
-                else if (decimal.TryParse(overall.GetString(), out var score))
-                {
-                    aiConfidence = score;
-                }
+                aiConfidence =
+                    CalculateExtractionScore(
+                        fields.Value);
             }
+            else
+            {
+                aiConfidence = 0m;
+            }
+
+
+            // =======================================================
+            // RETURN
+            // =======================================================
 
             return new GeminiCompanyDocumentParseResponse
             {
                 Success = true,
-                Message = "Company document parsed successfully.",
 
-                DocumentType = documentType,
-                AiConfidenceScore = aiConfidence,
-                ParsedData = fields,
-                RawResponse = jsonText,
+                Message =
+                    "Company document parsed successfully.",
 
-                DocumentNumber = documentNumber,
-                IssuingAuthority = issuingAuthority,
-                IssueDate = issueDate,
-                ExpiryDate = expiryDate
+                DocumentType =
+                    documentType,
+
+                // OUR calculated score
+                AiConfidenceScore =
+                    aiConfidence,
+
+                ParsedData =
+                    fields,
+
+                RawResponse =
+                    jsonText,
+
+                DocumentNumber =
+                    documentNumber,
+
+                IssuingAuthority =
+                    issuingAuthority,
+
+                IssueDate =
+                    issueDate,
+
+                ExpiryDate =
+                    expiryDate
             };
         }
+    }
+
+
+    // ===========================================================
+    // CALCULATE DOCUMENT-WISE EXTRACTION SCORE
+    // ===========================================================
+    //
+    // This method ONLY calculates the AI extraction score.
+    //
+    // No existing document parsing logic is changed.
+    //
+    // Result is stored between 0 and 1.
+    //
+    // 0.98 = 98%
+    // 0.75 = 75%
+    // 0.50 = 50%
+    //
+    // ===========================================================
+
+    private decimal CalculateExtractionScore(
+        JsonElement fields)
+    {
+        if (fields.ValueKind !=
+            JsonValueKind.Object)
+        {
+            return 0m;
+        }
+
+
+        var properties =
+            fields.EnumerateObject()
+                .ToList();
+
+
+        if (properties.Count == 0)
+        {
+            return 0m;
+        }
+
+
+        var totalFields =
+            properties.Count;
+
+
+        var extractedFields = 0;
+
+
+        foreach (var property in properties)
+        {
+            if (HasExtractedValue(
+                    property.Value))
+            {
+                extractedFields++;
+            }
+        }
+
+
+        var score =
+            (decimal)extractedFields /
+            totalFields;
+
+
+        return Math.Round(
+            Math.Clamp(
+                score,
+                0m,
+                1m),
+            4);
+    }
+
+
+    // ===========================================================
+    // CHECK WHETHER GEMINI ACTUALLY EXTRACTED A VALUE
+    // ===========================================================
+
+    private bool HasExtractedValue(
+        JsonElement value)
+    {
+        // -------------------------------------------------------
+        // NULL
+        // -------------------------------------------------------
+
+        if (value.ValueKind ==
+                JsonValueKind.Null ||
+            value.ValueKind ==
+                JsonValueKind.Undefined)
+        {
+            return false;
+        }
+
+
+        // -------------------------------------------------------
+        // STRING
+        // -------------------------------------------------------
+
+        if (value.ValueKind ==
+            JsonValueKind.String)
+        {
+            return !string.IsNullOrWhiteSpace(
+                value.GetString());
+        }
+
+
+        // -------------------------------------------------------
+        // ARRAY
+        // -------------------------------------------------------
+
+        if (value.ValueKind ==
+            JsonValueKind.Array)
+        {
+            return value
+                .EnumerateArray()
+                .Any(HasExtractedValue);
+        }
+
+
+        // -------------------------------------------------------
+        // OBJECT
+        // -------------------------------------------------------
+
+        if (value.ValueKind ==
+            JsonValueKind.Object)
+        {
+            return value
+                .EnumerateObject()
+                .Any(x =>
+                    HasExtractedValue(
+                        x.Value));
+        }
+
+
+        // -------------------------------------------------------
+        // NUMBER / BOOLEAN
+        // -------------------------------------------------------
+
+        if (value.ValueKind ==
+                JsonValueKind.Number ||
+            value.ValueKind ==
+                JsonValueKind.True ||
+            value.ValueKind ==
+                JsonValueKind.False)
+        {
+            return true;
+        }
+
+
+        return false;
     }
 }

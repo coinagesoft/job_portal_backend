@@ -19,7 +19,7 @@ namespace JobPortal.Services.Implement.Recruiter
         private readonly AppDbContext _context;
         private readonly IFileStorageService _fileStorageService;
         private readonly ILogger<VerificationService> _logger;
-  private readonly IGeminiCompanyDocumentParserService _geminiCompanyDocumentParserService;
+        private readonly IGeminiCompanyDocumentParserService _geminiCompanyDocumentParserService;
 
 public VerificationService(
     AppDbContext context,
@@ -135,8 +135,12 @@ public VerificationService(
         //}
 
         public async Task<VerificationDashboardResponseDto?> GetVerificationDashboardAsync(
-       Guid employerId)
+      Guid employerId)
         {
+            // ===========================================================
+            // CHECK EMPLOYER
+            // ===========================================================
+
             var employerExists = await _context.EmployerProfiles
                 .AsNoTracking()
                 .AnyAsync(x => x.EmployerId == employerId);
@@ -144,65 +148,201 @@ public VerificationService(
             if (!employerExists)
                 return null;
 
+
             var response = new VerificationDashboardResponseDto();
 
-            // ===========================================================
-            // Load Master Document Types (Admin Created)
-            // ===========================================================
-            var masters = await _context.VerificationDocumentMasters
-    .AsNoTracking()
-    .Where(x => x.IsActive && x.RequiresVerification)
-    .OrderBy(x => x.DisplayOrder)
-    .ToListAsync();
 
             // ===========================================================
-            // Load Employer Uploaded Documents
+            // LOAD ALL ACTIVE MASTER DOCUMENTS
             // ===========================================================
-            var uploadedDocuments = await _context.EmployerVerificationDocuments
+            //
+            // Includes:
+            // Mandatory
+            // Optional
+            //
+            // We decide what to display using IsMandatory.
+            //
+            // ===========================================================
+
+            var masters = await _context.VerificationDocumentMasters
                 .AsNoTracking()
-                .Where(x => x.EmployerId == employerId && !x.IsDeleted)
+                .Where(x => x.IsActive)
+                .OrderBy(x => x.DisplayOrder)
                 .ToListAsync();
 
+
             // ===========================================================
-            // Standard Documents (GST, PAN, RPSL etc.)
+            // LOAD EMPLOYER UPLOADED DOCUMENTS
             // ===========================================================
+
+            var uploadedDocuments = await _context.EmployerVerificationDocuments
+                .AsNoTracking()
+                .Where(x =>
+                    x.EmployerId == employerId &&
+                    !x.IsDeleted)
+                .OrderByDescending(x => x.UploadedAt)
+                .ToListAsync();
+
+
+            // ===========================================================
+            // LOAD ADMIN REQUESTED DOCUMENTS
+            // ===========================================================
+            //
+            // Important:
+            // A request can exist even when recruiter has not uploaded.
+            //
+            // ===========================================================
+
+            var documentRequests = await _context.EmployerDocumentRequests
+                .AsNoTracking()
+                .Where(x =>
+                    x.EmployerId == employerId &&
+                    x.Status != "Cancelled")
+                .OrderByDescending(x => x.RequestedAt)
+                .ToListAsync();
+
+
+            // ===========================================================
+            // 1. MASTER DOCUMENTS
+            // ===========================================================
+
             foreach (var master in masters)
             {
                 var uploaded = uploadedDocuments
                     .Where(x =>
                         x.DocumentTypeId.HasValue &&
-                        x.DocumentTypeId.Value == master.DocumentTypeId)
+                        x.DocumentTypeId.Value ==
+                            master.DocumentTypeId)
                     .OrderByDescending(x => x.UploadedAt)
                     .FirstOrDefault();
 
-                var status = uploaded == null
-                    ? "Not Uploaded"
-                    : uploaded.Status.ToString();
 
-                response.Badges.Add(new VerificationBadgeDto
-                {
-                    BadgeName = master.DocumentName,
-                    Status = status,
-                    Description = master.Description
-                        ?? $"{master.DocumentName} verification."
-                });
+                // =======================================================
+                // MANDATORY
+                // =======================================================
 
-                response.Documents.Add(new VerificationDocumentDto
+                if (master.IsMandatory)
                 {
-                    DocumentType = master.DocumentName,
-                    FileUrl = uploaded?.FileUrl,
-                    Status = status,
-                    UploadedAt = uploaded?.UploadedAt
-                });
+                    var status = uploaded == null
+                        ? "Not Uploaded"
+                        : uploaded.Status.ToString();
+
+
+                    // ---------------------------------------------------
+                    // BADGE ONLY FOR MANDATORY
+                    // ---------------------------------------------------
+
+                    response.Badges.Add(
+                        new VerificationBadgeDto
+                        {
+                            BadgeName =
+                                master.DocumentName,
+
+                            Status =
+                                status,
+
+                            Description =
+                                master.Description
+                                ?? $"{master.DocumentName} verification."
+                        });
+
+
+                    // ---------------------------------------------------
+                    // DOCUMENT
+                    // ---------------------------------------------------
+
+                    response.Documents.Add(
+                        new VerificationDocumentDto
+                        {
+                            DocumentType =
+                                master.DocumentName,
+
+                            Category =
+                                "Mandatory",
+
+
+                            Message = "No Message",
+
+                            FileUrl =
+                                uploaded?.FileUrl,
+
+                            Status =
+                                status,
+
+                            UploadedAt =
+                                uploaded?.UploadedAt
+                        });
+                }
+
+
+                // =======================================================
+                // OPTIONAL
+                // =======================================================
+                //
+                // Optional document is displayed ONLY if uploaded.
+                //
+                // No badge.
+                //
+                // =======================================================
+
+                else
+                {
+                    if (uploaded == null)
+                        continue;
+
+
+                    response.Documents.Add(
+                        new VerificationDocumentDto
+                        {
+                            DocumentType =
+                                master.DocumentName,
+
+                            Category =
+                                "Optional",
+
+
+                            Message = "No Message",
+
+                            FileUrl =
+                                uploaded.FileUrl,
+
+                            Status =
+                                uploaded.Status.ToString(),
+
+                            UploadedAt =
+                                uploaded.UploadedAt
+                        });
+                }
             }
 
+
             // ===========================================================
-            // Additional Documents (Employer Specific)
+            // 2. NORMAL ADDITIONAL DOCUMENTS
             // ===========================================================
+            //
+            // These are recruiter-uploaded documents.
+            //
+            // DocumentTypeId = NULL
+            // RequestId      = NULL
+            // Category       = Additional
+            //
+            // They are shown only after upload.
+            //
+            // No badge.
+            //
+            // ===========================================================
+
             var additionalDocuments = uploadedDocuments
-                .Where(x => x.DocumentTypeId == null)
+                .Where(x =>
+                    !x.DocumentTypeId.HasValue &&
+                    !x.RequestId.HasValue &&
+                    string.Equals(
+                        x.Category,
+                        "Additional",
+                        StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(x => x.UploadedAt)
                 .ToList();
+
 
             foreach (var doc in additionalDocuments)
             {
@@ -211,71 +351,363 @@ public VerificationService(
                     ?? doc.DetectedDocumentType
                     ?? doc.FileName;
 
-                // Badge
-                response.Badges.Add(new VerificationBadgeDto
-                {
-                    BadgeName = documentName,
-                    Status = doc.Status.ToString(),
-                    Description = "Additional verification document."
-                });
 
-                // Document
-                response.Documents.Add(new VerificationDocumentDto
-                {
-                    DocumentType = documentName,
-                    FileUrl = doc.FileUrl,
-                    Status = doc.Status.ToString(),
-                    UploadedAt = doc.UploadedAt
-                });
+                response.Documents.Add(
+                    new VerificationDocumentDto
+                    {
+                        DocumentType =
+                            documentName,
+
+                        Category =
+                            "Additional",
+
+
+                        Message ="No Message",
+
+                        FileUrl =
+                            doc.FileUrl,
+
+                        Status =
+                            doc.Status.ToString(),
+
+                        UploadedAt =
+                            doc.UploadedAt
+                    });
             }
+
+
+            // ===========================================================
+            // 3. REQUESTED DOCUMENTS
+            // ===========================================================
+            //
+            // These come from EmployerDocumentRequests.
+            //
+            // They MUST be displayed even before recruiter uploads.
+            //
+            // No badge.
+            //
+            // ===========================================================
+
+            foreach (var documentRequest in documentRequests)
+            {
+                // -------------------------------------------------------
+                // Find uploaded document for this exact request
+                // -------------------------------------------------------
+
+                var uploaded = uploadedDocuments
+                    .Where(x =>
+                        x.RequestId.HasValue &&
+                        x.RequestId.Value ==
+                            documentRequest.RequestId)
+                    .OrderByDescending(x => x.UploadedAt)
+                    .FirstOrDefault();
+
+
+                // -------------------------------------------------------
+                // Determine document name
+                // -------------------------------------------------------
+
+                string documentName;
+
+
+                // =======================================================
+                // REQUESTED EXISTING OPTIONAL MASTER
+                // =======================================================
+
+                if (documentRequest.DocumentTypeId.HasValue)
+                {
+                    var master =
+                        masters.FirstOrDefault(x =>
+                            x.DocumentTypeId ==
+                            documentRequest.DocumentTypeId.Value);
+
+
+                    documentName =
+                        master?.DocumentName
+                        ?? documentRequest.CustomDocumentName
+                        ?? "Requested Document";
+                }
+
+
+                // =======================================================
+                // REQUESTED CUSTOM DOCUMENT
+                // =======================================================
+
+                else
+                {
+                    documentName =
+                        documentRequest.CustomDocumentName
+                        ?? "Requested Additional Document";
+                }
+
+
+                // -------------------------------------------------------
+                // STATUS
+                // -------------------------------------------------------
+                //
+                // Request exists but no uploaded document:
+                //
+                //     Not Uploaded
+                //
+                // Uploaded:
+                //
+                //     Pending / Approved / Rejected /
+                //     Expired / Resubmission
+                //
+                // -------------------------------------------------------
+
+                var status = uploaded == null
+                    ? "Not Uploaded"
+                    : uploaded.Status.ToString();
+
+
+                // -------------------------------------------------------
+                // ADD TO DOCUMENTS
+                // -------------------------------------------------------
+
+                response.Documents.Add(
+                    new VerificationDocumentDto
+                    {
+                        DocumentType =
+                            documentName,
+
+                        Category =
+                            "RequestedAdditional",
+
+                        Message =
+                    documentRequest.Message,
+
+                        FileUrl =
+                            uploaded?.FileUrl,
+
+                        Status =
+                            status,
+
+                        UploadedAt =
+                            uploaded?.UploadedAt
+                    });
+            }
+
+
+            // ===========================================================
+            // RETURN
+            // ===========================================================
 
             return response;
         }
 
         public async Task<bool> UploadDocumentAsync(
-     Guid employerId,
-     UploadVerificationDocumentRequestDto request)
+        Guid employerId,
+        UploadVerificationDocumentRequestDto request)
         {
             try
             {
+                // ===========================================================
+                // CHECK EMPLOYER
+                // ===========================================================
+
                 var employer = await _context.EmployerProfiles
-                    .FirstOrDefaultAsync(x => x.EmployerId == employerId);
+                    .FirstOrDefaultAsync(x =>
+                        x.EmployerId == employerId);
 
                 if (employer == null)
                     return false;
 
-                if (request.File == null || request.File.Length == 0)
-                    throw new Exception("File is required.");
 
-                // Validate document type (only for standard documents)
+                // ===========================================================
+                // VALIDATE REQUEST
+                // ===========================================================
+
+                if (request == null)
+                    throw new Exception("Upload request is required.");
+
+                if (request.File == null ||
+                    request.File.Length == 0)
+                {
+                    throw new Exception("File is required.");
+                }
+
+
+                // ===========================================================
+                // VALIDATE MASTER DOCUMENT
+                // ===========================================================
+
                 VerificationDocumentMaster? master = null;
 
                 if (request.DocumentTypeId.HasValue)
                 {
-                    master = await _context.VerificationDocumentMasters
-                        .FirstOrDefaultAsync(x =>
-                            x.DocumentTypeId == request.DocumentTypeId &&
-                            x.IsActive);
+                    master =
+                        await _context.VerificationDocumentMasters
+                            .FirstOrDefaultAsync(x =>
+                                x.DocumentTypeId ==
+                                    request.DocumentTypeId.Value &&
+                                x.IsActive);
 
                     if (master == null)
-                        throw new Exception("Invalid document type.");
+                    {
+                        throw new Exception(
+                            "Invalid document type.");
+                    }
+
+
+                    // -------------------------------------------------------
+                    // A master document must NOT also be a custom request.
+                    // -------------------------------------------------------
+
+                    if (request.RequestId.HasValue)
+                    {
+                        var documentRequest =
+                            await _context.EmployerDocumentRequests
+                                .AsNoTracking()
+                                .FirstOrDefaultAsync(x =>
+                                    x.RequestId ==
+                                        request.RequestId.Value &&
+                                    x.EmployerId ==
+                                        employerId &&
+                                    x.Status != "Cancelled");
+
+                        if (documentRequest == null)
+                        {
+                            throw new Exception(
+                                "Document request not found.");
+                        }
+
+                        if (!documentRequest.DocumentTypeId.HasValue ||
+                            documentRequest.DocumentTypeId.Value !=
+                                request.DocumentTypeId.Value)
+                        {
+                            throw new Exception(
+                                "Selected document type does not match the requested document.");
+                        }
+                    }
                 }
 
-                // Upload file
-                var uploadResult = await _fileStorageService.UploadDocumentAsync(
-                    request.File,
-                    "verification-documents");
 
-                if (string.IsNullOrWhiteSpace(uploadResult.Url))
-                    throw new Exception("Failed to upload document.");
+                // ===========================================================
+                // REQUESTED ADDITIONAL DOCUMENT
+                // ===========================================================
+                //
+                // DocumentTypeId = NULL
+                // RequestId      = EXISTS
+                //
+                // This means admin requested this document.
+                //
+                // ===========================================================
 
-                // Parse document using Gemini (optional)
+                EmployerDocumentRequest? documentRequestEntity = null;
+
+                if (!request.DocumentTypeId.HasValue &&
+                    request.RequestId.HasValue)
+                {
+                    documentRequestEntity =
+                        await _context.EmployerDocumentRequests
+                            .FirstOrDefaultAsync(x =>
+                                x.RequestId ==
+                                    request.RequestId.Value &&
+                                x.EmployerId ==
+                                    employerId &&
+                                x.Status != "Cancelled");
+
+                    if (documentRequestEntity == null)
+                    {
+                        throw new Exception(
+                            "Requested document was not found.");
+                    }
+
+
+                    // -------------------------------------------------------
+                    // If the request points to an existing master document,
+                    // the uploaded DocumentTypeId must match it.
+                    // -------------------------------------------------------
+
+                    if (documentRequestEntity.DocumentTypeId.HasValue)
+                    {
+                        throw new Exception(
+                            "This request belongs to an existing document type. Please upload it using the requested document type.");
+                    }
+
+
+                    // -------------------------------------------------------
+                    // For a custom requested document, CustomDocumentName
+                    // must exist.
+                    // -------------------------------------------------------
+
+                    if (string.IsNullOrWhiteSpace(
+                        documentRequestEntity.CustomDocumentName))
+                    {
+                        throw new Exception(
+                            "Requested document name is missing.");
+                    }
+                }
+
+
+                // ===========================================================
+                // NORMAL ADDITIONAL / CUSTOM DOCUMENT
+                // ===========================================================
+                //
+                // DocumentTypeId = NULL
+                // RequestId      = NULL
+                //
+                // This is a normal Additional document.
+                //
+                // Example:
+                //
+                // Pollution Certificate
+                // Safety Certificate
+                // Other custom document
+                //
+                // ===========================================================
+
+                if (!request.DocumentTypeId.HasValue &&
+                    !request.RequestId.HasValue)
+                {
+                    if (string.IsNullOrWhiteSpace(
+                        request.CustomDocumentName))
+                    {
+                        throw new Exception(
+                            "Additional document name is required.");
+                    }
+                }
+
+
+                // ===========================================================
+                // UPLOAD FILE
+                // ===========================================================
+
+                var uploadResult =
+                    await _fileStorageService.UploadDocumentAsync(
+                        request.File,
+                        "verification-documents");
+
+                if (string.IsNullOrWhiteSpace(
+                    uploadResult.Url))
+                {
+                    throw new Exception(
+                        "Failed to upload document.");
+                }
+
+
+                // ===========================================================
+                // GEMINI PARSING
+                // ===========================================================
+                //
+                // Gemini only detects information from the file.
+                //
+                // It does NOT determine:
+                //
+                // DocumentTypeId
+                // RequestId
+                // CustomDocumentName
+                //
+                // ===========================================================
+
                 GeminiCompanyDocumentParseResponse? parsed = null;
 
                 try
                 {
-                    parsed = await _geminiCompanyDocumentParserService
-                        .ParseDocumentAsync(request.File);
+                    parsed =
+                        await _geminiCompanyDocumentParserService
+                            .ParseDocumentAsync(request.File);
                 }
                 catch (Exception ex)
                 {
@@ -285,153 +717,364 @@ public VerificationService(
                         request.File.FileName);
                 }
 
+
+                // ===========================================================
+                // FIND EXISTING DOCUMENT
+                // ===========================================================
+
                 EmployerVerificationDocument? existing = null;
 
+
                 // ===========================================================
-                // STANDARD DOCUMENTS (GST, PAN, RPSL, etc.)
+                // CASE 1: MASTER DOCUMENT
                 // ===========================================================
+
                 if (request.DocumentTypeId.HasValue)
                 {
-                    existing = await _context.EmployerVerificationDocuments
-                        .FirstOrDefaultAsync(x =>
-                            x.EmployerId == employerId &&
-                            x.DocumentTypeId == request.DocumentTypeId &&
-                            !x.IsDeleted);
+                    existing =
+                        await _context
+                            .EmployerVerificationDocuments
+                            .FirstOrDefaultAsync(x =>
+                                x.EmployerId ==
+                                    employerId &&
 
-                    if (existing != null)
-                    {
-                        if (!string.IsNullOrWhiteSpace(existing.PublicId))
-                        {
-                            await _fileStorageService.DeleteAsync(existing.PublicId);
-                        }
+                                x.DocumentTypeId ==
+                                    request.DocumentTypeId.Value &&
 
-                        existing.FileName = request.File.FileName;
-                        existing.FileUrl = uploadResult.Url;
-                        existing.PublicId = uploadResult.PublicId;
-                        existing.UploadedAt = DateTime.UtcNow;
-
-                        existing.DocumentNumber = parsed?.DocumentNumber;
-                        existing.IssuingAuthority = parsed?.IssuingAuthority;
-                        existing.IssueDate = parsed?.IssueDate;
-                        existing.ExpiryDate = parsed?.ExpiryDate;
-
-                        existing.DetectedDocumentType = parsed?.DocumentType;
-                        existing.ParsedDataJson = parsed?.ParsedData?.GetRawText();
-                        existing.AiConfidenceScore = parsed?.AiConfidenceScore;
-
-                        existing.Status = VerificationDocumentStatus.Pending;
-                        existing.VerifiedAt = null;
-                        existing.VerifiedBy = null;
-                        existing.Remarks = null;
-                    }
-                    else
-                    {
-                        _context.EmployerVerificationDocuments.Add(
-                            new EmployerVerificationDocument
-                            {
-                                DocumentId = Guid.NewGuid(),
-
-                                EmployerId = employerId,
-                                DocumentTypeId = request.DocumentTypeId,
-
-                                CustomDocumentName = null,
-                                Category = master?.Category,
-
-                                FileName = request.File.FileName,
-                                FileUrl = uploadResult.Url,
-                                PublicId = uploadResult.PublicId,
-
-                                UploadedAt = DateTime.UtcNow,
-
-                                DetectedDocumentType = parsed?.DocumentType,
-                                DocumentNumber = parsed?.DocumentNumber,
-                                IssuingAuthority = parsed?.IssuingAuthority,
-                                IssueDate = parsed?.IssueDate,
-                                ExpiryDate = parsed?.ExpiryDate,
-                                ParsedDataJson = parsed?.ParsedData?.GetRawText(),
-                                AiConfidenceScore = parsed?.AiConfidenceScore,
-
-                                Status = VerificationDocumentStatus.Pending
-                            });
-                    }
+                                !x.IsDeleted);
                 }
 
+
                 // ===========================================================
-                // OTHER DOCUMENTS
+                // CASE 2: REQUESTED ADDITIONAL DOCUMENT
                 // ===========================================================
+
+                else if (request.RequestId.HasValue)
+                {
+                    existing =
+                        await _context
+                            .EmployerVerificationDocuments
+                            .FirstOrDefaultAsync(x =>
+                                x.EmployerId ==
+                                    employerId &&
+
+                                x.RequestId ==
+                                    request.RequestId.Value &&
+
+                                !x.IsDeleted);
+                }
+
+
+                // ===========================================================
+                // CASE 3: NORMAL ADDITIONAL DOCUMENT
+                // ===========================================================
+                //
+                // IMPORTANT:
+                //
+                // Do NOT search using DetectedDocumentType.
+                //
+                // The selected CustomDocumentName identifies the document.
+                //
+                // ===========================================================
+
                 else
                 {
-                    var detectedName = parsed?.DocumentType?.Trim();
+                    var customName =
+                        request.CustomDocumentName!.Trim();
 
-                    existing = await _context.EmployerVerificationDocuments
-                        .FirstOrDefaultAsync(x =>
-                            x.EmployerId == employerId &&
-                            x.DocumentTypeId == null &&
-                            x.DetectedDocumentType == detectedName &&
-                            !x.IsDeleted);
+                    existing =
+                        await _context
+                            .EmployerVerificationDocuments
+                            .FirstOrDefaultAsync(x =>
+                                x.EmployerId ==
+                                    employerId &&
 
-                    if (existing != null)
+                                x.DocumentTypeId == null &&
+
+                                x.RequestId == null &&
+
+                                x.Category == "Additional" &&
+
+                                x.CustomDocumentName != null &&
+
+                                x.CustomDocumentName.ToLower() ==
+                                    customName.ToLower() &&
+
+                                !x.IsDeleted);
+                }
+
+
+                // ===========================================================
+                // UPDATE EXISTING DOCUMENT
+                // ===========================================================
+
+                if (existing != null)
+                {
+                    // -------------------------------------------------------
+                    // Delete old file
+                    // -------------------------------------------------------
+
+                    if (!string.IsNullOrWhiteSpace(
+                        existing.PublicId))
                     {
-                        if (!string.IsNullOrWhiteSpace(existing.PublicId))
-                        {
-                            await _fileStorageService.DeleteAsync(existing.PublicId);
-                        }
+                        await _fileStorageService
+                            .DeleteAsync(existing.PublicId);
+                    }
 
-                        existing.FileName = request.File.FileName;
-                        existing.FileUrl = uploadResult.Url;
-                        existing.PublicId = uploadResult.PublicId;
-                        existing.UploadedAt = DateTime.UtcNow;
 
-                        existing.DocumentNumber = parsed?.DocumentNumber;
-                        existing.IssuingAuthority = parsed?.IssuingAuthority;
-                        existing.IssueDate = parsed?.IssueDate;
-                        existing.ExpiryDate = parsed?.ExpiryDate;
+                    // -------------------------------------------------------
+                    // File information
+                    // -------------------------------------------------------
 
-                        existing.DetectedDocumentType = parsed?.DocumentType;
-                        existing.ParsedDataJson = parsed?.ParsedData?.GetRawText();
-                        existing.AiConfidenceScore = parsed?.AiConfidenceScore;
+                    existing.FileName =
+                        request.File.FileName;
 
-                        existing.Status = VerificationDocumentStatus.Pending;
-                        existing.VerifiedAt = null;
-                        existing.VerifiedBy = null;
-                        existing.Remarks = null;
+                    existing.FileUrl =
+                        uploadResult.Url;
+
+                    existing.PublicId =
+                        uploadResult.PublicId;
+
+                    existing.UploadedAt =
+                        DateTime.UtcNow;
+
+
+                    // -------------------------------------------------------
+                    // Preserve / update relationship
+                    // -------------------------------------------------------
+
+                    if (request.RequestId.HasValue)
+                    {
+                        existing.RequestId =
+                            request.RequestId.Value;
+                    }
+
+
+                    if (request.DocumentTypeId.HasValue)
+                    {
+                        existing.DocumentTypeId =
+                            request.DocumentTypeId.Value;
+
+                        existing.Category =
+                            master?.Category;
                     }
                     else
                     {
-                        _context.EmployerVerificationDocuments.Add(
-                            new EmployerVerificationDocument
-                            {
-                                DocumentId = Guid.NewGuid(),
+                        existing.DocumentTypeId = null;
 
-                                EmployerId = employerId,
+                        existing.Category =
+                            "Additional";
 
-                                // Additional document
-                                DocumentTypeId = null,
-                                CustomDocumentName = null,
-                                Category = "Additional",
+                        if (!request.RequestId.HasValue)
+                        {
+                            existing.CustomDocumentName =
+                                request.CustomDocumentName?.Trim();
+                        }
+                    }
 
-                                FileName = request.File.FileName,
-                                FileUrl = uploadResult.Url,
-                                PublicId = uploadResult.PublicId,
 
-                                UploadedAt = DateTime.UtcNow,
+                    // -------------------------------------------------------
+                    // Gemini parsed information
+                    // -------------------------------------------------------
 
-                                DetectedDocumentType = parsed?.DocumentType,
-                                DocumentNumber = parsed?.DocumentNumber,
-                                IssuingAuthority = parsed?.IssuingAuthority,
-                                IssueDate = parsed?.IssueDate,
-                                ExpiryDate = parsed?.ExpiryDate,
-                                ParsedDataJson = parsed?.ParsedData?.GetRawText(),
-                                AiConfidenceScore = parsed?.AiConfidenceScore,
+                    existing.DocumentNumber =
+                        parsed?.DocumentNumber;
 
-                                Status = VerificationDocumentStatus.Pending
-                            });
+                    existing.IssuingAuthority =
+                        parsed?.IssuingAuthority;
+
+                    existing.IssueDate =
+                        parsed?.IssueDate;
+
+                    existing.ExpiryDate =
+                        parsed?.ExpiryDate;
+
+                    existing.DetectedDocumentType =
+                        parsed?.DocumentType;
+
+                    existing.ParsedDataJson =
+                        parsed?.ParsedData?.GetRawText();
+
+                    existing.AiConfidenceScore =
+                        parsed?.AiConfidenceScore;
+
+
+                    // -------------------------------------------------------
+                    // RESET VERIFICATION
+                    // -------------------------------------------------------
+
+                    existing.Status =
+                        VerificationDocumentStatus.Pending;
+
+                    existing.VerifiedAt = null;
+
+                    existing.VerifiedBy = null;
+
+                    existing.Remarks = null;
+
+                    existing.IsDeleted = false;
+                }
+
+
+                // ===========================================================
+                // CREATE NEW DOCUMENT
+                // ===========================================================
+
+                else
+                {
+                    var newDocument =
+                        new EmployerVerificationDocument
+                        {
+                            DocumentId =
+                                Guid.NewGuid(),
+
+                            EmployerId =
+                                employerId,
+
+
+                            // ------------------------------------------------
+                            // Master document
+                            // ------------------------------------------------
+
+                            DocumentTypeId =
+                                request.DocumentTypeId,
+
+
+                            // ------------------------------------------------
+                            // Requested Additional
+                            // ------------------------------------------------
+
+                            RequestId =
+                                request.RequestId,
+
+
+                            // ------------------------------------------------
+                            // Custom document name
+                            // ------------------------------------------------
+
+                            CustomDocumentName =
+                                request.DocumentTypeId.HasValue
+                                    ? null
+                                    : request.RequestId.HasValue
+                                        ? documentRequestEntity
+                                            ?.CustomDocumentName
+                                        : request.CustomDocumentName?
+                                            .Trim(),
+
+
+                            // ------------------------------------------------
+                            // Category
+                            // ------------------------------------------------
+
+                            Category =
+                                request.DocumentTypeId.HasValue
+                                    ? master?.Category
+                                    : "Additional",
+
+
+                            // ------------------------------------------------
+                            // File
+                            // ------------------------------------------------
+
+                            FileName =
+                                request.File.FileName,
+
+                            FileUrl =
+                                uploadResult.Url,
+
+                            PublicId =
+                                uploadResult.PublicId,
+
+
+                            // ------------------------------------------------
+                            // Parsed information
+                            // ------------------------------------------------
+
+                            DetectedDocumentType =
+                                parsed?.DocumentType,
+
+                            DocumentNumber =
+                                parsed?.DocumentNumber,
+
+                            IssuingAuthority =
+                                parsed?.IssuingAuthority,
+
+                            IssueDate =
+                                parsed?.IssueDate,
+
+                            ExpiryDate =
+                                parsed?.ExpiryDate,
+
+                            ParsedDataJson =
+                                parsed?.ParsedData?.GetRawText(),
+
+                            AiConfidenceScore =
+                                parsed?.AiConfidenceScore,
+
+
+                            // ------------------------------------------------
+                            // Verification
+                            // ------------------------------------------------
+
+                            Status =
+                                VerificationDocumentStatus.Pending,
+
+                            UploadedAt =
+                                DateTime.UtcNow,
+
+                            IsDeleted =
+                                false
+                        };
+
+
+                    _context.EmployerVerificationDocuments
+                        .Add(newDocument);
+                }
+
+
+                // ===========================================================
+                // UPDATE REQUEST STATUS
+                // ===========================================================
+                //
+                // Only requested documents should update
+                // EmployerDocumentRequests.
+                //
+                // ===========================================================
+
+                if (request.RequestId.HasValue)
+                {
+                    var requestEntity =
+                        documentRequestEntity
+                        ?? await _context
+                            .EmployerDocumentRequests
+                            .FirstOrDefaultAsync(x =>
+                                x.RequestId ==
+                                    request.RequestId.Value &&
+                                x.EmployerId ==
+                                    employerId);
+
+                    if (requestEntity != null)
+                    {
+                        requestEntity.Status =
+                            "Uploaded";
                     }
                 }
 
-                employer.UpdatedAt = DateTime.UtcNow;
+
+                // ===========================================================
+                // UPDATE EMPLOYER
+                // ===========================================================
+
+                employer.UpdatedAt =
+                    DateTime.UtcNow;
+
+
+                // ===========================================================
+                // SAVE
+                // ===========================================================
 
                 await _context.SaveChangesAsync();
+
 
                 return true;
             }
@@ -456,12 +1099,13 @@ public VerificationService(
                 {
                     DocumentTypeId = x.DocumentTypeId,
                     DocumentName = x.DocumentName,
-                    Category = x.Category,
+                    Category = x.IsMandatory
+                        ? "Mandatory"
+                        : "Optional",
                     IsMandatory = x.IsMandatory
                 })
                 .ToListAsync();
         }
-
 
     }
 }
