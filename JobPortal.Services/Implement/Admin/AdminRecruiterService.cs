@@ -967,8 +967,8 @@ namespace JobPortal.Services.Implement.Admin
             };
         }
 
-        public async Task<AdminRecruiterDocumentsResponseDto?>
-     GetRecruiterDocumentsAsync(Guid employerId)
+
+        public async Task<AdminRecruiterDocumentsResponseDto?>GetRecruiterDocumentsAsync(Guid employerId)
         {
             // ===========================================================
             // CHECK EMPLOYER
@@ -3425,7 +3425,7 @@ namespace JobPortal.Services.Implement.Admin
         //}
 
         public async Task<List<AdminRecruiterDocumentVerificationListDto>>
-      GetCompanyRequiredDocumentVerificationAsync(Guid employerId)
+            GetCompanyRequiredDocumentVerificationAsync(Guid employerId)
         {
             // ==================================================
             // CHECK RECRUITER
@@ -3487,16 +3487,22 @@ namespace JobPortal.Services.Implement.Admin
 
 
             // ==================================================
-            // 1. MANDATORY + REQUESTED MASTER DOCUMENTS
+            // 1. MASTER DOCUMENTS
             // ==================================================
             //
-            // Include:
+            // Rules:
             //
-            // 1. ALL Mandatory documents
-            // 2. Optional documents ONLY if requested by admin
+            // Mandatory:
+            //     Uploaded     -> Include
+            //     Not uploaded -> Include
             //
-            // IMPORTANT:
-            // These are returned even when NOT uploaded.
+            // Optional:
+            //     Uploaded     -> Include
+            //     Not uploaded -> Exclude
+            //
+            // Optional + Requested:
+            //     Uploaded     -> Include as RequestedAdditional
+            //     Not uploaded -> Include as RequestedAdditional
             //
             // ==================================================
 
@@ -3516,16 +3522,6 @@ namespace JobPortal.Services.Implement.Admin
 
 
                 // --------------------------------------------------
-                // ONLY MANDATORY OR REQUESTED
-                // --------------------------------------------------
-
-                if (!master.IsMandatory && matchingRequest == null)
-                {
-                    continue;
-                }
-
-
-                // --------------------------------------------------
                 // FIND UPLOADED DOCUMENT
                 // --------------------------------------------------
 
@@ -3533,7 +3529,9 @@ namespace JobPortal.Services.Implement.Admin
 
 
                 // --------------------------------------------------
-                // IF REQUESTED, MATCH USING REQUEST ID
+                // IF REQUESTED
+                //
+                // Match using exact RequestId.
                 // --------------------------------------------------
 
                 if (matchingRequest != null)
@@ -3550,8 +3548,12 @@ namespace JobPortal.Services.Implement.Admin
 
 
                 // --------------------------------------------------
-                // FOR MANDATORY DOCUMENTS
-                // IF NO REQUEST MATCH, FIND BY DOCUMENT TYPE
+                // NORMAL MASTER UPLOAD
+                //
+                // Used for:
+                // - Mandatory uploaded
+                // - Optional uploaded
+                //
                 // --------------------------------------------------
 
                 selectedDocument ??=
@@ -3566,6 +3568,29 @@ namespace JobPortal.Services.Implement.Admin
 
 
                 // --------------------------------------------------
+                // DECIDE WHETHER TO RETURN DOCUMENT
+                // --------------------------------------------------
+                //
+                // Mandatory:
+                //     Always return.
+                //
+                // Requested:
+                //     Always return.
+                //
+                // Optional + not requested:
+                //     Return ONLY if uploaded.
+                //
+                // --------------------------------------------------
+
+                if (!master.IsMandatory &&
+                    matchingRequest == null &&
+                    selectedDocument == null)
+                {
+                    continue;
+                }
+
+
+                // --------------------------------------------------
                 // DOCUMENT CATEGORY
                 // --------------------------------------------------
 
@@ -3576,10 +3601,15 @@ namespace JobPortal.Services.Implement.Admin
                     documentCategory =
                         "RequestedAdditional";
                 }
-                else
+                else if (master.IsMandatory)
                 {
                     documentCategory =
                         "Mandatory";
+                }
+                else
+                {
+                    documentCategory =
+                        "Optional";
                 }
 
 
@@ -3606,14 +3636,14 @@ namespace JobPortal.Services.Implement.Admin
                             selectedDocument?.DocumentId,
 
                         // Master DocumentTypeId is available
-                        // even when document is not uploaded.
+                        // even when not uploaded.
                         DocumentTypeId =
                             selectedDocument?.DocumentTypeId
                             ?? master.DocumentTypeId,
 
-                        // Request ID:
-                        // requested document -> request ID
-                        // mandatory without request -> null
+                        // Requested document gets RequestId.
+                        // Mandatory / Optional normal upload can
+                        // have the uploaded document RequestId.
                         RequestId =
                             matchingRequest?.RequestId
                             ?? selectedDocument?.RequestId,
@@ -3642,8 +3672,10 @@ namespace JobPortal.Services.Implement.Admin
             //
             // Admin selected "Other".
             //
-            // These must ALSO be returned even when they
-            // have not been uploaded yet.
+            // These are ALWAYS returned:
+            //
+            // Uploaded     -> actual document
+            // Not uploaded -> NotUploaded
             //
             // ==================================================
 
@@ -3688,15 +3720,15 @@ namespace JobPortal.Services.Implement.Admin
                 result.Add(
                     new AdminRecruiterDocumentVerificationListDto
                     {
-                        // NULL until recruiter uploads
+                        // NULL until recruiter uploads.
                         DocumentId =
                             selectedDocument?.DocumentId,
 
-                        // Custom request has no master type
+                        // Custom request has no master type.
                         DocumentTypeId =
                             selectedDocument?.DocumentTypeId,
 
-                        // ALWAYS available from request
+                        // ALWAYS available.
                         RequestId =
                             request.RequestId,
 
@@ -3714,6 +3746,73 @@ namespace JobPortal.Services.Implement.Admin
 
                         DocumentVerificationStatus =
                             verificationStatus
+                    });
+            }
+
+
+            // ==================================================
+            // 3. NORMAL ADDITIONAL DOCUMENTS
+            // ==================================================
+            //
+            // These are documents uploaded by the recruiter
+            // without a DocumentTypeId and without a RequestId.
+            //
+            // ONLY uploaded Additional documents are returned.
+            //
+            // ==================================================
+
+            var additionalDocuments = employerDocuments
+                .Where(d =>
+                    !d.DocumentTypeId.HasValue &&
+                    !d.RequestId.HasValue)
+                .OrderByDescending(d => d.UploadedAt)
+                .ToList();
+
+
+            foreach (var document in additionalDocuments)
+            {
+                // --------------------------------------------------
+                // DOCUMENT NAME
+                // --------------------------------------------------
+
+                var documentName =
+                    document.CustomDocumentName
+                    ?? document.DetectedDocumentType
+                    ?? document.FileName
+                    ?? "Additional Document";
+
+
+                // --------------------------------------------------
+                // ADD ADDITIONAL DOCUMENT
+                // --------------------------------------------------
+
+                result.Add(
+                    new AdminRecruiterDocumentVerificationListDto
+                    {
+                        DocumentId =
+                            document.DocumentId,
+
+                        DocumentTypeId =
+                            document.DocumentTypeId,
+
+                        RequestId =
+                            document.RequestId,
+
+                        DocumentName =
+                            documentName,
+
+                        DocumentType =
+                            "Other",
+
+                        DocumentCategory =
+                            "Additional",
+
+                        DocumentTypeCategory =
+                            document.Category
+                            ?? "Other",
+
+                        DocumentVerificationStatus =
+                            document.Status.ToString()
                     });
             }
 
