@@ -23,6 +23,18 @@ public class ReviewSubmitRequestDto
 
     [Required]
     public string ConsentVersion { get; set; } = "v1.0";
+
+    // ── Recruiter membership payment ─────────────────────────────
+    // Mirrors CandidateRegisterRequestDto. PlanId comes from the
+    // create-plan-order response and is re-validated server-side against
+    // the live, active Recruiter MembershipPlan — the price is never
+    // trusted from the client. Razorpay fields are required whenever the
+    // resolved plan has a price > 0 (i.e. whenever create-plan-order
+    // actually created an order for it).
+    public Guid? PlanId { get; set; }
+    public string? RazorpayOrderId { get; set; }
+    public string? RazorpayPaymentId { get; set; }
+    public string? RazorpaySignature { get; set; }
 }
 
 /// <summary>
@@ -80,4 +92,8 @@ public class ReviewSubmitResponseDto
     public string? NextStep { get; set; }
     public bool RegistrationCompleted { get; set; }
     public StepStatusDto? StepStatus { get; set; }
+
+    // ── Recruiter membership payment result ──────────────────────
+    public Guid? MembershipPlanId { get; set; }
+    public string? MembershipPlanName { get; set; }
 }

@@ -360,7 +360,7 @@ namespace JobPortal.API.Controllers.Recruiter
                 : BadRequest(result);
         }
 
-      
+
 
 
         [HttpGet("document-types")]
@@ -375,7 +375,7 @@ namespace JobPortal.API.Controllers.Recruiter
             return Ok(result);
         }
 
-      
+
         [HttpPost("upload-documents")]
         [ProducesResponseType(typeof(RegistrationDocumentsResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -391,6 +391,27 @@ namespace JobPortal.API.Controllers.Recruiter
             return result.Success
                 ? Ok(result)
                 : BadRequest(result);
+        }
+
+        // ════════════════════════════════════════════════
+        // MEMBERSHIP PAYMENT — Create Razorpay order for the
+        // active Recruiter MembershipPlan (admin-configured).
+        // POST /api/recruiter/registration/create-plan-order
+        // Body: JSON { sessionId, region? }
+        // Mirrors POST /api/candidate/auth/create-order.
+        // ════════════════════════════════════════════════
+        [HttpPost("create-plan-order")]
+        [ProducesResponseType(typeof(CreateRecruiterPlanOrderResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> CreateMembershipOrder(
+            [FromBody] CreateRecruiterPlanOrderRequestDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var result = await _service.CreateMembershipOrderAsync(request);
+
+            return result.Success ? Ok(result) : BadRequest(result);
         }
 
         // ════════════════════════════════════════════════
@@ -421,7 +442,7 @@ namespace JobPortal.API.Controllers.Recruiter
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
-       
+
         // ════════════════════════════════════════════════
         // UTILITY — Get enum values for dropdowns
         // GET /api/recruiter/registration/enum-options

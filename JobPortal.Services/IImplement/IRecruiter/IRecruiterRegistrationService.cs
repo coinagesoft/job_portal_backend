@@ -57,11 +57,17 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task<RegistrationDocumentsResponseDto> UploadLicensesAsync(
       RegistrationDocumentsRequestDto request);
 
+        // Membership payment — create a Razorpay order for the active
+        // Recruiter MembershipPlan before final submit. Mirrors
+        // ICandidateAuthService.CreateOrderAsync.
+        Task<CreateRecruiterPlanOrderResponseDto> CreateMembershipOrderAsync(
+            CreateRecruiterPlanOrderRequestDto request);
+
         // Step 5 — Final submit
         Task<ReviewSubmitResponseDto> SubmitRegistrationAsync(
             ReviewSubmitRequestDto request, string ipAddress);
 
-     
+
         Task<ResumeSessionResponseDto> ResumeSessionAsync(
          string sessionId);
     }
