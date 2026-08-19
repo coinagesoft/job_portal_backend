@@ -915,9 +915,16 @@ public class AppDbContext : DbContext
             e.Property(x => x.CompanyHighlights)
      .HasColumnName("company_highlights")
      .HasColumnType("jsonb");
+
+            e.Property(x => x.IsMember).HasColumnName("is_member");
+            e.Property(x => x.MembershipPlanId).HasColumnName("membership_plan_id");
+            e.Property(x => x.MembershipPurchasedAt).HasColumnName("membership_purchased_at");
+
             // INDEX
             e.HasIndex(x => x.Gstin)
                 .IsUnique();
+
+            e.HasIndex(x => x.MembershipPlanId);
 
 
 
@@ -1781,7 +1788,7 @@ public class AppDbContext : DbContext
              .OnDelete(DeleteBehavior.SetNull);
         });
 
-      
+
 
         m.Entity<EmployerDocumentRequest>(e =>
         {
@@ -1789,7 +1796,7 @@ public class AppDbContext : DbContext
 
             e.HasKey(x => x.RequestId);
 
-      
+
 
             e.HasOne(x => x.Employer)
                 .WithMany()

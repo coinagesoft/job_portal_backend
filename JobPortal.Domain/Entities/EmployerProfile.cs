@@ -55,6 +55,14 @@ public class EmployerProfile
     public DateTime? TrialExpiresAt { get; set; }
     public bool SecurityDepositPaid { get; set; } = false;
     public string? SecurityDepositStatus { get; set; }
+
+    // Recruiter (employer) lifetime membership — mirrors CandidateProfile's
+    // IsMember/MembershipPlanId/MembershipPurchasedAt. Set once, at
+    // registration, when the admin-configured Recruiter MembershipPlan fee
+    // is paid via Razorpay in RecruiterRegistrationService.SubmitRegistrationAsync.
+    public bool IsMember { get; set; } = false;
+    public Guid? MembershipPlanId { get; set; }
+    public DateTime? MembershipPurchasedAt { get; set; }
     public byte ProfileCompletionScore { get; set; } = 0;
     public Guid? VerifiedBy { get; set; }
 
@@ -65,7 +73,7 @@ public class EmployerProfile
     /// Surfaced read-only on candidate-facing company/job views.
     /// </summary>
     public int ReviewCount { get; set; } = 0;
- 
+
 
 
 

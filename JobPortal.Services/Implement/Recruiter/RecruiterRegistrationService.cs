@@ -7,9 +7,13 @@ using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.Common;
 using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
+using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Razorpay.Api;
+using System.Linq;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace JobPortal.Services.Implement.Recruiter;
@@ -22,6 +26,13 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     private readonly ITwilioOtpService _twilioOtpService;
     private readonly IEmailService _emailService;
     private readonly IGeminiCompanyDocumentParserService _geminiCompanyDocumentParserService;
+    private readonly IMembershipPlanService _membershipPlanService;
+    private readonly IConfiguration _config;
+
+    // Default pricing region for the recruiter membership fee when the
+    // caller doesn't specify one — same convention as the candidate flow
+    // (CandidateAuthService.DefaultCandidateMembershipRegion).
+    private const string DefaultRecruiterMembershipRegion = "in";
 
     public RecruiterRegistrationService(
         AppDbContext context,
@@ -29,7 +40,9 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
          IFileStorageService fileStorageService,
          ITwilioOtpService twilioOtpService,
          IEmailService emailService,
-         IGeminiCompanyDocumentParserService geminiCompanyDocumentParserService)
+         IGeminiCompanyDocumentParserService geminiCompanyDocumentParserService,
+         IMembershipPlanService membershipPlanService,
+         IConfiguration config)
     {
         _context = context;
         _logger = logger;
@@ -37,7 +50,154 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         _twilioOtpService = twilioOtpService;
         _emailService = emailService;
         _geminiCompanyDocumentParserService = geminiCompanyDocumentParserService;
+        _membershipPlanService = membershipPlanService;
+        _config = config;
 
+    }
+
+    // Resolves the active recruiter membership plan to charge: prefers an
+    // exact region match, falls back to the "in" (India) default region,
+    // and finally to any active Recruiter plan if neither region has one
+    // configured yet. Returns null if the admin hasn't configured any
+    // active Recruiter membership plan at all. Mirrors
+    // CandidateAuthService.ResolveCandidateMembershipPlanAsync.
+    private async Task<JobPortal.Application.DTOs.Admin.MembershipPlan.MembershipPlanResponseDto?> ResolveRecruiterMembershipPlanAsync(string? region)
+    {
+        var normalizedRegion = string.IsNullOrWhiteSpace(region)
+            ? DefaultRecruiterMembershipRegion
+            : region.Trim().ToLowerInvariant();
+
+        var regionPlans = await _membershipPlanService.GetActivePlansAsync(PlanType.Recruiter, normalizedRegion);
+        var plan = regionPlans.OrderBy(p => p.Price).FirstOrDefault();
+        if (plan != null)
+            return plan;
+
+        if (normalizedRegion != DefaultRecruiterMembershipRegion)
+        {
+            var defaultRegionPlans = await _membershipPlanService.GetActivePlansAsync(PlanType.Recruiter, DefaultRecruiterMembershipRegion);
+            plan = defaultRegionPlans.OrderBy(p => p.Price).FirstOrDefault();
+            if (plan != null)
+                return plan;
+        }
+
+        var anyPlans = await _membershipPlanService.GetActivePlansAsync(PlanType.Recruiter, null);
+        return anyPlans.OrderBy(p => p.Price).FirstOrDefault();
+    }
+
+    // ════════════════════════════════════════════════
+    // MEMBERSHIP PAYMENT — create Razorpay order for the
+    // active Recruiter MembershipPlan. Mirrors
+    // CandidateAuthService.CreateOrderAsync.
+    // ════════════════════════════════════════════════
+    public async Task<CreateRecruiterPlanOrderResponseDto> CreateMembershipOrderAsync(
+        CreateRecruiterPlanOrderRequestDto request)
+    {
+        try
+        {
+            var session = await GetValidSessionAsync(request.SessionId);
+
+            if (session == null)
+            {
+                return new CreateRecruiterPlanOrderResponseDto
+                {
+                    Success = false,
+                    Message = "Session expired. Please start again."
+                };
+            }
+
+            // Amount is never taken from the client — it's always the
+            // active, admin-managed Recruiter MembershipPlan price for the
+            // requested (or default) pricing region.
+            var plan = await ResolveRecruiterMembershipPlanAsync(request.Region);
+
+            if (plan == null)
+            {
+                return new CreateRecruiterPlanOrderResponseDto
+                {
+                    Success = false,
+                    Message = "Recruiter membership is not available right now. Please try again later."
+                };
+            }
+
+            if (plan.Price <= 0)
+            {
+                return new CreateRecruiterPlanOrderResponseDto
+                {
+                    Success = false,
+                    Message = "This membership plan doesn't require payment."
+                };
+            }
+
+            var amountPaise = (int)Math.Round(plan.Price * 100, MidpointRounding.AwayFromZero);
+
+            var client = new RazorpayClient(
+                _config["Razorpay:KeyId"],
+                _config["Razorpay:KeySecret"]);
+
+            var options = new Dictionary<string, object>
+            {
+                { "amount", amountPaise }, // paisa — server-resolved, not client-supplied
+                { "currency", "INR" },
+                { "receipt", $"RECMEM-{plan.PlanId.ToString("N")[..12]}" }
+            };
+
+            Order order = client.Order.Create(options);
+
+            return await Task.FromResult(
+                new CreateRecruiterPlanOrderResponseDto
+                {
+                    Success = true,
+                    OrderId = order["id"].ToString(),
+                    Amount = plan.Price,
+                    AmountPaise = amountPaise,
+                    Currency = "INR",
+                    RazorpayKeyId = _config["Razorpay:KeyId"] ?? string.Empty,
+                    PlanId = plan.PlanId,
+                    PlanName = plan.PlanName,
+                    Message = "Order created successfully."
+                });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "CreateMembershipOrderAsync Error");
+
+            return new CreateRecruiterPlanOrderResponseDto
+            {
+                Success = false,
+                Message = "Payment gateway error. Please try again."
+            };
+        }
+    }
+
+    private bool VerifyRazorpaySignature(
+        string orderId,
+        string paymentId,
+        string signature)
+    {
+        try
+        {
+            var attributes = new Dictionary<string, string>
+            {
+                { "razorpay_order_id", orderId },
+                { "razorpay_payment_id", paymentId },
+                { "razorpay_signature", signature }
+            };
+
+            Utils.verifyPaymentSignature(attributes);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Razorpay signature verification failed. OrderId:{OrderId}",
+                orderId);
+
+            return false;
+        }
     }
 
     // ════════════════════════════════════════════════
@@ -690,7 +850,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 }
             }
 
-          
+
 
             var otp = GenerateOtp();
 
@@ -956,7 +1116,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 }
             }
 
-         
+
 
             var fullPhone = $"{request.CountryCode}{request.MobileNumber}";
 
@@ -2594,7 +2754,119 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     }
                 }
 
+                // ── Recruiter membership plan payment ────────────────
+                // Same flow as CandidateAuthService.RegisterAsync: resolve
+                // the admin-configured active Recruiter MembershipPlan
+                // (never trust the client for price), verify the Razorpay
+                // payment against it, and block replay of the same
+                // paymentId against a second submit-registration call.
+                MembershipPlan? membershipPlan = null;
+
+                var resolvedPlan = request.PlanId.HasValue
+                    ? await _context.MembershipPlans
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(p =>
+                            p.PlanId == request.PlanId.Value &&
+                            p.PlanType == PlanType.Recruiter &&
+                            p.IsActive)
+                    : await _context.MembershipPlans
+                        .AsNoTracking()
+                        .Where(p => p.PlanType == PlanType.Recruiter && p.IsActive)
+                        .OrderBy(p => p.Price)
+                        .FirstOrDefaultAsync();
+
+                if (resolvedPlan != null)
+                {
+                    if (request.PlanId.HasValue && resolvedPlan.PlanId != request.PlanId.Value)
+                    {
+                        return new ReviewSubmitResponseDto
+                        {
+                            Success = false,
+                            Message = "Selected membership plan is no longer available. Please refresh and try again.",
+                            StepStatus = BuildStepStatus(session)
+                        };
+                    }
+
+                    if (resolvedPlan.Price > 0)
+                    {
+                        if (string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
+                            string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
+                            string.IsNullOrWhiteSpace(request.RazorpaySignature))
+                        {
+                            return new ReviewSubmitResponseDto
+                            {
+                                Success = false,
+                                Message = "Payment verification failed.",
+                                StepStatus = BuildStepStatus(session)
+                            };
+                        }
+
+                        var paymentVerified = VerifyRazorpaySignature(
+                            request.RazorpayOrderId,
+                            request.RazorpayPaymentId,
+                            request.RazorpaySignature);
+
+                        if (!paymentVerified)
+                        {
+                            return new ReviewSubmitResponseDto
+                            {
+                                Success = false,
+                                Message = "Payment verification failed.",
+                                StepStatus = BuildStepStatus(session)
+                            };
+                        }
+
+                        // A given Razorpay payment can only ever fund one
+                        // registration — block replay of the same
+                        // paymentId against a second submit call.
+                        var paymentAlreadyUsed = await _context.PaymentTransactions
+                            .AnyAsync(t =>
+                                t.RazorpayPaymentId == request.RazorpayPaymentId &&
+                                t.PaymentStatus == "Completed");
+
+                        if (paymentAlreadyUsed)
+                        {
+                            return new ReviewSubmitResponseDto
+                            {
+                                Success = false,
+                                Message = "This payment has already been used to complete a registration.",
+                                StepStatus = BuildStepStatus(session)
+                            };
+                        }
+                    }
+
+                    membershipPlan = resolvedPlan;
+                }
+                else if (request.PlanId.HasValue)
+                {
+                    // Client thinks a plan was selected but nothing active
+                    // matches it anymore.
+                    return new ReviewSubmitResponseDto
+                    {
+                        Success = false,
+                        Message = "Selected membership plan is no longer available. Please refresh and try again.",
+                        StepStatus = BuildStepStatus(session)
+                    };
+                }
+                else
+                {
+                    // No Recruiter MembershipPlan configured by the admin
+                    // yet — don't hard-block registration for existing
+                    // deployments that haven't set one up; the recruiter
+                    // simply registers unpaid, same as before this feature
+                    // existed.
+                    _logger.LogWarning(
+                        "SubmitRegistrationAsync: no active Recruiter MembershipPlan configured. Proceeding without membership payment. SessionId:{SessionId}",
+                        session.SessionId);
+                }
+
                 var now = DateTime.UtcNow;
+
+                var membershipAmountPaise = membershipPlan != null
+                    ? (int)Math.Round(membershipPlan.Price * 100, MidpointRounding.AwayFromZero)
+                    : 0;
+
+                var membershipIsPaid = membershipPlan != null && membershipPlan.Price > 0;
 
                 // Create User
                 var user = new User
@@ -2607,7 +2879,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     PasswordHash = "N/A",
                     AccountStatus = AccountStatus.Pending,
                     KycStatus = KycStatus.Pending,
-                    PaymentStatus = PaymentStatus.Unpaid,
+                    PaymentStatus = membershipIsPaid ? PaymentStatus.Paid : PaymentStatus.Unpaid,
                     CreatedAt = now,
                     UpdatedAt = now
                 };
@@ -2659,15 +2931,46 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                     CompanyDescription = session.CompanyDescription,
 
-                  
+
                     AccountStatus = AccountStatus.Pending,
                     SecurityDepositPaid = false,
                     ConsentTimestamp = now,
+
+                    IsMember = membershipPlan != null,
+                    MembershipPlanId = membershipPlan?.PlanId,
+                    MembershipPurchasedAt = membershipPlan != null ? now : (DateTime?)null,
+
                     CreatedAt = now,
                     UpdatedAt = now
                 };
 
                 _context.EmployerProfiles.Add(employer);
+
+                // ── Record the recruiter membership payment ──────────
+                // Only when an actual paid plan was resolved & verified
+                // above — mirrors CandidateAuthService.RegisterAsync's
+                // PaymentTransaction write.
+                if (membershipIsPaid)
+                {
+                    _context.PaymentTransactions.Add(new PaymentTransaction
+                    {
+                        TransactionId = Guid.NewGuid(),
+                        UserId = user.UserId,
+                        EmployerId = employer.EmployerId,
+                        TransactionType = "RecruiterRegistration",
+                        PackType = membershipPlan!.PlanName,
+                        CreditQuantity = null,
+                        ValidityMonths = null,
+                        AmountPaise = membershipAmountPaise,
+                        GstAmountPaise = 0,
+                        TotalAmountPaise = membershipAmountPaise,
+                        PaymentMethod = "Razorpay",
+                        RazorpayOrderId = request.RazorpayOrderId,
+                        RazorpayPaymentId = request.RazorpayPaymentId,
+                        PaymentStatus = "Completed",
+                        CreatedAt = now
+                    });
+                }
 
                 // Copy registration documents to employer verification documents
                 var sessionDocuments = await _context.RegistrationSessionDocuments
@@ -2733,7 +3036,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                         employer,
                         hasAllRequiredDocuments);
 
-          
+
 
                 // ── Create Wallet (10 Free Trial Credits) ─────────────────────────
                 var trialCreditsGranted = 10;
@@ -2842,7 +3145,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                     RegistrationCompleted = true,
 
-                    StepStatus = BuildStepStatus(session)
+                    StepStatus = BuildStepStatus(session),
+
+                    MembershipPlanId = membershipPlan?.PlanId,
+                    MembershipPlanName = membershipPlan?.PlanName
                 };
             }
             catch (Exception ex)
