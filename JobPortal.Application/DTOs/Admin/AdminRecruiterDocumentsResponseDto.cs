@@ -49,6 +49,8 @@ namespace JobPortal.Application.DTOs.Admin
         // Mandatory documents rejected
         public int Rejected { get; set; }
 
+        public decimal VerificationProgress { get; set; }
+
         // Overall recruiter verification status
         //
         // Pending / Verified / Rejected

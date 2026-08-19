@@ -8,7 +8,7 @@ namespace JobPortal.Application.DTOs.Admin
         public Guid EmployerId { get; set; }
 
         // ==================================================
-        // ALL DOCUMENTS
+        // ALL UPLOADED DOCUMENTS
         // ==================================================
         //
         // Mandatory
@@ -48,6 +48,22 @@ namespace JobPortal.Application.DTOs.Admin
 
         // Uploaded but rejected
         public int Rejected { get; set; }
+
+
+        // ==================================================
+        // OVERALL VERIFICATION PROGRESS
+        // ==================================================
+        //
+        // Calculated as:
+        //
+        // Verified / VerificationTotal * 100
+        //
+        // Example:
+        // 3 approved out of 5 required = 60%
+        //
+        // Range: 0 - 100
+        //
+        public int VerificationProgress { get; set; }
 
 
         // ==================================================

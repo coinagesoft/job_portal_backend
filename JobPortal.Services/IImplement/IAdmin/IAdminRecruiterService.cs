@@ -44,7 +44,7 @@ namespace JobPortal.Services.IImplement.IAdmin
         Task<bool> UpdateRecruiterDocumentStatusAsync(Guid documentId, UpdateRecruiterDocumentStatusRequestDto request, AdminAuditContext audit);
 
         Task<AdminRecruiterDocumentChecklistResponseDto?> GetRecruiterDocumentChecklistAsync(Guid employerId);
-
+        Task<List<AdminRecruiterDocumentVerificationListDto>> GetCompanyRequiredDocumentVerificationAsync(Guid employerId);
         Task<DocumentTypeAdminDto?> CreateOptionalDocumentTypeAsync(CreateOptionalDocumentTypeRequestDto request);
 
         Task<DocumentTypeAdminDto?> UpdateDocumentRequirementAsync(Guid documentTypeId, UpdateDocumentRequirementRequestDto request);

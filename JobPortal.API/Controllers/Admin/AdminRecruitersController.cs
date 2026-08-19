@@ -300,6 +300,54 @@ namespace JobPortal.API.Controllers.Admin
             });
         }
 
+        [HttpGet("company-required-document-verification/{employerId:guid}")]
+        public async Task<IActionResult> GetCompanyRequiredDocumentVerification(
+    Guid employerId)
+        {
+            try
+            {
+                var result =
+                    await _adminRecruiterService
+                        .GetCompanyRequiredDocumentVerificationAsync(
+                            employerId);
+
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Company not found."
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Company required document verification fetched successfully.",
+                    data = result
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new
+                    {
+                        success = false,
+                        message = "An error occurred while fetching company required document verification.",
+                        error = ex.Message
+                    });
+            }
+        }
+
 
         [HttpPost("document-types/optional")]
         public async Task<IActionResult> CreateOptionalDocumentType(

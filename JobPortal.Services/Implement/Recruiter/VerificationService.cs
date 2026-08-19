@@ -33,109 +33,10 @@ public VerificationService(
     _logger = logger;
 }
 
-        //public async Task<VerificationDashboardResponseDto?> GetVerificationDashboardAsync(
-        //        Guid employerId)
-        //{
-        //    var profile = await _context.EmployerProfiles
-        //        .AsNoTracking()
-        //        .FirstOrDefaultAsync(x => x.EmployerId == employerId);
 
-        //    if (profile == null)
-        //        return null;
-
-        //    var response = new VerificationDashboardResponseDto();
-
-        //    response.Badges.Add(new VerificationBadgeDto
-        //    {
-        //        BadgeName = "GST",
-        //        Status = !string.IsNullOrWhiteSpace(profile.GstCertificateUrl)
-        //            ? "Uploaded"
-        //            : "Not Uploaded",
-        //        Description = "GST registration verification."
-        //    });
-
-        //    response.Badges.Add(new VerificationBadgeDto
-        //    {
-        //        BadgeName = "PAN",
-        //        Status = !string.IsNullOrWhiteSpace(profile.PanCardUrl)
-        //            ? "Uploaded"
-        //            : "Not Uploaded",
-        //        Description = "PAN verification status."
-        //    });
-
-        //    response.Badges.Add(new VerificationBadgeDto
-        //    {
-        //        BadgeName = "POE Licensed",
-        //        Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl)
-        //            ? "Uploaded"
-        //            : "Not Uploaded",
-        //        Description = "POE licence verification."
-        //    });
-
-        //    response.Badges.Add(new VerificationBadgeDto
-        //    {
-        //        BadgeName = "RPSL Licensed",
-        //        Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl)
-        //            ? "Uploaded"
-        //            : "Not Uploaded",
-        //        Description = "RPSL licence verification."
-        //    });
-
-        //    response.Documents.Add(new VerificationDocumentDto
-        //    {
-        //        DocumentType = "GST",
-        //        FileUrl = profile.GstCertificateUrl,
-        //        Status = !string.IsNullOrWhiteSpace(profile.GstCertificateUrl)
-        //            ? "Uploaded"
-        //            : "Not Uploaded",
-        //        UploadedAt = !string.IsNullOrWhiteSpace(profile.GstCertificateUrl) ? profile.UpdatedAt : null
-        //    });
-
-        //    response.Documents.Add(new VerificationDocumentDto
-        //    {
-        //        DocumentType = "PAN",
-        //        FileUrl = profile.PanCardUrl,
-        //        Status = !string.IsNullOrWhiteSpace(profile.PanCardUrl)
-        //            ? "Uploaded"
-        //            : "Not Uploaded",
-        //        UploadedAt = !string.IsNullOrWhiteSpace(profile.PanCardUrl) ? profile.UpdatedAt : null
-        //    });
-
-        //    response.Documents.Add(new VerificationDocumentDto
-        //    {
-        //        DocumentType = "POE",
-        //        FileUrl = profile.PoeLicenceUrl,
-        //        Status = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl)
-        //            ? "Uploaded"
-        //            : "Not Uploaded",
-        //        UploadedAt = !string.IsNullOrWhiteSpace(profile.PoeLicenceUrl) ? profile.UpdatedAt : null
-        //    });
-
-        //    response.Documents.Add(new VerificationDocumentDto
-        //    {
-        //        DocumentType = "RPSL",
-        //        FileUrl = profile.RpslLicenceUrl,
-        //        Status = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl)
-        //            ? "Uploaded"
-        //            : "Not Uploaded",
-        //        UploadedAt = !string.IsNullOrWhiteSpace(profile.RpslLicenceUrl) ? profile.UpdatedAt : null
-        //    });
-
-        //    response.Documents.Add(new VerificationDocumentDto
-        //    {
-        //        DocumentType = "BUSINESS_REGISTRATION",
-        //        FileUrl = profile.BusinessRegDocUrl,
-        //        Status = !string.IsNullOrWhiteSpace(profile.BusinessRegDocUrl)
-        //            ? "Uploaded"
-        //            : "Not Uploaded",
-        //        UploadedAt = !string.IsNullOrWhiteSpace(profile.BusinessRegDocUrl) ? profile.UpdatedAt : null
-        //    });
-
-        //    return response;
-        //}
 
         public async Task<VerificationDashboardResponseDto?> GetVerificationDashboardAsync(
-      Guid employerId)
+        Guid employerId)
         {
             // ===========================================================
             // CHECK EMPLOYER
@@ -254,20 +155,40 @@ public VerificationService(
                     response.Documents.Add(
                         new VerificationDocumentDto
                         {
-                            DocumentType =
+                            // IDs
+                            DocumentId =
+                                uploaded?.DocumentId,
+
+                            DocumentTypeId =
+                                uploaded?.DocumentTypeId
+                                ?? master.DocumentTypeId,
+
+                            RequestId =
+                                uploaded?.RequestId,
+
+                            // DOCUMENT INFORMATION
+                            DocumentName =
                                 master.DocumentName,
+
+                            DocumentType =
+                                master.Code,
 
                             Category =
                                 "Mandatory",
 
+                            DocumentTypeCategory =
+                                master.Category,
 
-                            Message = "No Message",
+                            // VERIFICATION
+                            Status =
+                                status,
+
+                            // OTHER EXISTING DATA
+                            Message =
+                                "No Message",
 
                             FileUrl =
                                 uploaded?.FileUrl,
-
-                            Status =
-                                status,
 
                             UploadedAt =
                                 uploaded?.UploadedAt
@@ -294,20 +215,40 @@ public VerificationService(
                     response.Documents.Add(
                         new VerificationDocumentDto
                         {
-                            DocumentType =
+                            // IDs
+                            DocumentId =
+                                uploaded.DocumentId,
+
+                            DocumentTypeId =
+                                uploaded.DocumentTypeId
+                                ?? master.DocumentTypeId,
+
+                            RequestId =
+                                uploaded.RequestId,
+
+                            // DOCUMENT INFORMATION
+                            DocumentName =
                                 master.DocumentName,
+
+                            DocumentType =
+                                master.Code,
 
                             Category =
                                 "Optional",
 
+                            DocumentTypeCategory =
+                                master.Category,
 
-                            Message = "No Message",
+                            // VERIFICATION
+                            Status =
+                                uploaded.Status.ToString(),
+
+                            // OTHER EXISTING DATA
+                            Message =
+                                "No Message",
 
                             FileUrl =
                                 uploaded.FileUrl,
-
-                            Status =
-                                uploaded.Status.ToString(),
 
                             UploadedAt =
                                 uploaded.UploadedAt
@@ -355,20 +296,39 @@ public VerificationService(
                 response.Documents.Add(
                     new VerificationDocumentDto
                     {
+                        // IDs
+                        DocumentId =
+                            doc.DocumentId,
+
+                        DocumentTypeId =
+                            doc.DocumentTypeId,
+
+                        RequestId =
+                            doc.RequestId,
+
+                        // DOCUMENT INFORMATION
+                        DocumentName =
+                            documentName,
+
                         DocumentType =
                             documentName,
 
                         Category =
                             "Additional",
 
+                        DocumentTypeCategory =
+                            doc.Category,
 
-                        Message ="No Message",
+                        // VERIFICATION
+                        Status =
+                            doc.Status.ToString(),
+
+                        // OTHER EXISTING DATA
+                        Message =
+                            "No Message",
 
                         FileUrl =
                             doc.FileUrl,
-
-                        Status =
-                            doc.Status.ToString(),
 
                         UploadedAt =
                             doc.UploadedAt
@@ -409,6 +369,8 @@ public VerificationService(
 
                 string documentName;
 
+                VerificationDocumentMaster? requestedMaster = null;
+
 
                 // =======================================================
                 // REQUESTED EXISTING OPTIONAL MASTER
@@ -416,14 +378,14 @@ public VerificationService(
 
                 if (documentRequest.DocumentTypeId.HasValue)
                 {
-                    var master =
+                    requestedMaster =
                         masters.FirstOrDefault(x =>
                             x.DocumentTypeId ==
                             documentRequest.DocumentTypeId.Value);
 
 
                     documentName =
-                        master?.DocumentName
+                        requestedMaster?.DocumentName
                         ?? documentRequest.CustomDocumentName
                         ?? "Requested Document";
                 }
@@ -468,20 +430,64 @@ public VerificationService(
                 response.Documents.Add(
                     new VerificationDocumentDto
                     {
-                        DocumentType =
+                        // ==================================================
+                        // IDS
+                        // ==================================================
+
+                        // Actual uploaded document ID.
+                        // Null when recruiter has not uploaded yet.
+                        DocumentId =
+                            uploaded?.DocumentId,
+
+                        // Use uploaded DocumentTypeId when available.
+                        // For an unuploaded requested existing document,
+                        // use the request's DocumentTypeId.
+                        DocumentTypeId =
+                            uploaded?.DocumentTypeId
+                            ?? documentRequest.DocumentTypeId,
+
+                        // IMPORTANT:
+                        // Request ID comes from the actual request.
+                        RequestId =
+                            documentRequest.RequestId,
+
+
+                        // ==================================================
+                        // DOCUMENT INFORMATION
+                        // ==================================================
+
+                        DocumentName =
                             documentName,
+
+                        DocumentType =
+                            requestedMaster?.Code
+                            ?? "Other",
 
                         Category =
                             "RequestedAdditional",
 
-                        Message =
-                    documentRequest.Message,
+                        DocumentTypeCategory =
+                            requestedMaster?.Category
+                            ?? "Other",
 
-                        FileUrl =
-                            uploaded?.FileUrl,
+
+                        // ==================================================
+                        // VERIFICATION
+                        // ==================================================
 
                         Status =
                             status,
+
+
+                        // ==================================================
+                        // OTHER EXISTING DATA
+                        // ==================================================
+
+                        Message =
+                            documentRequest.Message,
+
+                        FileUrl =
+                            uploaded?.FileUrl,
 
                         UploadedAt =
                             uploaded?.UploadedAt
@@ -495,6 +501,7 @@ public VerificationService(
 
             return response;
         }
+
 
         public async Task<bool> UploadDocumentAsync(
         Guid employerId,

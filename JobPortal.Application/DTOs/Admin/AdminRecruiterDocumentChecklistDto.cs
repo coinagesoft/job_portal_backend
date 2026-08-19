@@ -14,6 +14,18 @@ namespace JobPortal.Application.DTOs.Admin
 
 
         // ==================================================
+        // REQUEST
+        // ==================================================
+        //
+        // Used when the document was requested by admin.
+        //
+        // Normal uploaded document -> null
+        // Requested document       -> RequestId
+        //
+        public Guid? RequestId { get; set; }
+
+
+        // ==================================================
         // BUSINESS CATEGORY
         // ==================================================
         //
@@ -49,29 +61,27 @@ namespace JobPortal.Application.DTOs.Admin
 
 
         // ==================================================
-        // STATUS
+        // VERIFICATION STATUS
         // ==================================================
         //
-        // NotUploaded
         // Pending
         // Approved
         // Rejected
         // Expired
         // Resubmission
         //
-        public string Status { get; set; } = "NotUploaded";
+        public string Status { get; set; } = "Pending";
 
 
         // ==================================================
-        // REQUEST MESSAGE
+        // REQUEST MESSAGE / ADMIN REMARKS
         // ==================================================
         //
-        // Only populated for RequestedAdditional documents.
+        // For requested documents, this can contain the
+        // admin's request message.
         //
-        // Mandatory    -> null
-        // Optional     -> null
-        // Additional   -> null
-        // Requested    -> admin's message
+        // Rejected / Resubmission remarks can also be stored
+        // separately in the document's Remarks field if needed.
         //
         public string? Message { get; set; }
 

@@ -90,9 +90,9 @@ namespace JobPortal.Application.DTOs.Admin
 
             public bool Expired { get; set; }
 
-            public decimal? AiConfidenceScore { get; set; }
+        public decimal? AiExtractionPercentage { get; set; }
 
-            public string? DetectedDocumentType { get; set; }
+        public string? DetectedDocumentType { get; set; }
 
             public DateTime UploadedAt { get; set; }
             public DateTime? VerifiedAt { get; set; }
