@@ -200,6 +200,32 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         }
     }
 
+    // Generates a sequential, per-month invoice number, e.g. INV-202607-0001.
+    // Same implementation as RecruiterCreditPlanService.GenerateInvoiceNumberAsync
+    // — see that file for the full explanation of the advisory-lock +
+    // MAX-based (not COUNT-based) approach. MUST be called inside an open
+    // db transaction so the advisory lock actually guards the invoice
+    // insert that follows.
+    private async Task<string> GenerateInvoiceNumberAsync()
+    {
+        var prefix = $"INV-{DateTime.UtcNow:yyyyMM}-";
+
+        await _context.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtext({prefix}))");
+
+        var suffixesThisMonth = await _context.Invoices
+            .Where(i => i.InvoiceNumber.StartsWith(prefix))
+            .Select(i => i.InvoiceNumber.Substring(prefix.Length))
+            .ToListAsync();
+
+        int maxNumber = suffixesThisMonth
+            .Select(s => int.TryParse(s, out var n) ? n : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return $"{prefix}{(maxNumber + 1):D4}";
+    }
+
     // ════════════════════════════════════════════════
     // STEP 1 — GST Check → save to DB immediately
     // ════════════════════════════════════════════════
@@ -2952,7 +2978,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 // PaymentTransaction write.
                 if (membershipIsPaid)
                 {
-                    _context.PaymentTransactions.Add(new PaymentTransaction
+                    var registrationPaymentTransaction = new PaymentTransaction
                     {
                         TransactionId = Guid.NewGuid(),
                         UserId = user.UserId,
@@ -2969,6 +2995,33 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                         RazorpayPaymentId = request.RazorpayPaymentId,
                         PaymentStatus = "Completed",
                         CreatedAt = now
+                    };
+
+                    _context.PaymentTransactions.Add(registrationPaymentTransaction);
+
+                    // GST-compliant billing record — mirrors
+                    // RecruiterCreditPlanService.VerifyPlanPaymentAsync so
+                    // this shows up with an invoice on Admin ▸ Revenue
+                    // instead of just credit-plan purchases. Safe to call
+                    // here (no extra BeginTransactionAsync needed) since
+                    // this whole method already runs inside the open
+                    // `transaction` started above — the advisory lock
+                    // inside GenerateInvoiceNumberAsync is scoped to it.
+                    var invoiceNumber = await GenerateInvoiceNumberAsync();
+
+                    _context.Invoices.Add(new JobPortal.Domain.Entities.Invoice
+                    {
+                        InvoiceId = Guid.NewGuid(),
+                        TransactionId = registrationPaymentTransaction.TransactionId,
+                        UserId = user.UserId,
+                        InvoiceNumber = invoiceNumber,
+                        InvoiceDate = DateOnly.FromDateTime(now),
+                        InvoiceAmount = membershipAmountPaise / 100,
+                        InvoiceGst = 0,
+                        InvoiceTotal = membershipAmountPaise / 100,
+                        InvoiceS3Url = null,
+                        CreatedAt = now,
+                        PaymentTransaction = registrationPaymentTransaction
                     });
                 }
 

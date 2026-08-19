@@ -275,10 +275,47 @@ public class CandidateAuthService : ICandidateAuthService
 
             _context.PaymentTransactions.Add(paymentTransaction);
 
+            // --------------------------------------------------
+            // GENERATE INVOICE (GST-compliant billing record) —
+            // mirrors RecruiterCreditPlanService.VerifyPlanPaymentAsync
+            // so this transaction shows up with an invoice on the
+            // Admin ▸ Revenue page instead of just credit-plan
+            // purchases.
+            //
+            // Wrapped in an explicit transaction: GenerateInvoiceNumberAsync
+            // takes a Postgres advisory *transaction* lock, which is only
+            // meaningful if it's released by the same SaveChangesAsync that
+            // inserts the invoice — otherwise it's a no-op autocommitted
+            // statement and the lock is gone before SaveChanges runs.
+            // --------------------------------------------------
+            await using var dbTransaction = await _context.Database.BeginTransactionAsync();
+
+            var invoiceNumber = await GenerateInvoiceNumberAsync();
+
+            _context.Invoices.Add(new JobPortal.Domain.Entities.Invoice
+            {
+                InvoiceId = Guid.NewGuid(),
+                TransactionId = paymentTransaction.TransactionId,
+                UserId = user.UserId,
+                InvoiceNumber = invoiceNumber,
+                InvoiceDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                InvoiceAmount = membershipAmountPaise / 100,
+                InvoiceGst = 0,
+                InvoiceTotal = membershipAmountPaise / 100,
+                InvoiceS3Url = null,
+                CreatedAt = DateTime.UtcNow,
+
+                // See RecruiterCreditPlanService for why the navigation
+                // (not just the scalar TransactionId) has to be set —
+                // EF's shadow FK column only resolves from this.
+                PaymentTransaction = paymentTransaction
+            });
+
             // Consume OTP token (prevent reuse)
             verifiedOtp.VerificationToken = null;
 
             await _context.SaveChangesAsync();
+            await dbTransaction.CommitAsync();
 
             // Generate JWT
             var (token, _) =
@@ -944,5 +981,31 @@ public class CandidateAuthService : ICandidateAuthService
             Success = false,
             Message = message
         };
+    }
+
+    // Generates a sequential, per-month invoice number, e.g. INV-202607-0001.
+    // Same implementation as RecruiterCreditPlanService.GenerateInvoiceNumberAsync
+    // — see that file for the full explanation of the advisory-lock +
+    // MAX-based (not COUNT-based) approach. MUST be called inside an open
+    // db transaction so the advisory lock actually guards the invoice
+    // insert that follows.
+    private async Task<string> GenerateInvoiceNumberAsync()
+    {
+        var prefix = $"INV-{DateTime.UtcNow:yyyyMM}-";
+
+        await _context.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtext({prefix}))");
+
+        var suffixesThisMonth = await _context.Invoices
+            .Where(i => i.InvoiceNumber.StartsWith(prefix))
+            .Select(i => i.InvoiceNumber.Substring(prefix.Length))
+            .ToListAsync();
+
+        int maxNumber = suffixesThisMonth
+            .Select(s => int.TryParse(s, out var n) ? n : 0)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return $"{prefix}{(maxNumber + 1):D4}";
     }
 }

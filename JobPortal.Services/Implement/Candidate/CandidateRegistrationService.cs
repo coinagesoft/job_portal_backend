@@ -182,9 +182,32 @@ namespace JobPortal.Services.Implement.Candidate
 
                 _context.PaymentTransactions.Add(paymentTransaction);
 
+                // Wrapped in an explicit transaction so the advisory lock
+                // inside GenerateInvoiceNumberAsync actually guards the
+                // insert it protects — see CandidateAuthService for the
+                // full explanation.
+                await using var dbTransaction = await _context.Database.BeginTransactionAsync();
+
+                var invoiceNumber = await GenerateInvoiceNumberAsync();
+
+                _context.Invoices.Add(new JobPortal.Domain.Entities.Invoice
+                {
+                    InvoiceId = Guid.NewGuid(),
+                    TransactionId = paymentTransaction.TransactionId,
+                    UserId = user.UserId,
+                    InvoiceNumber = invoiceNumber,
+                    InvoiceDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    InvoiceAmount = googleMembershipAmountPaise / 100,
+                    InvoiceGst = 0,
+                    InvoiceTotal = googleMembershipAmountPaise / 100,
+                    InvoiceS3Url = null,
+                    CreatedAt = DateTime.UtcNow,
+                    PaymentTransaction = paymentTransaction
+                });
+
                 await _context.SaveChangesAsync();
+                await dbTransaction.CommitAsync();
                 var (token, _) = await _jwtService.GenerateTokenAsync(user.UserId, user.UserType.ToString(), user.MobileNumber, candidateId: profile.CandidateId);
-                _logger.LogInformation("New candidate registered via Google - UserId:{Id} IP:{IP}", user.UserId, ipAddress);
                 return new AuthResponseDto
                 {
                     Success = true,
@@ -312,8 +335,31 @@ namespace JobPortal.Services.Implement.Candidate
 
                 _context.PaymentTransactions.Add(paymentTransaction);
 
+                // Wrapped in an explicit transaction so the advisory lock
+                // inside GenerateInvoiceNumberAsync actually guards the
+                // insert it protects — see CandidateAuthService for the
+                // full explanation.
+                await using var dbTransaction = await _context.Database.BeginTransactionAsync();
+
+                var invoiceNumber = await GenerateInvoiceNumberAsync();
+
+                _context.Invoices.Add(new JobPortal.Domain.Entities.Invoice
+                {
+                    InvoiceId = Guid.NewGuid(),
+                    TransactionId = paymentTransaction.TransactionId,
+                    UserId = user.UserId,
+                    InvoiceNumber = invoiceNumber,
+                    InvoiceDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    InvoiceAmount = linkedInMembershipAmountPaise / 100,
+                    InvoiceGst = 0,
+                    InvoiceTotal = linkedInMembershipAmountPaise / 100,
+                    InvoiceS3Url = null,
+                    CreatedAt = DateTime.UtcNow,
+                    PaymentTransaction = paymentTransaction
+                });
 
                 await _context.SaveChangesAsync();
+                await dbTransaction.CommitAsync();
                 var (token, _) = await _jwtService.GenerateTokenAsync(user.UserId, user.UserType.ToString(), user.MobileNumber, candidateId: profile.CandidateId);
                 _logger.LogInformation("New candidate registered via LinkedIn - UserId:{Id} IP:{IP}", user.UserId, ipAddress);
                 return new AuthResponseDto
@@ -414,5 +460,31 @@ namespace JobPortal.Services.Implement.Candidate
         // ── Private Helpers ───────────────────────────────────
         private static AuthResponseDto AuthFail(string message) =>
             new() { Success = false, Message = message };
+
+        // Generates a sequential, per-month invoice number, e.g. INV-202607-0001.
+        // Same implementation as RecruiterCreditPlanService.GenerateInvoiceNumberAsync
+        // — see that file for the full explanation of the advisory-lock +
+        // MAX-based (not COUNT-based) approach. MUST be called inside an open
+        // db transaction so the advisory lock actually guards the invoice
+        // insert that follows.
+        private async Task<string> GenerateInvoiceNumberAsync()
+        {
+            var prefix = $"INV-{DateTime.UtcNow:yyyyMM}-";
+
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtext({prefix}))");
+
+            var suffixesThisMonth = await _context.Invoices
+                .Where(i => i.InvoiceNumber.StartsWith(prefix))
+                .Select(i => i.InvoiceNumber.Substring(prefix.Length))
+                .ToListAsync();
+
+            int maxNumber = suffixesThisMonth
+                .Select(s => int.TryParse(s, out var n) ? n : 0)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            return $"{prefix}{(maxNumber + 1):D4}";
+        }
     }
 }

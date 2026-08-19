@@ -417,7 +417,7 @@ namespace JobPortal.Services.Implement.Recruiter
                         "VerifyPlanPaymentAsync failed for EmployerId={EmployerId}",
                         employerId);
 
-                 
+
                     return new VerifyPlanPaymentResponseDto
                     {
                         Success = false,
@@ -556,21 +556,34 @@ namespace JobPortal.Services.Implement.Recruiter
         // Generates a sequential, per-month invoice number, e.g. INV-202607-0001.
         //
         // IMPORTANT: this is called from inside VerifyPlanPaymentAsync's open
-        // db transaction. "COUNT existing rows, then INSERT count+1" is not
-        // atomic on its own — if two payment verifications for the same
-        // month run at the same time (double-submitted pay button, two
-        // sub-users checking out together, a retried webhook, etc.) both
-        // transactions can COUNT the same value before either has committed,
-        // so both try to insert the same InvoiceNumber and the second one
-        // fails with a "duplicate key value violates unique constraint
-        // IX_invoices_InvoiceNumber" error.
+        // db transaction.
         //
-        // Fix: take a Postgres advisory *transaction* lock keyed on the
-        // month prefix before counting. The lock is scoped to the current
-        // db transaction and is released automatically on commit/rollback,
-        // so a second concurrent call for the same month simply waits here
-        // until the first one has committed (and therefore sees the
-        // up-to-date count) instead of racing it.
+        // Two things have to both be true for this to be safe:
+        //
+        // 1. NO RACING — two payment verifications for the same month
+        //    running at the same time (double-submitted pay button, two
+        //    sub-users checking out together, a retried webhook, etc.)
+        //    must not compute the same "next number". We take a Postgres
+        //    advisory *transaction* lock keyed on the month prefix before
+        //    reading anything. The lock is scoped to the current db
+        //    transaction and released automatically on commit/rollback, so
+        //    a second concurrent call for the same month simply waits here
+        //    until the first one has committed, instead of racing it.
+        //
+        // 2. NO GAP-REUSE — even with no concurrency at all, basing the
+        //    next number on COUNT(*) of this month's rows is wrong: COUNT
+        //    only equals "the highest number issued so far" if every row
+        //    for the month is still present with none missing. If a row
+        //    is ever missing for any reason (a manually deleted test
+        //    invoice, cleanup scripts, an old bug that partially
+        //    committed before this fix existed, etc.), COUNT undercounts
+        //    and the next purchase regenerates a number that's already
+        //    sitting in the table — a guaranteed,100%-reproducible
+        //    duplicate-key error on every subsequent attempt, with zero
+        //    concurrency involved. We use MAX(existing suffix) + 1
+        //    instead, which always resumes above the highest number ever
+        //    actually issued this month — a missing row just leaves a
+        //    gap in the sequence, it never gets reused.
         private async Task<string> GenerateInvoiceNumberAsync()
         {
             var prefix = $"INV-{DateTime.UtcNow:yyyyMM}-";
@@ -578,10 +591,17 @@ namespace JobPortal.Services.Implement.Recruiter
             await _context.Database.ExecuteSqlInterpolatedAsync(
                 $"SELECT pg_advisory_xact_lock(hashtext({prefix}))");
 
-            var countThisMonth = await _context.Invoices
-                .CountAsync(i => i.InvoiceNumber.StartsWith(prefix));
+            var suffixesThisMonth = await _context.Invoices
+                .Where(i => i.InvoiceNumber.StartsWith(prefix))
+                .Select(i => i.InvoiceNumber.Substring(prefix.Length))
+                .ToListAsync();
 
-            return $"{prefix}{(countThisMonth + 1):D4}";
+            int maxNumber = suffixesThisMonth
+                .Select(s => int.TryParse(s, out var n) ? n : 0)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            return $"{prefix}{(maxNumber + 1):D4}";
         }
     }
 }
