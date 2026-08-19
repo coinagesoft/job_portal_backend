@@ -417,10 +417,11 @@ namespace JobPortal.Services.Implement.Recruiter
                         "VerifyPlanPaymentAsync failed for EmployerId={EmployerId}",
                         employerId);
 
+                 
                     return new VerifyPlanPaymentResponseDto
                     {
                         Success = false,
-                        Message = ex.InnerException?.Message ?? ex.Message
+                        Message = "Payment verification failed. Please contact support if the amount was deducted."
                     };
                 }
             });
@@ -552,10 +553,30 @@ namespace JobPortal.Services.Implement.Recruiter
             return obj;
         }
 
-        // Generates a sequential, per-month invoice number, e.g. INV-202607-0001
+        // Generates a sequential, per-month invoice number, e.g. INV-202607-0001.
+        //
+        // IMPORTANT: this is called from inside VerifyPlanPaymentAsync's open
+        // db transaction. "COUNT existing rows, then INSERT count+1" is not
+        // atomic on its own — if two payment verifications for the same
+        // month run at the same time (double-submitted pay button, two
+        // sub-users checking out together, a retried webhook, etc.) both
+        // transactions can COUNT the same value before either has committed,
+        // so both try to insert the same InvoiceNumber and the second one
+        // fails with a "duplicate key value violates unique constraint
+        // IX_invoices_InvoiceNumber" error.
+        //
+        // Fix: take a Postgres advisory *transaction* lock keyed on the
+        // month prefix before counting. The lock is scoped to the current
+        // db transaction and is released automatically on commit/rollback,
+        // so a second concurrent call for the same month simply waits here
+        // until the first one has committed (and therefore sees the
+        // up-to-date count) instead of racing it.
         private async Task<string> GenerateInvoiceNumberAsync()
         {
             var prefix = $"INV-{DateTime.UtcNow:yyyyMM}-";
+
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtext({prefix}))");
 
             var countThisMonth = await _context.Invoices
                 .CountAsync(i => i.InvoiceNumber.StartsWith(prefix));
