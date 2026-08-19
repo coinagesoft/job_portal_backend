@@ -34,8 +34,6 @@ namespace JobPortal.Services.Implement.Admin
         public async Task<StatsWidgetsResponseDto> GetStatsWidgetsAsync()
         {
             var now = DateTime.UtcNow;
-            var currentMonthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-            var previousMonthStart = currentMonthStart.AddMonths(-1);
 
             // ---- Revenue (completed transactions) ----
             var txnRows = await _db.PaymentTransactions
@@ -45,36 +43,26 @@ namespace JobPortal.Services.Implement.Admin
                 .ToListAsync();
 
             var totalRevenue = txnRows.Sum(t => (decimal)t.TotalAmountPaise) / 100m;
-            var currentMonthRevenue = txnRows
-                .Where(t => t.CreatedAt >= currentMonthStart)
-                .Sum(t => (decimal)t.TotalAmountPaise) / 100m;
-            var previousMonthRevenue = txnRows
-                .Where(t => t.CreatedAt >= previousMonthStart && t.CreatedAt < currentMonthStart)
-                .Sum(t => (decimal)t.TotalAmountPaise) / 100m;
-
             var totalCreditsSold = txnRows.Sum(t => (long?)t.CreditQuantity) ?? 0;
-            var currentMonthCredits = txnRows
-                .Where(t => t.CreatedAt >= currentMonthStart)
-                .Sum(t => (long?)t.CreditQuantity) ?? 0;
-            var previousMonthCredits = txnRows
-                .Where(t => t.CreatedAt >= previousMonthStart && t.CreatedAt < currentMonthStart)
-                .Sum(t => (long?)t.CreditQuantity) ?? 0;
 
-            // ---- Candidates / Recruiters (from Users, by UserType) ----
-            var userRows = await _db.Users
+            // ---- Candidates / Recruiters ----
+            // Counted from CandidateProfiles / EmployerProfiles (same
+            // source used by "Manage Candidates" / "Manage Recruiters"),
+            // NOT from Users.UserType. A Users-table count double-counts:
+            // every EmployerSubUser (a recruiter's invited teammate) also
+            // gets its own User row with UserType == Recruiter even
+            // though it isn't a separate recruiter/company, and any User
+            // row with UserType == Candidate that never completed a
+            // CandidateProfile (e.g. an abandoned signup) isn't a real
+            // candidate either. Counting the profile tables keeps this
+            // number consistent with the rest of the admin panel.
+            var totalCandidates = await _db.CandidateProfiles
                 .AsNoTracking()
-                .Where(u => !u.IsDeleted &&
-                    (u.UserType == UserType.Candidate || u.UserType == UserType.Recruiter))
-                .Select(u => new { u.UserType, u.CreatedAt })
-                .ToListAsync();
+                .CountAsync();
 
-            var totalCandidates = userRows.Count(u => u.UserType == UserType.Candidate);
-            var currentMonthCandidates = userRows.Count(u => u.UserType == UserType.Candidate && u.CreatedAt >= currentMonthStart);
-            var previousMonthCandidates = userRows.Count(u => u.UserType == UserType.Candidate && u.CreatedAt >= previousMonthStart && u.CreatedAt < currentMonthStart);
-
-            var totalRecruiters = userRows.Count(u => u.UserType == UserType.Recruiter);
-            var currentMonthRecruiters = userRows.Count(u => u.UserType == UserType.Recruiter && u.CreatedAt >= currentMonthStart);
-            var previousMonthRecruiters = userRows.Count(u => u.UserType == UserType.Recruiter && u.CreatedAt >= previousMonthStart && u.CreatedAt < currentMonthStart);
+            var totalRecruiters = await _db.EmployerProfiles
+                .AsNoTracking()
+                .CountAsync();
 
             // ---- Job postings ----
             var activeJobPostings = await _db.JobPostings
@@ -102,10 +90,10 @@ namespace JobPortal.Services.Implement.Admin
 
             return new StatsWidgetsResponseDto
             {
-                TotalRevenue = BuildStatCard(totalRevenue, currentMonthRevenue, previousMonthRevenue),
-                TotalCandidates = BuildStatCard(totalCandidates, currentMonthCandidates, previousMonthCandidates),
-                TotalRecruiters = BuildStatCard(totalRecruiters, currentMonthRecruiters, previousMonthRecruiters),
-                CreditsSold = BuildStatCard(totalCreditsSold, currentMonthCredits, previousMonthCredits),
+                TotalRevenue = new StatCardDto { Value = totalRevenue },
+                TotalCandidates = new StatCardDto { Value = totalCandidates },
+                TotalRecruiters = new StatCardDto { Value = totalRecruiters },
+                CreditsSold = new StatCardDto { Value = totalCreditsSold },
                 ActiveJobPostings = new JobPostingsStatDto
                 {
                     Active = activeJobPostings,
@@ -121,32 +109,6 @@ namespace JobPortal.Services.Implement.Admin
                     Open = ticketStatuses.Count(s => s != "Resolved"),
                     Pending = ticketStatuses.Count(s => s == "Open")
                 }
-            };
-        }
-
-        // month-over-month card helper — works for both decimal (revenue)
-        // and integer (counts) values since everything is decimal underneath.
-        private static StatCardDto BuildStatCard(decimal totalValue, decimal currentMonthValue, decimal previousMonthValue)
-        {
-            decimal? changePercent = null;
-            string? direction = null;
-
-            if (previousMonthValue > 0)
-            {
-                changePercent = Math.Round((currentMonthValue - previousMonthValue) / previousMonthValue * 100, 1);
-                direction = changePercent >= 0 ? "up" : "down";
-            }
-            else if (currentMonthValue > 0)
-            {
-                changePercent = 100m;
-                direction = "up";
-            }
-
-            return new StatCardDto
-            {
-                Value = totalValue,
-                ChangePercent = changePercent,
-                ChangeDirection = direction
             };
         }
 

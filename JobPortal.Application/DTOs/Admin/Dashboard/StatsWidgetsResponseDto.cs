@@ -20,18 +20,10 @@ namespace JobPortal.Application.DTOs.Admin.Dashboard
         public SupportTicketsStatDto OpenSupportTickets { get; set; } = new();
     }
 
-    // Generic "value + trend vs previous month" card, used by every
-    // primary stat that has a % up/down badge in the UI.
+    // Generic "value" card, used by every primary stat on the dashboard.
     public class StatCardDto
     {
         public decimal Value { get; set; }
-
-        // % change vs the previous calendar month. Null when the
-        // previous month has no data to compare against.
-        public decimal? ChangePercent { get; set; }
-
-        // "up" | "down" | null (null only when ChangePercent is null)
-        public string? ChangeDirection { get; set; }
     }
 
     public class JobPostingsStatDto
