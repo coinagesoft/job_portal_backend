@@ -19,7 +19,7 @@ namespace JobPortal.Application.DTOs.Recruiter.CompanyProfile
         public string? FileUrl { get; set; }
         public string? Message { get; set; }
         public string DocumentName { get; set; } = string.Empty;
-
+        public string? Reason { get; set; }
         public string? DocumentTypeCategory { get; set; }
         public string Status { get; set; } = default!;
 

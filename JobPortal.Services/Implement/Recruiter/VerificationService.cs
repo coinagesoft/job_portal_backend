@@ -187,6 +187,10 @@ public VerificationService(
                             Message =
                                 "No Message",
 
+
+                            Reason =
+            GetDocumentReason(uploaded),
+
                             FileUrl =
                                 uploaded?.FileUrl,
 
@@ -246,6 +250,8 @@ public VerificationService(
                             // OTHER EXISTING DATA
                             Message =
                                 "No Message",
+
+                            Reason = GetDocumentReason(uploaded),
 
                             FileUrl =
                                 uploaded.FileUrl,
@@ -326,6 +332,8 @@ public VerificationService(
                         // OTHER EXISTING DATA
                         Message =
                             "No Message",
+
+                        Reason = GetDocumentReason(doc),
 
                         FileUrl =
                             doc.FileUrl,
@@ -485,6 +493,8 @@ public VerificationService(
 
                         Message =
                             documentRequest.Message,
+
+                        Reason = GetDocumentReason(uploaded),
 
                         FileUrl =
                             uploaded?.FileUrl,
@@ -1112,6 +1122,28 @@ public VerificationService(
                     IsMandatory = x.IsMandatory
                 })
                 .ToListAsync();
+        }
+
+        string? GetDocumentReason( EmployerVerificationDocument? document)
+        {
+            if (document == null)
+            {
+                return null;
+            }
+
+            var status = document.Status.ToString();
+
+            if (status.Equals(
+                    "Rejected",
+                    StringComparison.OrdinalIgnoreCase) ||
+                status.Equals(
+                    "Resubmission",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return document.Remarks;
+            }
+
+            return null;
         }
 
     }
