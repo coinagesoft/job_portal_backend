@@ -118,6 +118,8 @@ builder.Services.AddScoped<ILegalDocumentPublicService, LegalDocumentPublicServi
 builder.Services.AddScoped<IAdminHomepageManagementService, AdminHomepageManagementService>();
 builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
 builder.Services.AddScoped<CandidatePagedJobService>();
+//builder.Services.AddScoped<IRecruiterRegistrationService, RecruiterRegistrationService>();
+builder.Services.AddScoped<IRecruiterHomepageService, RecruiterHomepageService>();   // <-- new line
 builder.Services.AddHttpClient<IGeminiCompanyDocumentParserService, GeminiCompanyDocumentParserService>();
 //builder.Services.AddScoped<IAffindaService, AffindaService>();
 builder.Services.Configure<CloudinarySettingsDto>(

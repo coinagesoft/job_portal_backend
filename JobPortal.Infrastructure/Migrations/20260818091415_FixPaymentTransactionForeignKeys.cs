@@ -35,24 +35,15 @@ namespace JobPortal.Infrastructure.Migrations
                 name: "EmployerProfileEmployerId",
                 table: "payment_transactions");
 
-            migrationBuilder.AddColumn<bool>(
-                name: "is_member",
-                table: "candidate_profiles",
-                type: "boolean",
-                nullable: false,
-                defaultValue: false);
-
-            migrationBuilder.AddColumn<Guid>(
-                name: "membership_plan_id",
-                table: "candidate_profiles",
-                type: "uuid",
-                nullable: true);
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "membership_purchased_at",
-                table: "candidate_profiles",
-                type: "timestamp with time zone",
-                nullable: true);
+            // NOTE: is_member / membership_plan_id / membership_purchased_at
+            // on candidate_profiles are intentionally NOT added here. They
+            // were already added by the earlier migration
+            // 20260812090000_AddCandidateMembershipFields. This migration
+            // originally duplicated those AddColumn calls (scaffolded
+            // against a stale model), which fails with
+            // "42701: column already exists" once AddCandidateMembershipFields
+            // has been applied. See that migration for the actual column
+            // definitions.
 
             migrationBuilder.CreateIndex(
                 name: "IX_payment_transactions_CandidateId",
@@ -100,17 +91,9 @@ namespace JobPortal.Infrastructure.Migrations
                 name: "IX_payment_transactions_EmployerId",
                 table: "payment_transactions");
 
-            migrationBuilder.DropColumn(
-                name: "is_member",
-                table: "candidate_profiles");
-
-            migrationBuilder.DropColumn(
-                name: "membership_plan_id",
-                table: "candidate_profiles");
-
-            migrationBuilder.DropColumn(
-                name: "membership_purchased_at",
-                table: "candidate_profiles");
+            // is_member / membership_plan_id / membership_purchased_at are
+            // owned by 20260812090000_AddCandidateMembershipFields — not
+            // dropped here (see matching note in Up()).
 
             migrationBuilder.AddColumn<Guid>(
                 name: "CandidateProfileCandidateId",
