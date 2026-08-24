@@ -24,7 +24,7 @@ namespace JobPortal.Services.Implement.Admin
             _db = db;
         }
 
-       
+
 
         // ------------------------------------------------------------
         // TRANSACTION HISTORY (dedicated endpoint)
@@ -747,7 +747,7 @@ namespace JobPortal.Services.Implement.Admin
                         Expired =
                             expired,
 
-                       
+
 
                         // New percentage
                         AiExtractionPercentage =
@@ -968,7 +968,7 @@ namespace JobPortal.Services.Implement.Admin
         }
 
 
-        public async Task<AdminRecruiterDocumentsResponseDto?>GetRecruiterDocumentsAsync(Guid employerId)
+        public async Task<AdminRecruiterDocumentsResponseDto?> GetRecruiterDocumentsAsync(Guid employerId)
         {
             // ===========================================================
             // CHECK EMPLOYER
@@ -3937,6 +3937,29 @@ namespace JobPortal.Services.Implement.Admin
             await _db.SaveChangesAsync();
 
             return Map(documentType);
+        }
+
+        public async Task<bool> DeleteDocumentTypeAsync(Guid documentTypeId)
+        {
+            var documentType = await _db.VerificationDocumentMasters
+                .FirstOrDefaultAsync(x =>
+                    x.DocumentTypeId == documentTypeId);
+
+            if (documentType == null)
+            {
+                return false;
+            }
+
+            // Soft delete: hides it from the admin dropdown/master list
+            // and drops it out of the required-doc set, without losing
+            // history for any employer documents already linked to it.
+            documentType.IsActive = false;
+            documentType.IsMandatory = false;
+            documentType.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+
+            return true;
         }
 
         public async Task<List<AdminDocumentRequirementDto>> GetDocumentRequirementsAsync()

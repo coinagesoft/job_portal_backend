@@ -1,5 +1,7 @@
-﻿using JobPortal.Application.DTOs;
+﻿using JobPortal.API.Middleware;
+using JobPortal.Application.DTOs;
 using JobPortal.Application.DTOs.Admin;
+using JobPortal.Domain.Enums;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -433,6 +435,35 @@ namespace JobPortal.API.Controllers.Admin
                     message = ex.Message
                 });
             }
+        }
+
+
+        /// <summary>
+        /// Soft delete a document type (e.g. junk/test entries added via
+        /// the "custom doc" input). Sets IsActive = false so it drops out
+        /// of the admin dropdown, chip list, and required-doc set, while
+        /// keeping the row for any already-linked employer documents.
+        /// </summary>
+        [HttpDelete("document-types/{documentTypeId:guid}")]
+        [AuditLog("Delete Document Type", "Document Types", AuditSeverity.Warning)]
+        public async Task<IActionResult> DeleteDocumentType(Guid documentTypeId)
+        {
+            var deleted = await _adminRecruiterService.DeleteDocumentTypeAsync(documentTypeId);
+
+            if (!deleted)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Document type not found."
+                });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                message = "Document type deleted successfully."
+            });
         }
 
 

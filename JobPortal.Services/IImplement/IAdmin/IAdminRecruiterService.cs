@@ -49,6 +49,8 @@ namespace JobPortal.Services.IImplement.IAdmin
 
         Task<DocumentTypeAdminDto?> UpdateDocumentRequirementAsync(Guid documentTypeId, UpdateDocumentRequirementRequestDto request);
 
+        Task<bool> DeleteDocumentTypeAsync(Guid documentTypeId);
+
         Task<List<AdminDocumentRequirementDto>> GetDocumentRequirementsAsync();
 
         Task<List<OptionalDocumentTypeDto>> GetOptionalDocumentNamesAsync();
