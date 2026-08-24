@@ -82,7 +82,7 @@ builder.Services.AddScoped<IVerificationService, VerificationService>();
 builder.Services.AddScoped<ICandidateJobService, CandidateJobService>();
 builder.Services.AddScoped<TwilioOtpService>();
 builder.Services.AddScoped<Msg91OtpService>();
-builder.Services.AddScoped<ITwilioOtpService, OtpProviderRouter>(); 
+builder.Services.AddScoped<ITwilioOtpService, OtpProviderRouter>();
 builder.Services.AddScoped<ICandidateProfileExtendedService, CandidateProfileExtendedService>();
 builder.Services.AddScoped<ICandidateRegistrationService, CandidateRegistrationService>();
 builder.Services.AddScoped<ICreditWalletService, CreditWalletService>();
@@ -103,6 +103,7 @@ builder.Services.AddScoped<IRecruiterScreeningQuestionService, RecruiterScreenin
 builder.Services.AddScoped<IRecruiterCvSearchService, RecruiterCvSearchService>();
 builder.Services.AddScoped<ICandidateSettingsService, CandidateSettingsService>();
 builder.Services.AddScoped<ICandidateAvailabilityService, CandidateAvailabilityService>();
+builder.Services.AddScoped<ICandidateLocationService, CandidateLocationService>();
 builder.Services.AddScoped<ICandidateItiInfoService, CandidateItiInfoService>();
 builder.Services.AddScoped<ICandidateLogoutService, CandidateLogoutService>();
 builder.Services.AddScoped<ICandidateLoginService, CandidateLoginService>();

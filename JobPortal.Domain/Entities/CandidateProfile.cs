@@ -53,6 +53,18 @@ public class CandidateProfile
     public DateTime UpdatedAt { get; set; }
 
     // ===========================
+    // Live location (auto-synced from web/mobile once the candidate
+    // grants browser/device geolocation permission). CurrentCity /
+    // CurrentState above stay as the candidate's manually-entered
+    // profile location and are untouched by this — these fields are
+    // the raw last-known coordinates used for proximity features.
+    // ===========================
+    public double? CurrentLatitude { get; set; }
+    public double? CurrentLongitude { get; set; }
+    public bool LocationPermissionGranted { get; set; } = false;
+    public DateTime? LocationUpdatedAt { get; set; }
+
+    // ===========================
     // Candidate lifetime membership (the one-time ₹100-style fee taken
     // at registration). Price/name/region come from the admin-managed
     // MembershipPlan (PlanType = Candidate) that was active at the time

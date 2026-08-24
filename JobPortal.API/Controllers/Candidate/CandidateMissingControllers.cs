@@ -50,6 +50,53 @@ public class CandidateAvailabilityController : ControllerBase
 
 
 // ════════════════════════════════════════════════════════════════
+// LIVE LOCATION CONTROLLER
+// GET /api/candidate/profile/location
+// PUT /api/candidate/profile/location
+// ════════════════════════════════════════════════════════════════
+[ApiController]
+[Route("api/candidate/profile")]
+[Produces("application/json")]
+public class CandidateLocationController : ControllerBase
+{
+    private readonly ICandidateLocationService _service;
+    public CandidateLocationController(ICandidateLocationService service) => _service = service;
+
+    private Guid GetCandidateId()
+    {
+        var claim = User.FindFirstValue("candidateId") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(claim, out var id) ? id : Guid.Empty;
+    }
+
+    [HttpGet("location")]
+    [ProducesResponseType(typeof(CandidateLocationResponseDto), 200)]
+    public async Task<IActionResult> GetLocation([FromQuery] Guid? candidateId = null)
+    {
+        var id = candidateId ?? GetCandidateId();
+        if (id == Guid.Empty) return BadRequest(new { message = "Unable to resolve candidate identity." });
+        var result = await _service.GetLocationAsync(id);
+        return result.Success ? Ok(result) : NotFound(result);
+    }
+
+    // Called once when the candidate first grants location permission,
+    // and then again periodically by the client (every few minutes)
+    // while the site is open, so this field stays auto-synced without
+    // the candidate having to do anything further.
+    [HttpPut("location")]
+    [ProducesResponseType(typeof(CandidateLocationResponseDto), 200)]
+    public async Task<IActionResult> UpdateLocation(
+        [FromBody] UpdateCandidateLocationRequestDto request, [FromQuery] Guid? candidateId = null)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        var id = candidateId ?? GetCandidateId();
+        if (id == Guid.Empty) return BadRequest(new { message = "Unable to resolve candidate identity." });
+        var result = await _service.UpdateLocationAsync(id, request);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+}
+
+
+// ════════════════════════════════════════════════════════════════
 // ITI INFO CONTROLLER
 // GET  /api/candidate/profile/iti-info
 // PUT  /api/candidate/profile/iti-info

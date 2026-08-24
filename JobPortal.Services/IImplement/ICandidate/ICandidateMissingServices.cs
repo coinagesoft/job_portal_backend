@@ -22,3 +22,9 @@ public interface ICandidateLogoutService
         string? jwtJti,
         DateTime? jwtExpiresAt);
 }
+
+public interface ICandidateLocationService
+{
+    Task<CandidateLocationResponseDto> GetLocationAsync(Guid candidateId);
+    Task<CandidateLocationResponseDto> UpdateLocationAsync(Guid candidateId, UpdateCandidateLocationRequestDto request);
+}

@@ -630,6 +630,10 @@ public class AppDbContext : DbContext
             e.Property(x => x.IsMember).HasColumnName("is_member");
             e.Property(x => x.MembershipPlanId).HasColumnName("membership_plan_id");
             e.Property(x => x.MembershipPurchasedAt).HasColumnName("membership_purchased_at");
+            e.Property(x => x.CurrentLatitude).HasColumnName("current_latitude");
+            e.Property(x => x.CurrentLongitude).HasColumnName("current_longitude");
+            e.Property(x => x.LocationPermissionGranted).HasColumnName("location_permission_granted");
+            e.Property(x => x.LocationUpdatedAt).HasColumnName("location_updated_at");
             e.HasOne(x => x.User).WithOne()
              .HasForeignKey<CandidateProfile>(x => x.UserId)
              .OnDelete(DeleteBehavior.Restrict);
