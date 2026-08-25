@@ -14,7 +14,7 @@ public class CandidateCv
     // ===========================
     public string? CvFileUrl { get; set; }
 
-    // Cloudinary Public Id
+    // Local storage file identifier (used to locate/delete the file on disk)
     public string? CvPublicId { get; set; }
 
     // Optional PDF generated from DOCX

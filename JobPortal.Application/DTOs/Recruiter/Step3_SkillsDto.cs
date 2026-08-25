@@ -7,6 +7,10 @@ public class SkillsRequestDto
     // Main skills shown on job card and used in AI matching
     public List<string>? KeySkills { get; set; } = new();
 
+    // Job Description — moved here from Step 1 (Job Details).
+    [Required(ErrorMessage = "Job description is required.")]
+    public string? JobDescription { get; set; }
+
     // Example:
     // "English"
     // "English, Hindi"

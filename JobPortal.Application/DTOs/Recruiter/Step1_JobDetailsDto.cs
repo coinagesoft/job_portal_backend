@@ -53,7 +53,9 @@ public class JobDetailsRequestDto
 
     public List<string>? KeyResponsibilities { get; set; } = new();
 
-    [Required(ErrorMessage = "Job description is required.")]
+    // Job Description now moves through Step 3 (Skills & JD) instead —
+    // kept here (optional) only so older drafts / callers that still send
+    // it aren't rejected.
     public string? JobDescription { get; set; } = string.Empty;
 }
 public class JobDetailsResponseDto

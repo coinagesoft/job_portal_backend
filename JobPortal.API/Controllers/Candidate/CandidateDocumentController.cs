@@ -109,7 +109,7 @@ public class CandidateDocumentController : ControllerBase
     // One endpoint for EVERY document type (Aadhaar, Passport,
     // Education Certificate, …) — identified by the documentType field.
     // Flow: OCR-parse → verify parsed name matches the candidate's
-    // profile name → store in Cloudinary + DB. Rejected on name mismatch.
+    // profile name → store in local storage + DB. Rejected on name mismatch.
     // ════════════════════════════════════════════════
     /// <summary>
     /// Upload &amp; verify any candidate document. Send multipart/form-data with:

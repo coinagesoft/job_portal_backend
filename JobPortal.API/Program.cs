@@ -2,7 +2,6 @@ using FirebaseAdmin;
 using Google;
 using Google.Apis.Auth.OAuth2;
 using JobPortal.API.ModelBinders;
-using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Domain.Common;
 using JobPortal.Infrastructure.JWT;
 using JobPortal.Infrastructure.Persistence;
@@ -125,8 +124,6 @@ builder.Services.AddScoped<CandidatePagedJobService>();
 builder.Services.AddScoped<IRecruiterHomepageService, RecruiterHomepageService>();   // <-- new line
 builder.Services.AddHttpClient<IGeminiCompanyDocumentParserService, GeminiCompanyDocumentParserService>();
 //builder.Services.AddScoped<IAffindaService, AffindaService>();
-builder.Services.Configure<CloudinarySettingsDto>(
-    builder.Configuration.GetSection("CloudinarySettings"));
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();

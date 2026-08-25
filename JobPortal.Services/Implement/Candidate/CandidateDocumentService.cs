@@ -3,7 +3,6 @@
 //  ALL GIT MERGE CONFLICTS RESOLVED
 // ============================================================
 
-using CloudinaryDotNet.Actions;
 using JobPortal.Application.DTOs.AI;
 using JobPortal.Application.DTOs.Candidate;
 using JobPortal.Application.DTOs.Candidate.Profile;
@@ -197,14 +196,14 @@ public class CandidateDocumentService : ICandidateDocumentService
             }
 
             // =====================================================
-            // 3. Upload Resume to Cloudinary
+            // 3. Upload Resume to local storage
             // =====================================================
             uploadResult = await _fileStorage.UploadDocumentAsync(
                 file,
                 "resumes");
 
             // =====================================================
-            // 4. Delete Previous Resume From Cloudinary
+            // 4. Delete Previous Resume From local storage
             // =====================================================
             var existingCv = profile.Cvs
                 .OrderByDescending(x => x.GeneratedAt)
@@ -231,7 +230,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             // 6. Verify parse result + candidate name match
             //    The resume is accepted ONLY if it parsed successfully
             //    AND the name on the resume matches the candidate's
-            //    profile name. Otherwise the just-uploaded Cloudinary
+            //    profile name. Otherwise the just-uploaded local
             //    file is deleted and the upload is rejected.
             // =====================================================
             if (!parseResult.Success)
@@ -441,7 +440,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             await _context.SaveChangesAsync();
 
             // =====================================================
-            // 13. Delete Previous Resume From Cloudinary
+            // 13. Delete Previous Resume From local storage
             // Only after successful database save
             // =====================================================
             if (existingCv != null)
@@ -454,7 +453,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 {
                     _logger.LogWarning(
                         ex,
-                        "Failed to delete previous Cloudinary resume for Candidate {CandidateId}",
+                        "Failed to delete previous resume from local storage for Candidate {CandidateId}",
                         candidateId);
                 }
             }
@@ -514,7 +513,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 "UploadResumeAsync failed for Candidate {CandidateId}",
                 candidateId);
 
-            // Cleanup newly uploaded Cloudinary file if database save failed
+            // Cleanup newly uploaded local file if database save failed
             if (uploadResult != null &&
                 !string.IsNullOrWhiteSpace(uploadResult.PublicId))
             {
@@ -526,7 +525,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 {
                     _logger.LogWarning(
                         cleanupEx,
-                        "Failed to clean up uploaded Cloudinary resume for Candidate {CandidateId}",
+                        "Failed to clean up uploaded resume from local storage for Candidate {CandidateId}",
                         candidateId);
                 }
             }
@@ -543,7 +542,7 @@ public class CandidateDocumentService : ICandidateDocumentService
     // Resume verification helpers
     // =====================================================
 
-    /// <summary>Deletes a just-uploaded Cloudinary file, swallowing errors.</summary>
+    /// <summary>Deletes a just-uploaded local file, swallowing errors.</summary>
     private async Task SafeDeleteUploadAsync(string? publicId)
     {
         if (string.IsNullOrWhiteSpace(publicId))
@@ -557,7 +556,7 @@ public class CandidateDocumentService : ICandidateDocumentService
         {
             _logger.LogWarning(
                 ex,
-                "Failed to delete rejected Cloudinary resume {PublicId}",
+                "Failed to delete rejected resume {PublicId} from local storage",
                 publicId);
         }
     }
@@ -888,7 +887,7 @@ public class CandidateDocumentService : ICandidateDocumentService
 
             await _context.SaveChangesAsync();
 
-            // Clean up previous Cloudinary files only after a successful save
+            // Clean up previous local files only after a successful save
             foreach (var old in existing)
                 await SafeDeleteUploadAsync(old.FilePublicId);
 
@@ -1014,7 +1013,7 @@ public class CandidateDocumentService : ICandidateDocumentService
         return null;
     }
 
-    /// <summary>Turns a document type into a safe Cloudinary folder segment.</summary>
+    /// <summary>Turns a document type into a safe local-storage folder segment.</summary>
     private static string MakeSafeDocumentFolder(string documentType)
     {
         var cleaned = new string(
@@ -1119,7 +1118,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             await _context.SaveChangesAsync();
 
             // =====================================================
-            // 6. Delete Resume From Cloudinary
+            // 6. Delete Resume From local storage
             // Only after successful database save
             // =====================================================
 
@@ -1133,7 +1132,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 {
                     _logger.LogWarning(
                         ex,
-                        "Failed to delete resume from Cloudinary for Candidate {CandidateId}",
+                        "Failed to delete resume from local storage for Candidate {CandidateId}",
                         candidateId);
                 }
             }
@@ -1245,7 +1244,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             }
 
             // =====================================================
-            // 4. Upload Certificate to Cloudinary
+            // 4. Upload Certificate to local storage
             // =====================================================
 
             uploadResult = await _fileStorage.UploadDocumentAsync(
@@ -1336,7 +1335,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             await _context.SaveChangesAsync();
 
             // =====================================================
-            // 8. Delete Previous Certificate From Cloudinary
+            // 8. Delete Previous Certificate From local storage
             // Only after successful database save
             // =====================================================
 
@@ -1487,7 +1486,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             await _context.SaveChangesAsync();
 
             // =====================================================
-            // 6. Delete Certificate From Cloudinary
+            // 6. Delete Certificate From local storage
             // Only after successful database save
             // =====================================================
 
@@ -1501,7 +1500,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 {
                     _logger.LogWarning(
                         ex,
-                        "Failed to delete education certificate from Cloudinary for Candidate {CandidateId}",
+                        "Failed to delete education certificate from local storage for Candidate {CandidateId}",
                         candidateId);
                 }
             }
@@ -1632,7 +1631,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                     x.CandidateId == candidateId);
 
             // =====================================================
-            // 6. Upload Front Image to Cloudinary
+            // 6. Upload Front Image to local storage
             // =====================================================
 
             frontUpload = await _fileStorage.UploadDocumentAsync(
@@ -1875,7 +1874,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 };
             }
 
-            // Store Cloudinary Public IDs before deleting
+            // Store local-storage public IDs before deleting
             var frontPublicId = passport.FrontPublicId;
             var backPublicId = passport.BackPublicId;
 
@@ -1904,7 +1903,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             await _context.SaveChangesAsync();
 
             // =====================================================
-            // 6. Delete Cloudinary Images
+            // 6. Delete Images from local storage
             // Only after successful database save
             // =====================================================
 
@@ -1924,7 +1923,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 _logger.LogWarning(
                     ex,
-                    "Failed to delete Passport images from Cloudinary for Candidate {CandidateId}",
+                    "Failed to delete Passport images from local storage for Candidate {CandidateId}",
                     candidateId);
             }
 
@@ -2045,7 +2044,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                     x.IdType == "Aadhaar");
 
             // =====================================================
-            // 5. Upload Front Image to Cloudinary
+            // 5. Upload Front Image to local storage
             // =====================================================
             frontUpload = await _fileStorage.UploadDocumentAsync(
                 frontImage,
@@ -2187,7 +2186,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             await _context.SaveChangesAsync();
 
             // =====================================================
-            // 13. Delete Previous Cloudinary Images
+            // 13. Delete Previous Images from local storage
             // Only after successful DB save
             // =====================================================
 
@@ -2296,7 +2295,7 @@ public class CandidateDocumentService : ICandidateDocumentService
                 };
             }
 
-            // Store Cloudinary PublicIds before deleting
+            // Store local-storage PublicIds before deleting
             var frontPublicId = aadhaar.IdFrontPublicId;
             var backPublicId = aadhaar.IdBackPublicId;
 
@@ -2325,7 +2324,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             await _context.SaveChangesAsync();
 
             // =====================================================
-            // 6. Delete Cloudinary Images
+            // 6. Delete Images from local storage
             // Only after successful database save
             // =====================================================
 
@@ -2345,7 +2344,7 @@ public class CandidateDocumentService : ICandidateDocumentService
             {
                 _logger.LogWarning(
                     ex,
-                    "Failed to delete Aadhaar images from Cloudinary for Candidate {CandidateId}",
+                    "Failed to delete Aadhaar images from local storage for Candidate {CandidateId}",
                     candidateId);
             }
 

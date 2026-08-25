@@ -10,7 +10,7 @@ public interface ICandidateDocumentService
     /// <summary>
     /// Unified upload: OCR-parses any document, verifies the parsed name
     /// matches the candidate's profile name, and (only on match) stores the
-    /// file in Cloudinary + the parsed data in the DB, keyed by documentType.
+    /// file in local storage + the parsed data in the DB, keyed by documentType.
     /// </summary>
     Task<JobPortal.Application.DTOs.Candidate.UploadDocumentResponse> UploadAndVerifyDocumentAsync(
         Guid candidateId,
@@ -20,7 +20,7 @@ public interface ICandidateDocumentService
     Task<List<JobPortal.Application.DTOs.Candidate.CandidateUploadedDocumentDto>> GetUploadedDocumentsAsync(
         Guid candidateId);
 
-    /// <summary>Deletes one stored document (DB row + Cloudinary file).</summary>
+    /// <summary>Deletes one stored document (DB row + local file).</summary>
     Task<bool> DeleteUploadedDocumentAsync(
         Guid candidateId,
         Guid documentId);

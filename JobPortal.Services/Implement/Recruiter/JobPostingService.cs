@@ -532,6 +532,11 @@ namespace JobPortal.Services.Implement.Recruiter
                     job.KeySkills = request.KeySkills;
                 }
 
+                if (!string.IsNullOrWhiteSpace(request.JobDescription))
+                {
+                    job.JobDescription = request.JobDescription;
+                }
+
                 if (!string.IsNullOrWhiteSpace(request.LanguageRequired))
                 {
                     job.LanguageRequired = request.LanguageRequired;
