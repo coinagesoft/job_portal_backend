@@ -3,6 +3,7 @@ using JobPortal.Domain.Constants;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
+using JobPortal.Infrastructure.Extensions;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.EntityFrameworkCore;
@@ -126,7 +127,8 @@ public class AdminUserService : IAdminUserService
     public async Task<CreateSubAdminResponseDto> CreateSubAdminAsync(
         CreateSubAdminRequestDto request,
         Guid createdByAdminId,
-        string ipAddress)
+        string ipAddress,
+        string? jwtId = null)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -283,6 +285,7 @@ public class AdminUserService : IAdminUserService
                 IpAddress = ipAddress,
                 Success = true,
                 Severity = AuditActionSeverity.Resolve("Create Sub Admin"),
+                SessionId = await _context.ResolveSessionIdAsync(jwtId),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -330,7 +333,8 @@ public class AdminUserService : IAdminUserService
         Guid subAdminId,
         UpdateSubAdminRequestDto request,
         Guid updatedByAdminId,
-        string ipAddress)
+        string ipAddress,
+        string? jwtId = null)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -478,6 +482,7 @@ public class AdminUserService : IAdminUserService
                 IpAddress = ipAddress,
                 Success = true,
                 Severity = AuditActionSeverity.Resolve("Update Sub Admin"),
+                SessionId = await _context.ResolveSessionIdAsync(jwtId),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -524,7 +529,8 @@ public class AdminUserService : IAdminUserService
     public async Task<DeleteSubAdminResponseDto> DeleteSubAdminAsync(
         Guid subAdminId,
         Guid deletedByAdminId,
-        string ipAddress)
+        string ipAddress,
+        string? jwtId = null)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -616,6 +622,7 @@ public class AdminUserService : IAdminUserService
                 IpAddress = ipAddress,
                 Success = true,
                 Severity = AuditActionSeverity.Resolve("Delete Sub Admin"),
+                SessionId = await _context.ResolveSessionIdAsync(jwtId),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -643,7 +650,8 @@ public class AdminUserService : IAdminUserService
         Guid subAdminId,
         SuspendSubAdminRequestDto request,
         Guid suspendedByAdminId,
-        string ipAddress)
+        string ipAddress,
+        string? jwtId = null)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -743,6 +751,7 @@ public class AdminUserService : IAdminUserService
                 IpAddress = ipAddress,
                 Success = true,
                 Severity = AuditActionSeverity.Resolve("Suspend Sub Admin"),
+                SessionId = await _context.ResolveSessionIdAsync(jwtId),
                 CreatedAt = DateTime.UtcNow
             });
 
@@ -786,7 +795,8 @@ public class AdminUserService : IAdminUserService
     public async Task<UpdateSubAdminResponseDto> ActivateSubAdminAsync(
         Guid subAdminId,
         Guid activatedByAdminId,
-        string ipAddress)
+        string ipAddress,
+        string? jwtId = null)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -868,6 +878,7 @@ public class AdminUserService : IAdminUserService
                 IpAddress = ipAddress,
                 Success = true,
                 Severity = AuditActionSeverity.Resolve("Activate Sub Admin"),
+                SessionId = await _context.ResolveSessionIdAsync(jwtId),
                 CreatedAt = DateTime.UtcNow
             });
 

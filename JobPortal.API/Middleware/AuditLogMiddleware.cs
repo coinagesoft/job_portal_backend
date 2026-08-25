@@ -67,16 +67,7 @@ public class AuditLogMiddleware
             // attribute this audit entry to the session that produced it.
             var jwtId = user.FindFirst("jti")?.Value;
 
-            Guid? sessionId = null;
-
-            if (!string.IsNullOrEmpty(jwtId))
-            {
-                sessionId = await dbContext.AdminSessions
-                    .AsNoTracking()
-                    .Where(x => x.JwtId == jwtId)
-                    .Select(x => (Guid?)x.SessionId)
-                    .FirstOrDefaultAsync();
-            }
+            var sessionId = await dbContext.ResolveSessionIdAsync(jwtId);
 
             var controllerActionDescriptor = endpoint!
                 .Metadata

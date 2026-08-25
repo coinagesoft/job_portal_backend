@@ -66,7 +66,9 @@ namespace JobPortal.API.Controllers.Admin
                     HttpContext.Connection.RemoteIpAddress?.ToString()
                     ?? "unknown",
 
-                UserAgent = Request.Headers["User-Agent"].ToString()
+                UserAgent = Request.Headers["User-Agent"].ToString(),
+
+                JwtId = User.FindFirst("jti")?.Value
             };
 
             try
@@ -107,8 +109,3 @@ namespace JobPortal.API.Controllers.Admin
         }
     }
 }
-
-
-
-
-    

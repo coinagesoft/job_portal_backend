@@ -777,6 +777,8 @@ public class AuthService : IAuthService
                 Success = true,
                 Severity = AuditActionSeverity.Resolve("Logout"),
 
+                SessionId = session?.SessionId,
+
                 CreatedAt = DateTime.UtcNow
             });
 

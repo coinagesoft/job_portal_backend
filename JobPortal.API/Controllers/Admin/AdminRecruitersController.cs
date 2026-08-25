@@ -53,6 +53,8 @@ namespace JobPortal.API.Controllers.Admin
             var userAgent =
                 Request.Headers["User-Agent"].ToString();
 
+            var jwtId = User.FindFirst("jti")?.Value;
+
             try
             {
                 var updated = await _adminRecruiterService
@@ -62,7 +64,8 @@ namespace JobPortal.API.Controllers.Admin
                         request.Reason,
                         performedByAdminId,
                         ipAddress,
-                        userAgent
+                        userAgent,
+                        jwtId
                     );
 
                 if (!updated)
@@ -227,7 +230,10 @@ namespace JobPortal.API.Controllers.Admin
                     ?? "unknown",
 
                 UserAgent =
-                    Request.Headers["User-Agent"].ToString()
+                    Request.Headers["User-Agent"].ToString(),
+
+                JwtId =
+                    User.FindFirst("jti")?.Value
             };
 
             try

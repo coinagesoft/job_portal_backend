@@ -5,6 +5,7 @@ using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.RecruiterEnums;
+using JobPortal.Infrastructure.Extensions;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.EntityFrameworkCore;
@@ -442,7 +443,8 @@ namespace JobPortal.Services.Implement.Admin
             string? reason,
             Guid performedByAdminId,
             string ipAddress,
-            string? userAgent)
+            string? userAgent,
+            string? jwtId = null)
         {
             var employer = await _db.EmployerProfiles
                 .Include(e => e.User)
@@ -569,6 +571,8 @@ namespace JobPortal.Services.Implement.Admin
                     UserAgent = userAgent,
 
                     Success = true,
+
+                    SessionId = await _db.ResolveSessionIdAsync(jwtId),
 
                     CreatedAt = DateTime.UtcNow
                 };
@@ -2141,8 +2145,15 @@ namespace JobPortal.Services.Implement.Admin
                     TargetEntityId =
                         document.DocumentId,
 
+                    // Include the recruiter's company name alongside the
+                    // document name — without it, the Target Entity column
+                    // just showed the document ("new opt"), giving no way
+                    // to tell which recruiter the action was taken on
+                    // without opening the recruiter's page separately.
                     TargetEntityName =
-                        documentName,
+                        document.Employer != null
+                            ? $"{document.Employer.CompanyDisplayName} — {documentName}"
+                            : documentName,
 
                     Severity =
                         severity,
@@ -2189,6 +2200,9 @@ namespace JobPortal.Services.Implement.Admin
 
                     Success =
                         true,
+
+                    SessionId =
+                        await _db.ResolveSessionIdAsync(audit.JwtId),
 
                     CreatedAt =
                         DateTime.UtcNow

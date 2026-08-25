@@ -22,7 +22,8 @@ namespace JobPortal.Services.IImplement.IAdmin
         Task<CreateSubAdminResponseDto> CreateSubAdminAsync(
             CreateSubAdminRequestDto request,
             Guid createdByAdminId,
-            string ipAddress);
+            string ipAddress,
+            string? jwtId = null);
 
         /// <summary>
         /// Updates an existing sub-admin's name, contact number, role and
@@ -34,7 +35,8 @@ namespace JobPortal.Services.IImplement.IAdmin
             Guid subAdminId,
             UpdateSubAdminRequestDto request,
             Guid updatedByAdminId,
-            string ipAddress);
+            string ipAddress,
+            string? jwtId = null);
 
         /// <summary>
         /// Soft-deletes a sub-admin account (revokes sessions, marks the
@@ -45,7 +47,8 @@ namespace JobPortal.Services.IImplement.IAdmin
         Task<DeleteSubAdminResponseDto> DeleteSubAdminAsync(
             Guid subAdminId,
             Guid deletedByAdminId,
-            string ipAddress);
+            string ipAddress,
+            string? jwtId = null);
 
         /// <summary>
         /// Suspends a sub-admin account: flips IsActive/AccountStatus to
@@ -59,7 +62,8 @@ namespace JobPortal.Services.IImplement.IAdmin
             Guid subAdminId,
             SuspendSubAdminRequestDto request,
             Guid suspendedByAdminId,
-            string ipAddress);
+            string ipAddress,
+            string? jwtId = null);
 
         /// <summary>
         /// Reactivates a previously suspended sub-admin account so it can
@@ -69,6 +73,7 @@ namespace JobPortal.Services.IImplement.IAdmin
         Task<UpdateSubAdminResponseDto> ActivateSubAdminAsync(
             Guid subAdminId,
             Guid activatedByAdminId,
-            string ipAddress);
+            string ipAddress,
+            string? jwtId = null);
     }
 }

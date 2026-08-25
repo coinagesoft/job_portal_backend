@@ -4,6 +4,7 @@ using JobPortal.Application.DTOs.Candidate;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
+using JobPortal.Infrastructure.Extensions;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.EntityFrameworkCore;
@@ -301,13 +302,14 @@ namespace JobPortal.Services.Implement.Admin
                 IpAddress = audit.IpAddress,
                 UserAgent = audit.UserAgent,
                 Success = true,
+                SessionId = await _db.ResolveSessionIdAsync(audit.JwtId),
                 CreatedAt = DateTime.UtcNow
             });
 
             await _db.SaveChangesAsync();
             return true;
         }
-    
-    
+
+
     }
 }

@@ -102,13 +102,15 @@ namespace JobPortal.API.Controllers.Admin
 
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             var userAgent = Request.Headers.UserAgent.ToString();
+            var jwtId = User.FindFirst("jti")?.Value;
 
             var result = await _supportTicketService.AddReplyAsync(
                 ticketId,
                 adminId,
                 request,
                 ipAddress,
-                userAgent);
+                userAgent,
+                jwtId);
 
             if (!result.Success)
                 return BadRequest(result);

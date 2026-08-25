@@ -53,10 +53,13 @@ namespace JobPortal.API.Controllers.Admin
 
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
+            var jwtId = User.FindFirst("jti")?.Value;
+
             var result = await _adminUserService.CreateSubAdminAsync(
                 request,
                 createdByAdminId,
-                ipAddress);
+                ipAddress,
+                jwtId);
 
             if (!result.Success)
                 return BadRequest(result);
@@ -83,11 +86,14 @@ namespace JobPortal.API.Controllers.Admin
 
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
+            var jwtId = User.FindFirst("jti")?.Value;
+
             var result = await _adminUserService.UpdateSubAdminAsync(
                 id,
                 request,
                 updatedByAdminId,
-                ipAddress);
+                ipAddress,
+                jwtId);
 
             if (!result.Success)
                 return BadRequest(result);
@@ -111,10 +117,13 @@ namespace JobPortal.API.Controllers.Admin
 
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
+            var jwtId = User.FindFirst("jti")?.Value;
+
             var result = await _adminUserService.DeleteSubAdminAsync(
                 id,
                 deletedByAdminId,
-                ipAddress);
+                ipAddress,
+                jwtId);
 
             if (!result.Success)
                 return BadRequest(result);
@@ -140,11 +149,14 @@ namespace JobPortal.API.Controllers.Admin
 
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
+            var jwtId = User.FindFirst("jti")?.Value;
+
             var result = await _adminUserService.SuspendSubAdminAsync(
                 id,
                 request ?? new SuspendSubAdminRequestDto(),
                 suspendedByAdminId,
-                ipAddress);
+                ipAddress,
+                jwtId);
 
             if (!result.Success)
                 return BadRequest(result);
@@ -167,10 +179,13 @@ namespace JobPortal.API.Controllers.Admin
 
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
+            var jwtId = User.FindFirst("jti")?.Value;
+
             var result = await _adminUserService.ActivateSubAdminAsync(
                 id,
                 activatedByAdminId,
-                ipAddress);
+                ipAddress,
+                jwtId);
 
             if (!result.Success)
                 return BadRequest(result);

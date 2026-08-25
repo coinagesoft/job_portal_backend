@@ -4,6 +4,7 @@ using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.RecruiterEnums;
+using JobPortal.Infrastructure.Extensions;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.EntityFrameworkCore;
@@ -228,7 +229,8 @@ namespace JobPortal.Services.Implement.Admin
             Guid adminId,
             AdminAddTicketReplyRequestDto request,
             string ipAddress,
-            string? userAgent)
+            string? userAgent,
+            string? jwtId = null)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
 
@@ -324,6 +326,7 @@ namespace JobPortal.Services.Implement.Admin
                     UserAgent = userAgent,
                     Success = true,
                     Severity = AuditActionSeverity.Resolve("Reply to Ticket"),
+                    SessionId = await _context.ResolveSessionIdAsync(jwtId),
                     CreatedAt = DateTime.UtcNow
                 });
 

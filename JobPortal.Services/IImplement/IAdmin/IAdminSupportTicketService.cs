@@ -29,6 +29,7 @@ namespace JobPortal.Services.IImplement.IAdmin
             Guid adminId,
             AdminAddTicketReplyRequestDto request,
             string ipAddress,
-            string? userAgent);
+            string? userAgent,
+            string? jwtId = null);
     }
 }

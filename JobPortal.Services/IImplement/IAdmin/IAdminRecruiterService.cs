@@ -19,7 +19,8 @@ namespace JobPortal.Services.IImplement.IAdmin
     string? reason,
     Guid performedByAdminId,
     string ipAddress,
-    string? userAgent
+    string? userAgent,
+    string? jwtId = null
 );
 
         Task<AdminRecruiterDetailDto?> GetRecruiterDetailAsync(Guid employerId);
