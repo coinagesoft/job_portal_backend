@@ -1,4 +1,5 @@
-﻿using JobPortal.Application.DTOs;
+﻿using JobPortal.API.Middleware;
+using JobPortal.Application.DTOs;
 using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.Implement.Admin;
 using Microsoft.AspNetCore.Authorization;
@@ -36,7 +37,11 @@ namespace JobPortal.API.Controllers.Admin
 
 
 
+        // [SkipAuditLog]: UpdateAccountStatusAsync already writes its own
+        // richer AuditLog entry, so the global AuditLogMiddleware is
+        // skipped here to avoid a duplicate row.
         [HttpPatch("{id:guid}/account-status")]
+        [SkipAuditLog]
         public async Task<IActionResult> UpdateAccountStatus(
         Guid id,
         [FromBody] UpdateAccountStatusRequestDto request)

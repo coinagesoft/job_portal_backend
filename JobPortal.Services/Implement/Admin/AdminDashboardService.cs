@@ -74,13 +74,82 @@ namespace JobPortal.Services.Implement.Admin
                 .Where(j => !j.IsDeleted && j.JobStatus == JobStatus.Paused)
                 .CountAsync();
 
-            // ---- Pending verifications (employer documents) ----
-            var pendingVerificationRows = await _db.EmployerVerificationDocuments
+            // ---- Pending verifications (recruiters, not raw documents) ----
+            // A recruiter's overall verification status must match the
+            // exact same definition used on the Recruiters page
+            // (AdminRecruiterService.GetRecruitersAsync): Rejected if any
+            // active/common document type is Rejected; Verified once every
+            // active common document type has an Approved upload;
+            // otherwise Pending — which also covers recruiters who
+            // haven't uploaded anything yet.
+            //
+            // This card previously counted raw EmployerVerificationDocuments
+            // rows in Pending status, which over-counted recruiters who had
+            // several pending documents (each counted separately) and
+            // missed recruiters who hadn't uploaded any document at all.
+            // Counting distinct recruiters here instead keeps this number
+            // consistent with what the Recruiters page shows.
+            var commonDocumentTypeIds = await _db.VerificationDocumentMasters
                 .AsNoTracking()
-                .Where(d => !d.IsDeleted && d.Status == VerificationDocumentStatus.Pending)
-                .Select(d => d.UploadedAt)
+                .Where(d => d.IsActive)
+                .Select(d => d.DocumentTypeId)
                 .ToListAsync();
+
+            var docsTotal = commonDocumentTypeIds.Count;
+
+            var employerIds = await _db.EmployerProfiles
+                .AsNoTracking()
+                .Select(e => e.EmployerId)
+                .ToListAsync();
+
+            var relevantDocs = await _db.EmployerVerificationDocuments
+                .AsNoTracking()
+                .Where(d =>
+                    !d.IsDeleted &&
+                    d.DocumentTypeId.HasValue &&
+                    commonDocumentTypeIds.Contains(d.DocumentTypeId.Value))
+                .Select(d => new { d.EmployerId, d.DocumentTypeId, d.Status, d.UploadedAt })
+                .ToListAsync();
+
+            var docsByEmployer = relevantDocs.ToLookup(d => d.EmployerId);
+
             var highPriorityCutoff = now.AddDays(-7);
+
+            var pendingRecruiterCount = 0;
+            var highPriorityRecruiterCount = 0;
+
+            foreach (var employerId in employerIds)
+            {
+                var docs = docsByEmployer[employerId];
+
+                var hasRejected = docs.Any(
+                    d => d.Status == VerificationDocumentStatus.Rejected);
+
+                var docsVerified = commonDocumentTypeIds.Count(typeId =>
+                    docs.Any(d =>
+                        d.DocumentTypeId == typeId &&
+                        d.Status == VerificationDocumentStatus.Approved));
+
+                var isPending = !hasRejected &&
+                    !(docsTotal > 0 && docsVerified == docsTotal);
+
+                if (!isPending)
+                    continue;
+
+                pendingRecruiterCount++;
+
+                var oldestPendingUpload = docs
+                    .Where(d => d.Status == VerificationDocumentStatus.Pending)
+                    .Select(d => (DateTime?)d.UploadedAt)
+                    .DefaultIfEmpty(null)
+                    .Min();
+
+                if (oldestPendingUpload.HasValue &&
+                    oldestPendingUpload.Value < highPriorityCutoff)
+                {
+                    highPriorityRecruiterCount++;
+                }
+            }
 
             // ---- Support tickets ----
             var ticketStatuses = await _db.SupportTickets
@@ -101,8 +170,8 @@ namespace JobPortal.Services.Implement.Admin
                 },
                 PendingVerifications = new PendingVerificationsStatDto
                 {
-                    Total = pendingVerificationRows.Count,
-                    HighPriority = pendingVerificationRows.Count(d => d < highPriorityCutoff)
+                    Total = pendingRecruiterCount,
+                    HighPriority = highPriorityRecruiterCount
                 },
                 OpenSupportTickets = new SupportTicketsStatDto
                 {
@@ -415,9 +484,18 @@ namespace JobPortal.Services.Implement.Admin
             var recruiterPlanCount = membershipPlans.Count(p => p == PlanType.Recruiter);
             var candidatePlanCount = membershipPlans.Count(p => p == PlanType.Candidate);
 
-            // ---- Admin users ----
+            // ---- Sub-admin accounts ----
+            // Must match the same filter as AdminUserService.GetSubAdminsAsync
+            // (the query backing the /admin/users page this card links to):
+            // AdminType == "SubAdmin" only (excludes the Super Admin's own
+            // account) and !User.IsDeleted (excludes soft-deleted sub-admins,
+            // which are kept in the table for audit history but should no
+            // longer be counted). Without these two filters this card's
+            // count didn't match what the Users page actually listed.
             var adminUsers = await _db.AdminUsers
                 .AsNoTracking()
+                .Include(a => a.User)
+                .Where(a => a.AdminType == "SubAdmin" && !a.User.IsDeleted)
                 .Select(a => a.IsActive)
                 .ToListAsync();
 

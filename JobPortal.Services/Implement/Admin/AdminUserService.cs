@@ -179,11 +179,15 @@ public class AdminUserService : IAdminUserService
                 : request.MobileNumber.Trim();
 
             //-------------------------------------------------------
-            // 3. Email / mobile must not already be in use
+            // 3. Email / mobile must not already be in use by a
+            //    non-deleted user. Deleting a sub-admin is a soft
+            //    delete (User.IsDeleted = true, row kept for audit
+            //    history) — that email/mobile must be free to reuse
+            //    afterwards, so deleted users are excluded here.
             //-------------------------------------------------------
 
             var emailTaken = await _context.Users
-                .AnyAsync(x => x.Email == email);
+                .AnyAsync(x => x.Email == email && !x.IsDeleted);
 
             if (emailTaken)
                 return Fail("A user with this email already exists.");
@@ -191,7 +195,7 @@ public class AdminUserService : IAdminUserService
             if (mobileNumber != null)
             {
                 var mobileTaken = await _context.Users
-                    .AnyAsync(x => x.MobileNumber == mobileNumber);
+                    .AnyAsync(x => x.MobileNumber == mobileNumber && !x.IsDeleted);
 
                 if (mobileTaken)
                     return Fail("A user with this mobile number already exists.");

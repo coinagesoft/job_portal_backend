@@ -30,7 +30,11 @@ namespace JobPortal.API.Controllers.Admin
         }
 
 
+        // [SkipAuditLog]: UpdateRecruiterStatusAsync already writes its own
+        // richer AuditLog entry ("Update Status"), so the global
+        // AuditLogMiddleware is skipped here to avoid a duplicate row.
         [HttpPatch("{id:guid}/account-status")]
+        [SkipAuditLog]
         public async Task<IActionResult> UpdateAccountStatus(
             Guid id,
             [FromBody] UpdateAccountStatusRequestDto request)
@@ -194,7 +198,14 @@ namespace JobPortal.API.Controllers.Admin
         }
 
 
+        // [SkipAuditLog]: UpdateRecruiterDocumentStatusAsync already writes
+        // its own richer AuditLog entry ("Verify Document" / "Reject
+        // Document" / etc.), so the global AuditLogMiddleware is skipped
+        // here to avoid a duplicate row (this is what previously produced
+        // two rows — one generic "Update Document Status" plus the
+        // specific one — for the same request/session).
         [HttpPatch("documents/{documentId:guid}/status")]
+        [SkipAuditLog]
         public async Task<IActionResult> UpdateDocumentStatus(
             Guid documentId,
             [FromBody] UpdateRecruiterDocumentStatusRequestDto request)

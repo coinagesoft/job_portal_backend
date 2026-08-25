@@ -28,7 +28,13 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public Task<bool> SendOtpAsync(string phoneNumber)
         {
-            var useIndia = IsIndianNumber(phoneNumber);
+            // TEMPORARY: MSG91 setup is not complete yet.
+            // Until it's ready, ALL numbers (including Indian) go through Twilio.
+            // To restore MSG91 for Indian numbers later, uncomment the block below
+            // and remove the "force Twilio" line.
+
+            // var useIndia = IsIndianNumber(phoneNumber);
+            var useIndia = false;
 
             _logger.LogInformation(
                 "OTP ROUTER - Phone:{Phone} Provider:{Provider}",
@@ -41,7 +47,13 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public Task<bool> VerifyOtpAsync(string phoneNumber, string otpCode)
         {
-            var useIndia = IsIndianNumber(phoneNumber);
+            // TEMPORARY: MSG91 setup is not complete yet.
+            // Until it's ready, ALL numbers (including Indian) go through Twilio.
+            // To restore MSG91 for Indian numbers later, uncomment the block below
+            // and remove the "force Twilio" line.
+
+            // var useIndia = IsIndianNumber(phoneNumber);
+            var useIndia = false;
 
             _logger.LogInformation(
                 "OTP ROUTER VERIFY - Phone:{Phone} Provider:{Provider}",
