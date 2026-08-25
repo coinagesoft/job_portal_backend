@@ -332,7 +332,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                 ipAddress);
 
             return SendFail(
-                $"{ex.GetType().Name}: {ex.Message}");
+                "We couldn't send the OTP right now. Please try again in a few minutes.");
         }
     }
 
@@ -590,7 +590,7 @@ public class RecruiterAuthService : IRecruiterAuthService
                 ipAddress);
 
             return AuthFail(
-                $"{ex.GetType().Name}: {ex.Message}");
+                "We couldn't verify that OTP right now. Please try again.");
         }
     }
     // ════════════════════════════════════════════════

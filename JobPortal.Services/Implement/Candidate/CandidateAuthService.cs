@@ -537,7 +537,7 @@ public class CandidateAuthService : ICandidateAuthService
                 ipAddress);
 
             return SendFail(
-                $"{ex.GetType().Name}: {ex.Message}");
+                "We couldn't send the OTP right now. Please try again in a few minutes.");
         }
     }
 

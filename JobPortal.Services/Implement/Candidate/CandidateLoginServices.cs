@@ -243,7 +243,7 @@ public class CandidateLoginService : ICandidateLoginService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Candidate SendOtp error. IP:{IP}", ipAddress);
-            return SendFail($"{ex.GetType().Name}: {ex.Message}");
+            return SendFail("We couldn't send the OTP right now. Please try again in a few minutes.");
         }
     }
 
@@ -384,7 +384,7 @@ public class CandidateLoginService : ICandidateLoginService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Candidate VerifyOtp error. IP:{IP}", ipAddress);
-            return AuthFail($"{ex.GetType().Name}: {ex.Message}");
+            return AuthFail("We couldn't verify that OTP right now. Please try again.");
         }
     }
 
