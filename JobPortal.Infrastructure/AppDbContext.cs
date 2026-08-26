@@ -338,11 +338,13 @@ public class AppDbContext : DbContext
 
             e.HasIndex(x => x.MobileNumber)
                 .IsUnique()
-                .HasDatabaseName("uq_users_mobile");
+                .HasDatabaseName("uq_users_mobile")
+                .HasFilter("\"IsDeleted\" = false");
 
             e.HasIndex(x => x.Email)
                 .IsUnique()
-                .HasDatabaseName("uq_users_email");
+                .HasDatabaseName("uq_users_email")
+                .HasFilter("\"IsDeleted\" = false");
         });
 
         m.Entity<SupportTicketReply>(e =>
