@@ -5,6 +5,7 @@ using JobPortal.Infrastructure.Extensions;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 
@@ -101,10 +102,7 @@ public class AuditLogMiddleware
 
             var targetEntityType = controllerActionDescriptor?.ControllerName;
 
-            Guid? targetEntityId = context.Request.RouteValues.TryGetValue("id", out var idValue)
-                && Guid.TryParse(idValue?.ToString(), out var parsedId)
-                    ? parsedId
-                    : null;
+            Guid? targetEntityId = ResolveTargetEntityId(context.Request.RouteValues);
 
             dbContext.AuditLogs.Add(new AuditLog
             {
@@ -151,6 +149,34 @@ public class AuditLogMiddleware
             return false;
 
         return true;
+    }
+
+    // Most routes key their id param literally "id" (e.g. {id:guid}), but
+    // plenty don't — {employerId:guid}, {ticketId:guid}, {documentTypeId:guid},
+    // {planId}, {locationId:guid}, etc. Previously only the literal "id" was
+    // checked, so every one of those actions was still logged (the row
+    // exists, module/action/actor are all correct) but with a null
+    // TargetEntityId, which makes the entry harder to trace back to the
+    // record it actually touched. Falls back to the first route value whose
+    // key ends in "Id" and whose value is a real GUID.
+    private static Guid? ResolveTargetEntityId(RouteValueDictionary routeValues)
+    {
+        if (routeValues.TryGetValue("id", out var idValue)
+            && Guid.TryParse(idValue?.ToString(), out var parsedId))
+        {
+            return parsedId;
+        }
+
+        foreach (var kvp in routeValues)
+        {
+            if (kvp.Key.EndsWith("Id", StringComparison.OrdinalIgnoreCase)
+                && Guid.TryParse(kvp.Value?.ToString(), out var candidateId))
+            {
+                return candidateId;
+            }
+        }
+
+        return null;
     }
 
     private static string Humanize(string pascalCase)

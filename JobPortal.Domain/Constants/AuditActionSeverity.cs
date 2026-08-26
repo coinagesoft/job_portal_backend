@@ -35,6 +35,15 @@ namespace JobPortal.Domain.Constants
 
             // Help & Support
             ["Reply to Ticket"] = AuditSeverity.Info,
+
+            // Recruiter documents
+            ["Request Recruiter Document"] = AuditSeverity.Warning,
+
+            // Membership / credit plans
+            ["Create Plan"] = AuditSeverity.Warning,
+            ["Update Plan"] = AuditSeverity.Warning,
+            ["Delete Plan"] = AuditSeverity.Critical,
+            ["Update Configuration"] = AuditSeverity.Warning,
         };
 
         /// <summary>
