@@ -1389,6 +1389,8 @@ public class PublicCompanyService : IPublicCompanyService
 
                 YearEstablished = company.YearEstablished,
 
+                NatureOfCompany = company.NatureOfCompany,
+
                 WebsiteUrl = company.WebsiteUrl,
 
                 LinkedInUrl = company.LinkedInUrl,
@@ -1440,7 +1442,21 @@ public class PublicCompanyService : IPublicCompanyService
 
                 GstRegistered = company.GstRegistered,
 
+                // These were previously never set (defaulted to false for
+                // every company, even ones with an Admin-approved licence
+                // badge) even though the frontend already renders "POE
+                // Licence: Verified / Not Available" from these two flags.
+                // Derived the same way IsVerified already is below — from
+                // an Approved badge of the matching type.
+                HasPoeLicence =
+                    company.Badges.Any(x =>
+                        x.BadgeType == BadgeType.PoeLicensed &&
+                        x.BadgeStatus == BadgeStatus.Approved),
 
+                HasRpslLicence =
+                    company.Badges.Any(x =>
+                        x.BadgeType == BadgeType.RpslLicensed &&
+                        x.BadgeStatus == BadgeStatus.Approved),
 
                 IsVerified =
                     company.Badges.Any(x =>

@@ -911,7 +911,12 @@ namespace JobPortal.Services.Implement.Admin
                     // a separate CompanyType property.
                     CompanyType = null,
 
-                    Website = employer.WebsiteUrl
+                    Website = employer.WebsiteUrl,
+
+                    NatureOfCompany = employer.NatureOfCompany,
+
+                    PlacesCandidatesInternationally =
+                        employer.PlacesCandidatesInternationally
                 },
 
                 Membership = membership == null

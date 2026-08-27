@@ -831,6 +831,21 @@ public class AppDbContext : DbContext
             e.Property(x => x.WebsiteUrl)
                 .HasColumnName("website_url");
 
+            // Added alongside the "Nature of Company" registration
+            // suggestion. Without an explicit HasColumnName, EF falls
+            // back to its default convention and looks for a column
+            // literally named "NatureOfCompany" — but every other column
+            // on this table (see legal_name, company_size, etc. above) is
+            // snake_case, and the migration that added this column
+            // created it as "nature_of_company" to match. Missing this
+            // mapping is what causes:
+            //   42703: column e.NatureOfCompany does not exist
+            e.Property(x => x.NatureOfCompany)
+                .HasColumnName("nature_of_company");
+
+            e.Property(x => x.PlacesCandidatesInternationally)
+                .HasColumnName("places_candidates_internationally");
+
             e.Property(x => x.BusinessType)
                  .HasConversion<string>()
                  .HasColumnName("business_type");

@@ -63,6 +63,11 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public short? YearEstablished { get; set; }
 
+        // "RecruitmentAgency" | "Employer" — answered at registration.
+        // Shown to candidates so they know whether they're dealing with
+        // a direct employer or a recruitment agency acting on one's behalf.
+        public string? NatureOfCompany { get; set; }
+
         // Contact
 
         public string? WebsiteUrl { get; set; }
