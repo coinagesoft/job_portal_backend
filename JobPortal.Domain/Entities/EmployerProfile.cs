@@ -29,6 +29,17 @@ public class EmployerProfile
     public int TotalEmployees { get; set; }
     public string BusinessType { get; set; } = default!;
     public string IndustryType { get; set; } = default!;
+
+    // "RecruitmentAgency" | "Employer" — mirrors RegistrationSession.
+    // Kept on the permanent profile (not just the registration session)
+    // so Admin can see it after registration completes, e.g. on the
+    // Recruiters detail page or when reviewing uploaded licences.
+    public string? NatureOfCompany { get; set; }
+
+    // Whether this recruiter places candidates internationally — asked
+    // regardless of NatureOfCompany. Drives whether POE/RPSL licences
+    // are expected on the Recruiters > Documents screen post-registration.
+    public bool? PlacesCandidatesInternationally { get; set; }
     // GST
     public bool GstRegistered { get; set; } = false;
     public string? Gstin { get; set; }

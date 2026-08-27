@@ -1700,6 +1700,14 @@ namespace JobPortal.Infrastructure.Migrations
                     .HasColumnType("text")
                     .HasColumnName("cin");
 
+                b.Property<string>("NatureOfCompany")
+                    .HasColumnType("text")
+                    .HasColumnName("nature_of_company");
+
+                b.Property<bool?>("PlacesCandidatesInternationally")
+                    .HasColumnType("boolean")
+                    .HasColumnName("places_candidates_internationally");
+
                 b.Property<string>("City")
                     .IsRequired()
                     .HasColumnType("text")
@@ -3590,6 +3598,12 @@ namespace JobPortal.Infrastructure.Migrations
 
                 b.Property<string>("LegalName")
                     .HasColumnType("text");
+
+                b.Property<string>("NatureOfCompany")
+                    .HasColumnType("text");
+
+                b.Property<bool?>("PlacesCandidatesInternationally")
+                    .HasColumnType("boolean");
 
                 b.Property<bool>("LicencesSkipped")
                     .HasColumnType("boolean");

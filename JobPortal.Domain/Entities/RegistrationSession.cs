@@ -42,6 +42,16 @@ public class RegistrationSession
     public string? WebsiteUrl { get; set; }
     public string? CompanyLogoUrl { get; set; }
 
+    // "RecruitmentAgency" | "Employer" — decides which licence uploads
+    // (Recruitment License) are required on Step 4, on top of Certificate
+    // of Incorporation which every registrant needs.
+    public string? NatureOfCompany { get; set; }
+
+    // Asked regardless of NatureOfCompany — both a Recruitment Agency and
+    // a direct Employer can place candidates abroad. When true, POE
+    // License + RPSL License are also required on Step 4.
+    public bool? PlacesCandidatesInternationally { get; set; }
+
     // Step 3 data
     public string? ContactPersonName { get; set; }
     public string? Designation { get; set; }

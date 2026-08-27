@@ -393,6 +393,11 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             // Website
             session.WebsiteUrl = request.WebsiteUrl;
 
+            // Nature of company + international placement — drive which
+            // licence uploads are required on Step 4.
+            session.NatureOfCompany = request.NatureOfCompany;
+            session.PlacesCandidatesInternationally = request.PlacesCandidatesInternationally;
+
             // Step tracking
             session.CurrentStep = 2;
 
@@ -1313,11 +1318,22 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     {
         try
         {
+            // Previously this only ever loaded IsMandatory == true rows and
+            // hardcoded OptionalDocuments to an empty list, so any document
+            // type Admin marked optional (e.g. Recruitment License, POE
+            // License, RPSL License — required only for some recruiters,
+            // not every one) never reached the registration form at all.
+            // Now both mandatory and optional *active* document types are
+            // loaded, and split into the two response buckets by their
+            // IsMandatory flag. Which of the "optional" documents should
+            // actually be treated as required for a given registrant
+            // (Recruitment Agency vs Employer, places-internationally or
+            // not) is decided client-side by name-matching against the
+            // answers from Step 2 — see requiredDocumentNames in the
+            // registration form.
             var documents = await _context.VerificationDocumentMasters
                 .AsNoTracking()
-                .Where(x =>
-                    x.IsActive &&
-                    x.IsMandatory)
+                .Where(x => x.IsActive)
                 .OrderBy(x => x.DisplayOrder)
                 .ToListAsync();
 
@@ -1325,13 +1341,17 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             {
                 Success = true,
 
-                Message = "Mandatory document types loaded successfully.",
+                Message = "Document types loaded successfully.",
 
                 MandatoryDocuments = documents
+                    .Where(x => x.IsMandatory)
                     .Select(Map)
                     .ToList(),
 
-                OptionalDocuments = new List<RegistrationDocumentTypeDto>()
+                OptionalDocuments = documents
+                    .Where(x => !x.IsMandatory)
+                    .Select(Map)
+                    .ToList()
             };
 
             return response;
@@ -2676,6 +2696,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 if (string.IsNullOrWhiteSpace(session.AddressLine1)) missingFields.Add(("Address", 2));
                 if (string.IsNullOrWhiteSpace(session.City)) missingFields.Add(("City", 2));
                 if (string.IsNullOrWhiteSpace(session.Pincode)) missingFields.Add(("Pincode", 2));
+                if (string.IsNullOrWhiteSpace(session.NatureOfCompany)) missingFields.Add(("Nature of company", 2));
+                if (!session.PlacesCandidatesInternationally.HasValue) missingFields.Add(("International placement answer", 2));
                 if (string.IsNullOrWhiteSpace(session.ContactPersonName)) missingFields.Add(("Contact person name", 3));
                 if (string.IsNullOrWhiteSpace(session.Designation)) missingFields.Add(("Designation", 3));
                 if (string.IsNullOrWhiteSpace(session.MobileNumber)) missingFields.Add(("Mobile number", 3));
@@ -2925,6 +2947,9 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     BusinessType = session.BusinessType,
 
                     IndustryType = session.IndustryType,
+
+                    NatureOfCompany = session.NatureOfCompany,
+                    PlacesCandidatesInternationally = session.PlacesCandidatesInternationally,
 
                     CompanySize =
                         !string.IsNullOrWhiteSpace(session.CompanySize)

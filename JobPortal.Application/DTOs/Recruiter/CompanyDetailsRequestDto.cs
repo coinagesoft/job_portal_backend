@@ -76,6 +76,27 @@ public class CompanyDetailsRequestDto
     /// Company logo file — PNG/JPG only, max 2MB
     /// </summary>
     public IFormFile? CompanyLogo { get; set; }         // ✅ IFormFile for upload
+
+    /// <summary>
+    /// "RecruitmentAgency" or "Employer" — drives which licence uploads
+    /// are shown/required on the Step 4 Licences screen (Recruitment
+    /// License only applies to agencies; Certificate of Incorporation
+    /// applies to everyone).
+    /// </summary>
+    [Required(ErrorMessage = "Nature of company is required.")]
+    public string NatureOfCompany { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Whether this recruiter places candidates internationally — asked
+    /// regardless of NatureOfCompany, since both a Recruitment Agency and
+    /// a direct Employer can place candidates abroad. When true, POE
+    /// License and RPSL License are also shown/required on Step 4.
+    /// Nullable so the model binder can distinguish "not answered yet"
+    /// (null — should never reach here since the frontend blocks
+    /// Continue until answered, but caught defensively in the controller)
+    /// from an explicit "No" (false).
+    /// </summary>
+    public bool? PlacesCandidatesInternationally { get; set; }
 }
 
 public class CompanyDetailsResponseDto

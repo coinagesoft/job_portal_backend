@@ -83,6 +83,27 @@ namespace JobPortal.API.Controllers.Recruiter
                 });
             }
 
+            // Nature of Company validation
+            if (request.NatureOfCompany != "RecruitmentAgency" &&
+                request.NatureOfCompany != "Employer")
+            {
+                return BadRequest(new
+                {
+                    message = "Nature of company must be either 'RecruitmentAgency' or 'Employer'."
+                });
+            }
+
+            // Places-internationally must be explicitly answered — the
+            // frontend blocks Continue until it is, but the API shouldn't
+            // silently accept "unanswered" as "No".
+            if (request.PlacesCandidatesInternationally is null)
+            {
+                return BadRequest(new
+                {
+                    message = "Please answer whether you place candidates internationally."
+                });
+            }
+
 
             // Logo validation before hitting service
             if (request.CompanyLogo != null)
