@@ -75,81 +75,34 @@ namespace JobPortal.Services.Implement.Admin
                 .CountAsync();
 
             // ---- Pending verifications (recruiters, not raw documents) ----
-            // A recruiter's overall verification status must match the
-            // exact same definition used on the Recruiters page
-            // (AdminRecruiterService.GetRecruitersAsync): Rejected if any
-            // active/common document type is Rejected; Verified once every
-            // active common document type has an Approved upload;
-            // otherwise Pending — which also covers recruiters who
-            // haven't uploaded anything yet.
+            // Must match the exact same definition used on the Recruiters
+            // page's "Pending Approvals" card (AdminRecruiterService.
+            // GetRecruitersAsync / the frontend's pendingApprovalsCount),
+            // which counts EmployerProfile.AccountStatus == Pending — the
+            // account-approval workflow status.
             //
-            // This card previously counted raw EmployerVerificationDocuments
-            // rows in Pending status, which over-counted recruiters who had
-            // several pending documents (each counted separately) and
-            // missed recruiters who hadn't uploaded any document at all.
-            // Counting distinct recruiters here instead keeps this number
-            // consistent with what the Recruiters page shows.
-            var commonDocumentTypeIds = await _db.VerificationDocumentMasters
+            // NOTE: this is intentionally NOT the same as the per-document
+            // "verificationStatus" (aka "gst") field shown in the Recruiters
+            // table, which reflects whether an employer's common documents
+            // have all been approved. That is a related but different
+            // concept, and counting by document-completion here previously
+            // caused this card to show a higher number (e.g. 38) than the
+            // Recruiters page's Pending Approvals count (e.g. 26), since it
+            // also included Active employers still missing some documents.
+            var pendingEmployers = await _db.EmployerProfiles
                 .AsNoTracking()
-                .Where(d => d.IsActive)
-                .Select(d => d.DocumentTypeId)
+                .Where(e => e.AccountStatus == AccountStatus.Pending)
+                .Select(e => new { e.EmployerId, e.CreatedAt })
                 .ToListAsync();
 
-            var docsTotal = commonDocumentTypeIds.Count;
+            var pendingRecruiterCount = pendingEmployers.Count;
 
-            var employerIds = await _db.EmployerProfiles
-                .AsNoTracking()
-                .Select(e => e.EmployerId)
-                .ToListAsync();
-
-            var relevantDocs = await _db.EmployerVerificationDocuments
-                .AsNoTracking()
-                .Where(d =>
-                    !d.IsDeleted &&
-                    d.DocumentTypeId.HasValue &&
-                    commonDocumentTypeIds.Contains(d.DocumentTypeId.Value))
-                .Select(d => new { d.EmployerId, d.DocumentTypeId, d.Status, d.UploadedAt })
-                .ToListAsync();
-
-            var docsByEmployer = relevantDocs.ToLookup(d => d.EmployerId);
-
+            // "High priority" = pending approval for more than 7 days,
+            // based on when the employer account was created.
             var highPriorityCutoff = now.AddDays(-7);
 
-            var pendingRecruiterCount = 0;
-            var highPriorityRecruiterCount = 0;
-
-            foreach (var employerId in employerIds)
-            {
-                var docs = docsByEmployer[employerId];
-
-                var hasRejected = docs.Any(
-                    d => d.Status == VerificationDocumentStatus.Rejected);
-
-                var docsVerified = commonDocumentTypeIds.Count(typeId =>
-                    docs.Any(d =>
-                        d.DocumentTypeId == typeId &&
-                        d.Status == VerificationDocumentStatus.Approved));
-
-                var isPending = !hasRejected &&
-                    !(docsTotal > 0 && docsVerified == docsTotal);
-
-                if (!isPending)
-                    continue;
-
-                pendingRecruiterCount++;
-
-                var oldestPendingUpload = docs
-                    .Where(d => d.Status == VerificationDocumentStatus.Pending)
-                    .Select(d => (DateTime?)d.UploadedAt)
-                    .DefaultIfEmpty(null)
-                    .Min();
-
-                if (oldestPendingUpload.HasValue &&
-                    oldestPendingUpload.Value < highPriorityCutoff)
-                {
-                    highPriorityRecruiterCount++;
-                }
-            }
+            var highPriorityRecruiterCount = pendingEmployers
+                .Count(e => e.CreatedAt < highPriorityCutoff);
 
             // ---- Support tickets ----
             var ticketStatuses = await _db.SupportTickets

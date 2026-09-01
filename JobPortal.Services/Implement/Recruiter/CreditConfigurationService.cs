@@ -12,8 +12,8 @@ using System.Threading.Tasks;
 
 namespace JobPortal.Services.Implement.Recruiter
 {
-   
-    public class CreditConfigurationService: ICreditConfigurationService
+
+    public class CreditConfigurationService : ICreditConfigurationService
     {
         private readonly AppDbContext _context;
 
@@ -25,9 +25,16 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public async Task<CreditConfigurationResponseDto?> GetConfigurationAsync()
         {
+            // FIX: without an explicit order, Postgres does not guarantee which
+            // row FirstOrDefault returns if more than one row has IsActive = true
+            // (which can happen if UpdateConfigurationAsync ever ran when no
+            // active row existed yet). Ordering by UpdatedAt (newest first) makes
+            // this deterministic: we always read back whatever was saved last.
             var config =
                 await _context.CreditConfigurations
-                    .FirstOrDefaultAsync(x => x.IsActive);
+                    .Where(x => x.IsActive)
+                    .OrderByDescending(x => x.UpdatedAt)
+                    .FirstOrDefaultAsync();
 
             if (config == null)
                 return null;
@@ -51,11 +58,18 @@ namespace JobPortal.Services.Implement.Recruiter
                 UpdateCreditConfigurationRequestDto request,
                 Guid adminId)
         {
-            var config =
+            // FIX: load ALL active rows (not just the first one) so we can
+            // detect and self-heal a duplicate-row situation instead of
+            // silently updating whichever row Postgres happens to hand back.
+            var activeConfigs =
                 await _context.CreditConfigurations
-                    .FirstOrDefaultAsync(x => x.IsActive);
+                    .Where(x => x.IsActive)
+                    .OrderByDescending(x => x.UpdatedAt)
+                    .ToListAsync();
 
-            if (config == null)
+            CreditConfiguration config;
+
+            if (activeConfigs.Count == 0)
             {
                 config = new CreditConfiguration
                 {
@@ -64,6 +78,18 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
 
                 _context.CreditConfigurations.Add(config);
+            }
+            else
+            {
+                // Keep the most recently updated row as the single source of
+                // truth and deactivate any older duplicates so future GETs
+                // can never pick a stale one again.
+                config = activeConfigs[0];
+
+                for (int i = 1; i < activeConfigs.Count; i++)
+                {
+                    activeConfigs[i].IsActive = false;
+                }
             }
 
             config.ProfileUnlockCredits =
