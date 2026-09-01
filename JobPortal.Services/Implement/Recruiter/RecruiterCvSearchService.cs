@@ -12,13 +12,28 @@ namespace JobPortal.Services.Implement.Recruiter
     {
         private readonly AppDbContext _context;
         private readonly IJobMatchingService _jobMatchingService;
+        private readonly ICreditConfigurationService _creditConfigurationService;
 
         public RecruiterCvSearchService(
       AppDbContext context,
-      IJobMatchingService jobMatchingService)
+      IJobMatchingService jobMatchingService,
+      ICreditConfigurationService creditConfigurationService)
         {
             _context = context;
             _jobMatchingService = jobMatchingService;
+            _creditConfigurationService = creditConfigurationService;
+        }
+
+        // Profile unlock cost is a single global setting managed by the
+        // admin (Plans > Unlock pricing). Every candidate card should show
+        // this same figure — it is NOT band-specific — so we read it once
+        // per request instead of hardcoding it here.
+        private async Task<int> GetProfileUnlockCreditsAsync()
+        {
+            var config =
+                await _creditConfigurationService.GetConfigurationAsync();
+
+            return config?.ProfileUnlockCredits ?? 2;
         }
 
         // =====================================================
@@ -225,6 +240,11 @@ namespace JobPortal.Services.Implement.Recruiter
             var candidateCards =
                 new List<CvSearchCandidateCardDto>();
 
+            // Read once for the whole page — it's a single global admin
+            // setting (Plans > Unlock pricing), not per-candidate.
+            var profileUnlockCredits =
+                await GetProfileUnlockCreditsAsync();
+
             foreach (var candidate in candidates)
             {
                 var aiResult = request.JobId.HasValue
@@ -331,13 +351,7 @@ namespace JobPortal.Services.Implement.Recruiter
                             isUnlocked,
 
                         UnlockCredits =
-                            candidate.Band switch
-                            {
-                                "A" => 1,
-                                "B" => 2,
-                                "C" => 3,
-                                _ => 2
-                            },
+                            profileUnlockCredits,
 
                         Skills =
                             skillNames,
@@ -543,6 +557,9 @@ namespace JobPortal.Services.Implement.Recruiter
             var result =
                 new List<CvSearchCandidateCardDto>();
 
+            var profileUnlockCredits =
+                await GetProfileUnlockCreditsAsync();
+
             foreach (var candidate in candidates)
             {
                 var passportValid =
@@ -606,13 +623,7 @@ namespace JobPortal.Services.Implement.Recruiter
                         CanDownloadCv = true,
 
                         UnlockCredits =
-                            candidate.Band switch
-                            {
-                                "A" => 1,
-                                "B" => 2,
-                                "C" => 3,
-                                _ => 2
-                            },
+                            profileUnlockCredits,
 
                         Skills =
                             candidate.Skills
