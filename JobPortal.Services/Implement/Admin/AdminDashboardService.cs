@@ -65,9 +65,16 @@ namespace JobPortal.Services.Implement.Admin
                 .CountAsync();
 
             // ---- Job postings ----
+            // "Active" here means the posting is not just flagged Active in
+            // the DB, but its application deadline hasn't passed yet
+            // (ApplicationDeadline >= today). A job left in JobStatus.Active
+            // whose deadline has lapsed is effectively expired and should
+            // not be counted as an active posting.
+            var today = DateOnly.FromDateTime(now);
+
             var activeJobPostings = await _db.JobPostings
                 .AsNoTracking()
-                .Where(j => !j.IsDeleted && j.JobStatus == JobStatus.Active)
+                .Where(j => !j.IsDeleted && j.JobStatus == JobStatus.Active && j.ApplicationDeadline >= today)
                 .CountAsync();
             var pausedJobPostings = await _db.JobPostings
                 .AsNoTracking()
