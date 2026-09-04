@@ -16,7 +16,7 @@ namespace JobPortal.Services.Implement.AI;
 public class AiJobDescriptionService : IAiJobDescriptionService
 {
     private readonly HttpClient _http;
-    private const string Model = "gpt-4o-mini";
+    private const string Model = "gpt-5.4-mini";
 
     public AiJobDescriptionService(
         IConfiguration configuration,

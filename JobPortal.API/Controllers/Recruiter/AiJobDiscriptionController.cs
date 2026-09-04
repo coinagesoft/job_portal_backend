@@ -46,6 +46,7 @@ public class AiJobDescriptionController : ControllerBase
     ///   - generatedDescription : drop straight into the JD textarea
     ///   - suggestedSkills      : pre-fill Step 3 skill chips
     /// </summary>
+    /// 
     [HttpPost("auto-generate")]
     public async Task<IActionResult> AutoGenerate(
         [FromBody] AutoGenerateJdRequestDto request)
