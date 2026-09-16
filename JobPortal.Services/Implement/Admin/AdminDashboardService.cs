@@ -1,5 +1,4 @@
 ﻿using JobPortal.Application.DTOs.Admin.Dashboard;
-using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.RecruiterEnums;
