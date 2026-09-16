@@ -48,9 +48,10 @@ namespace JobPortal.API.Controllers.Admin
         // same as Admin ▸ Revenue. Always returns the "week" view (last 7
         // days). See IAdminDashboardService for how to restore it.
         [HttpGet("registration-growth")]
-        public async Task<IActionResult> GetRegistrationGrowth()
+        public async Task<IActionResult> GetRegistrationGrowth(
+        [FromQuery] string range = "week")
         {
-            var data = await _service.GetRegistrationGrowthAsync();
+            var data = await _service.GetRegistrationGrowthAsync(range);
 
             return Ok(new
             {

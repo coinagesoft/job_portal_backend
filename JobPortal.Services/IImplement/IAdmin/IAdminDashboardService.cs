@@ -14,7 +14,7 @@ namespace JobPortal.Services.IImplement.IAdmin
 
         // Registration Growth line chart.
         // Filter removed for QA testing — always "week" (last 7 days).
-        Task<RegistrationGrowthResponseDto> GetRegistrationGrowthAsync();
+        Task<RegistrationGrowthResponseDto> GetRegistrationGrowthAsync(string range = "week");
 
         // Recruiters by Industry donut chart.
         Task<RecruitersByIndustryResponseDto> GetRecruitersByIndustryAsync();

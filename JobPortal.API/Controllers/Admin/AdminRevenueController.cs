@@ -45,14 +45,14 @@ namespace JobPortal.API.Controllers.Admin
         // Filters temporarily removed for QA testing (see GetSummary above).
         // Always returns the current calendar month, all countries.
         [HttpGet("by-country")]
-        public async Task<IActionResult> GetByCountry()
+        public async Task<IActionResult> GetRevenueByCountry(
+      [FromQuery] string period = "monthly")
         {
-            var data = await _service.GetRevenueByCountryAsync();
+            var data = await _service.GetRevenueByCountryAsync(period);
 
             return Ok(new
             {
                 success = true,
-                message = "Revenue by country retrieved successfully.",
                 data
             });
         }

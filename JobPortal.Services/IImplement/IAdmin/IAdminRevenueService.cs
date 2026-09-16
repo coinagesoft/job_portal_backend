@@ -15,7 +15,7 @@ namespace JobPortal.Services.IImplement.IAdmin
         // need to come back for the real admin panel.
         Task<RevenueSummaryDto> GetSummaryAsync();
 
-        Task<RevenueByCountryDto> GetRevenueByCountryAsync();
+        Task<RevenueByCountryDto> GetRevenueByCountryAsync(string period = "monthly");
 
         Task<RevenueTransactionsResponseDto> GetTransactionsAsync(
             int page,

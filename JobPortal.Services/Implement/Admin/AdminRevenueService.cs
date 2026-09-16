@@ -181,23 +181,33 @@ namespace JobPortal.Services.Implement.Admin
         // ------------------------------------------------------------
         // Filters removed for QA testing — always the current calendar
         // month ("monthly"), all countries.
-        public async Task<RevenueByCountryDto> GetRevenueByCountryAsync()
+        public async Task<RevenueByCountryDto> GetRevenueByCountryAsync(string period = "monthly")
         {
-            const string period = "monthly";
+            period = period?.ToLower() == "yearly"
+                ? "yearly"
+                : "monthly";
+
             string? country = null;
 
             var now = DateTime.UtcNow;
+
             var start = period == "yearly"
                 ? new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                 : new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-            var end = period == "yearly" ? start.AddYears(1) : start.AddMonths(1);
+
+            var end = period == "yearly"
+                ? start.AddYears(1)
+                : start.AddMonths(1);
 
             var rows = await BaseCompletedQuery(country, start, end)
                 .Select(t => new
                 {
                     Country = t.EmployerProfile != null
                         ? t.EmployerProfile.Country
-                        : (t.CandidateProfile != null ? t.CandidateProfile.Nationality : null),
+                        : (t.CandidateProfile != null
+                            ? t.CandidateProfile.Nationality
+                            : null),
+
                     t.TotalAmountPaise,
                     t.CreditQuantity,
                     t.TransactionType,
@@ -209,10 +219,14 @@ namespace JobPortal.Services.Implement.Admin
             var totalAmount = rows.Sum(r => r.TotalAmountPaise) / 100m;
 
             var countries = rows
-                .GroupBy(r => string.IsNullOrWhiteSpace(r.Country) ? "Unknown" : r.Country!)
+                .GroupBy(r =>
+                    string.IsNullOrWhiteSpace(r.Country)
+                        ? "Unknown"
+                        : r.Country!)
                 .Select(g =>
                 {
                     var amount = g.Sum(x => x.TotalAmountPaise) / 100m;
+
                     return new RevenueCountryRowDto
                     {
                         Country = g.Key,
@@ -229,10 +243,18 @@ namespace JobPortal.Services.Implement.Admin
             decimal PercentFor(string type)
             {
                 var amount = rows
-                    .Where(r => ResolveType(r.CreditQuantity, r.TransactionType, r.CandidateId, r.EmployerId) == type)
+                    .Where(r =>
+                        ResolveType(
+                            r.CreditQuantity,
+                            r.TransactionType,
+                            r.CandidateId,
+                            r.EmployerId
+                        ) == type)
                     .Sum(r => r.TotalAmountPaise) / 100m;
 
-                return totalAmount > 0 ? Math.Round(amount / totalAmount * 100, 1) : 0;
+                return totalAmount > 0
+                    ? Math.Round(amount / totalAmount * 100, 1)
+                    : 0;
             }
 
             return new RevenueByCountryDto
@@ -240,6 +262,7 @@ namespace JobPortal.Services.Implement.Admin
                 Period = period,
                 TotalAmount = totalAmount,
                 Countries = countries,
+
                 Composition = new RevenueCompositionDto
                 {
                     CandidatePercent = PercentFor("candidate"),
@@ -248,7 +271,6 @@ namespace JobPortal.Services.Implement.Admin
                 }
             };
         }
-
         // ------------------------------------------------------------
         // TRANSACTIONS TABLE
         // ------------------------------------------------------------

@@ -145,111 +145,276 @@ namespace JobPortal.Services.Implement.Admin
         // 2. REGISTRATION GROWTH
         // ------------------------------------------------------------
         // Filter removed for QA testing — always "week" (last 7 days).
-        public async Task<RegistrationGrowthResponseDto> GetRegistrationGrowthAsync()
-        {
-            const string range = "week";
+   public async Task<RegistrationGrowthResponseDto> GetRegistrationGrowthAsync(
+    string range = "week")
+{
+    range = range.ToLower();
 
-            var now = DateTime.UtcNow;
+    var now = DateTime.UtcNow;
 
-            if (range == "week")
-            {
+    Console.WriteLine("========================================");
+    Console.WriteLine("REGISTRATION GROWTH");
+    Console.WriteLine($"Range: {range}");
+    Console.WriteLine($"Now  : {now}");
+    Console.WriteLine("========================================");
+
+    // =========================
+    // WEEK
+    // =========================
+    if (range == "week")
+    {
                 var today = now.Date;
-                var start = today.AddDays(-6);
+
+                // Monday = start of week
+                int daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+
+                var start = today.AddDays(-daysSinceMonday);
+                var end = start.AddDays(7);
+
+                Console.WriteLine($"Today      : {today:yyyy-MM-dd}");
+                Console.WriteLine($"Week Start : {start:yyyy-MM-dd} (Monday)");
+                Console.WriteLine($"Week End   : {end.AddDays(-1):yyyy-MM-dd} (Sunday)");
 
                 var rows = await _db.Users
-                    .AsNoTracking()
-                    .Where(u => !u.IsDeleted &&
-                        u.CreatedAt >= start &&
-                        (u.UserType == UserType.Candidate || u.UserType == UserType.Recruiter))
-                    .Select(u => new { u.UserType, u.CreatedAt })
-                    .ToListAsync();
-
-                var labels = new List<string>();
-                var candidates = new List<int>();
-                var recruiters = new List<int>();
-
-                for (var day = start; day <= today; day = day.AddDays(1))
-                {
-                    labels.Add(day.ToString("ddd"));
-                    candidates.Add(rows.Count(r => r.UserType == UserType.Candidate && r.CreatedAt.Date == day));
-                    recruiters.Add(rows.Count(r => r.UserType == UserType.Recruiter && r.CreatedAt.Date == day));
-                }
-
-                return new RegistrationGrowthResponseDto
-                {
-                    Range = "week",
-                    Labels = labels,
-                    Candidates = candidates,
-                    Recruiters = recruiters
-                };
-            }
-
-            if (range == "month")
+            .AsNoTracking()
+            .Where(u =>
+                !u.IsDeleted &&
+                u.CreatedAt >= start &&
+                (u.UserType == UserType.Candidate ||
+                 u.UserType == UserType.Recruiter))
+            .Select(u => new
             {
-                var currentMonthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-                var start = currentMonthStart.AddMonths(-11);
+                u.UserType,
+                u.CreatedAt
+            })
+            .ToListAsync();
 
-                var rows = await _db.Users
-                    .AsNoTracking()
-                    .Where(u => !u.IsDeleted &&
-                        u.CreatedAt >= start &&
-                        (u.UserType == UserType.Candidate || u.UserType == UserType.Recruiter))
-                    .Select(u => new { u.UserType, u.CreatedAt })
-                    .ToListAsync();
+        Console.WriteLine($"Matching Users: {rows.Count}");
 
-                var labels = new List<string>();
-                var candidates = new List<int>();
-                var recruiters = new List<int>();
+        var labels = new List<string>();
+        var candidates = new List<int>();
+        var recruiters = new List<int>();
 
-                for (var month = start; month <= currentMonthStart; month = month.AddMonths(1))
-                {
-                    var monthEnd = month.AddMonths(1);
-                    labels.Add(month.ToString("MMM"));
-                    candidates.Add(rows.Count(r => r.UserType == UserType.Candidate && r.CreatedAt >= month && r.CreatedAt < monthEnd));
-                    recruiters.Add(rows.Count(r => r.UserType == UserType.Recruiter && r.CreatedAt >= month && r.CreatedAt < monthEnd));
-                }
+        for (var day = start; day <= today; day = day.AddDays(1))
+        {
+            var dayEnd = day.AddDays(1);
 
-                return new RegistrationGrowthResponseDto
-                {
-                    Range = "month",
-                    Labels = labels,
-                    Candidates = candidates,
-                    Recruiters = recruiters
-                };
-            }
+            var candidateCount = rows.Count(r =>
+                r.UserType == UserType.Candidate &&
+                r.CreatedAt >= day &&
+                r.CreatedAt < dayEnd);
 
-            // range == "year" — last 6 calendar years, oldest first.
-            var startYear = now.Year - 5;
-            var yearStart = new DateTime(startYear, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var recruiterCount = rows.Count(r =>
+                r.UserType == UserType.Recruiter &&
+                r.CreatedAt >= day &&
+                r.CreatedAt < dayEnd);
 
-            var yearRows = await _db.Users
-                .AsNoTracking()
-                .Where(u => !u.IsDeleted &&
-                    u.CreatedAt >= yearStart &&
-                    (u.UserType == UserType.Candidate || u.UserType == UserType.Recruiter))
-                .Select(u => new { u.UserType, u.CreatedAt })
-                .ToListAsync();
+            labels.Add(day.ToString("ddd"));
+            candidates.Add(candidateCount);
+            recruiters.Add(recruiterCount);
 
-            var yearLabels = new List<string>();
-            var yearCandidates = new List<int>();
-            var yearRecruiters = new List<int>();
-
-            for (var year = startYear; year <= now.Year; year++)
-            {
-                yearLabels.Add(year.ToString());
-                yearCandidates.Add(yearRows.Count(r => r.UserType == UserType.Candidate && r.CreatedAt.Year == year));
-                yearRecruiters.Add(yearRows.Count(r => r.UserType == UserType.Recruiter && r.CreatedAt.Year == year));
-            }
-
-            return new RegistrationGrowthResponseDto
-            {
-                Range = "year",
-                Labels = yearLabels,
-                Candidates = yearCandidates,
-                Recruiters = yearRecruiters
-            };
+            Console.WriteLine(
+                $"{day:yyyy-MM-dd} | " +
+                $"Candidates: {candidateCount} | " +
+                $"Recruiters: {recruiterCount}");
         }
 
+        Console.WriteLine(
+            $"Candidates: {string.Join(", ", candidates)}");
+
+        Console.WriteLine(
+            $"Recruiters: {string.Join(", ", recruiters)}");
+
+        return new RegistrationGrowthResponseDto
+        {
+            Range = "week",
+            Labels = labels,
+            Candidates = candidates,
+            Recruiters = recruiters
+        };
+    }
+
+
+    // =========================
+    // MONTH
+    // =========================
+    if (range == "month")
+    {
+        var currentMonthStart = new DateTime(
+            now.Year,
+            now.Month,
+            1,
+            0,
+            0,
+            0,
+            DateTimeKind.Utc);
+
+        // Last 12 months including current month
+        var start = currentMonthStart.AddMonths(-11);
+
+        Console.WriteLine($"Month Start: {start}");
+        Console.WriteLine($"Current Month: {currentMonthStart}");
+
+        var rows = await _db.Users
+            .AsNoTracking()
+            .Where(u =>
+                !u.IsDeleted &&
+                u.CreatedAt >= start &&
+                (u.UserType == UserType.Candidate ||
+                 u.UserType == UserType.Recruiter))
+            .Select(u => new
+            {
+                u.UserType,
+                u.CreatedAt
+            })
+            .ToListAsync();
+
+        Console.WriteLine($"Matching Users: {rows.Count}");
+
+        var labels = new List<string>();
+        var candidates = new List<int>();
+        var recruiters = new List<int>();
+
+        for (
+            var month = start;
+            month <= currentMonthStart;
+            month = month.AddMonths(1))
+        {
+            var monthEnd = month.AddMonths(1);
+
+            var candidateCount = rows.Count(r =>
+                r.UserType == UserType.Candidate &&
+                r.CreatedAt >= month &&
+                r.CreatedAt < monthEnd);
+
+            var recruiterCount = rows.Count(r =>
+                r.UserType == UserType.Recruiter &&
+                r.CreatedAt >= month &&
+                r.CreatedAt < monthEnd);
+
+            labels.Add(month.ToString("MMM"));
+
+            candidates.Add(candidateCount);
+            recruiters.Add(recruiterCount);
+
+            Console.WriteLine(
+                $"{month:yyyy-MM} | " +
+                $"Candidates: {candidateCount} | " +
+                $"Recruiters: {recruiterCount}");
+        }
+
+        Console.WriteLine(
+            $"Candidates: {string.Join(", ", candidates)}");
+
+        Console.WriteLine(
+            $"Recruiters: {string.Join(", ", recruiters)}");
+
+        return new RegistrationGrowthResponseDto
+        {
+            Range = "month",
+            Labels = labels,
+            Candidates = candidates,
+            Recruiters = recruiters
+        };
+    }
+
+
+    // =========================
+    // YEAR
+    // =========================
+    if (range == "year")
+    {
+        var startYear = now.Year - 5;
+
+        var yearStart = new DateTime(
+            startYear,
+            1,
+            1,
+            0,
+            0,
+            0,
+            DateTimeKind.Utc);
+
+        Console.WriteLine($"Year Start: {startYear}");
+        Console.WriteLine($"Current Year: {now.Year}");
+
+        var rows = await _db.Users
+            .AsNoTracking()
+            .Where(u =>
+                !u.IsDeleted &&
+                u.CreatedAt >= yearStart &&
+                (u.UserType == UserType.Candidate ||
+                 u.UserType == UserType.Recruiter))
+            .Select(u => new
+            {
+                u.UserType,
+                u.CreatedAt
+            })
+            .ToListAsync();
+
+        Console.WriteLine($"Matching Users: {rows.Count}");
+
+        var labels = new List<string>();
+        var candidates = new List<int>();
+        var recruiters = new List<int>();
+
+        for (var year = startYear; year <= now.Year; year++)
+        {
+            var yearStartDate = new DateTime(
+                year,
+                1,
+                1,
+                0,
+                0,
+                0,
+                DateTimeKind.Utc);
+
+            var yearEndDate = yearStartDate.AddYears(1);
+
+            var candidateCount = rows.Count(r =>
+                r.UserType == UserType.Candidate &&
+                r.CreatedAt >= yearStartDate &&
+                r.CreatedAt < yearEndDate);
+
+            var recruiterCount = rows.Count(r =>
+                r.UserType == UserType.Recruiter &&
+                r.CreatedAt >= yearStartDate &&
+                r.CreatedAt < yearEndDate);
+
+            labels.Add(year.ToString());
+
+            candidates.Add(candidateCount);
+            recruiters.Add(recruiterCount);
+
+            Console.WriteLine(
+                $"{year} | " +
+                $"Candidates: {candidateCount} | " +
+                $"Recruiters: {recruiterCount}");
+        }
+
+        Console.WriteLine(
+            $"Candidates: {string.Join(", ", candidates)}");
+
+        Console.WriteLine(
+            $"Recruiters: {string.Join(", ", recruiters)}");
+
+        return new RegistrationGrowthResponseDto
+        {
+            Range = "year",
+            Labels = labels,
+            Candidates = candidates,
+            Recruiters = recruiters
+        };
+    }
+
+
+    // =========================
+    // INVALID RANGE
+    // =========================
+
+    throw new ArgumentException(
+        "Range must be week, month, or year.");
+}
         // ------------------------------------------------------------
         // 3. RECRUITERS BY INDUSTRY
         // ------------------------------------------------------------
@@ -268,6 +433,7 @@ namespace JobPortal.Services.Implement.Admin
         // If those need to be treated as one industry, they should be
         // unified at the source (fix the stored IndustryType values, or
         // maintain an explicit alias map) rather than guessed here.
+      
         public async Task<RecruitersByIndustryResponseDto> GetRecruitersByIndustryAsync()
         {
             var rows = await _db.EmployerProfiles
