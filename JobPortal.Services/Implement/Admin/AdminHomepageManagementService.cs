@@ -2,6 +2,7 @@
 //  JobPortal.Services/Implement/Admin/AdminHomepageManagementService.cs
 // ============================================================
 
+using JobPortal.Application.DTOs.Admin;
 using JobPortal.Application.DTOs.Admin.Homepage;
 using JobPortal.Domain.Entities.Homepage;
 using JobPortal.Infrastructure.Persistence;
@@ -581,46 +582,127 @@ namespace JobPortal.Services.Implement.Admin
         }
 
         // Trade Categories
-        public Task<List<NamedListItemDto>> GetTradeCategoriesAsync() =>
-            GetNamedListAsync(_context.HomepageTradeCategories);
+        public Task<List<NamedListItemDto>> GetTradeCategoriesAsync() => GetNamedListAsync(_context.HomepageTradeCategories);
 
-        public async Task<NamedListItemDto> CreateTradeCategoryAsync(CreateNamedListItemRequestDto request)
+        public async Task<NamedListItemDto> CreateTradeCategoryAsync(Guid registrationIndustryId, CreateNamedListItemRequestDto request)
         {
-            var maxOrder = await _context.HomepageTradeCategories.MaxAsync(x => (int?)x.DisplayOrder) ?? 0;
+            // Make sure the Industry Type exists
+            var industryExists = await _context.HomepageRegistrationIndustries
+                .AnyAsync(x =>
+                    x.RegistrationIndustryId == registrationIndustryId &&
+                    x.IsActive);
+
+            if (!industryExists)
+                throw new KeyNotFoundException("Industry Type not found.");
+
+            var name = request.Name.Trim();
+
+            // Prevent duplicate Trade Category under the same Industry Type
+            var alreadyExists = await _context.HomepageTradeCategories
+                .AnyAsync(x =>
+                    x.RegistrationIndustryId == registrationIndustryId &&
+                    x.Name.ToLower() == name.ToLower());
+
+            if (alreadyExists)
+                throw new InvalidOperationException(
+                    "A Trade Category with the same name already exists under this Industry Type.");
+
+            // Display order should be within the selected Industry
+            var maxOrder = await _context.HomepageTradeCategories
+                .Where(x => x.RegistrationIndustryId == registrationIndustryId)
+                .MaxAsync(x => (int?)x.DisplayOrder) ?? 0;
+
             var entity = new HomepageTradeCategory
             {
                 TradeCategoryId = Guid.NewGuid(),
-                Name = request.Name.Trim(),
+
+                RegistrationIndustryId = registrationIndustryId,
+
+                Name = name,
+
                 IsActive = true,
+
                 DisplayOrder = maxOrder + 1,
+
                 CreatedAt = DateTime.UtcNow,
+
                 UpdatedAt = DateTime.UtcNow
             };
+
             _context.HomepageTradeCategories.Add(entity);
+
             await _context.SaveChangesAsync();
-            return MapNamed(entity.TradeCategoryId, entity.Name, entity.DisplayOrder, entity.IsActive);
+
+            return MapNamed(
+                entity.TradeCategoryId,
+                entity.Name,
+                entity.DisplayOrder,
+                entity.IsActive);
         }
 
-        public async Task<NamedListItemDto?> UpdateTradeCategoryAsync(Guid id, UpdateNamedListItemRequestDto request)
+        public async Task<NamedListItemDto?> UpdateTradeCategoryAsync( Guid id, UpdateNamedListItemRequestDto request)
         {
-            var entity = await _context.HomepageTradeCategories.FirstOrDefaultAsync(x => x.TradeCategoryId == id);
-            if (entity == null) return null;
-            if (!string.IsNullOrWhiteSpace(request.Name)) entity.Name = request.Name.Trim();
-            if (request.DisplayOrder.HasValue) entity.DisplayOrder = request.DisplayOrder.Value;
-            entity.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-            return MapNamed(entity.TradeCategoryId, entity.Name, entity.DisplayOrder, entity.IsActive);
-        }
+            var entity = await _context.HomepageTradeCategories
+                .FirstOrDefaultAsync(x => x.TradeCategoryId == id);
 
+            if (entity == null)
+                return null;
+
+            if (!string.IsNullOrWhiteSpace(request.Name))
+            {
+                var name = request.Name.Trim();
+
+                // Prevent duplicate Trade Category
+                // under the same Industry Type
+                var duplicateExists = await _context.HomepageTradeCategories
+                    .AnyAsync(x =>
+                        x.TradeCategoryId != id &&
+                        x.RegistrationIndustryId == entity.RegistrationIndustryId &&
+                        x.Name.ToLower() == name.ToLower());
+
+                if (duplicateExists)
+                    throw new InvalidOperationException(
+                        "A Trade Category with the same name already exists under this Industry Type.");
+
+                entity.Name = name;
+            }
+
+            if (request.DisplayOrder.HasValue)
+                entity.DisplayOrder = request.DisplayOrder.Value;
+
+            entity.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return MapNamed(
+                entity.TradeCategoryId,
+                entity.Name,
+                entity.DisplayOrder,
+                entity.IsActive);
+        }
         public async Task<bool> DeleteTradeCategoryAsync(Guid id)
         {
-            var entity = await _context.HomepageTradeCategories.FirstOrDefaultAsync(x => x.TradeCategoryId == id);
-            if (entity == null) return false;
+            var entity = await _context.HomepageTradeCategories
+                .FirstOrDefaultAsync(x => x.TradeCategoryId == id);
+
+            if (entity == null)
+                return false;
+
+            var hasSubTrades = await _context.HomepageSubTrades
+                .AnyAsync(x => x.TradeCategoryId == id);
+
+            if (hasSubTrades)
+            {
+                throw new InvalidOperationException(
+                    "This Trade Category cannot be deleted because it has SubTrades. Delete the SubTrades first.");
+            }
+
             _context.HomepageTradeCategories.Remove(entity);
+
             await _context.SaveChangesAsync();
+
             return true;
         }
-
         public async Task<NamedListItemDto?> ToggleTradeCategoryAsync(Guid id)
         {
             var entity = await _context.HomepageTradeCategories.FirstOrDefaultAsync(x => x.TradeCategoryId == id);
@@ -631,6 +713,191 @@ namespace JobPortal.Services.Implement.Admin
             return MapNamed(entity.TradeCategoryId, entity.Name, entity.DisplayOrder, entity.IsActive);
         }
 
+
+
+        // ============================================================
+        // Sub Trades
+        // ============================================================
+
+        public async Task<List<NamedListItemDto>> GetSubTradesAsync(Guid tradeCategoryId)
+        {
+            return await _context.HomepageSubTrades
+                .AsNoTracking()
+                .Where(x => x.TradeCategoryId == tradeCategoryId)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new NamedListItemDto
+                {
+                    Id = x.SubTradeId,
+                    Name = x.Name,
+                    DisplayOrder = x.DisplayOrder,
+                    IsActive = x.IsActive
+                })
+                .ToListAsync();
+        }
+
+        public async Task<NamedListItemDto> CreateSubTradeAsync(
+            Guid tradeCategoryId,
+            CreateNamedListItemRequestDto request)
+        {
+            // Make sure the parent Trade Category exists
+            var tradeCategoryExists = await _context.HomepageTradeCategories
+                .AnyAsync(x => x.TradeCategoryId == tradeCategoryId);
+
+            if (!tradeCategoryExists)
+                throw new KeyNotFoundException("Trade category not found.");
+
+            var name = request.Name.Trim();
+
+            // Prevent duplicate SubTrade under the same Trade Category
+            var alreadyExists = await _context.HomepageSubTrades
+                .AnyAsync(x =>
+                    x.TradeCategoryId == tradeCategoryId &&
+                    x.Name.ToLower() == name.ToLower());
+
+            if (alreadyExists)
+                throw new InvalidOperationException(
+                    "A SubTrade with the same name already exists under this Trade Category.");
+
+            var maxOrder = await _context.HomepageSubTrades
+                .Where(x => x.TradeCategoryId == tradeCategoryId)
+                .MaxAsync(x => (int?)x.DisplayOrder) ?? 0;
+
+            var entity = new HomepageSubTrade
+            {
+                SubTradeId = Guid.NewGuid(),
+                TradeCategoryId = tradeCategoryId,
+                Name = name,
+                IsActive = true,
+                DisplayOrder = maxOrder + 1,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.HomepageSubTrades.Add(entity);
+
+            await _context.SaveChangesAsync();
+
+            return MapNamed(
+                entity.SubTradeId,
+                entity.Name,
+                entity.DisplayOrder,
+                entity.IsActive);
+        }
+
+        public async Task<NamedListItemDto?> UpdateSubTradeAsync(
+            Guid id,
+            UpdateNamedListItemRequestDto request)
+        {
+            var entity = await _context.HomepageSubTrades
+                .FirstOrDefaultAsync(x => x.SubTradeId == id);
+
+            if (entity == null)
+                return null;
+
+            if (!string.IsNullOrWhiteSpace(request.Name))
+            {
+                var name = request.Name.Trim();
+
+                var duplicateExists = await _context.HomepageSubTrades
+                    .AnyAsync(x =>
+                        x.SubTradeId != id &&
+                        x.TradeCategoryId == entity.TradeCategoryId &&
+                        x.Name.ToLower() == name.ToLower());
+
+                if (duplicateExists)
+                    throw new InvalidOperationException(
+                        "A SubTrade with the same name already exists under this Trade Category.");
+
+                entity.Name = name;
+            }
+
+            if (request.DisplayOrder.HasValue)
+                entity.DisplayOrder = request.DisplayOrder.Value;
+
+            entity.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return MapNamed(
+                entity.SubTradeId,
+                entity.Name,
+                entity.DisplayOrder,
+                entity.IsActive);
+        }
+
+        public async Task<bool> DeleteSubTradeAsync(Guid id)
+        {
+            var entity = await _context.HomepageSubTrades
+                .FirstOrDefaultAsync(x => x.SubTradeId == id);
+
+            if (entity == null)
+                return false;
+
+            _context.HomepageSubTrades.Remove(entity);
+
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+
+        public async Task<NamedListItemDto?> ToggleSubTradeAsync(Guid id)
+        {
+            var entity = await _context.HomepageSubTrades
+                .FirstOrDefaultAsync(x => x.SubTradeId == id);
+
+            if (entity == null)
+                return null;
+
+            entity.IsActive = !entity.IsActive;
+            entity.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return MapNamed(
+                entity.SubTradeId,
+                entity.Name,
+                entity.DisplayOrder,
+                entity.IsActive);
+        }
+        public async Task<IndustryTradeSubTradeDto?> GetIndustryTradeSubTradesAsync(
+    Guid industryId)
+        {
+            var industry = await _context.HomepageRegistrationIndustries
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.RegistrationIndustryId == industryId);
+
+            if (industry == null)
+                return null;
+
+            var trades = await _context.HomepageTradeCategories
+                .AsNoTracking()
+                .Where(x => x.RegistrationIndustryId == industryId)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new TradeWithSubTradesDto
+                {
+                    TradeCategoryId = x.TradeCategoryId,
+                    Name = x.Name,
+
+                    SubTrades = _context.HomepageSubTrades
+                        .AsNoTracking()
+                        .Where(st => st.TradeCategoryId == x.TradeCategoryId)
+                        .OrderBy(st => st.DisplayOrder)
+                        .Select(st => new SubTradeDto
+                        {
+                            SubTradeId = st.SubTradeId,
+                            Name = st.Name
+                        })
+                        .ToList()
+                })
+                .ToListAsync();
+
+            return new IndustryTradeSubTradeDto
+            {
+                IndustryId = industry.RegistrationIndustryId,
+                IndustryName = industry.Name,
+                Trades = trades
+            };
+        }
         private static async Task<List<NamedListItemDto>> GetNamedListAsync<T>(IQueryable<T> query)
             where T : class
         {
@@ -753,8 +1020,56 @@ namespace JobPortal.Services.Implement.Admin
                     break;
 
                 case HomepageSuggestionType.TradeCategory:
-                    if (!await _context.HomepageTradeCategories.AnyAsync(x => x.Name.ToLower() == name.ToLower()))
-                        await CreateTradeCategoryAsync(new CreateNamedListItemRequestDto { Name = name });
+
+                    if (!suggestion.RegistrationIndustryId.HasValue)
+                        throw new InvalidOperationException(
+                            "Registration Industry is required for a Trade Category suggestion.");
+
+                    var registrationIndustryId =
+                        suggestion.RegistrationIndustryId.Value;
+
+                    var tradeExists = await _context.HomepageTradeCategories
+                        .AnyAsync(x =>
+                            x.RegistrationIndustryId == registrationIndustryId &&
+                            x.Name.ToLower() == name.ToLower());
+
+                    if (!tradeExists)
+                    {
+                        await CreateTradeCategoryAsync(
+                            registrationIndustryId,
+                            new CreateNamedListItemRequestDto
+                            {
+                                Name = name
+                            });
+                    }
+
+                    break;
+
+
+                case HomepageSuggestionType.SubTrade:
+
+                    if (!suggestion.TradeCategoryId.HasValue)
+                        throw new InvalidOperationException(
+                            "Trade Category is required for a SubTrade suggestion.");
+
+                    var tradeCategoryId =
+                        suggestion.TradeCategoryId.Value;
+
+                    var subTradeExists = await _context.HomepageSubTrades
+                        .AnyAsync(x =>
+                            x.TradeCategoryId == tradeCategoryId &&
+                            x.Name.ToLower() == name.ToLower());
+
+                    if (!subTradeExists)
+                    {
+                        await CreateSubTradeAsync(
+                            tradeCategoryId,
+                            new CreateNamedListItemRequestDto
+                            {
+                                Name = name
+                            });
+                    }
+
                     break;
             }
         }

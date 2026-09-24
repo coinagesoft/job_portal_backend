@@ -13,6 +13,7 @@ public class JobPosting
     public string JobDescription { get; set; } = default!;
     public string? Role { get; set; }
     public string TradeCategory { get; set; } = default!;
+    public string? SubTrade { get; set; }
     public int SalaryMin { get; set; }
     public int SalaryMax { get; set; }
 
@@ -21,6 +22,7 @@ public class JobPosting
     // ✅ ALL string — no enums on entity
     public string SalaryCurrency { get; set; } 
     public string SalaryDisplayOption { get; set; } = default;
+    public string? SalaryPeriod { get; set; }
     public short Vacancies { get; set; } = 0;
     public byte ExperienceMinYears { get; set; } = 0; 
     public byte ExperienceMaxYears { get; set; } = 0;

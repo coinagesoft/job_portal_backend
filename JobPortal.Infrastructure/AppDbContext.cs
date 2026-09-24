@@ -114,10 +114,10 @@ public class AppDbContext : DbContext
 
     public DbSet<AdminRole> AdminRoles => Set<AdminRole>();
 
-
     public DbSet<AdminEmailOtp> AdminEmailOtps => Set<AdminEmailOtp>();
 
     public DbSet<AdminLoginLog> AdminLoginLogs => Set<AdminLoginLog>();
+    public DbSet<HomepageSubTrade> HomepageSubTrades => Set<HomepageSubTrade>();
 
     //public DbSet<JobEmbedding> JobEmbeddings { get; set; }
     public DbSet<JobEmbedding> JobEmbeddings =>
@@ -517,6 +517,23 @@ public class AppDbContext : DbContext
 
             entity.Property(x => x.Description)
                 .HasMaxLength(500);
+        });
+
+        m.Entity<HomepageSubTrade>(e =>
+        {
+            e.HasKey(x => x.SubTradeId);
+
+            e.Property(x => x.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            e.HasIndex(x => new { x.TradeCategoryId, x.Name })
+                .IsUnique();
+
+            e.HasOne(x => x.TradeCategory)
+                .WithMany()
+                .HasForeignKey(x => x.TradeCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
         // ── admin_sessions ─────────────────────────────────────
         m.Entity<AdminSession>(entity =>
@@ -1784,11 +1801,25 @@ public class AppDbContext : DbContext
         m.Entity<HomepageTradeCategory>(e =>
         {
             e.ToTable("homepage_trade_categories");
-            e.HasKey(x => x.TradeCategoryId);
-            e.Property(x => x.Name).HasMaxLength(150).IsRequired();
-            e.HasIndex(x => x.DisplayOrder);
-        });
 
+            e.HasKey(x => x.TradeCategoryId);
+
+            e.Property(x => x.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            e.HasIndex(x => new
+            {
+                x.RegistrationIndustryId,
+                x.Name
+            })
+            .IsUnique();
+
+            e.HasOne(x => x.RegistrationIndustry)
+                .WithMany()
+                .HasForeignKey(x => x.RegistrationIndustryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
         m.Entity<HomepageSuggestion>(e =>
         {
             e.ToTable("homepage_suggestions");

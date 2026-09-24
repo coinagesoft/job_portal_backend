@@ -77,22 +77,20 @@ namespace JobPortal.Application.DTOs.Recruiter.Homepage
     /// </summary>
     public class RecruiterSuggestionRequestDto
     {
-        /// <summary>
-        /// Which dropdown this is for: "Industry" (registration only) or
-        /// "TradeRole" / "Department" (job posting only). The registration
-        /// endpoint always submits as Industry; the job-posting endpoint
-        /// always submits as TradeRole or Department — see each
-        /// controller's [HttpPost] for the exact contract.
-        /// </summary>
         public string Field { get; set; } = default!;
 
         public string SuggestedName { get; set; } = default!;
 
         public string? Note { get; set; }
 
-        /// <summary>Optional — unknown during registration Step 1 (no contact info collected yet).</summary>
         public string? SubmittedByName { get; set; }
+
         public string? SubmittedByEmail { get; set; }
+
+        // Parent hierarchy
+        public Guid? RegistrationIndustryId { get; set; }
+
+        public Guid? TradeCategoryId { get; set; }
     }
 
     public class RecruiterSuggestionResponseDto

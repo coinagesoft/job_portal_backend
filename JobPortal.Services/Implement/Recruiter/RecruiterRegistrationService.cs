@@ -1,7 +1,10 @@
 ﻿using JobPortal.Application.DTOs.Admin.CompanyDocuments;
+using JobPortal.Application.DTOs.Admin.Homepage;
 using JobPortal.Application.DTOs.Recruiter;
+using JobPortal.Application.DTOs.Recruiter.Homepage;
 using JobPortal.Domain.Common;
 using JobPortal.Domain.Entities;
+using JobPortal.Domain.Entities.Homepage;
 using JobPortal.Domain.Enums;
 using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.Common;
@@ -54,6 +57,17 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         _config = config;
 
     }
+
+    private static readonly Dictionary<string, HomepageSuggestionType> FieldMap =
+     new(StringComparer.OrdinalIgnoreCase)
+     {
+         ["Industry"] = HomepageSuggestionType.RegistrationIndustry,
+         ["TradeRole"] = HomepageSuggestionType.TradeCategory,
+         ["Department"] = HomepageSuggestionType.Department,
+         ["RegistrationIndustry"] = HomepageSuggestionType.RegistrationIndustry,
+         ["TradeCategory"] = HomepageSuggestionType.TradeCategory,
+         ["SubTrade"] = HomepageSuggestionType.SubTrade
+     };
 
     // Resolves the active recruiter membership plan to charge: prefers an
     // exact region match, falls back to the "in" (India) default region,
@@ -3470,5 +3484,142 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             RequiresVerification = doc.RequiresVerification,
             DisplayOrder = doc.DisplayOrder
         };
+    }
+
+
+    // ============================================================
+    // MASTER DROPDOWNS
+    // Industry Type → Trade Category
+    // ============================================================
+
+    public async Task<List<NamedListItemDto>> GetTradeCategoriesByIndustryAsync(
+      Guid registrationIndustryId)
+    {
+        return await _context.HomepageTradeCategories
+            .AsNoTracking()
+            .Where(x =>
+                x.RegistrationIndustryId == registrationIndustryId &&
+                x.IsActive)
+            .OrderBy(x => x.DisplayOrder)
+            .Select(x => new NamedListItemDto
+            {
+                Id = x.TradeCategoryId,
+                Name = x.Name,
+                DisplayOrder = x.DisplayOrder,
+                IsActive = x.IsActive
+            })
+            .ToListAsync();
+    }
+
+
+    // ============================================================
+    // MASTER DROPDOWNS
+    // Trade Category → SubTrade
+    // ============================================================
+
+    public async Task<List<NamedListItemDto>> GetSubTradesByTradeCategoryAsync(
+        Guid tradeCategoryId)
+    {
+        return await _context.HomepageSubTrades
+            .AsNoTracking()
+            .Where(x =>
+                x.TradeCategoryId == tradeCategoryId &&
+                x.IsActive)
+            .OrderBy(x => x.DisplayOrder)
+            .Select(x => new NamedListItemDto
+            {
+                Id = x.SubTradeId,
+                Name = x.Name,
+                DisplayOrder = x.DisplayOrder,
+                IsActive = x.IsActive
+            })
+            .ToListAsync();
+    }
+
+    public async Task<RecruiterSuggestionResponseDto> SubmitSuggestionAsync(
+    RecruiterSuggestionRequestDto request,
+    Guid? submittedByUserId,
+    params string[] allowedFields)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.SuggestedName))
+                return new RecruiterSuggestionResponseDto { Success = false, Message = "SuggestedName is required." };
+
+            var field = request.Field?.Trim() ?? string.Empty;
+
+            _logger.LogInformation(
+    "SUGGESTION REQUEST: Field=[{Field}], SuggestedName=[{SuggestedName}], RegistrationIndustryId=[{RegistrationIndustryId}], TradeCategoryId=[{TradeCategoryId}]",
+    field,
+    request.SuggestedName,
+    request.RegistrationIndustryId,
+    request.TradeCategoryId
+);
+            var isAllowed = allowedFields.Any(f => string.Equals(f, field, StringComparison.OrdinalIgnoreCase));
+            if (!isAllowed || !FieldMap.TryGetValue(field, out var type))
+            {
+                return new RecruiterSuggestionResponseDto
+                {
+                    Success = false,
+                    Message = $"Field must be one of: {string.Join(", ", allowedFields)}."
+                };
+            }
+
+            var suggestedName = request.SuggestedName.Trim();
+
+            // Skip a duplicate pending suggestion for the same field + name
+            // instead of piling up near-identical rows in the admin inbox.
+            var alreadyPending = await _context.HomepageSuggestions.AnyAsync(s =>
+                s.Type == type &&
+                s.Status == HomepageSuggestionStatus.Pending &&
+                s.SuggestedName.ToLower() == suggestedName.ToLower());
+
+            if (alreadyPending)
+            {
+                return new RecruiterSuggestionResponseDto
+                {
+                    Success = true,
+                    Message = "This has already been suggested and is pending admin review."
+                };
+            }
+
+            var entity = new HomepageSuggestion
+            {
+                SuggestionId = Guid.NewGuid(),
+                Type = type,
+                SuggestedName = suggestedName,
+                Note = request.Note,
+
+                SubmittedByUserId = submittedByUserId,
+                SubmittedByName = request.SubmittedByName,
+                SubmittedByEmail = request.SubmittedByEmail,
+
+                // Parent hierarchy
+                RegistrationIndustryId = request.RegistrationIndustryId,
+                TradeCategoryId = request.TradeCategoryId,
+
+                Status = HomepageSuggestionStatus.Pending,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.HomepageSuggestions.Add(entity);
+            await _context.SaveChangesAsync();
+
+            return new RecruiterSuggestionResponseDto
+            {
+                Success = true,
+                Message = "Thanks! Your suggestion has been submitted for review.",
+                SuggestionId = entity.SuggestionId
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "RecruiterHomepageService.SubmitSuggestionAsync failed.");
+            return new RecruiterSuggestionResponseDto
+            {
+                Success = false,
+                Message = "An error occurred while submitting your suggestion."
+            };
+        }
     }
 }

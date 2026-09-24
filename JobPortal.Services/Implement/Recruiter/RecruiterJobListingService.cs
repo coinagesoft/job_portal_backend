@@ -163,6 +163,7 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 JobTitle = x.JobTitle,
                 TradeCategory = x.TradeCategory,
+                SubTrade = x.SubTrade,
                 Role = x.Role,
                 Department = x.Department,
                 CompanyName =
@@ -195,7 +196,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 SalaryMax = x.SalaryMax,
                 SalaryCurrency = x.SalaryCurrency.ToString(),
                 SalaryDisplayOption = x.SalaryDisplayOption.ToString(),
-
+                SalaryPeriod = x.SalaryPeriod,
                 ApplicationDeadline = x.ApplicationDeadline,
                 CreatedAt = x.CreatedAt,
                 PublishedAt = x.PublishedAt,
@@ -226,10 +227,7 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<RecruiterJobDetailResponseDto?>
-          GetJobByIdAsync(
-              Guid employerId,
-              Guid jobId)
+        public async Task<RecruiterJobDetailResponseDto?> GetJobByIdAsync(Guid employerId, Guid jobId)
         {
             var job = await _context.JobPostings
                 .AsNoTracking()
@@ -255,6 +253,8 @@ namespace JobPortal.Services.Implement.Recruiter
                 JobDescription = job.JobDescription,
 
                 TradeCategory = job.TradeCategory,
+
+                SubTrade = job.SubTrade,
 
                 Role = job.Role,
 

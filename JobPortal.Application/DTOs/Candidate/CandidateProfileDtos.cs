@@ -85,6 +85,7 @@ public class CandidatePersonalInfoData
     public int? ExpectedSalary { get; set; }   // PreferredSalary
     public string? Nationality { get; set; }
     public bool CurrentlyAvailableForWork { get; set; }  // AvailabilityStatus == "Available"
+    public string? AvailableIn { get; set; }
     public bool NewsletterOptIn { get; set; }
     public byte ProfileCompletionPct { get; set; }
 }
@@ -141,6 +142,8 @@ public class UpdateCandidatePersonalInfoRequestDto
 
     public string? Nationality { get; set; }
 
+    [MaxLength(50)]
+    public string? AvailableIn { get; set; }
     public bool? CurrentlyAvailableForWork { get; set; }  // true => "Available"
 
     public bool NewsletterOptIn { get; set; }
@@ -254,6 +257,7 @@ public class UpdateProfileAvailabilityRequestDto
     /// <summary>Simple toggle: true => "Available", false => "Not Available".
     /// Used only when AvailabilityStatus is not supplied.</summary>
     public bool? CurrentlyAvailableForWork { get; set; }
+    public string? AvailableIn { get; set; }
 }
 
 public class UpdateProfileAvailabilityResponseDto

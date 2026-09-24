@@ -28,7 +28,7 @@ namespace JobPortal.API.Controllers.Recruiter
     [Produces("application/json")]
     public class RecruiterRegistrationHomepageController : ControllerBase
     {
-        private static readonly string[] AllowedFields = { "Industry" };
+        private static readonly string[] AllowedFields ={"RegistrationIndustry","TradeCategory", "SubTrade"};
 
         private readonly IRecruiterHomepageService _service;
 
@@ -64,15 +64,32 @@ namespace JobPortal.API.Controllers.Recruiter
         [AllowAnonymous]
         [ProducesResponseType(typeof(RecruiterSuggestionResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        public async Task<IActionResult> SubmitIndustrySuggestion([FromBody] RecruiterSuggestionRequestDto request)
+        public async Task<IActionResult> SubmitIndustrySuggestion(
+      [FromBody] RecruiterSuggestionRequestDto request)
         {
             if (request == null || string.IsNullOrWhiteSpace(request.SuggestedName))
-                return BadRequest(new RecruiterSuggestionResponseDto { Success = false, Message = "SuggestedName is required." });
+            {
+                return BadRequest(new RecruiterSuggestionResponseDto
+                {
+                    Success = false,
+                    Message = "SuggestedName is required."
+                });
+            }
 
-            request.Field = "Industry";
+            // DO NOT overwrite request.Field here.
+            // The frontend sends:
+            // RegistrationIndustry
+            // TradeCategory
+            // SubTrade
 
-            var result = await _service.SubmitSuggestionAsync(request, submittedByUserId: null, AllowedFields);
-            return result.Success ? Ok(result) : BadRequest(result);
+            var result = await _service.SubmitSuggestionAsync(
+                request,
+                submittedByUserId: null,
+                AllowedFields);
+
+            return result.Success
+                ? Ok(result)
+                : BadRequest(result);
         }
     }
 }

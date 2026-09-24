@@ -116,6 +116,7 @@ public class CandidateProfileService : ICandidateProfileService
                 CurrentlyAvailableForWork =
                     string.Equals(c.AvailabilityStatus, "Available",
                         StringComparison.OrdinalIgnoreCase),
+                AvailableIn = c.AvailableIn,
                 NewsletterOptIn = c.NewsletterOptIn,
                 ProfileCompletionPct = c.ProfileCompletionPct
             }
@@ -158,9 +159,32 @@ public class CandidateProfileService : ICandidateProfileService
         if (!string.IsNullOrWhiteSpace(r.Nationality)) c.Nationality = r.Nationality;
         if (r.CurrentlyAvailableForWork.HasValue)
         {
-            c.AvailabilityStatus = r.CurrentlyAvailableForWork.Value
+            bool isAvailable = r.CurrentlyAvailableForWork.Value;
+
+            c.AvailabilityStatus = isAvailable
                 ? "Available"
                 : "Not Available";
+
+            if (isAvailable)
+            {
+                // Available now → clear any previous future availability
+                c.AvailableIn = null;
+            }
+            else
+            {
+                // Not available → future availability is required
+                if (string.IsNullOrWhiteSpace(r.AvailableIn))
+                {
+                    return new()
+                    {
+                        Success = false,
+                        Message = "Please select when you will be available."
+                    };
+                }
+
+                c.AvailableIn = r.AvailableIn.Trim();
+            }
+
             c.AvailabilityUpdatedAt = DateTime.UtcNow;
         }
         c.NewsletterOptIn = r.NewsletterOptIn;
@@ -462,33 +486,71 @@ public class CandidateProfileService : ICandidateProfileService
     // AVAILABILITY FOR WORK (PATCH)
     // ============================================================
     public async Task<UpdateProfileAvailabilityResponseDto> UpdateAvailabilityAsync(
-        Guid candidateId, UpdateProfileAvailabilityRequestDto r)
+        Guid candidateId,
+        UpdateProfileAvailabilityRequestDto r)
     {
         var c = await _context.CandidateProfiles
             .FirstOrDefaultAsync(x => x.CandidateId == candidateId);
+
         if (c == null)
-            return new() { Success = false, Message = "Profile not found." };
+            return new()
+            {
+                Success = false,
+                Message = "Profile not found."
+            };
+
+        bool isAvailable = false;
 
         if (!string.IsNullOrWhiteSpace(r.AvailabilityStatus))
         {
             c.AvailabilityStatus = r.AvailabilityStatus.Trim();
+
+            isAvailable = string.Equals(
+                c.AvailabilityStatus,
+                "Available",
+                StringComparison.OrdinalIgnoreCase);
         }
         else if (r.CurrentlyAvailableForWork.HasValue)
         {
-            c.AvailabilityStatus = r.CurrentlyAvailableForWork.Value
+            isAvailable = r.CurrentlyAvailableForWork.Value;
+
+            c.AvailabilityStatus = isAvailable
                 ? "Available"
                 : "Not Available";
         }
         else
         {
-            return new() { Success = false, Message = "No availability value supplied." };
+            return new()
+            {
+                Success = false,
+                Message = "No availability value supplied."
+            };
+        }
+
+        // Available now → no future availability period
+        if (isAvailable)
+        {
+            c.AvailableIn = null;
+        }
+        else
+        {
+            // Not available → future availability is required
+            if (string.IsNullOrWhiteSpace(r.AvailableIn))
+            {
+                return new()
+                {
+                    Success = false,
+                    Message = "Please select when you will be available."
+                };
+            }
+
+            c.AvailableIn = r.AvailableIn.Trim();
         }
 
         c.AvailabilityUpdatedAt = DateTime.UtcNow;
         c.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
-
 
         return new UpdateProfileAvailabilityResponseDto
         {

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260922050947_subtrade")]
+    partial class subtrade
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2378,9 +2381,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("Note")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("RegistrationIndustryId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime?>("ReviewedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2405,9 +2405,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
-
-                    b.Property<Guid?>("TradeCategoryId")
-                        .HasColumnType("uuid");
 
                     b.Property<string>("Type")
                         .IsRequired()
@@ -2442,19 +2439,15 @@ namespace JobPortal.Infrastructure.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("RegistrationIndustryId")
-                        .HasColumnType("uuid");
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("TradeCategoryId");
 
-                    b.HasIndex("RegistrationIndustryId", "Name")
-                        .IsUnique();
+                    b.HasIndex("DisplayOrder");
 
                     b.ToTable("homepage_trade_categories", (string)null);
                 });
@@ -2908,9 +2901,6 @@ namespace JobPortal.Infrastructure.Migrations
 
                     b.Property<bool>("ShowClientName")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("SubTrade")
-                        .HasColumnType("text");
 
                     b.Property<string>("Tags")
                         .HasColumnType("jsonb")
@@ -4636,16 +4626,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Navigation("ReviewedByAdmin");
 
                     b.Navigation("SubmittedByUser");
-                });
-
-            modelBuilder.Entity("JobPortal.Domain.Entities.Homepage.HomepageTradeCategory", b =>
-                {
-                    b.HasOne("JobPortal.Domain.Entities.Homepage.HomepageRegistrationIndustry", "RegistrationIndustry")
-                        .WithMany()
-                        .HasForeignKey("RegistrationIndustryId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("RegistrationIndustry");
                 });
 
             modelBuilder.Entity("JobPortal.Domain.Entities.Invoice", b =>

@@ -146,6 +146,7 @@ builder.Services.AddHttpClient("Razorpay", client =>
     client.BaseAddress = new Uri("https://api.razorpay.com/");
     client.Timeout = TimeSpan.FromSeconds(30);
 });
+
 // ── Document service depends on IAffindaService ──────────────
 builder.Services.AddScoped<ICandidateDocumentService, CandidateDocumentService>();
 builder.Services.AddScoped<IPublicCompanyService, PublicCompanyService>();

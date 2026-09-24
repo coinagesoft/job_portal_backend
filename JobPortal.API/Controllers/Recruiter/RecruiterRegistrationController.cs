@@ -493,5 +493,36 @@ namespace JobPortal.API.Controllers.Recruiter
             return result.Success ? Ok(result) : BadRequest(result);
         }
 
+        [HttpGet("industries/{registrationIndustryId:guid}/trade-categories")]
+        public async Task<IActionResult> GetTradeCategoriesByIndustry(
+        Guid registrationIndustryId)
+        {
+            var result =
+                await _service.GetTradeCategoriesByIndustryAsync(
+                    registrationIndustryId);
+
+            return Ok(new
+            {
+                success = true,
+                tradeCategories = result
+            });
+        }
+
+
+        [HttpGet("trade-categories/{tradeCategoryId:guid}/sub-trades")]
+        public async Task<IActionResult> GetSubTradesByTradeCategory(
+            Guid tradeCategoryId)
+        {
+            var result =
+                await _service.GetSubTradesByTradeCategoryAsync(
+                    tradeCategoryId);
+
+            return Ok(new
+            {
+                success = true,
+                subTrades = result
+            });
+        }
+
     }
 }

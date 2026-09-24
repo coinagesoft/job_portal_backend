@@ -20,6 +20,8 @@ public class JobDetailsRequestDto
     [MaxLength(100)]
     public string? TradeCategory { get; set; }
 
+    public string? SubTrade { get; set; }
+
     [MaxLength(100)]
     public string? Role { get; set; }
 

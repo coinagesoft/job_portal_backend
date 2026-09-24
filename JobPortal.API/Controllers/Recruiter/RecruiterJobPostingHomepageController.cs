@@ -32,7 +32,9 @@ namespace JobPortal.API.Controllers.Recruiter
     [Produces("application/json")]
     public class RecruiterJobPostingHomepageController : ControllerBase
     {
-        private static readonly string[] AllowedFields = { "TradeRole", "Department" };
+        private static readonly string[] AllowedFields = { "TradeRole", "Department"  ,  "RegistrationIndustry",
+    "TradeCategory",
+    "SubTrade"};
 
         private readonly IRecruiterHomepageService _service;
 

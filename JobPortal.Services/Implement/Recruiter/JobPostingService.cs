@@ -179,6 +179,11 @@ namespace JobPortal.Services.Implement.Recruiter
 
                         JobTitle = request.JobTitle ?? string.Empty,
                         TradeCategory = request.TradeCategory ?? string.Empty,
+
+                        // NEW
+                        SubTrade = string.IsNullOrWhiteSpace(request.SubTrade)
+        ? null
+        : request.SubTrade.Trim(),
                         Role = request.Role,
                         JobDescription = request.JobDescription ?? string.Empty,
 
@@ -249,6 +254,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 else
                 {
                     job.JobTitle = request.JobTitle ?? job.JobTitle;
+
+                    // NEW
+                    if (request.SubTrade != null)
+                    {
+                        job.SubTrade = string.IsNullOrWhiteSpace(request.SubTrade)
+                            ? null
+                            : request.SubTrade.Trim();
+                    }
                     job.TradeCategory = request.TradeCategory ?? job.TradeCategory;
                     job.Role = request.Role;
                     job.JobDescription = request.JobDescription ?? job.JobDescription;
@@ -402,9 +415,17 @@ namespace JobPortal.Services.Implement.Recruiter
 
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow,
+                        SalaryCurrency = string.IsNullOrWhiteSpace(request.SalaryCurrency)
+    ? "INR"
+    : request.SalaryCurrency.Trim().ToUpper(),
 
-                        SalaryCurrency = job.SalaryCurrency,
-                        SalaryDisplayOption = "Show Range"
+                        SalaryDisplayOption = string.IsNullOrWhiteSpace(request.SalaryDisplayOption)
+    ? "Show Range"
+    : request.SalaryDisplayOption.Trim(),
+
+                        SalaryPeriod = string.IsNullOrWhiteSpace(request.SalaryPeriod)
+    ? "Monthly"
+    : request.SalaryPeriod.Trim()
                     };
 
                     _context.JobPostings.Add(job);
@@ -446,6 +467,10 @@ namespace JobPortal.Services.Implement.Recruiter
                     job.SalaryDisplayOption = request.SalaryDisplayOption;
                 }
 
+                if (!string.IsNullOrWhiteSpace(request.SalaryPeriod))
+                {
+                    job.SalaryPeriod = request.SalaryPeriod.Trim();
+                }
                 // =====================================================
                 // STEP TRACKING
                 // =====================================================
@@ -962,10 +987,6 @@ namespace JobPortal.Services.Implement.Recruiter
                     return Fail("Maximum 5 screening questions allowed.");
                 }
 
-                if (request.Questions != null && questions.Count == 0)
-                {
-                    return Fail("Please add at least one valid screening question.");
-                }
 
                 // =====================================================
                 // Save Questions
@@ -1267,11 +1288,44 @@ namespace JobPortal.Services.Implement.Recruiter
                         Message = "Job not found."
                     };
                 }
+                var verification = new JobVerificationDto
+                {
+                    IsOffshore = job.LocationType == LocationType.Offshore
+                };
+
+                if (verification.IsOffshore)
+                {
+                    var rpslMaster = await _context.VerificationDocumentMasters
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(x =>
+                            x.Code == "RPSL_LICENSE" &&
+                            x.IsActive);
+
+                    if (rpslMaster != null)
+                    {
+                        verification.RpslRequired = rpslMaster.IsMandatory;
+
+                        var rpslDocument = await _context.EmployerVerificationDocuments
+                            .AsNoTracking()
+                            .Where(x =>
+                                x.EmployerId == employerId &&
+                                x.DocumentTypeId == rpslMaster.DocumentTypeId &&
+                                !x.IsDeleted)
+                            .OrderByDescending(x => x.UploadedAt)
+                            .FirstOrDefaultAsync();
+
+                        verification.RpslStatus =
+                            rpslDocument?.Status.ToString();
+
+                        verification.RpslVerified =
+                            rpslDocument?.Status == VerificationDocumentStatus.Approved;
+                    }
+                }
 
                 return new ResumeJobResponseDto
                 {
                     Success = true,
-
+                    Verification = verification,
                     Message =
                         $"Resume from Step {job.LastCompletedStep + 1} " +
                         $"({StepNames.GetValueOrDefault(job.LastCompletedStep + 1, "Publishing")}).",
@@ -1289,6 +1343,7 @@ namespace JobPortal.Services.Implement.Recruiter
                         JobId = job.JobId,
                         JobTitle = job.JobTitle,
                         TradeCategory = job.TradeCategory,
+                        SubTrade = job.SubTrade,
                         Role = job.Role,
                         IsClientHiring = job.IsClientHiring,
                         ClientName = job.ClientName,
@@ -1323,7 +1378,8 @@ namespace JobPortal.Services.Implement.Recruiter
                             job.SalaryCurrency,
 
                         SalaryDisplayOption =
-                            job.SalaryDisplayOption
+                            job.SalaryDisplayOption,
+                        SalaryPeriod = job.SalaryPeriod
                     },
 
                     // =====================================================
@@ -1371,10 +1427,10 @@ namespace JobPortal.Services.Implement.Recruiter
                             job.PassportValidityMonths,
 
                         LicenceDocsRequired =
-    job.LicenceDocsRequired,
+                            job.LicenceDocsRequired,
 
                         WorkingDocsRequired =
-    job.WorkingDocsRequired
+                            job.WorkingDocsRequired
                     },
 
                     // =====================================================
@@ -1426,19 +1482,19 @@ namespace JobPortal.Services.Implement.Recruiter
                                 .ToList()
                             ?? new List<ScreeningQuestion>()
                     },
+
                     Step7Data = new PublishingRequestDto
                     {
                         JobId = job.JobId,
 
                         ApplicationDeadline =
-        job.ApplicationDeadline,
+                                job.ApplicationDeadline,
 
                         CompanyVisibility =
-        job.CompanyVisibility,
-
+                                job.CompanyVisibility,
 
                         PublishNow =
-        job.JobStatus == JobStatus.Active
+                                job.JobStatus == JobStatus.Active
                     }
                 };
             }

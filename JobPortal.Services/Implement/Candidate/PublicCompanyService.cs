@@ -348,6 +348,8 @@ public class PublicCompanyService : IPublicCompanyService
             SimilarJobs = similarJobs
         };
     }
+
+
     //public async Task<CandidateJobListResponseDto> GetJobsAsync(
     // CandidateJobSearchRequestDto request)
     //{

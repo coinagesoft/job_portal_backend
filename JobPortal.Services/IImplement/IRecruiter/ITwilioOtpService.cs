@@ -9,5 +9,7 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task<bool> VerifyOtpAsync(
             string phoneNumber,
             string otp);
+
+        //Task<bool> VerifyAccessTokenAsync(string accessToken);
     }
 }

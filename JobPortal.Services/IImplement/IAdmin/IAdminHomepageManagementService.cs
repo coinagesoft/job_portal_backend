@@ -6,6 +6,7 @@
 //  Registration Industries / Departments / Trade Categories / Suggestions.
 // ============================================================
 
+using JobPortal.Application.DTOs.Admin;
 using JobPortal.Application.DTOs.Admin.Homepage;
 using Microsoft.AspNetCore.Http;
 
@@ -62,10 +63,19 @@ namespace JobPortal.Services.IImplement.IAdmin
 
         // Trade Categories
         Task<List<NamedListItemDto>> GetTradeCategoriesAsync();
-        Task<NamedListItemDto> CreateTradeCategoryAsync(CreateNamedListItemRequestDto request);
+        Task<NamedListItemDto> CreateTradeCategoryAsync(Guid registrationIndustryId,CreateNamedListItemRequestDto request);
         Task<NamedListItemDto?> UpdateTradeCategoryAsync(Guid id, UpdateNamedListItemRequestDto request);
         Task<bool> DeleteTradeCategoryAsync(Guid id);
         Task<NamedListItemDto?> ToggleTradeCategoryAsync(Guid id);
+
+        // Sub Trades
+        Task<List<NamedListItemDto>> GetSubTradesAsync(Guid tradeCategoryId);
+        Task<NamedListItemDto> CreateSubTradeAsync(Guid tradeCategoryId, CreateNamedListItemRequestDto request);
+        Task<NamedListItemDto?> UpdateSubTradeAsync(Guid id, UpdateNamedListItemRequestDto request);
+        Task<bool> DeleteSubTradeAsync(Guid id);
+        Task<NamedListItemDto?> ToggleSubTradeAsync(Guid id);
+        Task<IndustryTradeSubTradeDto?> GetIndustryTradeSubTradesAsync(
+    Guid industryId);
 
         // Suggestions
         Task<List<SuggestionDto>> GetSuggestionsAsync();

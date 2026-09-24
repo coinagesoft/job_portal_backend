@@ -21,6 +21,7 @@ public class CandidateProfile
     public string? PreferredWorkLocation { get; set; }
     public int? PreferredSalary { get; set; }
     public string AvailabilityStatus { get; set; } = "Available";
+    public string? AvailableIn { get; set; }
     public DateTime? AvailabilityUpdatedAt { get; set; }
     public bool DisabilityStatus { get; set; } = false;
     public string? DisabilityNote { get; set; }

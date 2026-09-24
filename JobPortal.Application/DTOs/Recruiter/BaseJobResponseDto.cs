@@ -1,4 +1,6 @@
-﻿namespace JobPortal.Application.DTOs.JobPosting;
+﻿using JobPortal.Application.DTOs.Recruiter;
+
+namespace JobPortal.Application.DTOs.JobPosting;
 
 public class BaseJobResponseDto
 {
@@ -17,4 +19,7 @@ public class ResumeJobResponseDto : BaseJobResponseDto
     public LocationRequestDto? Step5Data { get; set; }
     public QuestionsRequestDto? Step6Data { get; set; }
     public PublishingRequestDto? Step7Data { get; set; }
+
+    // Verification information for Job Preview
+    public JobVerificationDto Verification { get; set; } = new();
 }

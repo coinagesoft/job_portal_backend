@@ -1,15 +1,4 @@
-﻿// ============================================================
-//  JobPortal.API/Controllers/Admin/AdminHomepageController.cs
-//
-//  Backs the Admin "Homepage Management" screen:
-//  https://job-portal-admin-gray.vercel.app/admin/homepage-management
-//
-//  One controller for every section (Hero / Industries / Statistics /
-//  Locations / Roles / Registration Industries / Departments /
-//  Trade Categories / Suggestions) — deliberately kept in one file
-//  since each section is a thin CRUD wrapper around one service.
-// ============================================================
-
+﻿
 using JobPortal.API.Middleware;
 using JobPortal.Application.DTOs.Admin.Homepage;
 using JobPortal.Domain.Enums;
@@ -52,6 +41,8 @@ namespace JobPortal.API.Controllers.Admin
             return Ok(result);
         }
 
+
+
         [HttpPut("hero")]
         [AuditLog("Update Hero Section", "Homepage Management", AuditSeverity.Info)]
         public async Task<IActionResult> UpdateHero([FromBody] UpdateHeroSectionRequestDto request)
@@ -61,6 +52,8 @@ namespace JobPortal.API.Controllers.Admin
             var result = await _service.UpdateHeroAsync(request, GetAdminId());
             return Ok(new { success = true, message = "Hero section updated.", data = result });
         }
+
+
 
         [HttpPost("hero/banner")]
         [AuditLog("Upload Hero Banner", "Homepage Management", AuditSeverity.Info)]
@@ -396,15 +389,46 @@ namespace JobPortal.API.Controllers.Admin
             return Ok(result);
         }
 
-        [HttpPost("trade-categories")]
+        [HttpPost("registration-industries/{registrationIndustryId:guid}/trade-categories")]
         [AuditLog("Add Trade Category", "Homepage Management", AuditSeverity.Info)]
-        public async Task<IActionResult> AddTradeCategory([FromBody] CreateNamedListItemRequestDto request)
+        public async Task<IActionResult> AddTradeCategory(
+         Guid registrationIndustryId,
+         [FromBody] CreateNamedListItemRequestDto request)
         {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            var result = await _service.CreateTradeCategoryAsync(request);
-            return Ok(new { success = true, message = "Trade category added.", data = result });
+            try
+            {
+                var result = await _service.CreateTradeCategoryAsync(
+                    registrationIndustryId,
+                    request);
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Trade category added.",
+                    data = result
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
         }
+
 
         [HttpPut("trade-categories/{id:guid}")]
         [AuditLog("Update Trade Category", "Homepage Management", AuditSeverity.Info)]
@@ -434,6 +458,157 @@ namespace JobPortal.API.Controllers.Admin
             if (result == null) return NotFound(new { success = false, message = "Trade category not found." });
 
             return Ok(new { success = true, message = "Status updated.", data = result });
+        }
+
+
+        // ============================================================
+        // Sub Trades
+        // ============================================================
+
+        [HttpGet("trade-categories/{tradeCategoryId:guid}/sub-trades")]
+        public async Task<IActionResult> GetSubTrades(Guid tradeCategoryId)
+        {
+            var result = await _service.GetSubTradesAsync(tradeCategoryId);
+
+            return Ok(result);
+        }
+
+        [HttpPost("trade-categories/{tradeCategoryId:guid}/sub-trades")]
+        [AuditLog("Add Sub Trade", "Homepage Management", AuditSeverity.Info)]
+        public async Task<IActionResult> AddSubTrade(
+            Guid tradeCategoryId,
+            [FromBody] CreateNamedListItemRequestDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var result = await _service.CreateSubTradeAsync(
+                    tradeCategoryId,
+                    request);
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Sub trade added.",
+                    data = result
+                });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpPut("sub-trades/{id:guid}")]
+        [AuditLog("Update Sub Trade", "Homepage Management", AuditSeverity.Info)]
+        public async Task<IActionResult> UpdateSubTrade(
+            Guid id,
+            [FromBody] UpdateNamedListItemRequestDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var result = await _service.UpdateSubTradeAsync(id, request);
+
+                if (result == null)
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Sub trade not found."
+                    });
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Sub trade updated.",
+                    data = result
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
+        }
+
+        [HttpDelete("sub-trades/{id:guid}")]
+        [AuditLog("Delete Sub Trade", "Homepage Management", AuditSeverity.Warning)]
+        public async Task<IActionResult> DeleteSubTrade(Guid id)
+        {
+            var deleted = await _service.DeleteSubTradeAsync(id);
+
+            if (!deleted)
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Sub trade not found."
+                });
+
+            return Ok(new
+            {
+                success = true,
+                message = "Sub trade deleted."
+            });
+        }
+
+        [HttpPatch("sub-trades/{id:guid}/toggle")]
+        [AuditLog("Toggle Sub Trade", "Homepage Management", AuditSeverity.Info)]
+        public async Task<IActionResult> ToggleSubTrade(Guid id)
+        {
+            var result = await _service.ToggleSubTradeAsync(id);
+
+            if (result == null)
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Sub trade not found."
+                });
+
+            return Ok(new
+            {
+                success = true,
+                message = "Sub trade status updated.",
+                data = result
+            });
+        }
+
+        [HttpGet("industries/{industryId:guid}/trade-sub-trades")]
+        public async Task<IActionResult> GetIndustryTradeSubTrades(Guid industryId)
+        {
+            var result = await _service.GetIndustryTradeSubTradesAsync(industryId);
+
+            if (result == null)
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Industry not found."
+                });
+
+            return Ok(new
+            {
+                success = true,
+                message = "Industry trades and sub trades retrieved successfully.",
+                data = result
+            });
         }
 
         // ============================================================

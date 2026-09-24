@@ -1,4 +1,6 @@
-﻿using JobPortal.Application.DTOs.Recruiter;
+﻿using JobPortal.Application.DTOs.Admin.Homepage;
+using JobPortal.Application.DTOs.Recruiter;
+using JobPortal.Application.DTOs.Recruiter.Homepage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -67,8 +69,15 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task<ReviewSubmitResponseDto> SubmitRegistrationAsync(
             ReviewSubmitRequestDto request, string ipAddress);
 
+        Task<ResumeSessionResponseDto> ResumeSessionAsync(string sessionId);
 
-        Task<ResumeSessionResponseDto> ResumeSessionAsync(
-         string sessionId);
+        Task<List<NamedListItemDto>> GetTradeCategoriesByIndustryAsync( Guid registrationIndustryId);
+
+        Task<List<NamedListItemDto>> GetSubTradesByTradeCategoryAsync( Guid tradeCategoryId);
+
+        Task<RecruiterSuggestionResponseDto> SubmitSuggestionAsync(
+    RecruiterSuggestionRequestDto request,
+    Guid? submittedByUserId,
+    params string[] allowedFields);
     }
 }

@@ -16,6 +16,8 @@ public class CompensationRequestDto
 
     public string? SalaryDisplayOption { get; set; }
 
-   
+    public string? SalaryPeriod { get; set; }
+
+
 
 }

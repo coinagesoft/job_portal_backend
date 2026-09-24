@@ -191,15 +191,16 @@ public class HomepageTradeCategory
 {
     public Guid TradeCategoryId { get; set; }
 
+    public Guid? RegistrationIndustryId { get; set; }
+
     public string Name { get; set; } = default!;
 
     public int DisplayOrder { get; set; }
-
     public bool IsActive { get; set; } = true;
-
     public DateTime CreatedAt { get; set; }
-
     public DateTime UpdatedAt { get; set; }
+    public HomepageRegistrationIndustry? RegistrationIndustry { get; set; } = default!;
+
 }
 
 /// <summary>
@@ -213,6 +214,10 @@ public class HomepageSuggestion
 
     /// <summary>Which list this suggestion targets.</summary>
     public HomepageSuggestionType Type { get; set; }
+
+    public Guid? RegistrationIndustryId { get; set; }
+
+    public Guid? TradeCategoryId { get; set; }
 
     public string SuggestedName { get; set; } = default!;
 
@@ -246,7 +251,8 @@ public enum HomepageSuggestionType
     Role,
     RegistrationIndustry,
     Department,
-    TradeCategory
+    TradeCategory,
+     SubTrade
 }
 
 public enum HomepageSuggestionStatus
@@ -254,4 +260,26 @@ public enum HomepageSuggestionStatus
     Pending,
     Approved,
     Rejected
+}
+
+
+
+public class HomepageSubTrade
+{
+   
+    public Guid SubTradeId { get; set; }
+
+    public Guid TradeCategoryId { get; set; }
+
+    public string Name { get; set; } = default!;
+
+    public int DisplayOrder { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    public HomepageTradeCategory TradeCategory { get; set; } = default!;
 }

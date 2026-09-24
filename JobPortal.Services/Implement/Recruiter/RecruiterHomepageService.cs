@@ -12,6 +12,7 @@
 //  separate recruiter-only suggestion pipeline needed.
 // ============================================================
 
+using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Application.DTOs.Recruiter.Homepage;
 using JobPortal.Domain.Entities.Homepage;
 using JobPortal.Infrastructure.Persistence;
@@ -34,6 +35,9 @@ public class RecruiterHomepageService : IRecruiterHomepageService
             ["Industry"] = HomepageSuggestionType.RegistrationIndustry,
             ["TradeRole"] = HomepageSuggestionType.TradeCategory,
             ["Department"] = HomepageSuggestionType.Department,
+            ["RegistrationIndustry"] = HomepageSuggestionType.RegistrationIndustry,
+            ["TradeCategory"] = HomepageSuggestionType.TradeCategory,
+            ["SubTrade"] = HomepageSuggestionType.SubTrade
         };
 
     public RecruiterHomepageService(AppDbContext context, ILogger<RecruiterHomepageService> logger)
@@ -42,7 +46,7 @@ public class RecruiterHomepageService : IRecruiterHomepageService
         _logger = logger;
     }
 
-    // ── Registration — Step 1 (Industry Type) ───────────────────────
+     //── Registration — Step 1 (Industry Type) ───────────────────────
 
     public async Task<RecruiterIndustriesResponseDto> GetRegistrationIndustriesAsync()
     {
@@ -73,8 +77,71 @@ public class RecruiterHomepageService : IRecruiterHomepageService
         }
     }
 
-    // ── Job Posting (Trade/Role, Department) ────────────────────────
+     //── Job Posting(Trade/Role, Department) ────────────────────────
 
+
+    public async Task<RecruiterIndustryTradeSubTradeResponseDto> GetIndustryTradeSubTradesAsync()
+    {
+        try
+        {
+            var industries = await _context.HomepageIndustries
+                .AsNoTracking()
+                .Where(x => x.IsActive && x.ShowInDropdown)
+                .OrderBy(x => x.DisplayOrder)
+                .Select(x => new RecruiterIndustryWithTradesDto
+                {
+                    IndustryId = x.IndustryId,
+                    Name = x.Name,
+
+                    Trades = _context.HomepageTradeCategories
+                        .AsNoTracking()
+                        .Where(t =>
+                            t.RegistrationIndustryId == x.IndustryId &&
+                            t.IsActive)
+                        .OrderBy(t => t.DisplayOrder)
+                        .Select(t => new RecruiterTradeWithSubTradesDto
+                        {
+                            TradeCategoryId = t.TradeCategoryId,
+                            Name = t.Name,
+
+                            SubTrades = _context.HomepageSubTrades
+                                .AsNoTracking()
+                                .Where(st =>
+                                    st.TradeCategoryId == t.TradeCategoryId &&
+                                    st.IsActive)
+                                .OrderBy(st => st.DisplayOrder)
+                                .Select(st => new RecruiterSubTradeDto
+                                {
+                                    SubTradeId = st.SubTradeId,
+                                    Name = st.Name
+                                })
+                                .ToList()
+                        })
+                        .ToList()
+                })
+                .ToListAsync();
+
+            return new RecruiterIndustryTradeSubTradeResponseDto
+            {
+                Success = true,
+                Message = "Industry, trade and sub trade options loaded.",
+                Industries = industries
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "RecruiterHomepageService.GetIndustryTradeSubTradesAsync failed.");
+
+            return new RecruiterIndustryTradeSubTradeResponseDto
+            {
+                Success = false,
+                Message = "An error occurred while loading industry options."
+            };
+        }
+    }
+   
     public async Task<RecruiterJobPostingDropdownsResponseDto> GetJobPostingDropdownsAsync()
     {
         try
@@ -126,6 +193,13 @@ public class RecruiterHomepageService : IRecruiterHomepageService
 
             var field = request.Field?.Trim() ?? string.Empty;
 
+            _logger.LogInformation(
+    "SUGGESTION REQUEST: Field=[{Field}], SuggestedName=[{SuggestedName}], RegistrationIndustryId=[{RegistrationIndustryId}], TradeCategoryId=[{TradeCategoryId}]",
+    field,
+    request.SuggestedName,
+    request.RegistrationIndustryId,
+    request.TradeCategoryId
+);
             var isAllowed = allowedFields.Any(f => string.Equals(f, field, StringComparison.OrdinalIgnoreCase));
             if (!isAllowed || !FieldMap.TryGetValue(field, out var type))
             {
@@ -160,9 +234,15 @@ public class RecruiterHomepageService : IRecruiterHomepageService
                 Type = type,
                 SuggestedName = suggestedName,
                 Note = request.Note,
+
                 SubmittedByUserId = submittedByUserId,
                 SubmittedByName = request.SubmittedByName,
                 SubmittedByEmail = request.SubmittedByEmail,
+
+                // Parent hierarchy
+                RegistrationIndustryId = request.RegistrationIndustryId,
+                TradeCategoryId = request.TradeCategoryId,
+
                 Status = HomepageSuggestionStatus.Pending,
                 CreatedAt = DateTime.UtcNow
             };
@@ -187,4 +267,7 @@ public class RecruiterHomepageService : IRecruiterHomepageService
             };
         }
     }
+
+
+  
 }
