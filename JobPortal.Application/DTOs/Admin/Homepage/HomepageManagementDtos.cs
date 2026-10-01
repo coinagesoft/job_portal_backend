@@ -172,7 +172,10 @@ namespace JobPortal.Application.DTOs.Admin.Homepage
         public Guid SuggestionId { get; set; }
         public HomepageSuggestionType Type { get; set; }
         public string SuggestedName { get; set; } = default!;
+        public Guid? RegistrationIndustryId { get; set; }
+        public Guid? TradeCategoryId { get; set; }
         public string? Note { get; set; }
+        public Guid? ParentSuggestionId { get; set; }
         public string? SubmittedByName { get; set; }
         public string? SubmittedByEmail { get; set; }
         public HomepageSuggestionStatus Status { get; set; }
@@ -184,7 +187,9 @@ namespace JobPortal.Application.DTOs.Admin.Homepage
     public class ReviewSuggestionRequestDto
     {
         public string? AdminNote { get; set; }
-
+        public Guid? RegistrationIndustryId { get; set; }
+        public Guid? TradeCategoryId { get; set; }
+        public Guid? ParentSuggestionId { get; set; }
         /// <summary>
         /// Approve only: when true, the suggested name is inserted into the
         /// target list (Industry/Location/Role/...) as a new active item.

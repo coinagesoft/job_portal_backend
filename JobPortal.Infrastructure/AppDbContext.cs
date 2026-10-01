@@ -67,6 +67,7 @@ public class AppDbContext : DbContext
     public DbSet<SavedSearch> SavedSearches => Set<SavedSearch>();
     public DbSet<CandidateUnlock> CandidateUnlocks => Set<CandidateUnlock>();
 
+
     // Section 6 — Payments
     public DbSet<CreditWallet> CreditWallets => Set<CreditWallet>();
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
@@ -951,8 +952,8 @@ public class AppDbContext : DbContext
                 .HasColumnName("consent_timestamp");
 
             e.Property(x => x.CompanyHighlights)
-     .HasColumnName("company_highlights")
-     .HasColumnType("jsonb");
+                .HasColumnName("company_highlights")
+                .HasColumnType("jsonb");
 
             e.Property(x => x.IsMember).HasColumnName("is_member");
             e.Property(x => x.MembershipPlanId).HasColumnName("membership_plan_id");
@@ -1153,7 +1154,6 @@ public class AppDbContext : DbContext
              .HasColumnName("age_max");
 
 
-
             e.Property(x => x.EducationRequired)
              .HasColumnName("education_required");
 
@@ -1164,7 +1164,7 @@ public class AppDbContext : DbContext
              .HasColumnName("language_required");
 
             e.Property(x => x.KeySkills)
-  .HasColumnName("key_skills")
+      .HasColumnName("key_skills")
   .HasConversion(stringListConverter)
   .HasColumnType("jsonb");
 
@@ -1174,6 +1174,9 @@ public class AppDbContext : DbContext
 
             e.Property(x => x.OnshoreCity)
              .HasColumnName("onshore_city");
+
+            e.Property(x => x.Country)
+              .HasColumnName("country");
 
             e.Property(x => x.OnshoreState)
              .HasColumnName("onshore_state");
@@ -1823,21 +1826,39 @@ public class AppDbContext : DbContext
         m.Entity<HomepageSuggestion>(e =>
         {
             e.ToTable("homepage_suggestions");
+
             e.HasKey(x => x.SuggestionId);
-            e.Property(x => x.Type).HasConversion<string>().HasMaxLength(30).IsRequired();
-            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
-            e.Property(x => x.SuggestedName).HasMaxLength(150).IsRequired();
+
+            e.Property(x => x.Type)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            e.Property(x => x.Status)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .IsRequired();
+
+            e.Property(x => x.SuggestedName)
+                .HasMaxLength(150)
+                .IsRequired();
+
             e.HasIndex(x => x.Status);
 
+            e.HasOne<HomepageSuggestion>()
+                .WithMany()
+                .HasForeignKey(x => x.ParentSuggestionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             e.HasOne(x => x.SubmittedByUser)
-             .WithMany()
-             .HasForeignKey(x => x.SubmittedByUserId)
-             .OnDelete(DeleteBehavior.SetNull);
+                .WithMany()
+                .HasForeignKey(x => x.SubmittedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             e.HasOne(x => x.ReviewedByAdmin)
-             .WithMany()
-             .HasForeignKey(x => x.ReviewedBy)
-             .OnDelete(DeleteBehavior.SetNull);
+                .WithMany()
+                .HasForeignKey(x => x.ReviewedBy)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
 

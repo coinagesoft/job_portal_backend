@@ -24,6 +24,8 @@ namespace JobPortal.API.Controllers.Recruiter;
 /// Flow C — Skill chips (Step 3, unchanged)
 ///   POST /api/recruiter/ai/job-description/suggest-skills
 /// </summary>
+
+
 [ApiController]
 [Route("api/recruiter/ai/job-description")]
 public class AiJobDescriptionController : ControllerBase

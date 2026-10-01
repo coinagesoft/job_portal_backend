@@ -87,6 +87,8 @@ namespace JobPortal.API.Controllers.Admin
             return Ok(new { success = true, message = "Industry added.", data = result });
         }
 
+
+
         [HttpPut("industries/{industryId:guid}")]
         [AuditLog("Update Industry", "Homepage Management", AuditSeverity.Info)]
         public async Task<IActionResult> UpdateIndustry(Guid industryId, [FromBody] UpdateIndustryRequestDto request)
@@ -97,6 +99,8 @@ namespace JobPortal.API.Controllers.Admin
             return Ok(new { success = true, message = "Industry updated.", data = result });
         }
 
+
+
         [HttpDelete("industries/{industryId:guid}")]
         [AuditLog("Delete Industry", "Homepage Management", AuditSeverity.Warning)]
         public async Task<IActionResult> DeleteIndustry(Guid industryId)
@@ -106,6 +110,7 @@ namespace JobPortal.API.Controllers.Admin
 
             return Ok(new { success = true, message = "Industry deleted." });
         }
+
 
         [HttpPatch("industries/{industryId:guid}/toggle")]
         [AuditLog("Toggle Industry", "Homepage Management", AuditSeverity.Info)]
@@ -634,12 +639,41 @@ namespace JobPortal.API.Controllers.Admin
 
         [HttpPatch("suggestions/{id:guid}/approve")]
         [AuditLog("Approve Suggestion", "Homepage Management", AuditSeverity.Info)]
-        public async Task<IActionResult> ApproveSuggestion(Guid id, [FromBody] ReviewSuggestionRequestDto? request)
+        public async Task<IActionResult> ApproveSuggestion(
+       Guid id,
+       [FromBody] ReviewSuggestionRequestDto? request)
         {
-            var result = await _service.ApproveSuggestionAsync(id, request ?? new ReviewSuggestionRequestDto(), GetAdminId());
-            if (result == null) return NotFound(new { success = false, message = "Suggestion not found." });
+            try
+            {
+                var result = await _service.ApproveSuggestionAsync(
+                    id,
+                    request ?? new ReviewSuggestionRequestDto(),
+                    GetAdminId());
 
-            return Ok(new { success = true, message = "Suggestion approved.", data = result });
+                if (result == null)
+                {
+                    return NotFound(new
+                    {
+                        success = false,
+                        message = "Suggestion not found."
+                    });
+                }
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Suggestion approved.",
+                    data = result
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
+            }
         }
 
         [HttpPatch("suggestions/{id:guid}/reject")]

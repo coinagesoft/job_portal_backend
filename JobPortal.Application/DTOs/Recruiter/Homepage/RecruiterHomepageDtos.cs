@@ -83,6 +83,7 @@ namespace JobPortal.Application.DTOs.Recruiter.Homepage
 
         public string? Note { get; set; }
 
+        public Guid? ParentSuggestionId { get; set; }
         public string? SubmittedByName { get; set; }
 
         public string? SubmittedByEmail { get; set; }

@@ -1181,6 +1181,47 @@ public class CandidateJobService : ICandidateJobService
                         .ToList();
 
             //----------------------------------------------------
+            // Required documents for this job
+            //----------------------------------------------------
+
+            var requiredDocuments =
+                personalCertificates
+                    .Concat(workingCertificates)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+
+            //----------------------------------------------------
+            // Candidate documents already uploaded
+            //----------------------------------------------------
+
+            var existingCandidateDocuments =
+                await _context.CandidateDocuments
+                    .AsNoTracking()
+                    .Where(x =>
+                        x.CandidateId == candidateId &&
+                        !string.IsNullOrWhiteSpace(x.DocumentType))
+                    .Select(x => x.DocumentType!)
+                    .ToListAsync();
+
+
+            //----------------------------------------------------
+            // Documents still missing
+            //----------------------------------------------------
+
+            var missingDocuments =
+                requiredDocuments
+                    .Where(required =>
+                        !existingCandidateDocuments.Any(existing =>
+                            string.Equals(
+                                existing.Trim(),
+                                required,
+                                StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+            //----------------------------------------------------
             // Location
             //----------------------------------------------------
 
@@ -1276,8 +1317,15 @@ public class CandidateJobService : ICandidateJobService
                 PersonalDocumentsRequired =
     personalCertificates,
 
+
                 WorkingDocumentsRequired =
     workingCertificates,
+
+                ExistingDocuments = existingCandidateDocuments
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToList(),
+
+                MissingDocuments = missingDocuments,
 
                 ScreeningQuestions =
                     job.ScreeningQuestions ?? new List<string>(),

@@ -242,6 +242,7 @@ public class RecruiterHomepageService : IRecruiterHomepageService
                 // Parent hierarchy
                 RegistrationIndustryId = request.RegistrationIndustryId,
                 TradeCategoryId = request.TradeCategoryId,
+                ParentSuggestionId = request.ParentSuggestionId,
 
                 Status = HomepageSuggestionStatus.Pending,
                 CreatedAt = DateTime.UtcNow

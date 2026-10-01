@@ -21,5 +21,6 @@ public class LocationRequestDto
     public string? OnshoreCountry { get; set; }
     public string? OnshorePincode { get; set; }
 
+    public string? Country { get; set; }
     public string? OffshoreCountry { get; set; }
 }
