@@ -772,7 +772,7 @@ namespace JobPortal.Services.Implement.Recruiter
         // ════════════════════════════════════════════════
         // STEP 5 — Location
         // ════════════════════════════════════════════════
-        public async Task<BaseJobResponseDto> SaveLocationAsync(
+         public async Task<BaseJobResponseDto> SaveLocationAsync(
          LocationRequestDto request,
          Guid jobId,
          Guid employerId,
@@ -824,6 +824,9 @@ namespace JobPortal.Services.Implement.Recruiter
                 if (!request.LocationType.HasValue)
                     return Fail("Location type is required.");
 
+                if (string.IsNullOrWhiteSpace(request.Country))
+                    return Fail("Country is required.");
+
                 if (request.LocationType == LocationType.Onshore)
                 {
                     if (string.IsNullOrWhiteSpace(request.OnshoreCity))
@@ -850,7 +853,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 // ==================================================
 
                 job.LocationType = request.LocationType.Value;
-
+                job.Country = request.Country?.Trim();
                 // ==================================================
                 // Onshore
                 // ==================================================
@@ -898,6 +901,39 @@ namespace JobPortal.Services.Implement.Recruiter
                             "India",
                             StringComparison.OrdinalIgnoreCase);
                 }
+
+                // ==================================================
+                // Candidate required documents based on location
+                // ==================================================
+
+                RemoveLocationBasedCandidateDocuments(job);
+
+                if (request.LocationType == LocationType.Onshore)
+                {
+                    var country = request.OnshoreCountry?.Trim();
+
+                    // Onshore + outside India
+                    if (!string.IsNullOrWhiteSpace(country) &&
+                        !country.Equals("India", StringComparison.OrdinalIgnoreCase))
+                    {
+                        AddRequiredWorkingDocument(
+                            job,
+                            "POE License");
+                    }
+                }
+
+                if (request.LocationType == LocationType.Offshore)
+                {
+                    // Offshore → always required for candidate
+                    AddRequiredWorkingDocument(
+                        job,
+                        "RPSL License");
+
+                    AddRequiredWorkingDocument(
+                        job,
+                        "Registration Certificate");
+                }
+
 
                 // ==================================================
                 // Step Tracking
@@ -1464,7 +1500,9 @@ namespace JobPortal.Services.Implement.Recruiter
                             job.OffshoreRegion,
 
                         OffshoreCountry =
-                            job.OffshoreCountry
+                            job.OffshoreCountry,
+
+                            Country = job.Country,
                     },
 
                     // =====================================================
@@ -1614,5 +1652,62 @@ namespace JobPortal.Services.Implement.Recruiter
 
         private static BaseJobResponseDto Fail(string message) =>
             new() { Success = false, Message = message };
+
+       
+
+
+        private static void AddRequiredWorkingDocument(
+    JobPosting job,
+    string documentName)
+        {
+            var documents = string.IsNullOrWhiteSpace(job.WorkingDocsRequired)
+                ? new List<string>()
+                : job.WorkingDocsRequired
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.Trim())
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .ToList();
+
+            if (!documents.Any(x =>
+                string.Equals(
+                    x,
+                    documentName,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                documents.Add(documentName);
+            }
+
+            job.WorkingDocsRequired =
+                string.Join(", ", documents);
+        }
+
+        private static void RemoveLocationBasedCandidateDocuments(JobPosting job)
+        {
+            var automaticDocuments = new[]
+            {
+        "POE License",
+        "RPSL License",
+        "Registration Certificate"
+    };
+
+            if (string.IsNullOrWhiteSpace(job.WorkingDocsRequired))
+                return;
+
+            var documents = job.WorkingDocsRequired
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim())
+                .Where(x =>
+                    !automaticDocuments.Contains(
+                        x,
+                        StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            job.WorkingDocsRequired =
+                documents.Count > 0
+                    ? string.Join(", ", documents)
+                    : null;
+        }
     }
+
+
 }

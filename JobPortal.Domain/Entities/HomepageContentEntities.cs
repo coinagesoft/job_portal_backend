@@ -1,11 +1,5 @@
 ﻿// ============================================================
 //  JobPortal.Domain/Entities/Homepage/HomepageContentEntities.cs
-//
-//  Backs the Admin "Homepage Management" screen
-//  (https://job-portal-admin-gray.vercel.app/admin/homepage-management)
-//  and feeds the candidate-facing homepage
-//  (https://job-portal-dev-phi.vercel.app/).
-//
 //  Kept in a single file on purpose — these are small, uniform
 //  "content block" entities that are always read/edited together
 //  from one admin screen, so one file is easier to navigate than
@@ -230,7 +224,7 @@ public class HomepageSuggestion
     public string? SubmittedByEmail { get; set; }
 
     public HomepageSuggestionStatus Status { get; set; } = HomepageSuggestionStatus.Pending;
-
+    public Guid? ParentSuggestionId { get; set; }
     public string? AdminNote { get; set; }
 
     public Guid? ReviewedBy { get; set; }
@@ -252,7 +246,7 @@ public enum HomepageSuggestionType
     RegistrationIndustry,
     Department,
     TradeCategory,
-     SubTrade
+    SubTrade
 }
 
 public enum HomepageSuggestionStatus

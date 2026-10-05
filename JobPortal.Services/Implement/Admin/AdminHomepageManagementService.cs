@@ -688,21 +688,29 @@ namespace JobPortal.Services.Implement.Admin
             if (entity == null)
                 return false;
 
-            var hasSubTrades = await _context.HomepageSubTrades
-                .AnyAsync(x => x.TradeCategoryId == id);
+            // Find all SubTrades belonging to this Trade.
+            var subTrades = await _context.HomepageSubTrades
+                .Where(x => x.TradeCategoryId == id)
+                .ToListAsync();
 
-            if (hasSubTrades)
+            // Delete child SubTrades first.
+            if (subTrades.Count > 0)
             {
-                throw new InvalidOperationException(
-                    "This Trade Category cannot be deleted because it has SubTrades. Delete the SubTrades first.");
+                _context.HomepageSubTrades.RemoveRange(subTrades);
             }
 
+            // Delete the parent Trade.
             _context.HomepageTradeCategories.Remove(entity);
 
+            // Save both deletions together.
             await _context.SaveChangesAsync();
 
             return true;
         }
+
+
+
+
         public async Task<NamedListItemDto?> ToggleTradeCategoryAsync(Guid id)
         {
             var entity = await _context.HomepageTradeCategories.FirstOrDefaultAsync(x => x.TradeCategoryId == id);
@@ -961,6 +969,48 @@ namespace JobPortal.Services.Implement.Admin
             var entity = await _context.HomepageSuggestions.FirstOrDefaultAsync(x => x.SuggestionId == id);
             if (entity == null) return null;
 
+            // Apply values coming from Admin request first
+            entity.RegistrationIndustryId =
+                request.RegistrationIndustryId ?? entity.RegistrationIndustryId;
+
+            entity.TradeCategoryId =
+                request.TradeCategoryId ?? entity.TradeCategoryId;
+
+            entity.ParentSuggestionId =
+                request.ParentSuggestionId ?? entity.ParentSuggestionId;
+
+            if (entity.Type == HomepageSuggestionType.TradeCategory &&
+    !entity.RegistrationIndustryId.HasValue &&
+    entity.ParentSuggestionId.HasValue)
+            {
+                var parentIndustry = await _context.HomepageSuggestions
+                    .FirstOrDefaultAsync(x =>
+                        x.SuggestionId == entity.ParentSuggestionId.Value);
+
+                if (parentIndustry == null ||
+                    parentIndustry.Status != HomepageSuggestionStatus.Approved)
+                {
+                    throw new InvalidOperationException(
+                        "Please approve the parent Registration Industry first.");
+                }
+            }
+
+            if (entity.Type == HomepageSuggestionType.SubTrade &&
+    !entity.TradeCategoryId.HasValue &&
+    entity.ParentSuggestionId.HasValue)
+            {
+                var parentTrade = await _context.HomepageSuggestions
+                    .FirstOrDefaultAsync(x =>
+                        x.SuggestionId == entity.ParentSuggestionId.Value);
+
+                if (parentTrade == null ||
+                    parentTrade.Status != HomepageSuggestionStatus.Approved)
+                {
+                    throw new InvalidOperationException(
+                        "Please approve the parent Trade Category first.");
+                }
+            }
+
             entity.Status = HomepageSuggestionStatus.Approved;
             entity.AdminNote = request.AdminNote;
             entity.ReviewedBy = adminId;
@@ -1010,60 +1060,99 @@ namespace JobPortal.Services.Implement.Admin
                     break;
 
                 case HomepageSuggestionType.RegistrationIndustry:
-                    if (!await _context.HomepageRegistrationIndustries.AnyAsync(x => x.Name.ToLower() == name.ToLower()))
-                        await CreateRegistrationIndustryAsync(new CreateNamedListItemRequestDto { Name = name });
+
+                    var existingIndustry = await _context.HomepageRegistrationIndustries
+                        .FirstOrDefaultAsync(x => x.Name.ToLower() == name.ToLower());
+
+                    if (existingIndustry != null)
+                    {
+                        suggestion.RegistrationIndustryId = existingIndustry.RegistrationIndustryId;
+                    }
+                    else
+                    {
+                        var createdIndustry = await CreateRegistrationIndustryAsync(
+                            new CreateNamedListItemRequestDto
+                            {
+                                Name = name
+                            });
+
+                        suggestion.RegistrationIndustryId = createdIndustry.Id;
+                    }
+
                     break;
 
                 case HomepageSuggestionType.Department:
                     if (!await _context.HomepageDepartments.AnyAsync(x => x.Name.ToLower() == name.ToLower()))
                         await CreateDepartmentAsync(new CreateNamedListItemRequestDto { Name = name });
                     break;
-
                 case HomepageSuggestionType.TradeCategory:
 
-                    if (!suggestion.RegistrationIndustryId.HasValue)
+                    Guid? registrationIndustryId = suggestion.RegistrationIndustryId;
+
+                    if (!registrationIndustryId.HasValue && suggestion.ParentSuggestionId.HasValue)
+                    {
+                        var parentIndustrySuggestion = await _context.HomepageSuggestions
+                            .FirstOrDefaultAsync(x =>
+                                x.SuggestionId == suggestion.ParentSuggestionId.Value);
+
+                        if (parentIndustrySuggestion != null)
+                        {
+                            registrationIndustryId = parentIndustrySuggestion.RegistrationIndustryId;
+                        }
+                    }
+
+                    if (!registrationIndustryId.HasValue)
                         throw new InvalidOperationException(
                             "Registration Industry is required for a Trade Category suggestion.");
 
-                    var registrationIndustryId =
-                        suggestion.RegistrationIndustryId.Value;
-
                     var tradeExists = await _context.HomepageTradeCategories
                         .AnyAsync(x =>
-                            x.RegistrationIndustryId == registrationIndustryId &&
+                            x.RegistrationIndustryId == registrationIndustryId.Value &&
                             x.Name.ToLower() == name.ToLower());
 
                     if (!tradeExists)
                     {
-                        await CreateTradeCategoryAsync(
-                            registrationIndustryId,
+                        var createdTrade = await CreateTradeCategoryAsync(
+                            registrationIndustryId.Value,
                             new CreateNamedListItemRequestDto
                             {
                                 Name = name
                             });
+
+                        suggestion.TradeCategoryId = createdTrade.Id;
                     }
 
                     break;
 
-
                 case HomepageSuggestionType.SubTrade:
 
-                    if (!suggestion.TradeCategoryId.HasValue)
+                    Guid? tradeCategoryId = suggestion.TradeCategoryId;
+
+                    if (!tradeCategoryId.HasValue && suggestion.ParentSuggestionId.HasValue)
+                    {
+                        var parentTradeSuggestion = await _context.HomepageSuggestions
+                            .FirstOrDefaultAsync(x =>
+                                x.SuggestionId == suggestion.ParentSuggestionId.Value);
+
+                        if (parentTradeSuggestion != null)
+                        {
+                            tradeCategoryId = parentTradeSuggestion.TradeCategoryId;
+                        }
+                    }
+
+                    if (!tradeCategoryId.HasValue)
                         throw new InvalidOperationException(
                             "Trade Category is required for a SubTrade suggestion.");
 
-                    var tradeCategoryId =
-                        suggestion.TradeCategoryId.Value;
-
                     var subTradeExists = await _context.HomepageSubTrades
                         .AnyAsync(x =>
-                            x.TradeCategoryId == tradeCategoryId &&
+                            x.TradeCategoryId == tradeCategoryId.Value &&
                             x.Name.ToLower() == name.ToLower());
 
                     if (!subTradeExists)
                     {
                         await CreateSubTradeAsync(
-                            tradeCategoryId,
+                            tradeCategoryId.Value,
                             new CreateNamedListItemRequestDto
                             {
                                 Name = name
@@ -1078,7 +1167,10 @@ namespace JobPortal.Services.Implement.Admin
         {
             SuggestionId = x.SuggestionId,
             Type = x.Type,
+            RegistrationIndustryId = x.RegistrationIndustryId,
+            TradeCategoryId = x.TradeCategoryId,
             SuggestedName = x.SuggestedName,
+            ParentSuggestionId = x.ParentSuggestionId,
             Note = x.Note,
             SubmittedByName = x.SubmittedByName,
             SubmittedByEmail = x.SubmittedByEmail,

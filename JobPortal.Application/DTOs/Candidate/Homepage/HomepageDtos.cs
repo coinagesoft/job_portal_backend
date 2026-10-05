@@ -86,6 +86,8 @@ public class SubmitSuggestionRequestDto
     /// <summary>Industry | Location | Role | RegistrationIndustry | Department | TradeCategory</summary>
     public string Type { get; set; } = default!;
     public string SuggestedName { get; set; } = default!;
+    public Guid? RegistrationIndustryId { get; set; }
+    public Guid? TradeCategoryId { get; set; }
     public string? Note { get; set; }
     public string? SubmittedByName { get; set; }
     public string? SubmittedByEmail { get; set; }

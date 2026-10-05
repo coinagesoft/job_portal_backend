@@ -18,10 +18,14 @@ namespace JobPortal.Application.DTOs.Admin
     public class TradeWithSubTradesDto
     {
         public Guid TradeCategoryId { get; set; }
+
         public string Name { get; set; } = default!;
 
-        public List<SubTradeDto> SubTrades { get; set; }
-            = new();
+        public int DisplayOrder { get; set; }
+
+        public bool IsActive { get; set; }
+
+        public List<SubTradeDto> SubTrades { get; set; } = new();
     }
 
     public class SubTradeDto

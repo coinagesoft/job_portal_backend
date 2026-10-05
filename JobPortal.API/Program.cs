@@ -124,12 +124,12 @@ builder.Services.AddScoped<CandidatePagedJobService>();
 builder.Services.AddScoped<IRecruiterHomepageService, RecruiterHomepageService>();   // <-- new line
 builder.Services.AddHttpClient<IGeminiCompanyDocumentParserService, GeminiCompanyDocumentParserService>();
 //builder.Services.AddScoped<IAffindaService, AffindaService>();
-
+builder.Services.AddScoped<ITradeHierarchyImportService, TradeHierarchyImportService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
 builder.Services.AddScoped<IEmbeddingStorageService, EmbeddingStorageService>();
-builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
+//builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
 builder.Services.AddScoped<IEmbeddingStorageService, EmbeddingStorageService>();
 builder.Services.AddScoped<IJobMatchingService, JobMatchingService>();
 builder.Services.AddScoped<ICvGenerationService, CvGenerationService>();
@@ -225,9 +225,12 @@ builder.Services.AddCors(options =>
             .WithOrigins(
                 "http://localhost:3000",
                 "https://localhost:3000",
+                "https://localhost:3001",
+                "http://localhost:3001",
 
                 "https://job-portal-dev-phi.vercel.app",
-                "https://job-portal-web-phi.vercel.app");
+                "https://job-portal-web-phi.vercel.app",
+                 "https://job-portal-admin-gray.vercel.app");
 
     });
 });

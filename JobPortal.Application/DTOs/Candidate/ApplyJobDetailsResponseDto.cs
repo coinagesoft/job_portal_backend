@@ -23,6 +23,9 @@ namespace JobPortal.Application.DTOs.Candidate
         public bool IsConfidentialCompany { get; set; }
 
         // Job
+        public List<string> ExistingDocuments { get; set; } = new();
+
+        public List<string> MissingDocuments { get; set; } = new();
 
         public string JobTitle { get; set; } = string.Empty;
 

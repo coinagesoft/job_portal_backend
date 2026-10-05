@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using JobPortal.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace JobPortal.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928110505_countryfield1")]
+    partial class countryfield1
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2378,9 +2381,6 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("Note")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("ParentSuggestionId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid?>("RegistrationIndustryId")
                         .HasColumnType("uuid");
 
@@ -2418,8 +2418,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("character varying(30)");
 
                     b.HasKey("SuggestionId");
-
-                    b.HasIndex("ParentSuggestionId");
 
                     b.HasIndex("ReviewedBy");
 
@@ -4632,11 +4630,6 @@ namespace JobPortal.Infrastructure.Migrations
 
             modelBuilder.Entity("JobPortal.Domain.Entities.Homepage.HomepageSuggestion", b =>
                 {
-                    b.HasOne("JobPortal.Domain.Entities.Homepage.HomepageSuggestion", null)
-                        .WithMany()
-                        .HasForeignKey("ParentSuggestionId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("JobPortal.Domain.Entities.AdminUser", "ReviewedByAdmin")
                         .WithMany()
                         .HasForeignKey("ReviewedBy")

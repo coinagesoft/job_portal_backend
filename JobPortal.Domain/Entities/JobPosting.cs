@@ -50,7 +50,7 @@ public class JobPosting
     public string? OnshoreState { get; set; }
     public string? OnshoreCountry { get; set; }
     public string? OnshorePincode { get; set; }
-
+    public string? Country { get; set; }
     // Offshore
     public string? OffshoreVesselName { get; set; }
     public string? OffshoreRegion { get; set; }

@@ -285,8 +285,8 @@ namespace JobPortal.Services.Implement.Recruiter
         // TODO (Part 2)
         // ==========================================================
         public async Task<ApplicantDetailsResponseDto?> GetApplicantDetailsAsync(
-      Guid employerId,
-      Guid applicationId)
+        Guid employerId,
+        Guid applicationId)
         {
             var application = await _context.JobApplications
                 .Include(x => x.CandidateProfile)
@@ -439,9 +439,9 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-        public async Task<JobApplicantsResponseDto?> GetJobApplicantsAsync(
-       Guid employerId,
-       Guid jobId)
+         public async Task<JobApplicantsResponseDto?> GetJobApplicantsAsync(
+         Guid employerId,
+         Guid jobId)
         {
             var job = await _context.JobPostings
                 .AsNoTracking()
@@ -545,7 +545,7 @@ namespace JobPortal.Services.Implement.Recruiter
         // ==========================================================
         // TODO (Part 3)
         // ==========================================================
-        public async Task<UpdateApplicantStatusResponseDto> MoveToReviewAsync(
+         public async Task<UpdateApplicantStatusResponseDto> MoveToReviewAsync(
          Guid employerId,
          Guid applicationId,
          UpdateApplicantNoteRequestDto request)
@@ -580,6 +580,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 ApplicationStatus = application.ApplicationStatus.ToString()
             };
         }
+
 
         public async Task<UpdateApplicantStatusResponseDto> ShortlistApplicantAsync(
             Guid employerId,
