@@ -28,6 +28,10 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public Task<bool> SendOtpAsync(string phoneNumber)
         {
+            // TEMPORARY: static OTP bypass - no SMS sent, verify accepts 123456
+            return Task.FromResult(true);
+#pragma warning disable CS0162
+
             // TEMPORARY: MSG91 setup is not complete yet.
             // Until it's ready, ALL numbers (including Indian) go through Twilio.
             // To restore MSG91 for Indian numbers later, uncomment the block below
@@ -47,6 +51,10 @@ namespace JobPortal.Services.Implement.Recruiter
 
         public Task<bool> VerifyOtpAsync(string phoneNumber, string otpCode)
         {
+            // TEMPORARY: static OTP bypass
+            return Task.FromResult(otpCode == "123456");
+#pragma warning disable CS0162
+
             // TEMPORARY: MSG91 setup is not complete yet.
             // Until it's ready, ALL numbers (including Indian) go through Twilio.
             // To restore MSG91 for Indian numbers later, uncomment the block below
