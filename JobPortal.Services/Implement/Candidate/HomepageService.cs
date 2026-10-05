@@ -339,7 +339,8 @@ public class HomepageService : IHomepageService
                     Slug = x.Slug,
                     IconUrl = x.IconUrl,
                     JobCount = x.JobCountOverride ?? 0,
-                    DisplayOrder = x.DisplayOrder
+                    DisplayOrder = x.DisplayOrder,
+                    ShowInDropdown = x.ShowInDropdown
                 })
                 .ToListAsync();
 

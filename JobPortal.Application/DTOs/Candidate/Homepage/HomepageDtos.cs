@@ -138,6 +138,13 @@ public class PublicIndustryDto
     public string? IconUrl { get; set; }
     public int JobCount { get; set; }
     public int DisplayOrder { get; set; }
+
+    /// <summary>
+    /// True  -> belongs in the hero search "Trade Category" dropdown.
+    /// False -> belongs in the "Browse by Industry" cards section.
+    /// Mutually exclusive, set from the admin Homepage Management screen.
+    /// </summary>
+    public bool ShowInDropdown { get; set; }
 }
 
 public class PublicStatItemDto
