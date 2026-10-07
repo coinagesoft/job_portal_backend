@@ -9,12 +9,14 @@ using JobPortal.Services.AI;
 using JobPortal.Services.IImplement.AI;
 using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.ICandidate;
+using JobPortal.Services.IImplement.ICoupon;
 using JobPortal.Services.IImplement.IPublic;
 using JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Services.Implement;
 using JobPortal.Services.Implement.Admin;
 using JobPortal.Services.Implement.AI;
 using JobPortal.Services.Implement.Candidate;
+using JobPortal.Services.Implement.Coupons;
 using JobPortal.Services.Implement.Public;
 //using JobPortal.Services.IImplement.AI;
 using JobPortal.Services.Implement.Recruiter;
@@ -137,7 +139,8 @@ builder.Services.AddScoped<IAiJobDescriptionService, AiJobDescriptionService>();
 builder.Services.AddScoped<IRankedCandidateService, RankedCandidateService>();
 builder.Services.AddScoped<IAdminCandidateService, AdminCandidateService>();
 builder.Services.AddScoped<IAdminRecruiterService, AdminRecruiterService>();
-
+builder.Services.AddScoped<IAdminCouponService, AdminCouponService>();
+builder.Services.AddScoped<ICouponValidationService, CouponValidationService>();
 // ── Affinda AI — resume parsing ──────────────────────────────
 // Uses typed HttpClient so each instance gets its own HttpClient
 builder.Services.AddHttpClient<IAffindaService, AffindaService>();

@@ -1,6 +1,9 @@
-﻿using JobPortal.Application.DTOs.Candidate.Auth;
+﻿using JobPortal.Application.DTOs.Admin.Coupons;
+using JobPortal.Application.DTOs.Candidate.Auth;
 using JobPortal.Application.DTOs.Recruiter.Auth;
 using JobPortal.Services.IImplement.ICandidate;
+using JobPortal.Services.IImplement.ICoupon;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Candidate;
@@ -12,12 +15,14 @@ public class CandidateAuthController : ControllerBase
 {
     private readonly ICandidateAuthService _service;
     private readonly ILogger<CandidateAuthController> _logger;
-
+    private readonly ICouponValidationService _couponValidationService;
     public CandidateAuthController(
         ICandidateAuthService service,
+          ICouponValidationService couponValidationService,
         ILogger<CandidateAuthController> logger)
     {
         _service = service;
+        _couponValidationService = couponValidationService;
         _logger = logger;
     }
 
@@ -96,6 +101,23 @@ public class CandidateAuthController : ControllerBase
             await _service.CreateOrderAsync(request);
 
         return result.Success
+            ? Ok(result)
+            : BadRequest(result);
+    }
+
+    [HttpPost("validate-coupon")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ValidateCoupon(
+    [FromBody] ValidateCouponRequestDto request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var result = await _couponValidationService.ValidateCouponAsync(
+            request,
+            Guid.Empty);
+
+        return result.IsValid
             ? Ok(result)
             : BadRequest(result);
     }

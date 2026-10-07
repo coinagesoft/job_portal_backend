@@ -438,6 +438,7 @@ namespace JobPortal.Services.Implement.Recruiter
                         config.CandidateAccessDays)
             };
         }
+
         public async Task<EmployerCandidateProfileDto?> GetCandidateProfileAsync(
         Guid employerId,
         Guid candidateId)
@@ -1450,8 +1451,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 wallet.CreditBalance);
         }
 
-        private async Task<(bool Success,
-    string Message,
+        private async Task<(bool Success,string Message,
     int BalanceBefore,
     int BalanceAfter)>
     DeductSubUserCreditsAsync(

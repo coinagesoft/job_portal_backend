@@ -41,5 +41,8 @@ namespace JobPortal.Domain.Entities
 
         public Guid? UpdatedBy { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
+        public ICollection<Coupon> Coupons { get; set; }
+    = new List<Coupon>();
     }
 }

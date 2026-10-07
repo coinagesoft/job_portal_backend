@@ -31,10 +31,19 @@ public class PaymentTransaction
     public string? InvoiceUrl { get; set; }
     public DateTime? CreditsAddedAt { get; set; }
     public DateTime CreatedAt { get; set; }
+    public Guid? CouponId { get; set; }
 
+    public int DiscountAmountPaise { get; set; } = 0;
+    public string? CouponCode { get; set; }
     public User User { get; set; } = default!;
     public EmployerProfile? EmployerProfile { get; set; }
     public CandidateProfile? CandidateProfile { get; set; }
     public PaymentTransaction? OriginalTransaction { get; set; }
     public AdminUser? RefundAdmin { get; set; }
+
+    // Coupon navigation
+
+    public Coupon? Coupon { get; set; }
+
+    public CouponRedemption? CouponRedemption { get; set; }
 }

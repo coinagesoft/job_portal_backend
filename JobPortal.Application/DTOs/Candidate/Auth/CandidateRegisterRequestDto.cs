@@ -32,4 +32,6 @@ public class CandidateRegisterRequestDto
 
     [Required]
     public bool TermsAccepted { get; set; }
+
+    public string? CouponCode { get; set; }
 }

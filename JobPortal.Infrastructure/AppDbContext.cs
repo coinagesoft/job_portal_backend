@@ -74,6 +74,11 @@ public class AppDbContext : DbContext
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<SecurityDeposit> SecurityDeposits => Set<SecurityDeposit>();
 
+
+    // Section 6A — Coupons
+    public DbSet<Coupon> Coupons => Set<Coupon>();
+    public DbSet<CouponRedemption> CouponRedemptions => Set<CouponRedemption>();
+
     // Section 7 — Notifications
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
@@ -1089,13 +1094,274 @@ public class AppDbContext : DbContext
         m.Entity<MembershipPlan>(e =>
         {
             e.ToTable("MembershipPlans");
+
             e.HasKey(x => x.PlanId);
 
             e.Property(x => x.PlanType)
                 .HasConversion<string>();
 
+            e.Property(x => x.Region)
+                .HasMaxLength(20)
+                .IsRequired();
+
+            e.Property(x => x.PlanName)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            e.Property(x => x.Price)
+                .HasPrecision(18, 2);
+
+            e.Property(x => x.Period)
+                .HasMaxLength(30)
+                .IsRequired();
+
+            e.Property(x => x.Badge)
+                .HasMaxLength(100);
+
             e.Property(x => x.Features)
                 .HasConversion(stringListConverter);
+
+            // Useful for country/region-specific plan lookup.
+            e.HasIndex(x => new
+            {
+                x.PlanType,
+                x.Region,
+                x.IsActive
+            });
+
+            // Coupon -> optional specific MembershipPlan
+            // Relationship is configured from Coupon below.
+        });
+
+        // ── Coupons ────────────────────────────────────────────────
+        m.Entity<Coupon>(e =>
+        {
+            e.ToTable("coupons");
+
+            e.HasKey(x => x.CouponId);
+
+            e.Property(x => x.CouponId)
+                .HasColumnName("coupon_id");
+
+            e.Property(x => x.Code)
+                .HasColumnName("code")
+                .HasMaxLength(50)
+                .IsRequired();
+
+            e.Property(x => x.PlanType)
+                .HasColumnName("plan_type")
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            e.Property(x => x.Region)
+                .HasColumnName("region")
+                .HasMaxLength(20)
+                .IsRequired();
+
+            e.Property(x => x.PlanId)
+                .HasColumnName("plan_id");
+
+            e.Property(x => x.DiscountType)
+                .HasColumnName("discount_type")
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .IsRequired();
+
+            e.Property(x => x.DiscountValue)
+                .HasColumnName("discount_value")
+                .HasPrecision(18, 2)
+                .IsRequired();
+
+            e.Property(x => x.MinimumAmount)
+                .HasColumnName("minimum_amount")
+                .HasPrecision(18, 2);
+
+            e.Property(x => x.MaximumDiscount)
+                .HasColumnName("maximum_discount")
+                .HasPrecision(18, 2);
+
+            e.Property(x => x.UsageLimit)
+                .HasColumnName("usage_limit");
+
+            e.Property(x => x.PerUserLimit)
+                .HasColumnName("per_user_limit");
+
+            e.Property(x => x.StartAt)
+                .HasColumnName("start_at");
+
+            e.Property(x => x.ExpiresAt)
+                .HasColumnName("expires_at");
+
+            e.Property(x => x.IsActive)
+                .HasColumnName("is_active")
+                .HasDefaultValue(true);
+
+            e.Property(x => x.UsedCount)
+                .HasColumnName("used_count")
+                .HasDefaultValue(0);
+
+            e.Property(x => x.CreatedAt)
+                .HasColumnName("created_at");
+
+            e.Property(x => x.CreatedBy)
+                .HasColumnName("created_by");
+
+            e.Property(x => x.UpdatedBy)
+                .HasColumnName("updated_by");
+
+            e.Property(x => x.UpdatedAt)
+                .HasColumnName("updated_at");
+
+            // Coupon code must be unique.
+            e.HasIndex(x => x.Code)
+                .IsUnique()
+                .HasDatabaseName("uq_coupons_code");
+
+            // Useful for admin filtering and coupon validation.
+            e.HasIndex(x => new
+            {
+                x.PlanType,
+                x.Region,
+                x.IsActive
+            })
+            .HasDatabaseName("ix_coupons_plan_type_region_active");
+
+            // Useful when coupons are restricted to one specific plan.
+            e.HasIndex(x => x.PlanId)
+                .HasDatabaseName("ix_coupons_plan_id");
+
+            // Coupon -> optional MembershipPlan
+            //
+            // If the plan is removed, we don't want to delete the coupon.
+            // Instead, PlanId becomes NULL and the coupon can be edited/deactivated.
+            e.HasOne(x => x.MembershipPlan)
+                .WithMany(x => x.Coupons)
+                .HasForeignKey(x => x.PlanId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ── Coupon Redemptions ────────────────────────────────────
+        m.Entity<CouponRedemption>(e =>
+        {
+            e.ToTable("coupon_redemptions");
+
+            e.HasKey(x => x.RedemptionId);
+
+            e.Property(x => x.RedemptionId)
+                .HasColumnName("redemption_id");
+
+            e.Property(x => x.CouponId)
+                .HasColumnName("coupon_id")
+                .IsRequired();
+
+            e.Property(x => x.UserId)
+                .HasColumnName("user_id")
+                .IsRequired();
+
+            e.Property(x => x.PlanId)
+                .HasColumnName("plan_id")
+                .IsRequired();
+
+            e.Property(x => x.PaymentTransactionId)
+                .HasColumnName("payment_transaction_id");
+
+            e.Property(x => x.CouponCode)
+                .HasColumnName("coupon_code")
+                .HasMaxLength(50)
+                .IsRequired();
+
+            e.Property(x => x.OriginalAmountPaise)
+                .HasColumnName("original_amount_paise")
+                .IsRequired();
+
+            e.Property(x => x.DiscountAmountPaise)
+                .HasColumnName("discount_amount_paise")
+                .IsRequired();
+
+            e.Property(x => x.FinalAmountPaise)
+                .HasColumnName("final_amount_paise")
+                .IsRequired();
+
+            e.Property(x => x.RedeemedAt)
+                .HasColumnName("redeemed_at");
+
+            // -------------------------------------------------------
+            // Coupon -> Redemptions
+            // -------------------------------------------------------
+            //
+            // A coupon can have many successful redemptions.
+            // We don't want deleting/deactivating a coupon to erase
+            // financial history.
+            //
+            e.HasOne(x => x.Coupon)
+                .WithMany(x => x.Redemptions)
+                .HasForeignKey(x => x.CouponId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // -------------------------------------------------------
+            // User -> Redemptions
+            // -------------------------------------------------------
+            //
+            // Needed for PerUserLimit checks.
+            //
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // -------------------------------------------------------
+            // MembershipPlan -> Redemptions
+            // -------------------------------------------------------
+            //
+            // Keep historical redemption records if an admin later
+            // disables/removes a plan.
+            //
+            e.HasOne(x => x.MembershipPlan)
+                .WithMany()
+                .HasForeignKey(x => x.PlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // -------------------------------------------------------
+            // PaymentTransaction -> CouponRedemption
+            // -------------------------------------------------------
+            //
+            // One successful payment can have at most one coupon
+            // redemption.
+            //
+            e.HasOne(x => x.PaymentTransaction)
+                .WithOne(x => x.CouponRedemption)
+                .HasForeignKey<CouponRedemption>(x => x.PaymentTransactionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // -------------------------------------------------------
+            // Indexes
+            // -------------------------------------------------------
+
+            // Fast lookup of all usages of a coupon.
+            e.HasIndex(x => x.CouponId)
+                .HasDatabaseName("ix_coupon_redemptions_coupon_id");
+
+            // Fast per-user usage checking.
+            e.HasIndex(x => new
+            {
+                x.CouponId,
+                x.UserId
+            })
+            .HasDatabaseName("ix_coupon_redemptions_coupon_user");
+
+            // Fast payment -> redemption lookup.
+            e.HasIndex(x => x.PaymentTransactionId)
+                .IsUnique()
+                .HasFilter("\"payment_transaction_id\" IS NOT NULL")
+                .HasDatabaseName("uq_coupon_redemptions_payment_transaction");
+
+            // Useful for reporting/history.
+            e.HasIndex(x => x.UserId)
+                .HasDatabaseName("ix_coupon_redemptions_user_id");
+
+            e.HasIndex(x => x.RedeemedAt)
+                .HasDatabaseName("ix_coupon_redemptions_redeemed_at");
         });
 
         m.Entity<JobPosting>(e =>
@@ -1456,39 +1722,46 @@ public class AppDbContext : DbContext
                 .HasForeignKey<CreditWallet>(x => x.EmployerId);
         });
 
-        m.Entity<PaymentTransaction>(e => {
+        m.Entity<PaymentTransaction>(e =>
+        {
             e.ToTable("payment_transactions");
+
             e.HasKey(x => x.TransactionId);
+
+            // Original transaction / refund relationships
             e.HasOne(x => x.OriginalTransaction)
-             .WithMany()
-             .HasForeignKey(x => x.OriginalTxnId)
-             .OnDelete(DeleteBehavior.Restrict);
+                .WithMany()
+                .HasForeignKey(x => x.OriginalTxnId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             e.HasOne(x => x.RefundAdmin)
-             .WithMany()
-             .HasForeignKey(x => x.RefundProcessedBy)
-             .OnDelete(DeleteBehavior.SetNull);
-            // IMPORTANT: without these two, EF Core cannot match the bare
-            // "EmployerId"/"CandidateId" columns to the EmployerProfile/
-            // CandidateProfile navigations by convention (it would need a
-            // property literally named "EmployerProfileId"/"CandidateProfileId").
-            // Previously this caused EF to silently create two extra shadow
-            // columns ("EmployerProfileEmployerId", "CandidateProfileCandidateId")
-            // that were never populated by application code, so every
-            // t.EmployerProfile / t.CandidateProfile navigation always came
-            // back null — which is why Admin > Revenue "by-country" always
-            // showed "Unknown"/"UNK" even for transactions with a real
-            // EmployerId/CandidateId set. Pinning the FK to the real column
-            // fixes this for both existing and future rows; no data
-            // migration is needed, only a schema migration to drop the
-            // unused shadow columns.
+                .WithMany()
+                .HasForeignKey(x => x.RefundProcessedBy)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Employer / Candidate relationships
             e.HasOne(x => x.EmployerProfile)
-             .WithMany()
-             .HasForeignKey(x => x.EmployerId)
-             .OnDelete(DeleteBehavior.Restrict);
+                .WithMany()
+                .HasForeignKey(x => x.EmployerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             e.HasOne(x => x.CandidateProfile)
-             .WithMany()
-             .HasForeignKey(x => x.CandidateId)
-             .OnDelete(DeleteBehavior.Restrict);
+                .WithMany()
+                .HasForeignKey(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Coupon relationship
+            e.HasOne(x => x.Coupon)
+                .WithMany()
+                .HasForeignKey(x => x.CouponId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Coupon indexes
+            e.HasIndex(x => x.CouponId)
+                .HasDatabaseName("ix_payment_transactions_coupon_id");
+
+            e.HasIndex(x => x.CouponCode)
+                .HasDatabaseName("ix_payment_transactions_coupon_code");
         });
 
         m.Entity<Invoice>(e => {

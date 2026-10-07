@@ -87,5 +87,20 @@ namespace JobPortal.API.Controllers.Admin
             var result = await _service.DeletePlanAsync(planId, User.GetAdminId());
             return result.Success ? Ok(result) : BadRequest(result);
         }
+
+
+        // GET /api/admin/membership-plans/active?planType=Recruiter&region=india
+        [HttpGet("active")]
+        public async Task<IActionResult> GetActivePlans(
+            [FromQuery] PlanType planType,
+            [FromQuery] string? region = null)
+        {
+            var result = await _service.GetActivePlansAsync(
+                planType,
+                region?.Trim().ToLower()
+            );
+
+            return Ok(result);
+        }
     }
 }

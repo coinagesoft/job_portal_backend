@@ -13,9 +13,8 @@ namespace JobPortal.Application.DTOs.Candidate.Auth
     // for any price they choose.
     public class CreateCandidateOrderRequestDto
     {
-        // Pricing-region code, e.g. "in", "us", "ae". Defaults to "in"
-        // (server-side) since the candidate membership fee is currently
-        // an India-focused ₹ flow.
+     
         public string? Region { get; set; }
+        public string? CouponCode { get; set; }
     }
 }
