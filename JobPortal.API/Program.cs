@@ -1,3 +1,4 @@
+using Amazon.S3;
 using FirebaseAdmin;
 using Google;
 using Google.Apis.Auth.OAuth2;
@@ -126,7 +127,13 @@ builder.Services.AddHttpClient<IGeminiCompanyDocumentParserService, GeminiCompan
 //builder.Services.AddScoped<IAffindaService, AffindaService>();
 builder.Services.AddScoped<ITradeHierarchyImportService, TradeHierarchyImportService>();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+// ── File storage: AWS S3 (private bucket, credentials from EC2 IAM role) ──
+builder.Services.AddSingleton<IAmazonS3>(_ =>
+    new AmazonS3Client(Amazon.RegionEndpoint.GetBySystemName(
+        builder.Configuration["AWS:Region"] ?? "ap-south-1")));
+builder.Services.AddScoped<S3FileStorageService>();
+builder.Services.AddScoped<IFileStorageService>(
+    sp => sp.GetRequiredService<S3FileStorageService>());
 builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
 builder.Services.AddScoped<IEmbeddingStorageService, EmbeddingStorageService>();
 //builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
@@ -240,7 +247,7 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+// /uploads/* is now served from S3 by UploadsController
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
