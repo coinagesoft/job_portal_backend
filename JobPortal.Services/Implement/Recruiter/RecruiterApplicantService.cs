@@ -3,6 +3,7 @@ using JobPortal.Application.DTOs.Recruiter.JobListing;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
+using JobPortal.Services.IImplement.ICandidate;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -13,13 +14,36 @@ namespace JobPortal.Services.Implement.Recruiter
     {
         private readonly AppDbContext _context;
         private readonly ILogger<RecruiterApplicantService> _logger;
+        private readonly IApplicationStatusPushService _pushService;
 
         public RecruiterApplicantService(
             AppDbContext context,
-            ILogger<RecruiterApplicantService> logger)
+            ILogger<RecruiterApplicantService> logger,
+            IApplicationStatusPushService pushService)
         {
             _context = context;
             _logger = logger;
+            _pushService = pushService;
+        }
+
+        // Push the new status to the candidate that owns this application.
+        // Runs after the status is saved and can never fail the API call.
+        private async Task NotifyCandidateAsync(
+            JobApplication application,
+            ApplicationStatus previousStatus)
+        {
+            try
+            {
+                await _pushService.NotifyStatusChangedAsync(
+                    application.ApplicationId,
+                    previousStatus);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Status push failed for application {ApplicationId}",
+                    application.ApplicationId);
+            }
         }
 
         // ==========================================================
@@ -439,9 +463,9 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
-         public async Task<JobApplicantsResponseDto?> GetJobApplicantsAsync(
-         Guid employerId,
-         Guid jobId)
+        public async Task<JobApplicantsResponseDto?> GetJobApplicantsAsync(
+        Guid employerId,
+        Guid jobId)
         {
             var job = await _context.JobPostings
                 .AsNoTracking()
@@ -545,10 +569,10 @@ namespace JobPortal.Services.Implement.Recruiter
         // ==========================================================
         // TODO (Part 3)
         // ==========================================================
-         public async Task<UpdateApplicantStatusResponseDto> MoveToReviewAsync(
-         Guid employerId,
-         Guid applicationId,
-         UpdateApplicantNoteRequestDto request)
+        public async Task<UpdateApplicantStatusResponseDto> MoveToReviewAsync(
+        Guid employerId,
+        Guid applicationId,
+        UpdateApplicantNoteRequestDto request)
         {
             var application = await _context.JobApplications
                 .FirstOrDefaultAsync(x =>
@@ -564,6 +588,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
+            var previousStatus = application.ApplicationStatus;
             application.ApplicationStatus = ApplicationStatus.InReview;
             application.StatusUpdatedAt = DateTime.UtcNow;
 
@@ -571,6 +596,7 @@ namespace JobPortal.Services.Implement.Recruiter
             application.EmployerInternalNote = request?.Note;
 
             await _context.SaveChangesAsync();
+            await NotifyCandidateAsync(application, previousStatus);
 
             return new UpdateApplicantStatusResponseDto
             {
@@ -603,12 +629,14 @@ namespace JobPortal.Services.Implement.Recruiter
 
             application.IsShortlisted = true;
             application.ShortlistedAt = DateTime.UtcNow;
+            var previousStatus = application.ApplicationStatus;
             application.ApplicationStatus = ApplicationStatus.Shortlisted;
             application.StatusUpdatedAt = DateTime.UtcNow;
 
             application.EmployerInternalNote = request?.Note;
 
             await _context.SaveChangesAsync();
+            await NotifyCandidateAsync(application, previousStatus);
 
             return new UpdateApplicantStatusResponseDto
             {
@@ -639,12 +667,14 @@ namespace JobPortal.Services.Implement.Recruiter
             }
 
             application.InterviewScheduledAt = request.InterviewDate;
+            var previousStatus = application.ApplicationStatus;
             application.ApplicationStatus = ApplicationStatus.Interview;
             application.StatusUpdatedAt = DateTime.UtcNow;
 
             application.EmployerInternalNote = request.Note;
 
             await _context.SaveChangesAsync();
+            await NotifyCandidateAsync(application, previousStatus);
 
             return new UpdateApplicantStatusResponseDto
             {
@@ -674,12 +704,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
+            var previousStatus = application.ApplicationStatus;
             application.ApplicationStatus = ApplicationStatus.TableInterview;
             application.StatusUpdatedAt = DateTime.UtcNow;
 
             application.EmployerInternalNote = request?.Note;
 
             await _context.SaveChangesAsync();
+            await NotifyCandidateAsync(application, previousStatus);
 
             return new UpdateApplicantStatusResponseDto
             {
@@ -709,12 +741,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
+            var previousStatus = application.ApplicationStatus;
             application.ApplicationStatus = ApplicationStatus.CvSelection;
             application.StatusUpdatedAt = DateTime.UtcNow;
 
             application.EmployerInternalNote = request?.Note;
 
             await _context.SaveChangesAsync();
+            await NotifyCandidateAsync(application, previousStatus);
 
             return new UpdateApplicantStatusResponseDto
             {
@@ -744,12 +778,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
+            var previousStatus = application.ApplicationStatus;
             application.ApplicationStatus = ApplicationStatus.LocationInterview;
             application.StatusUpdatedAt = DateTime.UtcNow;
 
             application.EmployerInternalNote = request?.Note;
 
             await _context.SaveChangesAsync();
+            await NotifyCandidateAsync(application, previousStatus);
 
             return new UpdateApplicantStatusResponseDto
             {
@@ -779,6 +815,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
+            var previousStatus = application.ApplicationStatus;
             application.ApplicationStatus = ApplicationStatus.Rejected;
             application.RejectedAt = DateTime.UtcNow;
             application.StatusUpdatedAt = DateTime.UtcNow;
@@ -789,6 +826,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 : request.Note;
 
             await _context.SaveChangesAsync();
+            await NotifyCandidateAsync(application, previousStatus);
 
             return new UpdateApplicantStatusResponseDto
             {
@@ -818,12 +856,14 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
+            var previousStatus = application.ApplicationStatus;
             application.ApplicationStatus = ApplicationStatus.Hired;
             application.StatusUpdatedAt = DateTime.UtcNow;
 
             application.EmployerInternalNote = request?.Note;
 
             await _context.SaveChangesAsync();
+            await NotifyCandidateAsync(application, previousStatus);
 
             return new UpdateApplicantStatusResponseDto
             {

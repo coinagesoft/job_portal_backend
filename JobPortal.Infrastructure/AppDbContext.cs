@@ -104,6 +104,7 @@ public class AppDbContext : DbContext
     public DbSet<CandidatePreferenceSetting> CandidatePreferenceSettings => Set<CandidatePreferenceSetting>();
 
     public DbSet<CandidateLogoutSession> CandidateLogoutSessions => Set<CandidateLogoutSession>();
+    public DbSet<CandidateDeviceToken> CandidateDeviceTokens => Set<CandidateDeviceToken>();
     public DbSet<CandidateEmbedding> CandidateEmbeddings { get; set; }
     public DbSet<CandidateDocument> CandidateDocuments => Set<CandidateDocument>();
 
@@ -407,6 +408,26 @@ public class AppDbContext : DbContext
             e.HasKey(x => x.LogoutSessionId);
             e.HasIndex(x => x.CandidateId);
             e.HasIndex(x => x.JwtJti);
+            e.HasOne(x => x.CandidateProfile)
+                .WithMany()
+                .HasForeignKey(x => x.CandidateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        m.Entity<CandidateDeviceToken>(e =>
+        {
+            e.ToTable("candidate_device_tokens");
+            e.HasKey(x => x.DeviceTokenId);
+
+            e.Property(x => x.Token).IsRequired().HasMaxLength(512);
+            e.Property(x => x.Platform).IsRequired().HasMaxLength(20);
+            e.Property(x => x.DeviceId).HasMaxLength(200);
+            e.Property(x => x.AppVersion).HasMaxLength(50);
+
+            // One token == one device. Re-assigned if another candidate logs in on it.
+            e.HasIndex(x => x.Token).IsUnique();
+            e.HasIndex(x => x.CandidateId);
+
             e.HasOne(x => x.CandidateProfile)
                 .WithMany()
                 .HasForeignKey(x => x.CandidateId)

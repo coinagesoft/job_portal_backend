@@ -96,6 +96,8 @@ builder.Services.AddScoped<IRecruiterCandidateProfileService, RecruiterCandidate
 builder.Services.AddScoped<IRecruiterJobListingService, RecruiterJobListingService>();
 builder.Services.AddScoped<IRecruiterApplicantService, RecruiterApplicantService>();
 builder.Services.AddScoped<ICandidateNotificationService, CandidateNotificationService>();
+builder.Services.AddScoped<ICandidateDeviceTokenService, CandidateDeviceTokenService>();
+builder.Services.AddScoped<IApplicationStatusPushService, ApplicationStatusPushService>();
 builder.Services.AddScoped<IResumeWatermarkService, ResumeWatermarkService>();
 builder.Services.AddScoped<IRecruiterCvSearchService, RecruiterCvSearchService>();
 builder.Services.AddScoped<IHomepageService, HomepageService>();
@@ -163,9 +165,13 @@ builder.Services.AddHttpClient<IGeminiDocumentParserService, GeminiDocumentParse
 builder.Services.AddHostedService<AccountCleanupService>();
 builder.Services.AddHostedService<SupportTicketAutoResolveService>();
 // ── Firebase ─────────────────────────────────────────────────
+// Path defaults to the existing "firebase-adminsdk.json"; override with
+// Firebase:CredentialsPath (appsettings / env var Firebase__CredentialsPath).
+// The service account MUST belong to the same Firebase project as the Flutter app.
 FirebaseApp.Create(new AppOptions()
 {
-    Credential = GoogleCredential.FromFile("firebase-adminsdk.json")
+    Credential = GoogleCredential.FromFile(
+        builder.Configuration["Firebase:CredentialsPath"] ?? "firebase-adminsdk.json")
 });
 
 builder.Services.AddSwaggerGen(c =>
