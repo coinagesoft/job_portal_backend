@@ -1,3 +1,4 @@
+using Amazon.S3;
 using FirebaseAdmin;
 using Google;
 using Google.Apis.Auth.OAuth2;
@@ -97,6 +98,8 @@ builder.Services.AddScoped<IRecruiterCandidateProfileService, RecruiterCandidate
 builder.Services.AddScoped<IRecruiterJobListingService, RecruiterJobListingService>();
 builder.Services.AddScoped<IRecruiterApplicantService, RecruiterApplicantService>();
 builder.Services.AddScoped<ICandidateNotificationService, CandidateNotificationService>();
+builder.Services.AddScoped<ICandidateDeviceTokenService, CandidateDeviceTokenService>();
+builder.Services.AddScoped<IApplicationStatusPushService, ApplicationStatusPushService>();
 builder.Services.AddScoped<IResumeWatermarkService, ResumeWatermarkService>();
 builder.Services.AddScoped<IRecruiterCvSearchService, RecruiterCvSearchService>();
 builder.Services.AddScoped<IHomepageService, HomepageService>();
@@ -128,7 +131,13 @@ builder.Services.AddHttpClient<IGeminiCompanyDocumentParserService, GeminiCompan
 //builder.Services.AddScoped<IAffindaService, AffindaService>();
 builder.Services.AddScoped<ITradeHierarchyImportService, TradeHierarchyImportService>();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+// ── File storage: AWS S3 (private bucket, credentials from EC2 IAM role) ──
+builder.Services.AddSingleton<IAmazonS3>(_ =>
+    new AmazonS3Client(Amazon.RegionEndpoint.GetBySystemName(
+        builder.Configuration["AWS:Region"] ?? "ap-south-1")));
+builder.Services.AddScoped<S3FileStorageService>();
+builder.Services.AddScoped<IFileStorageService>(
+    sp => sp.GetRequiredService<S3FileStorageService>());
 builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
 builder.Services.AddScoped<IEmbeddingStorageService, EmbeddingStorageService>();
 //builder.Services.AddScoped<IEmbeddingService, OpenAIEmbeddingService>();
@@ -159,9 +168,13 @@ builder.Services.AddHttpClient<IGeminiDocumentParserService, GeminiDocumentParse
 builder.Services.AddHostedService<AccountCleanupService>();
 builder.Services.AddHostedService<SupportTicketAutoResolveService>();
 // ── Firebase ─────────────────────────────────────────────────
+// Path defaults to the existing "firebase-adminsdk.json"; override with
+// Firebase:CredentialsPath (appsettings / env var Firebase__CredentialsPath).
+// The service account MUST belong to the same Firebase project as the Flutter app.
 FirebaseApp.Create(new AppOptions()
 {
-    Credential = GoogleCredential.FromFile("firebase-adminsdk.json")
+    Credential = GoogleCredential.FromFile(
+        builder.Configuration["Firebase:CredentialsPath"] ?? "firebase-adminsdk.json")
 });
 
 builder.Services.AddSwaggerGen(c =>
@@ -233,6 +246,8 @@ builder.Services.AddCors(options =>
 
                 "https://job-portal-dev-phi.vercel.app",
                 "https://job-portal-web-phi.vercel.app",
+                "http://16.4.32.157:3001",
+                "http://16.4.32.157",
                  "https://job-portal-admin-gray.vercel.app");
 
     });
@@ -243,7 +258,7 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+// /uploads/* is now served from S3 by UploadsController
 app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();

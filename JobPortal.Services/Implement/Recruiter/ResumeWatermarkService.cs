@@ -3,8 +3,7 @@
 //  ResumeWatermarkService.cs
 // ============================================================
 //
-//  NuGet package required (add to JobPortal.Services.csproj):
-//  <PackageReference Include="itext7" Version="8.0.5" />
+//  NuGet packages: itext7, AWSSDK.S3 (JobPortal.Services.csproj)
 //
 // ============================================================
 
@@ -18,7 +17,6 @@ using iText.Layout;
 using iText.Layout.Element;
 using iText.Layout.Properties;
 using JobPortal.Services.IImplement.IRecruiter;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace JobPortal.Services.Implement.Recruiter
@@ -27,19 +25,16 @@ namespace JobPortal.Services.Implement.Recruiter
     {
         private readonly ILogger<ResumeWatermarkService> _logger;
 
-        // IWebHostEnvironment.WebRootPath is the exact same property
-        // LocalFileStorageService uses when it writes the file — using it
-        // here too guarantees both sides agree on where "wwwroot" is,
-        // regardless of how ContentRootPath happens to resolve for the
-        // current launch profile / working directory.
-        private readonly IWebHostEnvironment _env;
+        // Reads the original CV straight from the private S3 bucket
+        // (via the EC2 IAM role) instead of from wwwroot/uploads on disk.
+        private readonly S3FileStorageService _storage;
 
         public ResumeWatermarkService(
             ILogger<ResumeWatermarkService> logger,
-            IWebHostEnvironment env)
+            S3FileStorageService storage)
         {
             _logger = logger;
-            _env = env;
+            _storage = storage;
         }
 
         // ────────────────────────────────────────────────────────────
@@ -63,77 +58,41 @@ namespace JobPortal.Services.Implement.Recruiter
         // ────────────────────────────────────────────────────────────
         private async Task<byte[]> ReadPdfBytesAsync(string cvFileUrl)
         {
-            var uploadsRoot = System.IO.Path.Combine(_env.WebRootPath, "uploads");
+            string key;
 
-            // If the url is relative (local storage), build the full path.
-            // Absolute URLs (http/https) are downloaded directly — unless
-            // they actually point at this app's own /uploads/ folder, in
-            // which case we read the file straight from disk instead.
             if (Uri.IsWellFormedUriString(cvFileUrl, UriKind.Absolute))
             {
                 var uri = new Uri(cvFileUrl);
-                const string localSegment = "/uploads/";
-                var idx = uri.AbsolutePath.IndexOf(localSegment, StringComparison.OrdinalIgnoreCase);
+                const string seg = "/uploads/";
+                var idx = uri.AbsolutePath.IndexOf(seg, StringComparison.OrdinalIgnoreCase);
 
-                if (idx >= 0)
+                if (idx < 0)
                 {
-                    // Locally-generated files (Portal CVs, uploaded resumes)
-                    // are saved under wwwroot/uploads/... by LocalFileStorageService,
-                    // which stamps the URL with whatever scheme/host answered
-                    // the original request. Looping back over HttpClient to
-                    // fetch that same URL is fragile — it silently 404s
-                    // whenever static-file serving isn't wired up for that
-                    // exact host/port, or the file was generated behind a
-                    // different hostname (reverse proxy, tunnel, other dev
-                    // port) than the one currently serving this request.
-                    // Reading the file directly from disk sidesteps all of that.
-                    var relativePath = uri.AbsolutePath[(idx + localSegment.Length)..]
-                        .Replace('/', System.IO.Path.DirectorySeparatorChar);
-
-                    var fullLocalPath = System.IO.Path.Combine(uploadsRoot, relativePath);
-
-                    if (File.Exists(fullLocalPath))
-                        return await File.ReadAllBytesAsync(fullLocalPath);
-
-                    // The expected exact path doesn't exist — as a last resort,
-                    // search for a file with the same name anywhere under
-                    // wwwroot/uploads (covers a mismatched sub-folder without
-                    // giving up entirely). The filename itself is a GUID, so
-                    // a match here is effectively unambiguous.
-                    var fileName = System.IO.Path.GetFileName(relativePath);
-                    var found = Directory.Exists(uploadsRoot)
-                        ? Directory.EnumerateFiles(uploadsRoot, fileName, SearchOption.AllDirectories).FirstOrDefault()
-                        : null;
-
-                    if (found != null)
-                        return await File.ReadAllBytesAsync(found);
-
-                    _logger.LogWarning(
-                        "Portal CV URL {Url} looked local but no file named {FileName} was found under {UploadsRoot}; falling back to HTTP fetch.",
-                        cvFileUrl,
-                        fileName,
-                        uploadsRoot);
+                    // Not one of our own /uploads/ URLs -> download normally
+                    using var http = new HttpClient();
+                    return await http.GetByteArrayAsync(cvFileUrl);
                 }
 
-                using var http = new HttpClient();
-                return await http.GetByteArrayAsync(cvFileUrl);
+                // https://host/uploads/resumes/abc.pdf  ->  key "resumes/abc.pdf"
+                key = Uri.UnescapeDataString(uri.AbsolutePath[(idx + seg.Length)..]);
+            }
+            else
+            {
+                // Relative value such as "resumes/abc.pdf" or "/uploads/resumes/abc.pdf"
+                key = cvFileUrl.TrimStart('/');
+                if (key.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
+                    key = key["uploads/".Length..];
             }
 
-            // Local path: wwwroot/uploads/resumes/abc.pdf
-            var fullPath = System.IO.Path.Combine(uploadsRoot, cvFileUrl.TrimStart('/'));
+            var bytes = await _storage.GetBytesAsync(key);
 
-            if (File.Exists(fullPath))
-                return await File.ReadAllBytesAsync(fullPath);
+            if (bytes == null)
+            {
+                _logger.LogWarning("Resume not found in S3 for key {Key} (source {Url})", key, cvFileUrl);
+                throw new FileNotFoundException($"Resume not found in S3: {key}");
+            }
 
-            var bareFileName = System.IO.Path.GetFileName(cvFileUrl);
-            var fallbackFound = Directory.Exists(uploadsRoot)
-                ? Directory.EnumerateFiles(uploadsRoot, bareFileName, SearchOption.AllDirectories).FirstOrDefault()
-                : null;
-
-            if (fallbackFound != null)
-                return await File.ReadAllBytesAsync(fallbackFound);
-
-            throw new FileNotFoundException($"Resume not found at path: {fullPath}");
+            return bytes;
         }
 
         // ────────────────────────────────────────────────────────────

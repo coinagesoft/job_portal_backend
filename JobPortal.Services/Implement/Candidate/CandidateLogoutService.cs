@@ -1,5 +1,4 @@
-﻿
-// ============================================================
+﻿// ============================================================
 //  JobPortal.Services/Implement/Candidate/
 //  CandidateLogoutService.cs
 // ============================================================
@@ -47,6 +46,17 @@ public class CandidateLogoutService : ICandidateLogoutService
             {
                 profile.FcmToken = null;
                 profile.UpdatedAt = DateTime.UtcNow;
+            }
+
+            // 1b. Remove this device from the multi-device token table
+            if (!string.IsNullOrWhiteSpace(request.FcmToken))
+            {
+                var deviceTokens = await _context.CandidateDeviceTokens
+                    .Where(t => t.CandidateId == candidateId
+                                && t.Token == request.FcmToken.Trim())
+                    .ToListAsync();
+
+                _context.CandidateDeviceTokens.RemoveRange(deviceTokens);
             }
 
             // 2. Record the logout session for JWT blacklisting
