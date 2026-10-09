@@ -397,6 +397,8 @@ public class CandidateProfileService : ICandidateProfileService
             PreferredSalary = r.PreferredSalary,
             NoticePeriod = r.NoticePeriod,
             TotalExperienceYears = r.TotalExperienceYears,
+            TradeCategoryId = r.TradeCategoryId,
+            SubTradeId = r.SubTradeId,
             PrimaryTrade = r.PrimaryTrade,
             ProfessionalSummary = r.ProfessionalSummary,
             About = r.About,

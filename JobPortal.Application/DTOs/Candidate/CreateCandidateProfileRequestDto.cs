@@ -16,6 +16,10 @@ public class CreateCandidateProfileRequestDto
 
     public string? CountryCode { get; set; }
 
+    public Guid? TradeCategoryId { get; set; }
+
+    public Guid? SubTradeId { get; set; }
+
     // ==========================
     // Personal Information
     // ==========================

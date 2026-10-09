@@ -29,7 +29,7 @@ namespace JobPortal.Domain.Entities
         // "one-time" for lifetime plans; kept as a string so future
         // periods (monthly/yearly) don't require a schema change.
         public string Period { get; set; } = "one-time";
-
+        public int InitialCredits { get; set; } = 0;
         public string? Badge { get; set; }
 
         public List<string> Features { get; set; } = new();

@@ -26,6 +26,9 @@ public class CandidateProfile
     public bool DisabilityStatus { get; set; } = false;
     public string? DisabilityNote { get; set; }
     public string? PrimaryTrade { get; set; }
+    public Guid? TradeCategoryId { get; set; }
+
+    public Guid? SubTradeId { get; set; }
     public int TotalExperienceYears { get; set; } = 0;
     public bool ItiCertified { get; set; } = false;
     public string? ItiTrade { get; set; }

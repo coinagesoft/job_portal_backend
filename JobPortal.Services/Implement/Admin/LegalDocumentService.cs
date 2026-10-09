@@ -94,6 +94,7 @@ namespace JobPortal.Services.Implement.Admin
         // GET DEFAULT TITLE
         // ============================================================
 
+
         private static string GetDefaultTitle(string type)
         {
             return type switch
@@ -107,10 +108,14 @@ namespace JobPortal.Services.Implement.Admin
                 "cancellation-refund" =>
                     "Cancellation & Refund Policy",
 
+                "shipping-delivery" =>
+                    "Shipping & Delivery Policy",
+
                 _ =>
                     type
             };
         }
+
 
         // ============================================================
         // CREATE NEW LEGAL DOCUMENT
@@ -402,6 +407,15 @@ namespace JobPortal.Services.Implement.Admin
                 x => x.Type == normalized);
         }
 
+        private static bool IsSupportedType(string type)
+        {
+            return type is
+                "privacy" or
+                "terms" or
+                "cancellation-refund" or
+                "shipping-delivery";
+        }
+
         // ============================================================
         // MAP ENTITY -> DTO
         // ============================================================
@@ -410,11 +424,11 @@ namespace JobPortal.Services.Implement.Admin
             LegalDocument doc)
         {
             var hasUnpublishedChanges =
-                doc.DraftContent !=
-                    (doc.PublishedContent ?? string.Empty)
-                ||
-                doc.DraftEffectiveDate !=
-                    doc.PublishedEffectiveDate;
+     doc.PublishedContent != null &&
+     (
+         doc.DraftContent != doc.PublishedContent ||
+         doc.DraftEffectiveDate != doc.PublishedEffectiveDate
+     );
 
             return new LegalDocumentAdminDto
             {
