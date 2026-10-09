@@ -1,4 +1,5 @@
 ﻿using JobPortal.Application.DTOs.Admin.CompanyDocuments;
+using JobPortal.Application.DTOs.Admin.Coupons;
 using JobPortal.Application.DTOs.Admin.Homepage;
 using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Application.DTOs.Recruiter.Homepage;
@@ -11,7 +12,9 @@ using JobPortal.Domain.Enums.Common;
 using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
+using JobPortal.Services.IImplement.ICoupon;
 using JobPortal.Services.IImplement.IRecruiter;
+using JobPortal.Services.Implement.Coupons;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -28,6 +31,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     private readonly IFileStorageService _fileStorageService;
     private readonly ITwilioOtpService _twilioOtpService;
     private readonly IEmailService _emailService;
+    private readonly ICouponValidationService _couponValidationService;
     private readonly IGeminiCompanyDocumentParserService _geminiCompanyDocumentParserService;
     private readonly IMembershipPlanService _membershipPlanService;
     private readonly IConfiguration _config;
@@ -43,6 +47,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
          IFileStorageService fileStorageService,
          ITwilioOtpService twilioOtpService,
          IEmailService emailService,
+         ICouponValidationService couponValidationService,
          IGeminiCompanyDocumentParserService geminiCompanyDocumentParserService,
          IMembershipPlanService membershipPlanService,
          IConfiguration config)
@@ -52,6 +57,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         _fileStorageService = fileStorageService;
         _twilioOtpService = twilioOtpService;
         _emailService = emailService;
+        _couponValidationService = couponValidationService;
         _geminiCompanyDocumentParserService = geminiCompanyDocumentParserService;
         _membershipPlanService = membershipPlanService;
         _config = config;
@@ -104,7 +110,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     // CandidateAuthService.CreateOrderAsync.
     // ════════════════════════════════════════════════
     public async Task<CreateRecruiterPlanOrderResponseDto> CreateMembershipOrderAsync(
-        CreateRecruiterPlanOrderRequestDto request)
+     CreateRecruiterPlanOrderRequestDto request)
     {
         try
         {
@@ -119,19 +125,59 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
-            // Amount is never taken from the client — it's always the
-            // active, admin-managed Recruiter MembershipPlan price for the
-            // requested (or default) pricing region.
-            var plan = await ResolveRecruiterMembershipPlanAsync(request.Region);
+            // ------------------------------------------------------------
+            // 1. Validate selected membership plan
+            // ------------------------------------------------------------
+
+            if (request.PlanId == Guid.Empty)
+            {
+                return new CreateRecruiterPlanOrderResponseDto
+                {
+                    Success = false,
+                    Message = "Please select a membership plan."
+                };
+            }
+
+            var normalizedRegion = string.IsNullOrWhiteSpace(request.Region)
+                ? DefaultRecruiterMembershipRegion
+                : request.Region.Trim().ToLowerInvariant();
+
+            var plan = await _context.MembershipPlans
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p =>
+                    p.PlanId == request.PlanId &&
+                    p.PlanType == PlanType.Recruiter &&
+                    p.IsActive);
 
             if (plan == null)
             {
                 return new CreateRecruiterPlanOrderResponseDto
                 {
                     Success = false,
-                    Message = "Recruiter membership is not available right now. Please try again later."
+                    Message = "Selected membership plan is no longer available. Please refresh and try again."
                 };
             }
+
+            // ------------------------------------------------------------
+            // 2. Validate plan region
+            // ------------------------------------------------------------
+
+            if (!string.IsNullOrWhiteSpace(plan.Region) &&
+                !string.Equals(
+                    plan.Region.Trim(),
+                    normalizedRegion,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return new CreateRecruiterPlanOrderResponseDto
+                {
+                    Success = false,
+                    Message = "Selected membership plan is not available for this region."
+                };
+            }
+
+            // ------------------------------------------------------------
+            // 3. Validate original plan price
+            // ------------------------------------------------------------
 
             if (plan.Price <= 0)
             {
@@ -142,32 +188,161 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
-            var amountPaise = (int)Math.Round(plan.Price * 100, MidpointRounding.AwayFromZero);
+            var originalAmount = plan.Price;
+
+            // ------------------------------------------------------------
+            // 4. Coupon validation
+            // ------------------------------------------------------------
+
+            decimal discountAmount = 0;
+            string? appliedCouponCode = null;
+
+            if (!string.IsNullOrWhiteSpace(request.CouponCode))
+            {
+                var couponRequest = new ValidateCouponRequestDto
+                {
+                    Code = request.CouponCode.Trim().ToUpperInvariant(),
+                    PlanType = PlanType.Recruiter,
+                    PlanId = plan.PlanId,
+                    Region = normalizedRegion
+                };
+
+                // Pre-registration validation:
+                // there is no UserId yet, so use Guid.Empty.
+                var couponResult = await _couponValidationService
+                    .ValidateCouponAsync(
+                        couponRequest,
+                        Guid.Empty);
+
+                if (!couponResult.IsValid)
+                {
+                    return new CreateRecruiterPlanOrderResponseDto
+                    {
+                        Success = false,
+                        PlanId = plan.PlanId,
+                        PlanName = plan.PlanName,
+                        Amount = originalAmount,
+                        AmountPaise = (int)Math.Round(
+                            originalAmount * 100,
+                            MidpointRounding.AwayFromZero),
+                        Message = couponResult.Message
+                    };
+                }
+
+                discountAmount = couponResult.DiscountAmount;
+
+                // Safety check — never allow discount greater than price.
+                if (discountAmount < 0)
+                    discountAmount = 0;
+
+                if (discountAmount > originalAmount)
+                    discountAmount = originalAmount;
+
+                appliedCouponCode =
+                    request.CouponCode.Trim().ToUpperInvariant();
+            }
+
+            // ------------------------------------------------------------
+            // 5. Calculate final amount
+            // ------------------------------------------------------------
+
+            var finalAmount = originalAmount - discountAmount;
+
+            if (finalAmount < 0)
+                finalAmount = 0;
+
+            var amountPaise = (int)Math.Round(
+                originalAmount * 100,
+                MidpointRounding.AwayFromZero);
+
+            var discountAmountPaise = (int)Math.Round(
+                discountAmount * 100,
+                MidpointRounding.AwayFromZero);
+
+            var finalAmountPaise = (int)Math.Round(
+                finalAmount * 100,
+                MidpointRounding.AwayFromZero);
+
+            if (finalAmountPaise == 0)
+            {
+                return new CreateRecruiterPlanOrderResponseDto
+                {
+                    Success = true,
+                    OrderId = string.Empty,
+                    Amount = originalAmount,
+                    AmountPaise = amountPaise,
+                    Currency = "INR",
+                    RazorpayKeyId = _config["Razorpay:KeyId"] ?? string.Empty,
+                    PlanId = plan.PlanId,
+                    PlanName = plan.PlanName,
+                    DiscountAmount = discountAmount,
+                    DiscountAmountPaise = discountAmountPaise,
+                    CouponCode = appliedCouponCode,
+                    FinalAmount = 0,
+                    FinalAmountPaise = 0,
+                    Message = "Coupon applied successfully. No payment is required."
+                };
+            }
+
+            // ------------------------------------------------------------
+            // 6. Create Razorpay order using FINAL amount
+            // ------------------------------------------------------------
 
             var client = new RazorpayClient(
                 _config["Razorpay:KeyId"],
                 _config["Razorpay:KeySecret"]);
 
             var options = new Dictionary<string, object>
+        {
             {
-                { "amount", amountPaise }, // paisa — server-resolved, not client-supplied
-                { "currency", "INR" },
-                { "receipt", $"RECMEM-{plan.PlanId.ToString("N")[..12]}" }
-            };
+                "amount",
+                finalAmountPaise
+            },
+            {
+                "currency",
+                "INR"
+            },
+            {
+                "receipt",
+                $"RECMEM-{plan.PlanId.ToString("N")[..12]}"
+            }
+        };
 
             Order order = client.Order.Create(options);
+
+            // ------------------------------------------------------------
+            // 7. Return complete pricing information
+            // ------------------------------------------------------------
 
             return await Task.FromResult(
                 new CreateRecruiterPlanOrderResponseDto
                 {
                     Success = true,
+
                     OrderId = order["id"].ToString(),
-                    Amount = plan.Price,
+
+                    // Original price
+                    Amount = originalAmount,
                     AmountPaise = amountPaise,
+
                     Currency = "INR",
-                    RazorpayKeyId = _config["Razorpay:KeyId"] ?? string.Empty,
+
+                    RazorpayKeyId =
+                        _config["Razorpay:KeyId"] ?? string.Empty,
+
                     PlanId = plan.PlanId,
                     PlanName = plan.PlanName,
+
+                    // Coupon
+                    DiscountAmount = discountAmount,
+                    DiscountAmountPaise = discountAmountPaise,
+
+                    CouponCode = appliedCouponCode,
+
+                    // Final payable amount
+                    FinalAmount = finalAmount,
+                    FinalAmountPaise = finalAmountPaise,
+
                     Message = "Order created successfully."
                 });
         }
@@ -2816,13 +2991,15 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     }
                 }
 
-                // ── Recruiter membership plan payment ────────────────
-                // Same flow as CandidateAuthService.RegisterAsync: resolve
-                // the admin-configured active Recruiter MembershipPlan
-                // (never trust the client for price), verify the Razorpay
-                // payment against it, and block replay of the same
-                // paymentId against a second submit-registration call.
+                // ── Recruiter membership plan payment ────────────────────────
+                // Resolve the exact selected plan server-side.
+                // Never trust price/discount information from the client.
+
                 MembershipPlan? membershipPlan = null;
+                Coupon? appliedCoupon = null;
+
+                var discountAmountPaise = 0;
+                var finalAmountPaise = 0;
 
                 var resolvedPlan = request.PlanId.HasValue
                     ? await _context.MembershipPlans
@@ -2831,25 +3008,103 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                             p.PlanId == request.PlanId.Value &&
                             p.PlanType == PlanType.Recruiter &&
                             p.IsActive)
-                    : await _context.MembershipPlans
-                        .AsNoTracking()
-                        .Where(p => p.PlanType == PlanType.Recruiter && p.IsActive)
-                        .OrderBy(p => p.Price)
-                        .FirstOrDefaultAsync();
+                    : null;
+
+                
 
                 if (resolvedPlan != null)
                 {
-                    if (request.PlanId.HasValue && resolvedPlan.PlanId != request.PlanId.Value)
+                    membershipPlan = resolvedPlan;
+
+                    // ----------------------------------------------------------
+                    // Original plan amount
+                    // ----------------------------------------------------------
+
+                    var originalAmountPaise = (int)Math.Round(
+                        membershipPlan.Price * 100,
+                        MidpointRounding.AwayFromZero);
+
+                    discountAmountPaise = 0;
+                    finalAmountPaise = originalAmountPaise;
+
+                    // ----------------------------------------------------------
+                    // Coupon validation
+                    // ----------------------------------------------------------
+
+                    if (!string.IsNullOrWhiteSpace(request.CouponCode))
                     {
-                        return new ReviewSubmitResponseDto
+                        var normalizedRegion =
+       string.IsNullOrWhiteSpace(request.Region)
+           ? DefaultRecruiterMembershipRegion
+           : request.Region.Trim().ToLowerInvariant();
+
+                        var couponRequest = new ValidateCouponRequestDto
                         {
-                            Success = false,
-                            Message = "Selected membership plan is no longer available. Please refresh and try again.",
-                            StepStatus = BuildStepStatus(session)
+                            Code = request.CouponCode.Trim().ToUpperInvariant(),
+                            PlanType = PlanType.Recruiter,
+                            PlanId = membershipPlan.PlanId,
+                            Region = normalizedRegion
                         };
+
+                        var couponResult =
+                            await _couponValidationService.ValidateCouponAsync(
+                                couponRequest,
+                                Guid.Empty);
+
+                        if (!couponResult.IsValid)
+                        {
+                            return new ReviewSubmitResponseDto
+                            {
+                                Success = false,
+                                Message = couponResult.Message,
+                                StepStatus = BuildStepStatus(session)
+                            };
+                        }
+
+                        if (!couponResult.CouponId.HasValue)
+                        {
+                            return new ReviewSubmitResponseDto
+                            {
+                                Success = false,
+                                Message = "Coupon validation failed.",
+                                StepStatus = BuildStepStatus(session)
+                            };
+                        }
+
+                        appliedCoupon = await _context.Coupons
+                            .FirstOrDefaultAsync(x =>
+                                x.CouponId == couponResult.CouponId.Value &&
+                                x.IsActive);
+
+                        if (appliedCoupon == null)
+                        {
+                            return new ReviewSubmitResponseDto
+                            {
+                                Success = false,
+                                Message = "Coupon is no longer available.",
+                                StepStatus = BuildStepStatus(session)
+                            };
+                        }
+
+                        discountAmountPaise = (int)Math.Round(
+                            couponResult.DiscountAmount * 100,
+                            MidpointRounding.AwayFromZero);
+
+                        if (discountAmountPaise < 0)
+                            discountAmountPaise = 0;
+
+                        if (discountAmountPaise > originalAmountPaise)
+                            discountAmountPaise = originalAmountPaise;
+
+                        finalAmountPaise =
+                            originalAmountPaise - discountAmountPaise;
                     }
 
-                    if (resolvedPlan.Price > 0)
+                    // ----------------------------------------------------------
+                    // Payment verification
+                    // ----------------------------------------------------------
+
+                    if (finalAmountPaise > 0)
                     {
                         if (string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
                             string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
@@ -2878,45 +3133,69 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                             };
                         }
 
-                        // A given Razorpay payment can only ever fund one
-                        // registration — block replay of the same
-                        // paymentId against a second submit call.
-                        var paymentAlreadyUsed = await _context.PaymentTransactions
-                            .AnyAsync(t =>
-                                t.RazorpayPaymentId == request.RazorpayPaymentId &&
-                                t.PaymentStatus == "Completed");
+                        // ------------------------------------------------------
+                        // IMPORTANT:
+                        // Fetch the Razorpay order and verify its actual amount.
+                        // ------------------------------------------------------
+
+                        var razorpayClient = new RazorpayClient(
+                            _config["Razorpay:KeyId"],
+                            _config["Razorpay:KeySecret"]);
+
+                        var razorpayOrder =
+                            razorpayClient.Order.Fetch(request.RazorpayOrderId);
+
+                        var razorpayOrderAmountPaise =
+                            Convert.ToInt32(razorpayOrder["amount"]);
+
+                        if (razorpayOrderAmountPaise != finalAmountPaise)
+                        {
+                            return new ReviewSubmitResponseDto
+                            {
+                                Success = false,
+                                Message =
+                                    "Payment amount does not match the selected membership plan.",
+                                StepStatus = BuildStepStatus(session)
+                            };
+                        }
+
+                        // ------------------------------------------------------
+                        // Prevent payment replay
+                        // ------------------------------------------------------
+
+                        var paymentAlreadyUsed =
+                            await _context.PaymentTransactions
+                                .AnyAsync(t =>
+                                    t.RazorpayPaymentId ==
+                                        request.RazorpayPaymentId &&
+                                    t.PaymentStatus == "Completed");
 
                         if (paymentAlreadyUsed)
                         {
                             return new ReviewSubmitResponseDto
                             {
                                 Success = false,
-                                Message = "This payment has already been used to complete a registration.",
+                                Message =
+                                    "This payment has already been used to complete a registration.",
                                 StepStatus = BuildStepStatus(session)
                             };
                         }
                     }
-
-                    membershipPlan = resolvedPlan;
                 }
                 else if (request.PlanId.HasValue)
                 {
-                    // Client thinks a plan was selected but nothing active
-                    // matches it anymore.
                     return new ReviewSubmitResponseDto
                     {
                         Success = false,
-                        Message = "Selected membership plan is no longer available. Please refresh and try again.",
+                        Message =
+                            "Selected membership plan is no longer available. Please refresh and try again.",
                         StepStatus = BuildStepStatus(session)
                     };
                 }
                 else
                 {
-                    // No Recruiter MembershipPlan configured by the admin
-                    // yet — don't hard-block registration for existing
-                    // deployments that haven't set one up; the recruiter
-                    // simply registers unpaid, same as before this feature
-                    // existed.
+                    // Existing fallback for deployments where no membership
+                    // plan has been configured yet.
                     _logger.LogWarning(
                         "SubmitRegistrationAsync: no active Recruiter MembershipPlan configured. Proceeding without membership payment. SessionId:{SessionId}",
                         session.SessionId);
@@ -2925,10 +3204,20 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 var now = DateTime.UtcNow;
 
                 var membershipAmountPaise = membershipPlan != null
-                    ? (int)Math.Round(membershipPlan.Price * 100, MidpointRounding.AwayFromZero)
-                    : 0;
+       ? (int)Math.Round(
+           membershipPlan.Price * 100,
+           MidpointRounding.AwayFromZero)
+       : 0;
 
-                var membershipIsPaid = membershipPlan != null && membershipPlan.Price > 0;
+                // Reuse the values already calculated during
+                // coupon validation above.
+                var membershipDiscountAmountPaise = discountAmountPaise;
+
+                var membershipFinalAmountPaise = finalAmountPaise;
+
+                var membershipIsPaid =
+      membershipPlan != null;
+
 
                 // Create User
                 var user = new User
@@ -3022,22 +3311,69 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                         TransactionId = Guid.NewGuid(),
                         UserId = user.UserId,
                         EmployerId = employer.EmployerId,
+
                         TransactionType = "RecruiterRegistration",
+
                         PackType = membershipPlan!.PlanName,
+
                         CreditQuantity = null,
                         ValidityMonths = null,
+
+                        // Original plan price
                         AmountPaise = membershipAmountPaise,
+
+                        // Coupon discount
+                        DiscountAmountPaise = membershipDiscountAmountPaise,
+
                         GstAmountPaise = 0,
-                        TotalAmountPaise = membershipAmountPaise,
+
+                        // Actual amount paid through Razorpay
+                        TotalAmountPaise = membershipFinalAmountPaise,
+
                         PaymentMethod = "Razorpay",
+
                         RazorpayOrderId = request.RazorpayOrderId,
                         RazorpayPaymentId = request.RazorpayPaymentId,
+
                         PaymentStatus = "Completed",
+
                         CreatedAt = now
                     };
 
                     _context.PaymentTransactions.Add(registrationPaymentTransaction);
 
+                    if (appliedCoupon != null)
+                    {
+                        appliedCoupon.UsedCount++;
+
+                        _context.CouponRedemptions.Add(
+                            new CouponRedemption
+                            {
+                                RedemptionId = Guid.NewGuid(),
+
+                                CouponId = appliedCoupon.CouponId,
+
+                                UserId = user.UserId,
+
+                                PlanId = membershipPlan!.PlanId,
+
+                                PaymentTransactionId =
+                                    registrationPaymentTransaction.TransactionId,
+
+                                CouponCode = appliedCoupon.Code,
+
+                                OriginalAmountPaise =
+                                    membershipAmountPaise,
+
+                                DiscountAmountPaise =
+                                    membershipDiscountAmountPaise,
+
+                                FinalAmountPaise =
+                                    membershipFinalAmountPaise,
+
+                                RedeemedAt = now
+                            });
+                    }
                     // GST-compliant billing record — mirrors
                     // RecruiterCreditPlanService.VerifyPlanPaymentAsync so
                     // this shows up with an invoice on Admin ▸ Revenue
@@ -3055,9 +3391,9 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                         UserId = user.UserId,
                         InvoiceNumber = invoiceNumber,
                         InvoiceDate = DateOnly.FromDateTime(now),
-                        InvoiceAmount = membershipAmountPaise / 100,
+                        InvoiceAmount = membershipFinalAmountPaise / 100,
                         InvoiceGst = 0,
-                        InvoiceTotal = membershipAmountPaise / 100,
+                        InvoiceTotal = membershipFinalAmountPaise / 100,
                         InvoiceS3Url = null,
                         CreatedAt = now,
                         PaymentTransaction = registrationPaymentTransaction

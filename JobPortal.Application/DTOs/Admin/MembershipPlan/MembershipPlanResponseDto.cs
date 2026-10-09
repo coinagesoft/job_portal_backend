@@ -25,5 +25,8 @@ namespace JobPortal.Application.DTOs.Admin.MembershipPlan
         public List<string> Features { get; set; } = new();
 
         public bool IsActive { get; set; }
+
+        // Coupons assigned to this membership plan
+        public List<string> CouponCodes { get; set; } = new();
     }
 }

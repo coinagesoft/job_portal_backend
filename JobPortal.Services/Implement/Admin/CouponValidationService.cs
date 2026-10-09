@@ -185,9 +185,13 @@ namespace JobPortal.Services.Implement.Coupons
             // --------------------------------------------------------
 
             if (!string.Equals(
-                    coupon.Region,
-                    plan.Region,
-                    StringComparison.OrdinalIgnoreCase))
+           coupon.Region,
+           "all",
+           StringComparison.OrdinalIgnoreCase) &&
+       !string.Equals(
+           coupon.Region,
+           plan.Region,
+           StringComparison.OrdinalIgnoreCase))
             {
                 response.Message =
                     "This coupon is not valid for this region.";

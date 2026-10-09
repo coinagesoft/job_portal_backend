@@ -7,74 +7,75 @@ namespace JobPortal.Services.Implement.Recruiter
     // JobPortal.Services/Implement/Recruiter/OtpProviderRouter.cs
     //
     // This is the ONLY class registered against ITwilioOtpService in Program.cs.
-    // Every existing caller (RecruiterAuthService, CandidateLoginServices,
-    // RecruiterRegistrationService, CandidateAuthService, Admin AuthService, etc.)
-    // keeps injecting ITwilioOtpService exactly as before — nothing else changes.
+    // Every caller (RecruiterAuthService, CandidateLoginServices,
+    // RecruiterRegistrationService, CandidateAuthService, RecruiterSettingsService...)
+    // keeps injecting ITwilioOtpService exactly as before.
+    //
+    // ALL phone OTPs (India and every other country) are sent and verified
+    // through Twilio Verify. There is no static/bypass OTP here - a real SMS
+    // is sent and the code the user types is checked by Twilio.
+    //
+    // (MSG91 code is left in the project but is not used by this router.)
     public class OtpProviderRouter : ITwilioOtpService
     {
         private readonly TwilioOtpService _twilio;
-        private readonly Msg91OtpService _msg91;
         private readonly ILogger<OtpProviderRouter> _logger;
 
         public OtpProviderRouter(
             TwilioOtpService twilio,
-            Msg91OtpService msg91,
             ILogger<OtpProviderRouter> logger)
         {
             _twilio = twilio;
-            _msg91 = msg91;
             _logger = logger;
         }
 
         public Task<bool> SendOtpAsync(string phoneNumber)
         {
-            // TEMPORARY: MSG91 setup is not complete yet.
-            // Until it's ready, ALL numbers (including Indian) go through Twilio.
-            // To restore MSG91 for Indian numbers later, uncomment the block below
-            // and remove the "force Twilio" line.
+            var phone = NormalizeE164(phoneNumber);
 
-            // var useIndia = IsIndianNumber(phoneNumber);
-            var useIndia = false;
+            if (phone.Length == 0)
+            {
+                _logger.LogWarning("OTP ROUTER SEND - empty phone number.");
+                return Task.FromResult(false);
+            }
 
             _logger.LogInformation(
-                "OTP ROUTER - Phone:{Phone} Provider:{Provider}",
-                phoneNumber, useIndia ? "MSG91" : "Twilio");
+                "OTP ROUTER SEND - Phone:{Phone} Provider:Twilio", phone);
 
-            return useIndia
-                ? _msg91.SendOtpAsync(phoneNumber)
-                : _twilio.SendOtpAsync(phoneNumber);
+            return _twilio.SendOtpAsync(phone);
         }
 
         public Task<bool> VerifyOtpAsync(string phoneNumber, string otpCode)
         {
-            // TEMPORARY: MSG91 setup is not complete yet.
-            // Until it's ready, ALL numbers (including Indian) go through Twilio.
-            // To restore MSG91 for Indian numbers later, uncomment the block below
-            // and remove the "force Twilio" line.
+            var phone = NormalizeE164(phoneNumber);
 
-            // var useIndia = IsIndianNumber(phoneNumber);
-            var useIndia = false;
+            if (phone.Length == 0 || string.IsNullOrWhiteSpace(otpCode))
+                return Task.FromResult(false);
 
             _logger.LogInformation(
-                "OTP ROUTER VERIFY - Phone:{Phone} Provider:{Provider}",
-                phoneNumber, useIndia ? "MSG91" : "Twilio");
+                "OTP ROUTER VERIFY - Phone:{Phone} Provider:Twilio", phone);
 
-            return useIndia
-                ? _msg91.VerifyOtpAsync(phoneNumber, otpCode)
-                : _twilio.VerifyOtpAsync(phoneNumber, otpCode);
+            return _twilio.VerifyOtpAsync(phone, otpCode.Trim());
         }
 
-        // phoneNumber always arrives here as "+<countrycode><number>"
-        // e.g. "+919876543210" (India) or "+14155552671" (US).
-        // Indian mobile numbers are always +91 followed by exactly 10 digits.
-        private static bool IsIndianNumber(string phoneNumber)
+        // Callers build the number as CountryCode + MobileNumber. Twilio needs
+        // E.164 ("+919876543210"), so strip spaces/dashes, make sure there is a
+        // leading "+", and drop a typed trunk zero for India ("+91 0XXXXXXXXXX").
+        // Send and Verify both use this, so they always target the same number.
+        internal static string NormalizeE164(string? phoneNumber)
         {
             if (string.IsNullOrWhiteSpace(phoneNumber))
-                return false;
+                return string.Empty;
 
-            var digits = phoneNumber.TrimStart('+');
+            var digits = new string(phoneNumber.Where(char.IsDigit).ToArray());
 
-            return digits.StartsWith("91") && digits.Length == 12;
+            if (digits.Length == 0)
+                return string.Empty;
+
+            if (digits.StartsWith("910") && digits.Length == 13)
+                digits = "91" + digits.Substring(3);
+
+            return "+" + digits;
         }
     }
 }

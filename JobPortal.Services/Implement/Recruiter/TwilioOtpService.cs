@@ -48,6 +48,20 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 return verification.Status == "pending";
             }
+            catch (Twilio.Exceptions.ApiException ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Twilio OTP sending failed - AccountSid:{AccountSid} ServiceSid:{ServiceSid} TwilioCode:{Code} HttpStatus:{Status} MoreInfo:{MoreInfo} Message:{Message}",
+                    _config["Twilio:AccountSid"],
+                    _config["Twilio:VerifyServiceSid"],
+                    ex.Code,
+                    ex.Status,
+                    ex.MoreInfo,
+                    ex.Message);
+
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(

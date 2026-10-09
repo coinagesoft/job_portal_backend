@@ -118,8 +118,8 @@ namespace JobPortal.Services.Implement.Admin
         }
 
         public async Task<List<MembershipPlanResponseDto>> GetAllPlansAsync(
-            PlanType? planType = null,
-            string? region = null)
+        PlanType? planType = null,
+        string? region = null)
         {
             var query = _context.MembershipPlans.AsQueryable();
 
@@ -130,24 +130,39 @@ namespace JobPortal.Services.Implement.Admin
                 query = query.Where(x => x.Region == region);
 
             var plans = await query
+                .Include(x => x.Coupons)
                 .OrderBy(x => x.Price)
                 .ToListAsync();
 
-            return plans.Select(ToResponseDto).ToList();
+            var allActiveCoupons = await _context.Coupons
+                .Where(c => c.IsActive)
+                .ToListAsync();
+
+            return plans
+                .Select(plan => ToResponseDto(plan, allActiveCoupons))
+                .ToList();
         }
 
         public async Task<MembershipPlanResponseDto?> GetPlanByIdAsync(Guid planId)
         {
             var plan = await _context.MembershipPlans
                 .AsNoTracking()
+                .Include(x => x.Coupons)
                 .FirstOrDefaultAsync(x => x.PlanId == planId);
 
-            return plan == null ? null : ToResponseDto(plan);
+            if (plan == null)
+                return null;
+
+            var allActiveCoupons = await _context.Coupons
+                .Where(c => c.IsActive)
+                .ToListAsync();
+
+            return ToResponseDto(plan, allActiveCoupons);
         }
 
         public async Task<List<MembershipPlanResponseDto>> GetActivePlansAsync(
-            PlanType planType,
-            string? region = null)
+       PlanType planType,
+       string? region = null)
         {
             var query = _context.MembershipPlans
                 .Where(x => x.PlanType == planType && x.IsActive);
@@ -156,14 +171,58 @@ namespace JobPortal.Services.Implement.Admin
                 query = query.Where(x => x.Region == region);
 
             var plans = await query
+                .Include(x => x.Coupons)
                 .OrderBy(x => x.Price)
                 .ToListAsync();
 
-            return plans.Select(ToResponseDto).ToList();
+            var allActiveCoupons = await _context.Coupons
+                .Where(c => c.IsActive)
+                .ToListAsync();
+
+            return plans
+                .Select(plan => ToResponseDto(plan, allActiveCoupons))
+                .ToList();
         }
 
-        private static MembershipPlanResponseDto ToResponseDto(MembershipPlan plan) =>
-            new MembershipPlanResponseDto
+        private static MembershipPlanResponseDto ToResponseDto( MembershipPlan plan, List<Coupon> allActiveCoupons)
+        {
+            var planRegion = plan.Region?.Trim().ToLower();
+
+            var couponCodes = allActiveCoupons
+                .Where(c =>
+                    c.IsActive
+                    &&
+                    c.PlanType == plan.PlanType
+                    &&
+                    // Specific plan OR All Plans
+                    (c.PlanId == null || c.PlanId == plan.PlanId)
+                    &&
+                    // Specific region OR All Regions
+                    (
+                        string.Equals(
+                            c.Region?.Trim(),
+                            "all",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                        ||
+                        string.Equals(
+                            c.Region?.Trim(),
+                            "all regions",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                        ||
+                        string.Equals(
+                            c.Region?.Trim(),
+                            planRegion,
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
+                )
+                .Select(c => c.Code)
+                .Distinct()
+                .ToList();
+
+            return new MembershipPlanResponseDto
             {
                 PlanId = plan.PlanId,
                 PlanType = plan.PlanType,
@@ -174,7 +233,9 @@ namespace JobPortal.Services.Implement.Admin
                 Period = plan.Period,
                 Badge = plan.Badge,
                 Features = plan.Features,
-                IsActive = plan.IsActive
+                IsActive = plan.IsActive,
+                CouponCodes = couponCodes
             };
+        }
     }
 }

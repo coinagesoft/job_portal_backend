@@ -32,6 +32,10 @@ public class ReviewSubmitRequestDto
     // resolved plan has a price > 0 (i.e. whenever create-plan-order
     // actually created an order for it).
     public Guid? PlanId { get; set; }
+    public string? Region { get; set; }
+
+    public string? CouponCode { get; set; }
+
     public string? RazorpayOrderId { get; set; }
     public string? RazorpayPaymentId { get; set; }
     public string? RazorpaySignature { get; set; }

@@ -13,13 +13,16 @@ namespace JobPortal.Services.Implement.Recruiter
     {
         private readonly AppDbContext _context;
         private readonly ILogger<RecruiterSettingsService> _logger;
+        private readonly ITwilioOtpService _otpService;
 
         public RecruiterSettingsService(
             AppDbContext context,
-            ILogger<RecruiterSettingsService> logger)
+            ILogger<RecruiterSettingsService> logger,
+            ITwilioOtpService otpService)
         {
             _context = context;
             _logger = logger;
+            _otpService = otpService;
         }
 
         #region Account Settings
@@ -143,6 +146,7 @@ namespace JobPortal.Services.Implement.Recruiter
 
         private const int OtpExpiryMinutes = 10;
         private const int OtpResendCooldownSec = 60;
+        private const int MaxMobileOtpAttempts = 5;
 
         private static string GenerateOtp()
         {
@@ -433,11 +437,6 @@ namespace JobPortal.Services.Implement.Recruiter
             }
 
             var fullPhone = $"{request.NewCountryCode}{request.NewMobileNumber}";
-            var otp = GenerateOtp();
-
-            // ===== QA BYPASS: real Twilio OTP send disabled =====
-            // await _twilioOtpService.SendOtpAsync(fullPhone);
-            // ===== END QA BYPASS =====
 
             var oldOtps = await _context.OtpVerifications
                 .Where(x =>
@@ -445,6 +444,30 @@ namespace JobPortal.Services.Implement.Recruiter
                     x.Purpose == "EmployerAccountMobileChange" &&
                     !x.IsVerified)
                 .ToListAsync();
+
+            // Each SMS costs money - don't let a double-click / loop spam them.
+            if (oldOtps.Any(x =>
+                    x.OtpSentAt > DateTime.UtcNow.AddSeconds(-OtpResendCooldownSec)))
+            {
+                return new SettingsOtpResponseDto
+                {
+                    Success = false,
+                    Message = $"Please wait {OtpResendCooldownSec} seconds before requesting another OTP."
+                };
+            }
+
+            // Indian (+91) numbers -> MSG91, everything else -> Twilio
+            // (see OtpProviderRouter). The provider generates and stores the OTP.
+            var sent = await _otpService.SendOtpAsync(fullPhone);
+
+            if (!sent)
+            {
+                return new SettingsOtpResponseDto
+                {
+                    Success = false,
+                    Message = "Failed to send OTP. Please check the mobile number and try again."
+                };
+            }
 
             foreach (var item in oldOtps)
                 item.IsVerified = true;
@@ -455,7 +478,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 UserId = user.UserId,
                 MobileNumber = request.NewMobileNumber,
                 CountryCode = request.NewCountryCode,
-                OtpCode = BCrypt.Net.BCrypt.HashPassword(otp),
+                OtpCode = "TWILIO_VERIFY", // marker only: OTP is held by the SMS provider
                 OtpSentAt = DateTime.UtcNow,
                 OtpExpiresAt = DateTime.UtcNow.AddMinutes(OtpExpiryMinutes),
                 Purpose = "EmployerAccountMobileChange",
@@ -532,11 +555,18 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            // ===== QA BYPASS: static OTP "123456" accepted, real Twilio check disabled =====
-            // var valid = await _twilioOtpService.VerifyOtpAsync(
-            //     $"{request.NewCountryCode}{request.NewMobileNumber}", request.OtpCode);
-            var valid = request.OtpCode == "123456";
-            // ===== END QA BYPASS =====
+            if (otpRecord.OtpAttempts >= MaxMobileOtpAttempts)
+            {
+                return new SettingsOtpResponseDto
+                {
+                    Success = false,
+                    Message = "Too many failed attempts. Please request a new OTP."
+                };
+            }
+
+            var valid = await _otpService.VerifyOtpAsync(
+                $"{request.NewCountryCode}{request.NewMobileNumber}",
+                request.OtpCode);
 
             if (!valid)
             {

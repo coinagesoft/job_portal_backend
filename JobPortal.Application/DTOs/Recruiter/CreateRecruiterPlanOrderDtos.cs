@@ -2,23 +2,21 @@
 
 namespace JobPortal.Application.DTOs.Recruiter
 {
-    // The amount is deliberately NOT sent by the client — it's always
-    // resolved server-side from the active, admin-managed Recruiter
-    // MembershipPlan for the given pricing region, exactly like
-    // CreateCandidateOrderRequestDto does for candidates. Trusting a
-    // client-supplied amount would let anyone create a Razorpay order for
-    // any price they choose.
     public class CreateRecruiterPlanOrderRequestDto
     {
-        // Registration session id from Step 1 (X-Session-Id). Kept so the
-        // order can eventually be tied back to the in-progress
-        // registration, and so we can fail fast if the session is
-        // missing/expired before hitting the payment gateway.
+        // Registration session id from Step 1 (X-Session-Id)
         public string SessionId { get; set; } = string.Empty;
 
-        // Pricing-region code, e.g. "in", "us", "ae". Defaults to "in"
-        // (server-side) — same convention as the candidate membership fee.
+        // Pricing region, e.g. "in", "us", "ae"
         public string? Region { get; set; }
+
+        // The membership plan selected by the recruiter.
+        // Price will ALWAYS be resolved server-side.
+        public Guid PlanId { get; set; }
+
+        // Optional coupon entered by the recruiter.
+        // The server will validate it against the selected plan.
+        public string? CouponCode { get; set; }
     }
 
     public class CreateRecruiterPlanOrderResponseDto
@@ -27,23 +25,32 @@ namespace JobPortal.Application.DTOs.Recruiter
 
         public string OrderId { get; set; } = string.Empty;
 
-        // Rupees (for display) and paise (what Razorpay/the checkout
-        // widget actually needs) — both derived from the admin-configured
-        // MembershipPlan, never from client input.
+        // Original membership plan price in rupees.
         public decimal Amount { get; set; }
 
+        // Original membership plan price in paise.
         public int AmountPaise { get; set; }
 
         public string Currency { get; set; } = "INR";
 
         public string RazorpayKeyId { get; set; } = string.Empty;
 
-        // The recruiter MembershipPlan this order was created for. The
-        // frontend must echo this back on submit-registration so the
-        // amount can be re-verified server-side at that point too.
+        // Selected Recruiter membership plan.
         public Guid PlanId { get; set; }
 
         public string PlanName { get; set; } = string.Empty;
+
+        // Coupon information
+        public decimal DiscountAmount { get; set; }
+
+        public int DiscountAmountPaise { get; set; }
+
+        // Final amount after coupon discount.
+        public decimal FinalAmount { get; set; }
+
+        public int FinalAmountPaise { get; set; }
+
+        public string? CouponCode { get; set; }
 
         public string Message { get; set; } = string.Empty;
     }

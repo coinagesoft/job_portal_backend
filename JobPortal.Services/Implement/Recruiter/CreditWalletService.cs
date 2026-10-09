@@ -1127,16 +1127,6 @@ namespace JobPortal.Services.Implement.Recruiter
             return wallet;
         }
 
-        /// <summary>
-        /// Recomputes the wallet's true remaining balance from the
-        /// immutable ledger — total credits ever granted (plan purchases)
-        /// minus total credits ever used (by the owner AND every sub-user
-        /// combined) — and corrects wallet.CreditBalance in place if it's
-        /// drifted from that. This makes the balance self-healing: any past
-        /// inconsistency (e.g. a period where sub-user spending wasn't being
-        /// debited from the shared wallet) fixes itself the next time the
-        /// wallet is read, rather than requiring a manual data correction.
-        /// </summary>
         private async Task ReconcileWalletBalanceAsync(CreditWallet wallet)
         {
             var totalGranted = await _context.EmployerPlanPurchase
@@ -1530,7 +1520,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 allocation.RemainingCredits);
         }
 
-        private async Task CreateCreditUsageTransactionAsync(
+    private async Task CreateCreditUsageTransactionAsync(
     Guid employerId,
     Guid actionByUserId,
     Guid? candidateId,

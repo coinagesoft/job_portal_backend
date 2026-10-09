@@ -26,6 +26,12 @@ public class AppDbContext : DbContext
     public DbSet<CreditPlan> CreditPlans { get; set; }
     public DbSet<MembershipPlan> MembershipPlans { get; set; }
 
+
+    public DbSet<TradeTier> TradeTiers => Set<TradeTier>();
+
+    public DbSet<TradeCreditMapping> TradeCreditMappings
+        => Set<TradeCreditMapping>();
+
     public DbSet<CreditUsageTransaction> CreditUsageTransactions { get; set; }
 
     public DbSet<UserSession> UserSessions { get; set; }
@@ -382,6 +388,105 @@ public class AppDbContext : DbContext
                 .WithMany(x => x.Replies)
                 .HasForeignKey(x => x.TicketId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        m.Entity<TradeTier>(e =>
+        {
+            e.ToTable("trade_tiers");
+
+            e.HasKey(x => x.TierId);
+
+            e.Property(x => x.TierId)
+                .HasColumnName("tier_id");
+
+            e.Property(x => x.TierName)
+                .HasColumnName("tier_name")
+                .HasMaxLength(50)
+                .IsRequired();
+
+            e.Property(x => x.DisplayOrder)
+                .HasColumnName("display_order");
+
+            e.Property(x => x.IsActive)
+                .HasColumnName("is_active")
+                .HasDefaultValue(true);
+
+            e.Property(x => x.CreatedAt)
+                .HasColumnName("created_at");
+
+            e.Property(x => x.UpdatedAt)
+                .HasColumnName("updated_at");
+
+            e.HasIndex(x => x.TierName)
+                .IsUnique();
+        });
+
+        m.Entity<TradeCreditMapping>(e =>
+        {
+            e.ToTable("trade_credit_mappings");
+
+            e.HasKey(x => x.MappingId);
+
+            e.Property(x => x.MappingId)
+                .HasColumnName("mapping_id");
+
+            e.Property(x => x.TradeCategoryId)
+                .HasColumnName("trade_category_id")
+                .IsRequired();
+
+            e.Property(x => x.SubTradeId)
+                .HasColumnName("sub_trade_id");
+
+            e.Property(x => x.TierId)
+                .HasColumnName("tier_id")
+                .IsRequired();
+
+            e.Property(x => x.UnlockCredits)
+                .HasColumnName("unlock_credits")
+                .IsRequired();
+
+            e.Property(x => x.IsActive)
+                .HasColumnName("is_active")
+                .HasDefaultValue(true);
+
+            e.Property(x => x.CreatedAt)
+                .HasColumnName("created_at");
+
+            e.Property(x => x.UpdatedAt)
+                .HasColumnName("updated_at");
+
+            e.HasOne(x => x.TradeCategory)
+                .WithMany()
+                .HasForeignKey(x => x.TradeCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.SubTrade)
+                .WithMany()
+                .HasForeignKey(x => x.SubTradeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(x => x.Tier)
+                .WithMany()
+                .HasForeignKey(x => x.TierId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // One default mapping per main trade category.
+            e.HasIndex(x => x.TradeCategoryId)
+                .IsUnique()
+                .HasFilter("\"sub_trade_id\" IS NULL")
+                .HasDatabaseName("uq_trade_mapping_category_default");
+
+            // One mapping per specific sub-trade.
+            e.HasIndex(x => new
+            {
+                x.TradeCategoryId,
+                x.SubTradeId
+            })
+                .IsUnique()
+                .HasFilter("\"sub_trade_id\" IS NOT NULL")
+                .HasDatabaseName("uq_trade_mapping_category_subtrade");
+
+            e.HasIndex(x => x.TierId);
         });
 
         m.Entity<RecruiterNote>(entity =>
