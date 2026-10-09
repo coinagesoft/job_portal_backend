@@ -17,3 +17,5 @@ obj/
 
 firebase-adminsdk.json
 appsettings.json
+# Firebase service-account credentials
+JobPortal.API/*firebase-adminsdk*.json
