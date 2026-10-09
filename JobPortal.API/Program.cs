@@ -125,6 +125,7 @@ builder.Services.AddScoped<ILegalDocumentPublicService, LegalDocumentPublicServi
 builder.Services.AddScoped<IAdminHomepageManagementService, AdminHomepageManagementService>();
 builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
 builder.Services.AddScoped<CandidatePagedJobService>();
+builder.Services.AddScoped<ICandidateAccountService, CandidateAccountService>();
 //builder.Services.AddScoped<IRecruiterRegistrationService, RecruiterRegistrationService>();
 builder.Services.AddScoped<IRecruiterHomepageService, RecruiterHomepageService>();   // <-- new line
 builder.Services.AddHttpClient<IGeminiCompanyDocumentParserService, GeminiCompanyDocumentParserService>();
@@ -244,11 +245,15 @@ builder.Services.AddCors(options =>
                 "https://localhost:3001",
                 "http://localhost:3001",
 
-                "https://job-portal-dev-phi.vercel.app",
-                "https://job-portal-web-phi.vercel.app",
-                "http://16.4.32.157:3001",
-                "http://16.4.32.157",
-                 "https://job-portal-admin-gray.vercel.app");
+              "https://job-portal-dev-phi.vercel.app",
+            "https://job-portal-web-phi.vercel.app",
+            "http://16.4.32.157:3001",
+            "http://16.4.32.157",
+            "https://job-portal-admin-gray.vercel.app",
+
+            "https://vanshay.in",
+            "https://www.vanshay.in",
+            "https://admin.vanshay.in");
 
     });
 });
