@@ -127,7 +127,8 @@ namespace JobPortal.Services.Implement.Recruiter
                 .AsNoTracking()
                 .Include(x => x.CandidateProfile)
                 .Include(x => x.JobPosting)
-                .Where(x => x.EmployerId == employerId)
+                .Where(x => x.EmployerId == employerId &&
+                            !x.CandidateProfile.User.IsDeleted)   // hide self-deleted candidates
                 .AsQueryable();
 
             // Job Filter

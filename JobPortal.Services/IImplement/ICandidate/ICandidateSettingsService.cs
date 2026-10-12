@@ -47,4 +47,16 @@ public interface ICandidateSettingsService
 
     Task<CandidateTicketSummaryDto> GetSummaryAsync(
         Guid candidateId);
+
+    // ── Delete Account (OTP-verified) ────────────────────────────────
+    Task<CandidateDeleteAccountOptionsDto> GetDeleteAccountOptionsAsync(
+        Guid candidateId);
+
+    Task<CandidateDeleteAccountOtpResponseDto> SendDeleteAccountOtpAsync(
+        Guid candidateId,
+        string channel);
+
+    Task<CandidateSettingsDeleteAccountResponseDto> DeleteAccountAsync(
+        Guid candidateId,
+        CandidateSettingsDeleteAccountRequestDto request);
 }

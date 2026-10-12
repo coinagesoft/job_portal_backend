@@ -109,6 +109,7 @@ namespace JobPortal.Services.Implement.Candidate
                     ? emailProp.GetString()?.ToLower() : null;
                 if (string.IsNullOrWhiteSpace(email))
                     return AuthFail("Google account email not found.");
+                await JobPortal.Services.Implement.Recruiter.AccountCleanupService.PurgeSoftDeletedCandidatesAsync(_context, email, request.MobileNumber);
                 if (await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email))
                     return AuthFail("Email is already registered. Please sign in instead.");
                 if (!string.IsNullOrWhiteSpace(request.MobileNumber) &&
@@ -262,6 +263,7 @@ namespace JobPortal.Services.Implement.Candidate
                     ? emailProp.GetString()?.ToLower() : null;
                 if (string.IsNullOrWhiteSpace(email))
                     return AuthFail("LinkedIn email not found.");
+                await JobPortal.Services.Implement.Recruiter.AccountCleanupService.PurgeSoftDeletedCandidatesAsync(_context, email, request.MobileNumber);
                 if (await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email))
                     return AuthFail("Email is already registered. Please sign in instead.");
                 if (!string.IsNullOrWhiteSpace(request.MobileNumber) &&
@@ -397,6 +399,7 @@ namespace JobPortal.Services.Implement.Candidate
                 ? nameProp.GetString() : null;
             if (string.IsNullOrWhiteSpace(email))
                 return new SocialVerifyResponseDto { Success = false, Message = "Google account email not found." };
+            await JobPortal.Services.Implement.Recruiter.AccountCleanupService.PurgeSoftDeletedCandidatesAsync(_context, email, null);
             var exists = await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email);
             if (exists)
                 return new SocialVerifyResponseDto { Success = false, Message = "Email is already registered. Please sign in instead." };
@@ -446,6 +449,7 @@ namespace JobPortal.Services.Implement.Candidate
                 ? nameProp.GetString() : null;
             if (string.IsNullOrWhiteSpace(email))
                 return new SocialVerifyResponseDto { Success = false, Message = "LinkedIn email not found. Please ensure it's visible." };
+            await JobPortal.Services.Implement.Recruiter.AccountCleanupService.PurgeSoftDeletedCandidatesAsync(_context, email, null);
             var exists = await _context.Users.AnyAsync(u => u.Email != null && u.Email.ToLower() == email);
             if (exists)
                 return new SocialVerifyResponseDto { Success = false, Message = "Email is already registered. Please sign in instead." };

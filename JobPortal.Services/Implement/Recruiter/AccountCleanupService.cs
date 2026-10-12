@@ -1,5 +1,6 @@
 ﻿using JobPortal.Infrastructure.Persistence;
 using JobPortal.Domain.Entities;
+using JobPortal.Domain.Enums.common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -70,6 +71,19 @@ public class AccountCleanupService : BackgroundService
                 if (employer != null)
                 {
                     await PurgeEmployerDataAsync(context, employer, user, cancellationToken);
+                }
+
+                // AsNoTracking: the profile is removed with ExecuteDelete below.
+                // A tracked CandidateProfile would still reference the User row
+                // that is removed afterwards (FK is Restrict) and make
+                // SaveChanges throw.
+                var candidate = await context.CandidateProfiles
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.UserId == user.UserId, cancellationToken);
+
+                if (candidate != null)
+                {
+                    await PurgeCandidateDataAsync(context, candidate, user, cancellationToken);
                 }
 
                 // Whatever is left of the user row itself (covers both the
@@ -262,6 +276,235 @@ public class AccountCleanupService : BackgroundService
                 .ToListAsync(cancellationToken);
 
             context.Users.RemoveRange(subUserRows);
+        }
+    }
+
+    /// <summary>
+    /// Hard-deletes everything tied to a self-deleted CANDIDATE account once
+    /// its 30-day recovery window has passed: applications (and the
+    /// recruiter notes that cascade from them), saved jobs, documents, CVs,
+    /// education/work/skills, KYC/passport/ITI reviews, embeddings, device
+    /// tokens, settings, sessions, OTPs, notifications, consent logs and
+    /// support tickets — then the CandidateProfile. The caller removes the
+    /// User row afterwards.
+    ///
+    /// CandidateProfile → User and PaymentTransaction → CandidateProfile are
+    /// Restrict, and several candidate children (education, work history,
+    /// skills, CVs, KYC, passport, ITI, applications) are plain required
+    /// FKs, so every dependent is cleared explicitly, leaf-to-root, rather
+    /// than relying on cascade behaviour.
+    ///
+    /// The candidate's membership invoices and payment transactions are
+    /// removed too (both have a required FK to the User row, so they could
+    /// not survive its deletion anyway). Refund transactions are deleted
+    /// before the originals they point back to (OriginalTxnId is Restrict).
+    /// </summary>
+    internal static async Task PurgeCandidateDataAsync(
+        AppDbContext context,
+        CandidateProfile candidate,
+        User owner,
+        CancellationToken cancellationToken)
+    {
+        var candidateId = candidate.CandidateId;
+        var userId = owner.UserId;
+
+        // ---- Applications (RecruiterNotes cascade via ApplicationId)
+        await context.JobApplications
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.SavedJobs
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // ---- Employer-side records that point at this candidate
+        await context.CandidateUnlocks
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.EmployerCandidateAccesses
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.CandidateCvDownloads
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // CreditUsageTransaction.CandidateId is nullable — keep the
+        // employer's billing history, just drop the link to the person.
+        await context.CreditUsageTransactions
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteUpdateAsync(
+                s => s.SetProperty(x => x.CandidateId, (Guid?)null),
+                cancellationToken);
+
+        // ---- Candidate profile data
+        await context.CandidateDocuments
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.CandidateCvs
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.CandidateEducations
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.CandidateWorkHistories
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.CandidateSkills
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.KycVerifications
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.PassportVerifications
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.ItiCertificateReviews
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.CandidateEmbeddings
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // ---- Settings, devices, logout sessions
+        await context.CandidateNotificationSettings
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.CandidatePreferenceSettings
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.CandidateDeviceTokens
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.CandidateLogoutSessions
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // ---- Membership billing (coupons, invoices, then transactions)
+        // CouponRedemption -> PaymentTransaction is Restrict, so the
+        // redemptions must be removed before the transactions they point at.
+        await context.CouponRedemptions
+            .Where(x => x.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.Invoices
+            .Where(x => x.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var candidateTxns = await context.PaymentTransactions
+            .Where(x => x.CandidateId == candidateId || x.UserId == userId)
+            .OrderByDescending(x => x.OriginalTxnId != null) // refunds/children first
+            .ToListAsync(cancellationToken);
+
+        var candidateTxnIds = candidateTxns.Select(x => x.TransactionId).ToList();
+
+        if (candidateTxnIds.Count > 0)
+        {
+            await context.CouponRedemptions
+                .Where(x => x.PaymentTransactionId != null &&
+                            candidateTxnIds.Contains(x.PaymentTransactionId.Value))
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
+        context.PaymentTransactions.RemoveRange(candidateTxns);
+        await context.SaveChangesAsync(cancellationToken);
+
+        // ---- Per-user data
+        await context.UserSessions
+            .Where(x => x.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // OTP rows are matched by number/email as well as user id, so no
+        // stale code or resend-cooldown survives to block a fresh
+        // registration with the same mobile number or email.
+        var ownerMobile = owner.MobileNumber;
+        var ownerEmail = owner.Email?.ToLower();
+
+        await context.OtpVerifications
+            .Where(x =>
+                x.UserId == userId ||
+                (ownerMobile != null && ownerMobile != "" && x.MobileNumber == ownerMobile) ||
+                (ownerEmail != null && ownerEmail != "" &&
+                    (x.Email == ownerEmail || x.MobileNumber == ownerEmail)))
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.ConsentLogs
+            .Where(x => x.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await context.Notifications
+            .Where(x => x.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // SupportTicketReplies cascade automatically via TicketId.
+        await context.SupportTickets
+            .Where(x => x.RaisedBy == userId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // ---- Finally the profile itself
+        await context.CandidateProfiles
+            .Where(x => x.CandidateId == candidateId)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Registration safety net. If a CANDIDATE row with this email / mobile is
+    /// still flagged IsDeleted (a soft-deleted leftover from before deletion
+    /// became permanent, or one awaiting the 30-day cleanup), it is purged
+    /// right now, so re-registering with the same email or number never hits
+    /// "already registered" or a "suspended" warning. Active accounts and
+    /// accounts that are really suspended by an admin (not IsDeleted) are
+    /// never touched.
+    /// </summary>
+    internal static async Task PurgeSoftDeletedCandidatesAsync(
+        AppDbContext context,
+        string? email,
+        string? mobile,
+        CancellationToken cancellationToken = default)
+    {
+        email = string.IsNullOrWhiteSpace(email) ? null : email.Trim().ToLower();
+        mobile = string.IsNullOrWhiteSpace(mobile) ? null : mobile.Trim();
+
+        if (email == null && mobile == null)
+            return;
+
+        var stale = await context.Users
+            .AsNoTracking()
+            .Where(u =>
+                u.IsDeleted &&
+                u.UserType == UserType.Candidate &&
+                ((email != null && u.Email != null && u.Email.ToLower() == email) ||
+                 (mobile != null && u.MobileNumber == mobile)))
+            .ToListAsync(cancellationToken);
+
+        foreach (var user in stale)
+        {
+            await using var tx = await context.Database.BeginTransactionAsync(cancellationToken);
+
+            var profile = await context.CandidateProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.UserId == user.UserId, cancellationToken);
+
+            if (profile != null)
+                await PurgeCandidateDataAsync(context, profile, user, cancellationToken);
+
+            await context.Users
+                .Where(u => u.UserId == user.UserId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            await tx.CommitAsync(cancellationToken);
         }
     }
 }

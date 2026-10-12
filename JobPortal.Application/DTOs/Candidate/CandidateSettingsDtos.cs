@@ -197,3 +197,75 @@ public class CandidateTicketSummaryDto
     public int InProgress { get; set; }
     public int Resolved { get; set; }
 }
+
+
+// ═══════════════════════════════════════════════════════════════
+// SECTION — DELETE ACCOUNT  (Settings ▸ Delete Account)
+// Step 1  POST   /api/candidate/settings/account/send-otp
+// Step 2  DELETE /api/candidate/settings/account   (requires the OTP)
+// ═══════════════════════════════════════════════════════════════
+
+/// <summary>GET /api/candidate/settings/account/otp-options — which channels the candidate can pick.</summary>
+public class CandidateDeleteAccountOptionsDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+
+    public bool HasMobile { get; set; }
+    public string? MaskedMobile { get; set; }
+
+    public bool HasEmail { get; set; }
+    public string? MaskedEmail { get; set; }
+}
+
+public class CandidateDeleteAccountSendOtpRequestDto
+{
+    /// <summary>"mobile" or "email" — the OTP is sent to this ONE channel only.</summary>
+    [Required, MaxLength(10)]
+    public string Channel { get; set; } = string.Empty;
+}
+
+public class CandidateDeleteAccountOtpResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>What the OTP was sent to, e.g. "******3210" or "ab***@gmail.com".</summary>
+    public string? MaskedIdentifier { get; set; }
+
+    /// <summary>e.g. ******3210 (null if no SMS was sent)</summary>
+    public string? MaskedMobile { get; set; }
+
+    /// <summary>e.g. ab***@gmail.com (null if no email was sent)</summary>
+    public string? MaskedEmail { get; set; }
+
+    /// <summary>"mobile" or "email".</summary>
+    public string? IdentifierType { get; set; }
+
+    public int ExpiresInSeconds { get; set; }
+    public int ResendCooldownSeconds { get; set; }
+}
+
+public class CandidateSettingsDeleteAccountRequestDto
+{
+    /// <summary>"mobile" or "email" — must match the channel the OTP was sent to.</summary>
+    [Required, MaxLength(10)]
+    public string Channel { get; set; } = string.Empty;
+
+    /// <summary>The OTP received on the chosen channel (mobile or email).</summary>
+    [Required, MaxLength(10)]
+    public string OtpCode { get; set; } = string.Empty;
+
+    /// <summary>Optional free-text reason (kept in the audit trail only).</summary>
+    [MaxLength(500)]
+    public string? Reason { get; set; }
+}
+
+public class CandidateSettingsDeleteAccountResponseDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>Always null — deletion is permanent and immediate (kept for response compatibility).</summary>
+    public DateTime? RecoveryExpiry { get; set; }
+}

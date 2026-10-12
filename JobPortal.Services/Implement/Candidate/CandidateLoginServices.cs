@@ -123,7 +123,15 @@ public class CandidateLoginService : ICandidateLoginService
                 return SendFail(WrongAppMessage);
             }
 
-            if (user.AccountStatus == AccountStatus.Suspended)
+            // Self-deleted account: still inside the 30-day window → let the
+            // OTP go out so the candidate can log in and restore it; past the
+            // window the account is gone.
+            if (user.IsDeleted)
+            {
+                if (!IsRecoverable(user))
+                    return SendFail("Account not found.");
+            }
+            else if (user.AccountStatus == AccountStatus.Suspended)
             {
                 return SendFail("Your account has been suspended. Contact support.");
             }
@@ -298,7 +306,12 @@ public class CandidateLoginService : ICandidateLoginService
                 return AuthFail(WrongAppMessage);
             }
 
-            if (user.AccountStatus == AccountStatus.Suspended)
+            if (user.IsDeleted)
+            {
+                if (!IsRecoverable(user))
+                    return AuthFail("This account has been permanently deleted.");
+            }
+            else if (user.AccountStatus == AccountStatus.Suspended)
                 return AuthFail("Your account has been suspended.");
 
             if (user.AccountStatus == AccountStatus.Rejected)
@@ -351,6 +364,14 @@ public class CandidateLoginService : ICandidateLoginService
 
             otp.IsVerified = true;
 
+            // OTP proved ownership — reverse a pending self-delete.
+            var accountRecovered = false;
+            if (user.IsDeleted)
+            {
+                RecoverDeletedAccount(user);
+                accountRecovered = true;
+            }
+
             user.LastLoginAt = DateTime.UtcNow;
             user.UpdatedAt = DateTime.UtcNow;
 
@@ -371,14 +392,17 @@ public class CandidateLoginService : ICandidateLoginService
             return new AuthResponseDto
             {
                 Success = true,
-                Message = "Login successful.",
+                Message = accountRecovered
+                    ? "Welcome back! Your account has been restored."
+                    : "Login successful.",
                 Token = token,
                 CandidateId = candidateId,
                 UserId = user.UserId,
                 UserType = user.UserType.ToString(),
                 UserName = await GetUserNameAsync(user),
                 ProfileStatus = profileStatus,
-                ExpiresAt = expiry
+                ExpiresAt = expiry,
+                AccountRecovered = accountRecovered
             };
         }
         catch (Exception ex)
@@ -424,6 +448,8 @@ public class CandidateLoginService : ICandidateLoginService
                 return AuthFail("Google account email not found.");
             }
 
+            var googleAccountRecovered = false;
+
             var user = await _context.Users
                 .FirstOrDefaultAsync(u =>
                     u.Email != null && u.Email.ToLower() == email);
@@ -464,7 +490,15 @@ public class CandidateLoginService : ICandidateLoginService
                     return AuthFail(WrongAppMessage);
                 }
 
-                if (user.AccountStatus == AccountStatus.Suspended)
+                if (user.IsDeleted)
+                {
+                    if (!IsRecoverable(user))
+                        return AuthFail("This account has been permanently deleted.");
+
+                    RecoverDeletedAccount(user);
+                    googleAccountRecovered = true;
+                }
+                else if (user.AccountStatus == AccountStatus.Suspended)
                     return AuthFail("Your account has been suspended.");
 
                 if (user.AccountStatus == AccountStatus.Rejected)
@@ -484,14 +518,17 @@ public class CandidateLoginService : ICandidateLoginService
             return new AuthResponseDto
             {
                 Success = true,
-                Message = "Google login successful.",
+                Message = googleAccountRecovered
+                    ? "Welcome back! Your account has been restored."
+                    : "Google login successful.",
                 Token = token,
                 UserId = user.UserId,
                 CandidateId = candidateId,
                 UserType = user.UserType.ToString(),
                 UserName = name,
                 ProfileStatus = profileStatus,
-                ExpiresAt = expiry
+                ExpiresAt = expiry,
+                AccountRecovered = googleAccountRecovered
             };
         }
         catch (Exception ex)
@@ -571,6 +608,8 @@ public class CandidateLoginService : ICandidateLoginService
                     "LinkedIn account email not found. Please ensure your LinkedIn email is visible.");
             }
 
+            var linkedInAccountRecovered = false;
+
             var user = await _context.Users
                 .FirstOrDefaultAsync(u =>
                     u.Email != null && u.Email.ToLower() == email);
@@ -610,7 +649,15 @@ public class CandidateLoginService : ICandidateLoginService
                     return AuthFail(WrongAppMessage);
                 }
 
-                if (user.AccountStatus == AccountStatus.Suspended)
+                if (user.IsDeleted)
+                {
+                    if (!IsRecoverable(user))
+                        return AuthFail("This account has been permanently deleted.");
+
+                    RecoverDeletedAccount(user);
+                    linkedInAccountRecovered = true;
+                }
+                else if (user.AccountStatus == AccountStatus.Suspended)
                 {
                     return AuthFail("Your account has been suspended. Contact support.");
                 }
@@ -634,14 +681,17 @@ public class CandidateLoginService : ICandidateLoginService
             return new AuthResponseDto
             {
                 Success = true,
-                Message = "LinkedIn login successful.",
+                Message = linkedInAccountRecovered
+                    ? "Welcome back! Your account has been restored."
+                    : "LinkedIn login successful.",
                 Token = token,
                 UserId = user.UserId,
                 CandidateId = candidateId,
                 UserType = user.UserType.ToString(),
                 UserName = name,
                 ProfileStatus = profileStatus,
-                ExpiresAt = expiry
+                ExpiresAt = expiry,
+                AccountRecovered = linkedInAccountRecovered
             };
         }
         catch (Exception ex)
@@ -652,6 +702,27 @@ public class CandidateLoginService : ICandidateLoginService
     }
 
     // ── Private Helpers ───────────────────────────────────
+
+    // ── Self-deleted account helpers ────────────────────────────────
+    // A candidate who used Settings ▸ Delete Account is soft-deleted with a
+    // 30-day RecoveryExpiry. Inside that window a successful login restores
+    // the account; after it, AccountCleanupService purges the data.
+
+    private static bool IsRecoverable(User user) =>
+        user.IsDeleted &&
+        user.RecoveryExpiry.HasValue &&
+        user.RecoveryExpiry.Value > DateTime.UtcNow;
+
+    private static void RecoverDeletedAccount(User user)
+    {
+        user.IsDeleted = false;
+        user.DeletedAt = null;
+        user.RecoveryExpiry = null;
+        user.DeletedByUserId = null;
+        user.AccountStatus = AccountStatus.Active;
+        user.SuspensionReason = null;
+        user.UpdatedAt = DateTime.UtcNow;
+    }
 
     private async Task<(string token, DateTime expiry, Guid? candidateId)> GenerateCandidateTokenAsync(User user)
     {
