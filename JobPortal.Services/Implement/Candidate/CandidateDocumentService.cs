@@ -3,6 +3,7 @@
 //  ALL GIT MERGE CONFLICTS RESOLVED
 // ============================================================
 
+using DocumentFormat.OpenXml.Bibliography;
 using JobPortal.Application.DTOs.AI;
 using JobPortal.Application.DTOs.Candidate;
 using JobPortal.Application.DTOs.Candidate.Profile;
@@ -993,24 +994,120 @@ public class CandidateDocumentService : ICandidateDocumentService
     }
 
     /// <summary>Pulls the candidate name out of the parser's dynamic field set.</summary>
+
     private static string? ExtractParsedName(System.Text.Json.JsonElement? data)
     {
         if (data is null ||
             data.Value.ValueKind != System.Text.Json.JsonValueKind.Object)
-            return null;
-
-        foreach (var key in new[] { "name", "Name", "fullName", "FullName", "candidateName" })
         {
-            if (data.Value.TryGetProperty(key, out var v) &&
-                v.ValueKind == System.Text.Json.JsonValueKind.String)
+            return null;
+        }
+
+        var element = data.Value;
+
+        // First, check for an existing full-name field.
+        foreach (var key in new[]
+        {
+        "name",
+        "Name",
+        "fullName",
+        "FullName",
+        "full_name",
+        "candidateName",
+        "CandidateName",
+        "candidate_name",
+        "Candidate Name"
+    })
+        {
+            if (TryGetStringProperty(element, key, out var fullName))
             {
-                var s = v.GetString();
-                if (!string.IsNullOrWhiteSpace(s))
-                    return s;
+                return fullName;
             }
         }
 
+        // If full name is unavailable, combine individual name fields.
+        var firstName = GetFirstStringProperty(element,
+            "FirstName",
+            "firstName",
+            "first_name",
+            "First Name",
+            "first name",
+            "First name",
+            "firstname");
+
+        var middleName = GetFirstStringProperty(element,
+            "MiddleName",
+            "middleName",
+            "middle_name",
+            "Middle Name",
+            "middle name",
+            "Middle name",
+            "middlename");
+
+        var lastName = GetFirstStringProperty(element,
+            "LastName",
+            "lastName",
+            "last_name",
+            "Last Name",
+            "last name",
+            "Last name",
+            "lastname");
+
+        var combinedName = string.Join(" ",
+            new[] { firstName, middleName, lastName }
+                .Where(name => !string.IsNullOrWhiteSpace(name)));
+
+        return string.IsNullOrWhiteSpace(combinedName)
+            ? null
+            : combinedName;
+    }
+
+    private static string? GetFirstStringProperty(
+        System.Text.Json.JsonElement element,
+        params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (TryGetStringProperty(element, key, out var value))
+                return value;
+        }
+
         return null;
+    }
+
+    private static bool TryGetStringProperty(
+        System.Text.Json.JsonElement element,
+        string key,
+        out string value)
+    {
+        value = string.Empty;
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (!string.Equals(
+                    property.Name,
+                    key,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (property.Value.ValueKind !=
+                System.Text.Json.JsonValueKind.String)
+            {
+                continue;
+            }
+
+            var text = property.Value.GetString();
+
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                value = text.Trim();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Turns a document type into a safe local-storage folder segment.</summary>
