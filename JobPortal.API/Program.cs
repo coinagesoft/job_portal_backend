@@ -1,3 +1,5 @@
+using Amazon;
+using Amazon.Runtime;
 using Amazon.S3;
 using FirebaseAdmin;
 using Google;
@@ -133,9 +135,33 @@ builder.Services.AddHttpClient<IGeminiCompanyDocumentParserService, GeminiCompan
 builder.Services.AddScoped<ITradeHierarchyImportService, TradeHierarchyImportService>();
 builder.Services.AddHttpContextAccessor();
 // ── File storage: AWS S3 (private bucket, credentials from EC2 IAM role) ──
-builder.Services.AddSingleton<IAmazonS3>(_ =>
-    new AmazonS3Client(Amazon.RegionEndpoint.GetBySystemName(
-        builder.Configuration["AWS:Region"] ?? "ap-south-1")));
+
+// ── File storage: AWS S3 ──
+builder.Services.AddSingleton<IAmazonS3>(sp =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+
+    var region = configuration["AWS:Region"];
+    var accessKey = configuration["AWS:AccessKey"];
+    var secretKey = configuration["AWS:SecretKey"];
+
+    if (string.IsNullOrWhiteSpace(region) ||
+        string.IsNullOrWhiteSpace(accessKey) ||
+        string.IsNullOrWhiteSpace(secretKey))
+    {
+        throw new InvalidOperationException(
+            "AWS S3 configuration is incomplete. Check AWS:Region, AWS:AccessKey, and AWS:SecretKey.");
+    }
+
+    var credentials = new BasicAWSCredentials(accessKey, secretKey);
+
+    return new AmazonS3Client(
+        credentials,
+        RegionEndpoint.GetBySystemName(region));
+});
+
+
+
 builder.Services.AddScoped<S3FileStorageService>();
 builder.Services.AddScoped<IFileStorageService>(
     sp => sp.GetRequiredService<S3FileStorageService>());
