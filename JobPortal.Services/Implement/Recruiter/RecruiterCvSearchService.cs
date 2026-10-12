@@ -46,6 +46,7 @@ namespace JobPortal.Services.Implement.Recruiter
             var candidates =
                 await _context.CandidateProfiles
                     .AsNoTracking()
+                    .Where(x => !x.User.IsDeleted)
                     .ToListAsync();
 
             return new CvSearchDashboardDto
@@ -77,6 +78,7 @@ namespace JobPortal.Services.Implement.Recruiter
                     .Include(x => x.User)
                     .Include(x => x.Skills)
                     .Include(x => x.Cvs)
+                    .Where(x => !x.User.IsDeleted)   // hide self-deleted candidate accounts
                     .AsQueryable();
 
             // -----------------------------------------
@@ -414,7 +416,8 @@ namespace JobPortal.Services.Implement.Recruiter
                     .Include(x => x.User)
                     .Include(x => x.Skills)
                     .FirstOrDefaultAsync(x =>
-                        x.CandidateId == candidateId);
+                        x.CandidateId == candidateId &&
+                        !x.User.IsDeleted);
 
             if (candidate == null)
             {
@@ -551,7 +554,8 @@ namespace JobPortal.Services.Implement.Recruiter
                     .Include(x => x.Skills)
                     .Where(x =>
                         unlockedCandidates.Contains(
-                            x.CandidateId))
+                            x.CandidateId) &&
+                        !x.User.IsDeleted)
                     .ToListAsync();
 
             var result =

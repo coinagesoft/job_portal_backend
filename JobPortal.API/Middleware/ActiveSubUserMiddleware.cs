@@ -13,7 +13,10 @@ namespace JobPortal.API.Middleware;
 ///
 ///  1. Sub-users — blocked the instant the account owner deactivates or
 ///     removes them (SubUserStatus != "Active").
-///  2. The account owner themselves — blocked the instant they use
+///  2. Candidates — blocked the instant they use Settings ▸ Delete Account
+///     (User.IsDeleted) or an admin suspends them, so a self-deleted
+///     candidate's still-unexpired JWT stops working immediately.
+///  3. The account owner themselves — blocked the instant they use
 ///     Settings ▸ Deactivate Account or Delete Account (User/Employer
 ///     AccountStatus becomes Suspended or Deleted), instead of staying
 ///     logged in until their token naturally expires.
@@ -63,6 +66,34 @@ public class ActiveSubUserMiddleware
                         await RejectAsync(
                             context,
                             "Your access has been revoked. Please contact your account owner.");
+
+                        return;
+                    }
+                }
+            }
+            else if (roleClaim == "Candidate")
+            {
+                var candUserIdClaim = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (Guid.TryParse(candUserIdClaim, out var candUserId))
+                {
+                    var candUser = await dbContext.Users
+                        .AsNoTracking()
+                        .Where(u => u.UserId == candUserId)
+                        .Select(u => new { u.IsDeleted, u.AccountStatus })
+                        .FirstOrDefaultAsync();
+
+                    if (candUser == null ||
+                        candUser.IsDeleted ||
+                        candUser.AccountStatus == AccountStatus.Suspended ||
+                        candUser.AccountStatus == AccountStatus.Deleted)
+                    {
+                        var message = candUser == null || candUser.IsDeleted ||
+                                      candUser.AccountStatus == AccountStatus.Deleted
+                            ? "This account has been deleted."
+                            : "This account has been suspended. Contact support.";
+
+                        await RejectAsync(context, message);
 
                         return;
                     }

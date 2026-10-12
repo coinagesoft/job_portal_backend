@@ -138,6 +138,72 @@ public class CandidateSettingsController : ControllerBase
     }
 
     // ════════════════════════════════════════════════
+    // DELETE ACCOUNT
+    // DELETE /api/candidate/settings/account
+    // ════════════════════════════════════════════════
+
+    /// <summary>
+    /// Which channels (mobile / email) the candidate can use to verify the
+    /// deletion, with masked values for display.
+    /// </summary>
+    [HttpGet("account/otp-options")]
+    [ProducesResponseType(typeof(CandidateDeleteAccountOptionsDto), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetDeleteAccountOptions()
+    {
+        var id = GetCandidateId();
+        if (id == Guid.Empty)
+            return BadRequest(new { message = "Unable to resolve candidate identity." });
+
+        var result = await _service.GetDeleteAccountOptionsAsync(id);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// STEP 1 of account deletion: sends an OTP to the ONE channel the
+    /// candidate picked — body { "channel": "mobile" } or { "channel": "email" }.
+    /// </summary>
+    [HttpPost("account/send-otp")]
+    [ProducesResponseType(typeof(CandidateDeleteAccountOtpResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SendDeleteAccountOtp(
+        [FromBody] CandidateDeleteAccountSendOtpRequestDto request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var id = GetCandidateId();
+        if (id == Guid.Empty)
+            return BadRequest(new { message = "Unable to resolve candidate identity." });
+
+        var result = await _service.SendDeleteAccountOtpAsync(id, request.Channel);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
+    /// STEP 2: verifies the OTP and ONLY THEN deletes the account. Lets the
+    /// logged-in candidate delete their OWN account. The candidate
+    /// is always resolved from the JWT — there is no id in the URL, so one
+    /// candidate can never delete another's account. The account is
+    /// PERMANENTLY deleted (hard delete); the same mobile/email can register again.
+    /// </summary>
+    [HttpDelete("account")]
+    [ProducesResponseType(typeof(CandidateSettingsDeleteAccountResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> DeleteAccount(
+        [FromBody] CandidateSettingsDeleteAccountRequestDto request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var id = GetCandidateId();
+        if (id == Guid.Empty)
+            return BadRequest(new { message = "Unable to resolve candidate identity." });
+
+        var result = await _service.DeleteAccountAsync(id, request);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    // ════════════════════════════════════════════════
     // HELP & SUPPORT — Support Tickets
     // POST   /api/candidate/settings/support/tickets/{candidateId}
     // GET    /api/candidate/settings/support/tickets/{candidateId}

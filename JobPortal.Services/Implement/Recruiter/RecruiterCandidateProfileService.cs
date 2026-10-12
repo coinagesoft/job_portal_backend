@@ -34,7 +34,8 @@ namespace JobPortal.Services.Implement.Recruiter
                 .Include(x => x.WorkHistories)
                 .Include(x => x.Cvs)
                 .FirstOrDefaultAsync(
-                    x => x.CandidateId == candidateId);
+                    x => x.CandidateId == candidateId &&
+                         !x.User.IsDeleted);
 
             if (candidate == null)
             {

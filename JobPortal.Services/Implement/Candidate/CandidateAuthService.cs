@@ -197,6 +197,10 @@ public class CandidateAuthService : ICandidateAuthService
             // 7. MOBILE ALREADY REGISTERED?
             // ============================================================
 
+            // A soft-deleted leftover with this mobile/email must not block re-registration.
+            await AccountCleanupService.PurgeSoftDeletedCandidatesAsync(
+                _context, request.Email, request.MobileNumber);
+
             var existingMobile =
                 await _context.Users
                     .FirstOrDefaultAsync(x =>
@@ -765,6 +769,12 @@ public class CandidateAuthService : ICandidateAuthService
                 return SendFail(
                     "Country code is required.");
             }
+
+            // A soft-deleted leftover with this mobile/email must not block re-registration.
+            await AccountCleanupService.PurgeSoftDeletedCandidatesAsync(
+                _context,
+                isEmail ? identifier : null,
+                isEmail ? null : identifier);
 
             if (isEmail)
             {

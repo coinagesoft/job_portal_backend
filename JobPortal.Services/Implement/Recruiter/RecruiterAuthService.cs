@@ -1133,6 +1133,7 @@ public class RecruiterAuthService : IRecruiterAuthService
         user.IsDeleted = false;
         user.DeletedAt = null;
         user.RecoveryExpiry = null;
+        user.DeletedByUserId = null;
 
         user.AccountStatus = AccountStatus.Active;
         user.SuspensionReason = null;
