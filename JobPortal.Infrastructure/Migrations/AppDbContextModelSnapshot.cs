@@ -986,6 +986,9 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<string>("Role")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("SubTradeId")
+                        .HasColumnType("uuid");
+
                     b.Property<bool>("TempPasswordFlag")
                         .HasColumnType("boolean")
                         .HasColumnName("temp_password_flag");
@@ -993,6 +996,9 @@ namespace JobPortal.Infrastructure.Migrations
                     b.Property<int>("TotalExperienceYears")
                         .HasColumnType("integer")
                         .HasColumnName("total_experience_years");
+
+                    b.Property<Guid?>("TradeCategoryId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -3855,6 +3861,9 @@ namespace JobPortal.Infrastructure.Migrations
 
                     b.Property<bool>("CompanyEmailVerified")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("CompanyLocationType")
+                        .HasColumnType("text");
 
                     b.Property<string>("CompanyLogoPublicId")
                         .HasColumnType("text");

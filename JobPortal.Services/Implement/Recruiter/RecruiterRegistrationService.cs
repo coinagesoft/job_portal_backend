@@ -586,7 +586,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             // licence uploads are required on Step 4.
             session.NatureOfCompany = request.NatureOfCompany;
             session.PlacesCandidatesInternationally = request.PlacesCandidatesInternationally;
-
+            session.CompanyLocationType = request.CompanyLocationType;
             // Step tracking
             session.CurrentStep = 2;
 

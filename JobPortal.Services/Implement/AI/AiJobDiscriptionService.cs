@@ -313,7 +313,7 @@ public class AiJobDescriptionService : IAiJobDescriptionService
         var payload = new
         {
             model = Model,
-            max_tokens = maxTokens,
+            max_completion_tokens = maxTokens,
             messages = new[]
             {
                 new { role = "system", content = systemPrompt },
@@ -327,7 +327,15 @@ public class AiJobDescriptionService : IAiJobDescriptionService
             "application/json");
 
         var response = await _http.PostAsync("v1/chat/completions", content);
-        response.EnsureSuccessStatusCode();
+
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"OpenAI API error {(int)response.StatusCode}: {responseBody}");
+        }
+
 
         using var doc = JsonDocument.Parse(
             await response.Content.ReadAsStringAsync());

@@ -8,7 +8,6 @@ using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using JobPortal.Services.IImplement.IRecruiter;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -343,8 +342,55 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            var unlockCost =
-                config.ProfileUnlockCredits;
+            // Get the candidate's main trade.
+            var candidateTrade = candidate.PrimaryTrade?.Trim();
+
+            if (string.IsNullOrWhiteSpace(candidateTrade))
+            {
+                return new UnlockCandidateResponseDto
+                {
+                    Success = false,
+                    Message = "Candidate main trade is not configured."
+                };
+            }
+
+            // Match only the main trade.
+            // Completely ignore all subtrade mappings.
+            var tradeMapping = await _context.TradeCreditMappings
+    .AsNoTracking()
+    .Where(x =>
+        x.IsActive &&
+        x.SubTradeId == null &&
+        x.TradeCategory.IsActive &&
+        x.TradeCategory.Name.ToLower() == candidateTrade.ToLower())
+    .Select(x => new
+    {
+        x.UnlockCredits,
+        TierName = x.Tier.TierName
+    })
+    .FirstOrDefaultAsync();
+
+            if (tradeMapping == null)
+            {
+                return new UnlockCandidateResponseDto
+                {
+                    Success = false,
+                    Message = $"No main-trade credit mapping found for '{candidateTrade}'."
+                };
+            }
+
+            var unlockCost = tradeMapping.UnlockCredits;
+
+            if (unlockCost <= 0)
+            {
+                return new UnlockCandidateResponseDto
+                {
+                    Success = false,
+                    Message = "The configured unlock credit cost is invalid."
+                };
+            }
+
+        
 
             int balanceBefore;
             int balanceAfter;
@@ -431,7 +477,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 CreditsDeducted =
                     unlockCost,
 
-                RemainingCredits = wallet.CreditBalance,
+                RemainingCredits = balanceAfter,
 
                 AccessExpiresAt =
                     DateTime.UtcNow.AddDays(

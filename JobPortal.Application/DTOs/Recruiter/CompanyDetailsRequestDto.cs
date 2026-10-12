@@ -53,7 +53,7 @@ public class CompanyDetailsRequestDto
 
     [Required(ErrorMessage = "City is required.")]
     public string City { get; set; } = string.Empty;
-
+    public string? CompanyLocationType { get; set; }
     /// <summary>
     /// Defaults to India since the registration form pre-fills/locks this
     /// field, but is still accepted from the client rather than hardcoded

@@ -772,17 +772,19 @@ namespace JobPortal.Services.Implement.Recruiter
         // ════════════════════════════════════════════════
         // STEP 5 — Location
         // ════════════════════════════════════════════════
-         public async Task<BaseJobResponseDto> SaveLocationAsync(
-         LocationRequestDto request,
-         Guid jobId,
-         Guid employerId,
-         Guid actionUserId,
-         bool isSubUser)
+public async Task<BaseJobResponseDto> SaveLocationAsync(
+    LocationRequestDto request,
+    Guid jobId,
+    Guid employerId,
+    Guid actionUserId,
+    bool isSubUser)
         {
             try
             {
                 var permissionCheck = await _permissionService.CheckAsync(
-                    actionUserId, isSubUser, s => s.CanPostJobs);
+                    actionUserId,
+                    isSubUser,
+                    s => s.CanPostJobs);
 
                 if (!permissionCheck.Allowed)
                 {
@@ -804,12 +806,9 @@ namespace JobPortal.Services.Implement.Recruiter
                             : jobId,
 
                         EmployerId = employerId,
-
                         JobStatus = JobStatus.Draft,
-
                         CurrentStep = 5,
                         LastCompletedStep = 5,
-
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     };
@@ -853,7 +852,8 @@ namespace JobPortal.Services.Implement.Recruiter
                 // ==================================================
 
                 job.LocationType = request.LocationType.Value;
-                job.Country = request.Country?.Trim();
+                job.Country = request.Country.Trim();
+
                 // ==================================================
                 // Onshore
                 // ==================================================
@@ -871,11 +871,10 @@ namespace JobPortal.Services.Implement.Recruiter
                     job.OffshoreRegion = null;
                     job.OffshoreCountry = null;
 
-                    job.IsInternational =
-                        !string.Equals(
-                            job.OnshoreCountry,
-                            "India",
-                            StringComparison.OrdinalIgnoreCase);
+                    job.IsInternational = !string.Equals(
+                        job.OnshoreCountry,
+                        "India",
+                        StringComparison.OrdinalIgnoreCase);
                 }
 
                 // ==================================================
@@ -895,45 +894,11 @@ namespace JobPortal.Services.Implement.Recruiter
                     job.OnshoreCountry = null;
                     job.OnshorePincode = null;
 
-                    job.IsInternational =
-                        !string.Equals(
-                            job.OffshoreCountry,
-                            "India",
-                            StringComparison.OrdinalIgnoreCase);
+                    job.IsInternational = !string.Equals(
+                        job.OffshoreCountry,
+                        "India",
+                        StringComparison.OrdinalIgnoreCase);
                 }
-
-                // ==================================================
-                // Candidate required documents based on location
-                // ==================================================
-
-                RemoveLocationBasedCandidateDocuments(job);
-
-                if (request.LocationType == LocationType.Onshore)
-                {
-                    var country = request.OnshoreCountry?.Trim();
-
-                    // Onshore + outside India
-                    if (!string.IsNullOrWhiteSpace(country) &&
-                        !country.Equals("India", StringComparison.OrdinalIgnoreCase))
-                    {
-                        AddRequiredWorkingDocument(
-                            job,
-                            "POE License");
-                    }
-                }
-
-                if (request.LocationType == LocationType.Offshore)
-                {
-                    // Offshore → always required for candidate
-                    AddRequiredWorkingDocument(
-                        job,
-                        "RPSL License");
-
-                    AddRequiredWorkingDocument(
-                        job,
-                        "Registration Certificate");
-                }
-
 
                 // ==================================================
                 // Step Tracking
@@ -945,15 +910,11 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 await _context.SaveChangesAsync();
 
-                return Ok(
-                    job,
-                    "Location saved.");
+                return Ok(job, "Location saved.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(
-                    ex,
-                    "SaveLocationAsync error.");
+                _logger.LogError(ex, "SaveLocationAsync error.");
 
                 return Fail(
                     ex.InnerException?.Message ??
@@ -1656,57 +1617,7 @@ namespace JobPortal.Services.Implement.Recruiter
        
 
 
-        private static void AddRequiredWorkingDocument(
-    JobPosting job,
-    string documentName)
-        {
-            var documents = string.IsNullOrWhiteSpace(job.WorkingDocsRequired)
-                ? new List<string>()
-                : job.WorkingDocsRequired
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(x => x.Trim())
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .ToList();
-
-            if (!documents.Any(x =>
-                string.Equals(
-                    x,
-                    documentName,
-                    StringComparison.OrdinalIgnoreCase)))
-            {
-                documents.Add(documentName);
-            }
-
-            job.WorkingDocsRequired =
-                string.Join(", ", documents);
-        }
-
-        private static void RemoveLocationBasedCandidateDocuments(JobPosting job)
-        {
-            var automaticDocuments = new[]
-            {
-        "POE License",
-        "RPSL License",
-        "Registration Certificate"
-    };
-
-            if (string.IsNullOrWhiteSpace(job.WorkingDocsRequired))
-                return;
-
-            var documents = job.WorkingDocsRequired
-                .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(x => x.Trim())
-                .Where(x =>
-                    !automaticDocuments.Contains(
-                        x,
-                        StringComparer.OrdinalIgnoreCase))
-                .ToList();
-
-            job.WorkingDocsRequired =
-                documents.Count > 0
-                    ? string.Join(", ", documents)
-                    : null;
-        }
+    
     }
 
 

@@ -20,6 +20,7 @@ public class RegistrationSession
     // Step 1 data
     public bool? GstRegistered { get; set; }
     public string? IndustryType { get; set; }
+    public string? CompanyLocationType { get; set; }
     public bool RequiresSecurityDeposit { get; set; }
 
     // Step 2 data

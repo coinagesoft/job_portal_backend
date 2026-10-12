@@ -151,6 +151,7 @@ builder.Services.AddScoped<IAdminCandidateService, AdminCandidateService>();
 builder.Services.AddScoped<IAdminRecruiterService, AdminRecruiterService>();
 builder.Services.AddScoped<IAdminCouponService, AdminCouponService>();
 builder.Services.AddScoped<ICouponValidationService, CouponValidationService>();
+builder.Services.AddScoped<ITradeCreditImportService, TradeCreditImportService>();
 // ── Affinda AI — resume parsing ──────────────────────────────
 // Uses typed HttpClient so each instance gets its own HttpClient
 builder.Services.AddHttpClient<IAffindaService, AffindaService>();

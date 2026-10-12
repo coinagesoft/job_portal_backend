@@ -72,6 +72,9 @@ public class CandidatePersonalInfoData
     public string? ProfilePhotoUrl { get; set; }
     public DateOnly? DateOfBirth { get; set; }
     public string? Gender { get; set; }  // Male | Female | Prefer_Not_To_Say
+public Guid? TradeCategoryId { get; set; }
+    public Guid? SubTradeId { get; set; }
+    public string? PrimaryTrade { get; set; }
     public string? Email { get; set; }
     public string? MobileNumber { get; set; }
     public string? CountryCode { get; set; }
@@ -109,7 +112,9 @@ public class UpdateCandidatePersonalInfoRequestDto
     [EmailAddress, MaxLength(200)]
     public string? Email { get; set; }
 
+    public Guid? TradeCategoryId { get; set; }
 
+    public Guid? SubTradeId { get; set; }
     public string? MobileNumber { get; set; }
 
     public string? CountryCode { get; set; }

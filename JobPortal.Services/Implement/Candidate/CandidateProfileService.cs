@@ -100,6 +100,9 @@ public class CandidateProfileService : ICandidateProfileService
                 Role = c.Role ?? string.Empty,
                 ProfilePhotoUrl = c.ProfilePhotoUrl,
                 DateOfBirth = c.DateOfBirth,
+                TradeCategoryId = c.TradeCategoryId,
+                SubTradeId = c.SubTradeId,
+                PrimaryTrade = c.PrimaryTrade,
                 Gender = c.Gender,
                 Email = c.User?.Email,
                 MobileNumber = c.User?.MobileNumber,
@@ -146,6 +149,16 @@ public class CandidateProfileService : ICandidateProfileService
             // there — otherwise PrimaryTrade stays stuck at whatever value was
             // set at registration or parsed from an old resume.
             c.PrimaryTrade = r.Role;
+        }
+
+        if (r.TradeCategoryId.HasValue)
+        {
+            c.TradeCategoryId = r.TradeCategoryId;
+        }
+
+        if (r.SubTradeId.HasValue)
+        {
+            c.SubTradeId = r.SubTradeId;
         }
         c.DateOfBirth = r.DateOfBirth ?? c.DateOfBirth;
         c.Gender = r.Gender ?? c.Gender;
