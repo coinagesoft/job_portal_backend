@@ -209,7 +209,10 @@ public class CandidateLoginService : ICandidateLoginService
                     "TWILIO SEND OTP - Phone:{Phone}", phoneNumber);
 
                 // ===== QA BYPASS: real Twilio OTP send disabled =====
-                var sent = await _twilioOtpService.SendOtpAsync(phoneNumber);
+                // Review account (see OtpBypass): skip the SMS entirely.
+                var sent =
+                    OtpBypass.IsLoginBypass(request.CountryCode, identifier)
+                    || await _twilioOtpService.SendOtpAsync(phoneNumber);
                 //var sent = true;
                 // ===== END QA BYPASS =====
 
@@ -234,6 +237,34 @@ public class CandidateLoginService : ICandidateLoginService
 
                 _context.OtpVerifications.Add(otpRecord);
                 await _context.SaveChangesAsync();
+            }
+
+            // Review account (see OtpBypass): no OTP screen at all. Finish the
+            // login here and hand the token back in the send-otp response.
+            if (!isEmail && OtpBypass.IsLoginBypass(request.CountryCode, identifier))
+            {
+                var auth = await VerifyOtpAsync(
+                    new VerifyOtpRequestDto
+                    {
+                        Identifier = identifier,
+                        CountryCode = request.CountryCode,
+                        OtpCode = "000000",
+                        UserType = UserType.Candidate
+                    },
+                    ipAddress);
+
+                if (!auth.Success)
+                    return SendFail(auth.Message);
+
+                return new SendOtpResponseDto
+                {
+                    Success = true,
+                    Message = auth.Message,
+                    MaskedIdentifier = MaskMobile(identifier),
+                    IdentifierType = "mobile",
+                    OtpSkipped = true,
+                    Auth = auth
+                };
             }
 
             var masked = isEmail ? MaskEmail(identifier) : MaskMobile(identifier);
@@ -344,7 +375,10 @@ public class CandidateLoginService : ICandidateLoginService
             else
             {
                 var phoneNumber = $"{request.CountryCode}{identifier}";
-                isValid = await _twilioOtpService.VerifyOtpAsync(phoneNumber, request.OtpCode);
+                // Review account (see OtpBypass): any code is accepted.
+                isValid =
+                    OtpBypass.IsLoginBypass(request.CountryCode, identifier)
+                    || await _twilioOtpService.VerifyOtpAsync(phoneNumber, request.OtpCode);
             }
             //isValid = request.OtpCode == "123456";
             // ===== END QA BYPASS =====

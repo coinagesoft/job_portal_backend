@@ -249,8 +249,10 @@ public class RecruiterAuthService : IRecruiterAuthService
                     "TWILIO SEND OTP - Phone:{Phone}",
                     phoneNumber);
 
+                // Review account (see OtpBypass): skip the SMS entirely.
                 var sent =
-                    await _twilioOtpService
+                    OtpBypass.IsLoginBypass(request.CountryCode, identifier)
+                    || await _twilioOtpService
                         .SendOtpAsync(phoneNumber);
 
                 _logger.LogInformation(
@@ -297,6 +299,34 @@ public class RecruiterAuthService : IRecruiterAuthService
                 _logger.LogInformation(
                     "OTP RECORD SAVED - OtpId:{OtpId}",
                     otpRecord.OtpId);
+            }
+
+            // Review account (see OtpBypass): no OTP screen at all. Finish the
+            // login here and hand the token back in the send-otp response.
+            if (!isEmail && OtpBypass.IsLoginBypass(request.CountryCode, identifier))
+            {
+                var auth = await VerifyOtpAsync(
+                    new VerifyOtpRequestDto
+                    {
+                        Identifier = identifier,
+                        CountryCode = request.CountryCode,
+                        OtpCode = "000000",
+                        UserType = user.UserType
+                    },
+                    ipAddress);
+
+                if (!auth.Success)
+                    return SendFail(auth.Message);
+
+                return new SendOtpResponseDto
+                {
+                    Success = true,
+                    Message = auth.Message,
+                    MaskedIdentifier = MaskMobile(identifier),
+                    IdentifierType = "mobile",
+                    OtpSkipped = true,
+                    Auth = auth
+                };
             }
 
             var masked = isEmail
@@ -501,8 +531,10 @@ public class RecruiterAuthService : IRecruiterAuthService
                 var phoneNumber =
                     $"{request.CountryCode}{identifier}";
 
+                // Review account (see OtpBypass): any code is accepted.
                 isValid =
-                    await _twilioOtpService
+                    OtpBypass.IsLoginBypass(request.CountryCode, identifier)
+                    || await _twilioOtpService
                         .VerifyOtpAsync(
                             phoneNumber,
                             request.OtpCode);

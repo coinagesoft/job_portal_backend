@@ -863,8 +863,10 @@ public class CandidateAuthService : ICandidateAuthService
                     phoneNumber);
 
                 // ===== QA BYPASS: real Twilio OTP send disabled =====
+                // Review account (see OtpBypass): skip the SMS entirely.
                 var sent =
-                    await _twilioOtpService
+                    OtpBypass.IsRegistrationBypass(request.CountryCode, identifier)
+                    || await _twilioOtpService
                         .SendOtpAsync(phoneNumber);
                 //var sent = true;
                 // ===== END QA BYPASS =====
@@ -1147,8 +1149,10 @@ public class CandidateAuthService : ICandidateAuthService
                 var phoneNumber =
                     $"{request.CountryCode}{identifier}";
 
+                // Review account (see OtpBypass): any code is accepted.
                 valid =
-                    await _twilioOtpService
+                    OtpBypass.IsRegistrationBypass(request.CountryCode, identifier)
+                    || await _twilioOtpService
                         .VerifyOtpAsync(
                             phoneNumber,
                             request.OtpCode);
