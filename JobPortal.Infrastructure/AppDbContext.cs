@@ -408,6 +408,11 @@ public class AppDbContext : DbContext
             e.Property(x => x.DisplayOrder)
                 .HasColumnName("display_order");
 
+            // Credits belong to the tier.
+            e.Property(x => x.UnlockCredits)
+                .HasColumnName("unlock_credits")
+                .IsRequired();
+
             e.Property(x => x.IsActive)
                 .HasColumnName("is_active")
                 .HasDefaultValue(true);
@@ -442,9 +447,7 @@ public class AppDbContext : DbContext
                 .HasColumnName("tier_id")
                 .IsRequired();
 
-            e.Property(x => x.UnlockCredits)
-                .HasColumnName("unlock_credits")
-                .IsRequired();
+          
 
             e.Property(x => x.IsActive)
                 .HasColumnName("is_active")

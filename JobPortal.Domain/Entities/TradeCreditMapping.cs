@@ -28,7 +28,6 @@ public class TradeCreditMapping
     public TradeTier Tier { get; set; } = default!;
 
     // Exact cost for unlocking a candidate profile.
-    public int UnlockCredits { get; set; }
 
     public bool IsActive { get; set; } = true;
 

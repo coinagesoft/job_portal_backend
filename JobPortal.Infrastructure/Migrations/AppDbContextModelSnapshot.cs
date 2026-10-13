@@ -4296,10 +4296,6 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("trade_category_id");
 
-                    b.Property<int>("UnlockCredits")
-                        .HasColumnType("integer")
-                        .HasColumnName("unlock_credits");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -4349,6 +4345,10 @@ namespace JobPortal.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("tier_name");
+
+                    b.Property<int>("UnlockCredits")
+                        .HasColumnType("integer")
+                        .HasColumnName("unlock_credits");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")

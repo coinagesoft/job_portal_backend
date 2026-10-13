@@ -1,24 +1,21 @@
-﻿using JobPortal.Application.DTOs.Recruiter.TradeCredit;
+﻿using ClosedXML.Excel;
+using JobPortal.Application.DTOs.Recruiter.TradeCredit;
 using JobPortal.Application.DTOs.TradeCredit;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Entities.Homepage;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IPublic;
-using ClosedXML.Excel;
-using System.IO;
-using System.Linq;
-using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace JobPortal.Services.Implement.Public
 {
-
-
     public class TradeCreditImportService : ITradeCreditImportService
     {
         private readonly AppDbContext _context;
@@ -28,10 +25,9 @@ namespace JobPortal.Services.Implement.Public
             _context = context;
         }
 
-
         public async Task<int> ImportExcelAsync(
- Stream excelStream,
- CancellationToken cancellationToken = default)
+            Stream excelStream,
+            CancellationToken cancellationToken = default)
         {
             if (excelStream == null || !excelStream.CanRead)
             {
@@ -41,7 +37,7 @@ namespace JobPortal.Services.Implement.Public
 
             var rows = new List<TradeCreditImportRowDto>();
 
-            using var workbook = new ClosedXML.Excel.XLWorkbook(excelStream);
+            using var workbook = new XLWorkbook(excelStream);
 
             var worksheet = workbook.Worksheets.FirstOrDefault(
                 ws => string.Equals(
@@ -73,11 +69,11 @@ namespace JobPortal.Services.Implement.Public
 
             var requiredHeaders = new[]
             {
-        "TRADE",
-        "CATEGORIES / SUB-TRADES",
-        "TIER",
-        "CREDITS"
-    };
+                "TRADE",
+                "CATEGORIES / SUB-TRADES",
+                "TIER",
+                "CREDITS"
+            };
 
             var missingHeaders = requiredHeaders
                 .Where(h => !headers.ContainsKey(h))
@@ -135,8 +131,8 @@ namespace JobPortal.Services.Implement.Public
         }
 
         public async Task<int> ImportAsync(
-          List<TradeCreditImportRowDto> rows,
-          CancellationToken cancellationToken = default)
+            List<TradeCreditImportRowDto> rows,
+            CancellationToken cancellationToken = default)
         {
             if (rows == null || rows.Count == 0)
                 throw new ArgumentException("Import rows cannot be empty.");
@@ -160,8 +156,9 @@ namespace JobPortal.Services.Implement.Public
                 }
             }
 
-            // 2. Validate that every row for the same main trade
-            // has the same tier and credit value.
+            // 2. Every row for the same main trade must have the same tier.
+            // Names are normalized (trimmed, repeated spaces collapsed, case ignored)
+            // so "Chargehand" and "chargehand " are treated as one trade.
             var tradeSettings = new Dictionary<
                 string,
                 (string TierName, int UnlockCredits)>(
@@ -169,7 +166,7 @@ namespace JobPortal.Services.Implement.Public
 
             foreach (var row in rows)
             {
-                var tradeName = row.TradeName.Trim();
+                var tradeName = NormalizeName(row.TradeName);
                 var tierName = row.TierName.Trim();
 
                 if (tradeSettings.TryGetValue(tradeName, out var existing))
@@ -187,10 +184,24 @@ namespace JobPortal.Services.Implement.Public
                 }
                 else
                 {
-                    tradeSettings.Add(
-                        tradeName,
-                        (tierName, row.UnlockCredits));
+                    tradeSettings.Add(tradeName, (tierName, row.UnlockCredits));
                 }
+            }
+
+            // 3. Credits belong to the tier, so each tier must have exactly one credit value.
+            var tierCredits = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var s in tradeSettings.Values)
+            {
+                if (tierCredits.TryGetValue(s.TierName, out var credits) &&
+                    credits != s.UnlockCredits)
+                {
+                    throw new ArgumentException(
+                        $"Tier '{s.TierName}' has different credit values in the Excel file. " +
+                        "Each tier must have one credit value.");
+                }
+
+                tierCredits[s.TierName] = s.UnlockCredits;
             }
 
             var now = DateTime.UtcNow;
@@ -200,7 +211,7 @@ namespace JobPortal.Services.Implement.Public
 
             try
             {
-                // 3. Remove existing credit mappings.
+                // 4. Remove existing mappings.
                 var existingMappings = await _context.TradeCreditMappings
                     .ToListAsync(cancellationToken);
 
@@ -208,7 +219,7 @@ namespace JobPortal.Services.Implement.Public
 
                 await _context.SaveChangesAsync(cancellationToken);
 
-                // 4. Remove existing tiers.
+                // 5. Remove existing tiers.
                 var existingTiers = await _context.TradeTiers
                     .ToListAsync(cancellationToken);
 
@@ -216,12 +227,12 @@ namespace JobPortal.Services.Implement.Public
 
                 await _context.SaveChangesAsync(cancellationToken);
 
-                // 5. Load existing main trades.
+                // 6. Load existing main trades.
                 // Subtrade records are not modified or created by this import.
                 var categories = await _context.HomepageTradeCategories
                     .ToListAsync(cancellationToken);
 
-                // 6. Recreate tiers.
+                // 7. Recreate tiers (credits live on the tier).
                 var tiersByName = new Dictionary<string, TradeTier>(
                     StringComparer.OrdinalIgnoreCase);
 
@@ -237,6 +248,7 @@ namespace JobPortal.Services.Implement.Public
                         TierId = Guid.NewGuid(),
                         TierName = tierName,
                         DisplayOrder = GetTierOrder(tierName),
+                        UnlockCredits = tierCredits[tierName],
                         IsActive = true,
                         CreatedAt = now,
                         UpdatedAt = now
@@ -249,27 +261,30 @@ namespace JobPortal.Services.Implement.Public
 
                 await _context.SaveChangesAsync(cancellationToken);
 
-                // 7. Create or reuse main trades.
+                // 8. Create a mapping for EVERY main trade that has this name.
+                // The same trade can exist more than once (for example under different
+                // industries). Each copy gets the same tier.
                 // Always store SubTradeId = null.
-                var mappingsByTrade = new Dictionary<Guid, TradeCreditMapping>();
+                var mappingsCreated = 0;
 
                 foreach (var tradeSetting in tradeSettings)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var tradeName = tradeSetting.Key;
-                    var tierName = tradeSetting.Value.TierName;
-                    var unlockCredits = tradeSetting.Value.UnlockCredits;
+                    var tier = tiersByName[tradeSetting.Value.TierName];
 
-                    var category = categories.FirstOrDefault(x =>
-                        string.Equals(
-                            x.Name.Trim(),
+                    var matchingCategories = categories
+                        .Where(x => string.Equals(
+                            NormalizeName(x.Name),
                             tradeName,
-                            StringComparison.OrdinalIgnoreCase));
+                            StringComparison.OrdinalIgnoreCase))
+                        .ToList();
 
-                    if (category == null)
+                    // Trade is in the Excel but not in the database yet: create it once.
+                    if (matchingCategories.Count == 0)
                     {
-                        category = new HomepageTradeCategory
+                        var newCategory = new HomepageTradeCategory
                         {
                             TradeCategoryId = Guid.NewGuid(),
                             Name = tradeName,
@@ -279,40 +294,39 @@ namespace JobPortal.Services.Implement.Public
                             UpdatedAt = now
                         };
 
-                        _context.HomepageTradeCategories.Add(category);
-                        categories.Add(category);
+                        _context.HomepageTradeCategories.Add(newCategory);
+                        categories.Add(newCategory);
+                        matchingCategories.Add(newCategory);
                     }
 
-                    var tier = tiersByName[tierName];
-
-                    var mapping = new TradeCreditMapping
+                    foreach (var category in matchingCategories)
                     {
-                        MappingId = Guid.NewGuid(),
-                        TradeCategoryId = category.TradeCategoryId,
+                        _context.TradeCreditMappings.Add(new TradeCreditMapping
+                        {
+                            MappingId = Guid.NewGuid(),
+                            TradeCategoryId = category.TradeCategoryId,
 
-                        // Ignore Excel subtrade values completely.
-                        SubTradeId = null,
+                            // Ignore Excel subtrade values completely.
+                            SubTradeId = null,
 
-                        TierId = tier.TierId,
-                        UnlockCredits = unlockCredits,
-                        IsActive = true,
-                        CreatedAt = now,
-                        UpdatedAt = now
-                    };
+                            TierId = tier.TierId,
+                            IsActive = true,
+                            CreatedAt = now,
+                            UpdatedAt = now
+                        });
 
-                    mappingsByTrade.Add(category.TradeCategoryId, mapping);
-
-                    _context.TradeCreditMappings.Add(mapping);
+                        mappingsCreated++;
+                    }
                 }
 
-                // 8. Save mappings.
+                // 9. Save mappings.
                 await _context.SaveChangesAsync(cancellationToken);
 
-                // 9. Commit the transaction.
+                // 10. Commit the transaction.
                 await transaction.CommitAsync(cancellationToken);
 
-                // Return the number of unique main-trade mappings created.
-                return mappingsByTrade.Count;
+                // Number of main-trade mappings created (one per trade category).
+                return mappingsCreated;
             }
             catch
             {
@@ -320,6 +334,10 @@ namespace JobPortal.Services.Implement.Public
                 throw;
             }
         }
+
+        private static string NormalizeName(string? value) =>
+            Regex.Replace((value ?? string.Empty).Trim(), @"\s+", " ");
+
         private static int GetTierOrder(string tierName)
         {
             var digits = new string(
@@ -330,7 +348,89 @@ namespace JobPortal.Services.Implement.Public
                 : 0;
         }
 
+        // Saves the tier for the selected trade AND every other trade with the same name.
+        public async Task<TradeCreditMappingResponseDto> SaveMainTradeMappingAsync(
+            Guid tradeCategoryId,
+            Guid tierId,
+            CancellationToken cancellationToken = default)
+        {
+            if (tradeCategoryId == Guid.Empty)
+                throw new ArgumentException("Please select a valid trade.");
 
+            if (tierId == Guid.Empty)
+                throw new ArgumentException("Please select a valid tier.");
+
+            var tier = await _context.TradeTiers
+                .FirstOrDefaultAsync(
+                    x => x.TierId == tierId && x.IsActive,
+                    cancellationToken)
+                ?? throw new ArgumentException(
+                    "Selected tier was not found or is inactive.");
+
+            var all = await _context.HomepageTradeCategories
+                .ToListAsync(cancellationToken);
+
+            var category = all.FirstOrDefault(x => x.TradeCategoryId == tradeCategoryId)
+                ?? throw new ArgumentException("Selected trade was not found.");
+
+            var key = NormalizeName(category.Name);
+
+            var sameTrade = all
+                .Where(x => string.Equals(
+                    NormalizeName(x.Name),
+                    key,
+                    StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var ids = sameTrade.Select(x => x.TradeCategoryId).ToList();
+
+            var existing = await _context.TradeCreditMappings
+                .Where(x => ids.Contains(x.TradeCategoryId) && x.SubTradeId == null)
+                .ToListAsync(cancellationToken);
+
+            var now = DateTime.UtcNow;
+            TradeCreditMapping? requested = null;
+
+            foreach (var c in sameTrade)
+            {
+                var m = existing.FirstOrDefault(x => x.TradeCategoryId == c.TradeCategoryId);
+
+                if (m == null)
+                {
+                    m = new TradeCreditMapping
+                    {
+                        MappingId = Guid.NewGuid(),
+                        TradeCategoryId = c.TradeCategoryId,
+                        SubTradeId = null,
+                        CreatedAt = now
+                    };
+
+                    _context.TradeCreditMappings.Add(m);
+                }
+
+                m.TierId = tierId;
+                m.IsActive = true;
+                m.UpdatedAt = now;
+
+                if (c.TradeCategoryId == tradeCategoryId)
+                    requested = m;
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return new TradeCreditMappingResponseDto
+            {
+                MappingId = requested!.MappingId,
+                TradeCategoryId = category.TradeCategoryId,
+                TradeName = category.Name,
+                SubTradeId = null,
+                SubTradeName = null,
+                TierId = tier.TierId,
+                TierName = tier.TierName,
+                UnlockCredits = tier.UnlockCredits,
+                IsActive = true
+            };
+        }
 
         public async Task<List<TradeCreditMappingResponseDto>> GetMappingsAsync(
             CancellationToken cancellationToken = default)
@@ -357,13 +457,16 @@ namespace JobPortal.Services.Implement.Public
                     TierId = x.TierId,
                     TierName = x.Tier.TierName,
 
-                    UnlockCredits = x.UnlockCredits,
+                    // Credits come from the tier.
+                    UnlockCredits = x.Tier.UnlockCredits,
+
                     IsActive = x.IsActive
                 })
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task<List<TradeTier>> GetTiersAsync( CancellationToken cancellationToken = default)
+        public async Task<List<TradeTier>> GetTiersAsync(
+            CancellationToken cancellationToken = default)
         {
             return await _context.TradeTiers
                 .AsNoTracking()
@@ -371,6 +474,127 @@ namespace JobPortal.Services.Implement.Public
                 .ThenBy(x => x.TierName)
                 .ToListAsync(cancellationToken);
         }
-    }
 
+        public async Task<TradeTier> CreateTierAsync(
+            string tierName,
+            int displayOrder,
+            int unlockCredits,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(tierName))
+                throw new ArgumentException("Tier name is required.");
+
+            if (displayOrder < 0)
+                throw new ArgumentException(
+                    "Display order cannot be negative.");
+
+            if (unlockCredits <= 0)
+                throw new ArgumentException(
+                    "Unlock credits must be greater than zero.");
+
+            tierName = tierName.Trim();
+
+            var exists = await _context.TradeTiers
+                .AnyAsync(
+                    x => x.TierName.ToLower() == tierName.ToLower(),
+                    cancellationToken);
+
+            if (exists)
+                throw new ArgumentException(
+                    $"Tier '{tierName}' already exists.");
+
+            var now = DateTime.UtcNow;
+
+            var tier = new TradeTier
+            {
+                TierId = Guid.NewGuid(),
+                TierName = tierName,
+                DisplayOrder = displayOrder,
+                UnlockCredits = unlockCredits,
+                IsActive = true,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+
+            _context.TradeTiers.Add(tier);
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return tier;
+        }
+
+        public async Task<TradeTier> UpdateTierAsync(
+            Guid tierId,
+            string tierName,
+            int displayOrder,
+            int unlockCredits,
+            CancellationToken cancellationToken = default)
+        {
+            if (tierId == Guid.Empty)
+                throw new ArgumentException("Invalid tier ID.");
+
+            if (string.IsNullOrWhiteSpace(tierName))
+                throw new ArgumentException("Tier name is required.");
+
+            if (displayOrder < 0)
+                throw new ArgumentException(
+                    "Display order cannot be negative.");
+
+            if (unlockCredits <= 0)
+                throw new ArgumentException(
+                    "Unlock credits must be greater than zero.");
+
+            tierName = tierName.Trim();
+
+            var tier = await _context.TradeTiers
+                .FirstOrDefaultAsync(
+                    x => x.TierId == tierId,
+                    cancellationToken);
+
+            if (tier == null)
+                throw new ArgumentException("Tier was not found.");
+
+            var duplicateName = await _context.TradeTiers
+                .AnyAsync(
+                    x => x.TierId != tierId &&
+                         x.TierName.ToLower() == tierName.ToLower(),
+                    cancellationToken);
+
+            if (duplicateName)
+                throw new ArgumentException(
+                    $"Tier '{tierName}' already exists.");
+
+            tier.TierName = tierName;
+            tier.DisplayOrder = displayOrder;
+            tier.UnlockCredits = unlockCredits;
+            tier.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return tier;
+        }
+
+        public async Task<TradeTier> ToggleTierAsync(
+            Guid tierId,
+            CancellationToken cancellationToken = default)
+        {
+            if (tierId == Guid.Empty)
+                throw new ArgumentException("Invalid tier ID.");
+
+            var tier = await _context.TradeTiers
+                .FirstOrDefaultAsync(
+                    x => x.TierId == tierId,
+                    cancellationToken);
+
+            if (tier == null)
+                throw new ArgumentException("Tier was not found.");
+
+            tier.IsActive = !tier.IsActive;
+            tier.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return tier;
+        }
+    }
 }

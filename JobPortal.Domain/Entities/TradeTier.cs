@@ -15,7 +15,8 @@ using System.Threading.Tasks;
 
         public int DisplayOrder { get; set; }
 
-        public bool IsActive { get; set; } = true;
+       public int UnlockCredits { get; set; }
+       public bool IsActive { get; set; } = true;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

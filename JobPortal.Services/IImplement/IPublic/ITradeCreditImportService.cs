@@ -15,14 +15,24 @@ namespace JobPortal.Services.IImplement.IPublic
 {
     public interface ITradeCreditImportService
     {
-        Task<int> ImportExcelAsync(
-     Stream excelStream,
-     CancellationToken cancellationToken = default);
+        Task<int> ImportExcelAsync( Stream excelStream, CancellationToken cancellationToken = default);
 
-        Task<List<TradeCreditMappingResponseDto>> GetMappingsAsync(
-    CancellationToken cancellationToken = default);
+        Task<List<TradeCreditMappingResponseDto>> GetMappingsAsync( CancellationToken cancellationToken = default);
 
-        Task<List<TradeTier>> GetTiersAsync(
-    CancellationToken cancellationToken = default);
+        Task<List<TradeTier>> GetTiersAsync(CancellationToken cancellationToken = default);
+
+        Task<TradeCreditMappingResponseDto> SaveMainTradeMappingAsync(Guid tradeCategoryId, Guid tierId, CancellationToken ct = default);
+
+
+
+        Task<TradeTier> CreateTierAsync(string tierName, int displayOrder, int unlockCredits, CancellationToken ct = default);
+
+
+        Task<TradeTier> UpdateTierAsync(Guid tierId, string tierName, int displayOrder, int unlockCredits, CancellationToken ct = default);
+
+        Task<TradeTier> ToggleTierAsync(
+            Guid tierId,
+            CancellationToken cancellationToken = default);
+
     }
 }

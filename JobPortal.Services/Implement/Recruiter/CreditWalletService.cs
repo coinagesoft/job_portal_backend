@@ -356,19 +356,22 @@ namespace JobPortal.Services.Implement.Recruiter
 
             // Match only the main trade.
             // Completely ignore all subtrade mappings.
+
             var tradeMapping = await _context.TradeCreditMappings
-    .AsNoTracking()
-    .Where(x =>
-        x.IsActive &&
-        x.SubTradeId == null &&
-        x.TradeCategory.IsActive &&
-        x.TradeCategory.Name.ToLower() == candidateTrade.ToLower())
-    .Select(x => new
-    {
-        x.UnlockCredits,
-        TierName = x.Tier.TierName
-    })
-    .FirstOrDefaultAsync();
+                .AsNoTracking()
+                .Where(x =>
+                    x.IsActive &&
+                    x.SubTradeId == null &&
+                    x.TradeCategory.IsActive &&
+                    x.TradeCategory.Name.ToLower() == candidateTrade.ToLower() &&
+                    x.Tier.IsActive)
+                .Select(x => new
+                {
+                    UnlockCredits = x.Tier.UnlockCredits,
+                    TierName = x.Tier.TierName
+                })
+                .FirstOrDefaultAsync();
+
 
             if (tradeMapping == null)
             {
