@@ -11,13 +11,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace JobPortal.Services.IImplement.IPublic
+namespace JobPortal.Services.IImplement.IAdmin
 {
     public interface ITradeCreditImportService
     {
-        Task<int> ImportExcelAsync( Stream excelStream, CancellationToken cancellationToken = default);
+        Task<int> ImportExcelAsync(Stream excelStream, CancellationToken cancellationToken = default);
 
-        Task<List<TradeCreditMappingResponseDto>> GetMappingsAsync( CancellationToken cancellationToken = default);
+        Task<List<TradeCreditMappingResponseDto>> GetMappingsAsync(CancellationToken cancellationToken = default);
 
         Task<List<TradeTier>> GetTiersAsync(CancellationToken cancellationToken = default);
 

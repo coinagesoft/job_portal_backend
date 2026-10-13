@@ -1,14 +1,17 @@
 ﻿using JobPortal.Application.DTOs;
 using JobPortal.Application.DTOs.Admin;
 using JobPortal.Application.DTOs.Recruiter.TradeCredit;
+using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.IPublic;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace JobPortal.API.Controllers.Public
+namespace JobPortal.API.Controllers.Admin
 {
 
     [ApiController]
     [Route("api/trade-credit")]
+    [Authorize(Roles = "Admin")]
     public class TradeCreditController : ControllerBase
     {
         private readonly ITradeCreditImportService _service;
@@ -132,7 +135,7 @@ namespace JobPortal.API.Controllers.Public
                 });
             }
 
-         
+
 
             try
             {

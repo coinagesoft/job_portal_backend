@@ -4,6 +4,7 @@ using JobPortal.Application.DTOs.TradeCredit;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Entities.Homepage;
 using JobPortal.Infrastructure.Persistence;
+using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.IPublic;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -14,7 +15,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace JobPortal.Services.Implement.Public
+namespace JobPortal.Services.Implement.Admin
 {
     public class TradeCreditImportService : ITradeCreditImportService
     {

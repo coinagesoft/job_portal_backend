@@ -1,13 +1,15 @@
 ﻿
 using JobPortal.Infrastructure.Persistence;
-    using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
     using Microsoft.EntityFrameworkCore;
 
     namespace JobPortal.API.Controllers
     {
         [ApiController]
         [Route("api/candidate-trades")]
-        public class CandidateTradeController : ControllerBase
+    [Authorize(Roles = "Admin")]
+    public class CandidateTradeController : ControllerBase
         {
             private readonly AppDbContext _context;
 

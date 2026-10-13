@@ -1341,7 +1341,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             var fullPhone = $"{request.CountryCode}{request.MobileNumber}";
 
             // ===== QA BYPASS: real Twilio OTP send disabled =====
-            var sent = await _twilioOtpService.SendOtpAsync(fullPhone);
+            // Review account (see OtpBypass): skip the SMS entirely.
+            var sent =
+                OtpBypass.IsRegistrationBypass(request.CountryCode, request.MobileNumber)
+                || await _twilioOtpService.SendOtpAsync(fullPhone);
             //var sent = true;
             // ===== END QA BYPASS =====
 
@@ -1395,8 +1398,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 $"{request.CountryCode}{request.MobileNumber}";
 
             // ===== QA BYPASS: static OTP "123456" accepted, real Twilio check disabled =====
+            // Review account (see OtpBypass): any code is accepted.
             var valid =
-                await _twilioOtpService.VerifyOtpAsync(
+                OtpBypass.IsRegistrationBypass(request.CountryCode, request.MobileNumber)
+                || await _twilioOtpService.VerifyOtpAsync(
                     fullPhone,
                     request.MobileOtpCode);
             //var valid = request.MobileOtpCode == "123456";
@@ -1465,8 +1470,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 $"{session.CountryCode}{session.MobileNumber}";
 
             // ===== QA BYPASS: real Twilio OTP send disabled =====
+            // Review account (see OtpBypass): skip the SMS entirely.
             var sent =
-                await _twilioOtpService.SendOtpAsync(fullPhone);
+                OtpBypass.IsRegistrationBypass(session.CountryCode, session.MobileNumber)
+                || await _twilioOtpService.SendOtpAsync(fullPhone);
             //var sent = true;
             // ===== END QA BYPASS =====
 
@@ -3010,7 +3017,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                             p.IsActive)
                     : null;
 
-                
+
 
                 if (resolvedPlan != null)
                 {
