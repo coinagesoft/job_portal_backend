@@ -141,6 +141,12 @@ namespace JobPortal.Services.Implement.Admin
 
                     t.TotalAmountPaise,
 
+                    // Original price / coupon discount, so a coupon payment
+                    // can be shown as "paid X (was Y, discount Z)".
+                    t.AmountPaise,
+                    t.DiscountAmountPaise,
+                    t.CouponCode,
+
                     t.PaymentStatus
                 })
                 .ToListAsync();
@@ -233,7 +239,20 @@ namespace JobPortal.Services.Implement.Admin
                             "MMM d, yyyy",
                             CultureInfo.InvariantCulture),
 
-                        Amount = $"₹{t.TotalAmountPaise:0.00}",
+                        // TotalAmountPaise is the amount actually charged
+                        // (after any coupon). It is stored in paise, so
+                        // convert to rupees for display.
+                        Amount = $"₹{(t.TotalAmountPaise / 100m).ToString("0.00", CultureInfo.InvariantCulture)}",
+
+                        OriginalAmount = t.DiscountAmountPaise > 0
+                            ? $"₹{(t.AmountPaise / 100m).ToString("0.00", CultureInfo.InvariantCulture)}"
+                            : null,
+
+                        DiscountAmount = t.DiscountAmountPaise > 0
+                            ? $"₹{(t.DiscountAmountPaise / 100m).ToString("0.00", CultureInfo.InvariantCulture)}"
+                            : null,
+
+                        CouponCode = t.CouponCode,
 
                         Status = t.PaymentStatus
                     })

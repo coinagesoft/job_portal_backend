@@ -479,24 +479,54 @@ namespace JobPortal.Services.Implement.Admin
         // keyed by a tiny accessor so we don't repeat the CRUD five times.
         // ============================================================
 
+
+        // Shared helpers for the Recruiter-tab list creates (Industry Type,
+        // Role Category / Department, Trade Category, Sub Trade).
+        private static string RequireName(CreateNamedListItemRequestDto request, string label)
+        {
+            var name = request?.Name?.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+                throw new InvalidOperationException($"{label} name is required.");
+            return name;
+        }
+
+        private async Task SaveCreateAsync(string duplicateMessage)
+        {
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                // Unique-index hit (e.g. a concurrent save, or a name that only
+                // differs by case/whitespace) – report it instead of a bare 500.
+                _logger.LogWarning(ex, "Homepage list create failed: {Message}", ex.InnerException?.Message ?? ex.Message);
+                throw new InvalidOperationException(duplicateMessage);
+            }
+        }
+
         // Registration Industries
         public Task<List<NamedListItemDto>> GetRegistrationIndustriesAsync() =>
             GetNamedListAsync(_context.HomepageRegistrationIndustries);
 
         public async Task<NamedListItemDto> CreateRegistrationIndustryAsync(CreateNamedListItemRequestDto request)
         {
+            var name = RequireName(request, "Industry Type");
+            if (await _context.HomepageRegistrationIndustries.AnyAsync(x => x.Name.ToLower() == name.ToLower()))
+                throw new InvalidOperationException("An Industry Type with the same name already exists.");
+
             var maxOrder = await _context.HomepageRegistrationIndustries.MaxAsync(x => (int?)x.DisplayOrder) ?? 0;
             var entity = new HomepageRegistrationIndustry
             {
                 RegistrationIndustryId = Guid.NewGuid(),
-                Name = request.Name.Trim(),
+                Name = name,
                 IsActive = true,
                 DisplayOrder = maxOrder + 1,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
             _context.HomepageRegistrationIndustries.Add(entity);
-            await _context.SaveChangesAsync();
+            await SaveCreateAsync("An Industry Type with the same name already exists.");
             return MapNamed(entity.RegistrationIndustryId, entity.Name, entity.DisplayOrder, entity.IsActive);
         }
 
@@ -536,18 +566,22 @@ namespace JobPortal.Services.Implement.Admin
 
         public async Task<NamedListItemDto> CreateDepartmentAsync(CreateNamedListItemRequestDto request)
         {
+            var name = RequireName(request, "Department");
+            if (await _context.HomepageDepartments.AnyAsync(x => x.Name.ToLower() == name.ToLower()))
+                throw new InvalidOperationException("A Department with the same name already exists.");
+
             var maxOrder = await _context.HomepageDepartments.MaxAsync(x => (int?)x.DisplayOrder) ?? 0;
             var entity = new HomepageDepartment
             {
                 DepartmentId = Guid.NewGuid(),
-                Name = request.Name.Trim(),
+                Name = name,
                 IsActive = true,
                 DisplayOrder = maxOrder + 1,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
             _context.HomepageDepartments.Add(entity);
-            await _context.SaveChangesAsync();
+            await SaveCreateAsync("A Department with the same name already exists.");
             return MapNamed(entity.DepartmentId, entity.Name, entity.DisplayOrder, entity.IsActive);
         }
 
@@ -593,9 +627,9 @@ namespace JobPortal.Services.Implement.Admin
                     x.IsActive);
 
             if (!industryExists)
-                throw new KeyNotFoundException("Industry Type not found.");
+                throw new KeyNotFoundException("Industry Type not found or is inactive. Select an active Industry Type first.");
 
-            var name = request.Name.Trim();
+            var name = RequireName(request, "Trade Category");
 
             // Prevent duplicate Trade Category under the same Industry Type
             var alreadyExists = await _context.HomepageTradeCategories
@@ -631,7 +665,7 @@ namespace JobPortal.Services.Implement.Admin
 
             _context.HomepageTradeCategories.Add(entity);
 
-            await _context.SaveChangesAsync();
+            await SaveCreateAsync("A Trade Category with the same name already exists under this Industry Type.");
 
             return MapNamed(
                 entity.TradeCategoryId,
@@ -640,7 +674,7 @@ namespace JobPortal.Services.Implement.Admin
                 entity.IsActive);
         }
 
-        public async Task<NamedListItemDto?> UpdateTradeCategoryAsync( Guid id, UpdateNamedListItemRequestDto request)
+        public async Task<NamedListItemDto?> UpdateTradeCategoryAsync(Guid id, UpdateNamedListItemRequestDto request)
         {
             var entity = await _context.HomepageTradeCategories
                 .FirstOrDefaultAsync(x => x.TradeCategoryId == id);
@@ -754,7 +788,7 @@ namespace JobPortal.Services.Implement.Admin
             if (!tradeCategoryExists)
                 throw new KeyNotFoundException("Trade category not found.");
 
-            var name = request.Name.Trim();
+            var name = RequireName(request, "SubTrade");
 
             // Prevent duplicate SubTrade under the same Trade Category
             var alreadyExists = await _context.HomepageSubTrades
@@ -783,7 +817,7 @@ namespace JobPortal.Services.Implement.Admin
 
             _context.HomepageSubTrades.Add(entity);
 
-            await _context.SaveChangesAsync();
+            await SaveCreateAsync("A SubTrade with the same name already exists under this Trade Category.");
 
             return MapNamed(
                 entity.SubTradeId,

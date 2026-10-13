@@ -1,5 +1,4 @@
-﻿
-using JobPortal.API.Middleware;
+﻿using JobPortal.API.Middleware;
 using JobPortal.Application.DTOs.Admin.Homepage;
 using JobPortal.Domain.Enums;
 using JobPortal.Services.IImplement.IAdmin;
@@ -298,8 +297,15 @@ namespace JobPortal.API.Controllers.Admin
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            var result = await _service.CreateRegistrationIndustryAsync(request);
-            return Ok(new { success = true, message = "Registration industry added.", data = result });
+            try
+            {
+                var result = await _service.CreateRegistrationIndustryAsync(request);
+                return Ok(new { success = true, message = "Registration industry added.", data = result });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { success = false, message = ex.Message });
+            }
         }
 
         [HttpPut("registration-industries/{id:guid}")]
@@ -349,8 +355,15 @@ namespace JobPortal.API.Controllers.Admin
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            var result = await _service.CreateDepartmentAsync(request);
-            return Ok(new { success = true, message = "Department added.", data = result });
+            try
+            {
+                var result = await _service.CreateDepartmentAsync(request);
+                return Ok(new { success = true, message = "Department added.", data = result });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { success = false, message = ex.Message });
+            }
         }
 
         [HttpPut("departments/{id:guid}")]

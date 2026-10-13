@@ -34,7 +34,12 @@ namespace JobPortal.Application.DTOs.Admin
     {
         public string TransactionId { get; set; } = default!;
         public string Date { get; set; } = default!;
+        // Amount actually paid (after coupon), in rupees.
         public string Amount { get; set; } = default!;
+        // Only set when a coupon discount was applied.
+        public string? OriginalAmount { get; set; }
+        public string? DiscountAmount { get; set; }
+        public string? CouponCode { get; set; }
         public string Status { get; set; } = default!;
     }
 
