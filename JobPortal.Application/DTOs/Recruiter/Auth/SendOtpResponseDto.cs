@@ -24,6 +24,12 @@ public class SendOtpResponseDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool OtpSkipped { get; set; }
 
+    // Registration review account only (see OtpBypass): the phone was verified
+    // inside send-otp, so this is the one-time registration token the app
+    // would normally get from verify-otp. Omitted from the JSON when null.
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? OtpToken { get; set; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public AuthResponseDto? Auth { get; set; }
 }

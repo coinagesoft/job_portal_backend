@@ -902,6 +902,36 @@ public class CandidateAuthService : ICandidateAuthService
                     otpRecord);
 
                 await _context.SaveChangesAsync();
+
+                // Review account (see OtpBypass): no OTP screen at all. Verify
+                // here and hand the one-time registration token straight back,
+                // so the app proceeds as if the OTP had been entered.
+                if (OtpBypass.IsRegistrationBypass(request.CountryCode, identifier))
+                {
+                    var auth = await VerifyOtpAsync(
+                        new CandidateVerifyOtpRequestDto
+                        {
+                            Identifier = identifier,
+                            CountryCode = request.CountryCode,
+                            OtpCode = "000000"
+                        },
+                        ipAddress);
+
+                    if (!auth.Success || string.IsNullOrEmpty(auth.OtpToken))
+                    {
+                        return SendFail(auth.Message);
+                    }
+
+                    return new SendOtpResponseDto
+                    {
+                        Success = true,
+                        Message = "Mobile number verified successfully.",
+                        MaskedIdentifier = MaskMobile(identifier),
+                        IdentifierType = "mobile",
+                        OtpSkipped = true,
+                        OtpToken = auth.OtpToken
+                    };
+                }
             }
 
             return new SendOtpResponseDto

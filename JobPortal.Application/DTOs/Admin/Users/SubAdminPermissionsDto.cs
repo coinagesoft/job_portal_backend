@@ -30,6 +30,9 @@ namespace JobPortal.Application.DTOs.Admin.Users
         [JsonPropertyName("plans")]
         public bool Plans { get; set; }
 
+        [JsonPropertyName("coupons")]
+        public bool Coupons { get; set; }
+
         [JsonPropertyName("home_management")]
         public bool HomeManagement { get; set; }
 
@@ -61,6 +64,7 @@ namespace JobPortal.Application.DTOs.Admin.Users
             if (Recruiters) keys.Add("recruiters");
             if (Revenue) keys.Add("revenue");
             if (Plans) keys.Add("plans");
+            if (Coupons) keys.Add("coupons");
             if (HomeManagement) keys.Add("home_management");
             if (Users) keys.Add("users");
             if (HelpSupport) keys.Add("help_support");
@@ -86,6 +90,7 @@ namespace JobPortal.Application.DTOs.Admin.Users
                 Recruiters = normalized.Contains("recruiters"),
                 Revenue = normalized.Contains("revenue"),
                 Plans = normalized.Contains("plans"),
+                Coupons = normalized.Contains("coupons"),
                 HomeManagement = normalized.Contains("home_management"),
                 Users = normalized.Contains("users"),
                 HelpSupport = normalized.Contains("help_support"),
