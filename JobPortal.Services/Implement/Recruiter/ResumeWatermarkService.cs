@@ -49,6 +49,13 @@ namespace JobPortal.Services.Implement.Recruiter
             // 1. Resolve the PDF bytes from local storage or URL
             var originalBytes = await ReadPdfBytesAsync(cvFileUrl);
 
+            // 1b. Candidates may upload JPG/PNG resumes (scanned / photographed,
+            //     very common for Marathi and other regional-language CVs).
+            //     Wrap those in a PDF page so the ORIGINAL content is delivered
+            //     as-is instead of failing and falling back to a generated CV.
+            if (!LooksLikePdf(originalBytes))
+                originalBytes = ImageToPdf(originalBytes);
+
             // 2. Apply watermark in memory and return the result
             return ApplyWatermark(originalBytes, downloadedByLabel, referenceId, downloadedAt);
         }
@@ -123,7 +130,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 var canvas = new Canvas(pdfCanvas, pageSize);
 
                 var footer =
-                    $"Downloaded from JOB PORTAL | Downloaded by: {downloadedByLabel} | " +
+                    $"Downloaded from JOB PORTAL | Downloaded by: {SafeLabel(downloadedByLabel)} | " +
                     $"Ref: {referenceId.ToString()[..8].ToUpper()} | " +
                     $"{downloadedAt:dd-MMM-yyyy HH:mm} UTC";
 
@@ -142,6 +149,64 @@ namespace JobPortal.Services.Implement.Recruiter
 
             pdf.Close();
             return outputStream.ToArray();
+        }
+
+        // ────────────────────────────────────────────────────────────
+        // Helpers
+        // ────────────────────────────────────────────────────────────
+
+        private static bool LooksLikePdf(byte[] bytes)
+        {
+            // "%PDF" may be preceded by a few junk bytes; spec allows the first 1024.
+            var limit = Math.Min(bytes.Length - 4, 1024);
+            for (int i = 0; i <= limit; i++)
+            {
+                if (bytes[i] == 0x25 && bytes[i + 1] == 0x50 &&
+                    bytes[i + 2] == 0x44 && bytes[i + 3] == 0x46)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Wraps a JPEG/PNG into a single A4 PDF page. Throws for anything
+        /// iText can't read as an image (e.g. a ZIP), so the caller's existing
+        /// fallback still applies.
+        /// </summary>
+        private static byte[] ImageToPdf(byte[] imageBytes)
+        {
+            var imageData = iText.IO.Image.ImageDataFactory.Create(imageBytes);
+
+            using var ms = new MemoryStream();
+            using (var writer = new PdfWriter(ms))
+            using (var pdf = new PdfDocument(writer))
+            using (var doc = new Document(pdf, PageSize.A4))
+            {
+                doc.SetMargins(20, 20, 40, 20);
+
+                var image = new iText.Layout.Element.Image(imageData);
+                image.ScaleToFit(
+                    PageSize.A4.GetWidth() - 40,
+                    PageSize.A4.GetHeight() - 70);
+                image.SetHorizontalAlignment(HorizontalAlignment.CENTER);
+
+                doc.Add(image);
+            }
+
+            return ms.ToArray();
+        }
+
+        /// <summary>
+        /// The footer uses Helvetica (Latin-1 only). Strip anything it can't
+        /// draw (e.g. a Devanagari company name) so the stamp never throws or
+        /// prints garbage; fall back to a generic label if nothing is left.
+        /// </summary>
+        private static string SafeLabel(string? label)
+        {
+            if (string.IsNullOrWhiteSpace(label)) return "Employer";
+
+            var cleaned = new string(label.Where(c => c >= ' ' && c <= '\u00FF').ToArray()).Trim();
+            return cleaned.Length > 0 ? cleaned : "Employer";
         }
 
         // Build a 45-degree rotation matrix around (cx, cy)

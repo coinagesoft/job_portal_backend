@@ -393,7 +393,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-        
+
 
             int balanceBefore;
             int balanceAfter;
@@ -1238,34 +1238,33 @@ namespace JobPortal.Services.Implement.Recruiter
                     Message = "Profile is locked. Unlock this candidate to download their CV."
                 };
 
-            // 2. Latest CV: prefer the portal-generated CV (reflects current
-            //    profile data) if the candidate has generated one; otherwise
-            //    fall back to the originally uploaded resume.
+            // 2. Pick the CV to hand over.
+            //    Prefer the resume the candidate actually UPLOADED: it is
+            //    delivered byte-for-byte in whatever language it was written
+            //    in (Marathi, Hindi, ...). The portal-generated CV is rebuilt
+            //    from profile fields and is only the fallback for candidates
+            //    who never uploaded a file.
+            //    AffindaJobId is only set on a real upload, which is how we
+            //    tell it apart from the stub rows GetLatestCandidateCvAsync
+            //    creates purely to satisfy the download-history foreign key.
             var candidateProfile = await _context.CandidateProfiles
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.CandidateId == candidateId);
 
-            string? cvFileUrl = candidateProfile?.GeneratedCvFileUrl;
-            bool isGeneratedCv = !string.IsNullOrWhiteSpace(cvFileUrl);
+            var uploadedCv = await _context.CandidateCvs
+                .Where(c => c.CandidateId == candidateId
+                    && c.CvFileUrl != null
+                    && c.AffindaJobId != null)
+                .OrderByDescending(c => c.GeneratedAt)
+                .FirstOrDefaultAsync();
+
+            string? cvFileUrl = uploadedCv?.CvFileUrl;
+            bool isGeneratedCv = false;
 
             if (string.IsNullOrWhiteSpace(cvFileUrl))
             {
-                // Only a genuinely uploaded-and-parsed resume counts as a
-                // fallback here — not a synthetic stub row (see
-                // GetLatestCandidateCvAsync) created purely to satisfy the
-                // credit-download-history foreign key. Stub rows can go
-                // stale the moment the Portal CV is regenerated again, since
-                // nothing updates them in place; AffindaJobId is only ever
-                // set on a real upload, so it's a safe way to tell them apart.
-                var cv = await _context.CandidateCvs
-                    .Where(c => c.CandidateId == candidateId
-                        && c.CvFileUrl != null
-                        && c.AffindaJobId != null)
-                    .OrderByDescending(c => c.GeneratedAt)
-                    .FirstOrDefaultAsync();
-
-                cvFileUrl = cv?.CvFileUrl;
-                isGeneratedCv = false;
+                cvFileUrl = candidateProfile?.GeneratedCvFileUrl;
+                isGeneratedCv = !string.IsNullOrWhiteSpace(cvFileUrl);
             }
 
             if (string.IsNullOrWhiteSpace(cvFileUrl) && candidateProfile != null)
@@ -1490,7 +1489,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 wallet.CreditBalance);
         }
 
-        private async Task<(bool Success,string Message,
+        private async Task<(bool Success, string Message,
     int BalanceBefore,
     int BalanceAfter)>
     DeductSubUserCreditsAsync(
@@ -1569,15 +1568,15 @@ namespace JobPortal.Services.Implement.Recruiter
                 allocation.RemainingCredits);
         }
 
-    private async Task CreateCreditUsageTransactionAsync(
-    Guid employerId,
-    Guid actionByUserId,
-    Guid? candidateId,
-    Guid? unlockId,
-    TransactionType transactionType,
-    int creditsUsed,
-    int balanceBefore,
-    int balanceAfter)
+        private async Task CreateCreditUsageTransactionAsync(
+        Guid employerId,
+        Guid actionByUserId,
+        Guid? candidateId,
+        Guid? unlockId,
+        TransactionType transactionType,
+        int creditsUsed,
+        int balanceBefore,
+        int balanceAfter)
         {
             var (actionByName, actionByRole) =
                 await ResolveActionByDetailsAsync(employerId, actionByUserId);

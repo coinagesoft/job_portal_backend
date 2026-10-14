@@ -48,6 +48,15 @@
 		<Folder Include="IImplement\IEndUser\" />
 		<Folder Include="IImplement\IUploads\" />
 		<Folder Include="Implement\Uploads\" />
+		<Folder Include="Fonts\" />
+	</ItemGroup>
+
+	<!-- Unicode fonts embedded into generated Portal CVs (Marathi / Hindi) -->
+	<ItemGroup>
+		<None Include="Fonts\*.ttf">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+		</None>
 	</ItemGroup>
 
 </Project>

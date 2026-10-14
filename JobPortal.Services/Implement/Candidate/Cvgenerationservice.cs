@@ -1,4 +1,5 @@
-﻿using iText.IO.Font.Constants;
+﻿using iText.IO.Font;
+using iText.IO.Font.Constants;
 using iText.Kernel.Colors;
 using iText.Kernel.Font;
 using iText.Kernel.Geom;
@@ -163,6 +164,37 @@ namespace JobPortal.Services.Implement.Candidate
             var boldFont = PdfFontFactory.CreateFont(StandardFonts.HELVETICA_BOLD);
             var regularFont = PdfFontFactory.CreateFont(StandardFonts.HELVETICA);
 
+            // Helvetica has no Devanagari (Marathi / Hindi) glyphs, so any such
+            // text rendered with it comes out blank. Those runs are drawn with an
+            // embedded Noto Sans Devanagari instead (null if the font files are
+            // missing, in which case behaviour is unchanged from before).
+            var devRegular = LoadDevanagariFont("NotoSansDevanagari-Regular.ttf");
+            var devBold = LoadDevanagariFont("NotoSansDevanagari-Bold.ttf") ?? devRegular;
+
+            // Appends `text` to `target`, switching font per script run.
+            void AddRuns(Paragraph target, string? text, bool bold, Color? color = null)
+            {
+                if (string.IsNullOrEmpty(text)) return;
+
+                foreach (var (segment, isDevanagari) in SplitByScript(text))
+                {
+                    PdfFont font = isDevanagari && devRegular != null
+                        ? (bold ? devBold! : devRegular)
+                        : (bold ? boldFont : regularFont);
+
+                    var run = new Text(segment).SetFont(font);
+                    if (color != null) run.SetFontColor(color);
+                    target.Add(run);
+                }
+            }
+
+            Paragraph P(string? text, bool bold = false, Color? color = null)
+            {
+                var para = new Paragraph();
+                AddRuns(para, text, bold, color);
+                return para;
+            }
+
             void SectionHeader(string title)
             {
                 var header = new Div()
@@ -174,7 +206,7 @@ namespace JobPortal.Services.Implement.Candidate
                 header.Add(
                     new Paragraph()
                         .SetMargin(0)
-                        .Add(new Text("▍ ").SetFont(boldFont).SetFontColor(orange).SetFontSize(12.5f))
+                        .Add(new Text("| ").SetFont(boldFont).SetFontColor(orange).SetFontSize(12.5f))
                         .Add(new Text(title.ToUpperInvariant()).SetFont(boldFont).SetFontColor(navy).SetFontSize(12.5f)));
 
                 document.Add(header);
@@ -187,20 +219,16 @@ namespace JobPortal.Services.Implement.Candidate
                 .SetMarginBottom(16);
 
             headerDiv.Add(
-                new Paragraph((profile.FullName ?? "Candidate").ToUpperInvariant())
-                    .SetFont(boldFont)
+                P((profile.FullName ?? "Candidate").ToUpperInvariant(), bold: true, color: white)
                     .SetFontSize(23)
-                    .SetFontColor(white)
                     .SetMargin(0)
                     .SetMarginBottom(2));
 
             if (!string.IsNullOrWhiteSpace(profile.Role))
             {
                 headerDiv.Add(
-                    new Paragraph(profile.Role!.ToUpperInvariant())
-                        .SetFont(boldFont)
+                    P(profile.Role!.ToUpperInvariant(), bold: true, color: orange)
                         .SetFontSize(12)
-                        .SetFontColor(orange)
                         .SetMargin(0)
                         .SetMarginBottom(10));
             }
@@ -221,10 +249,8 @@ namespace JobPortal.Services.Implement.Candidate
             if (contactParts.Count > 0)
             {
                 headerDiv.Add(
-                    new Paragraph(string.Join("     ", contactParts))
-                        .SetFont(regularFont)
+                    P(string.Join("     ", contactParts), color: new DeviceRgb(200, 212, 238))
                         .SetFontSize(10)
-                        .SetFontColor(new DeviceRgb(200, 212, 238))
                         .SetMargin(0));
             }
 
@@ -239,8 +265,7 @@ namespace JobPortal.Services.Implement.Candidate
             {
                 SectionHeader("Professional Summary");
                 document.Add(
-                    new Paragraph(summary)
-                        .SetFont(regularFont)
+                    P(summary)
                         .SetFontSize(10.5f)
                         .SetMarginBottom(6));
             }
@@ -252,10 +277,10 @@ namespace JobPortal.Services.Implement.Candidate
 
                 foreach (var w in profile.WorkHistories.OrderByDescending(x => x.StartDate))
                 {
-                    var titleLine = new Paragraph().SetMarginBottom(1);
-                    titleLine.Add(new Text(w.JobTitle ?? "").SetFont(boldFont).SetFontSize(11));
+                    var titleLine = new Paragraph().SetFontSize(11).SetMarginBottom(1);
+                    AddRuns(titleLine, w.JobTitle ?? "", bold: true);
                     if (!string.IsNullOrWhiteSpace(w.CompanyName))
-                        titleLine.Add(new Text($"  —  {w.CompanyName}").SetFont(regularFont).SetFontSize(11));
+                        AddRuns(titleLine, $"  -  {w.CompanyName}", bold: false);
                     document.Add(titleLine);
 
                     var metaParts = new List<string>();
@@ -266,18 +291,15 @@ namespace JobPortal.Services.Implement.Candidate
                     if (metaParts.Count > 0)
                     {
                         document.Add(
-                            new Paragraph(string.Join("   •   ", metaParts))
-                                .SetFont(regularFont)
+                            P(string.Join("   |   ", metaParts), color: grey)
                                 .SetFontSize(9.5f)
-                                .SetFontColor(grey)
                                 .SetMarginBottom(4));
                     }
 
                     if (!string.IsNullOrWhiteSpace(w.JobDescription))
                     {
                         document.Add(
-                            new Paragraph(w.JobDescription)
-                                .SetFont(regularFont)
+                            P(w.JobDescription)
                                 .SetFontSize(10)
                                 .SetMarginBottom(8));
                     }
@@ -291,19 +313,17 @@ namespace JobPortal.Services.Implement.Candidate
 
                 foreach (var e in profile.Educations.OrderByDescending(x => x.PassoutYear))
                 {
-                    var line = new Paragraph().SetMarginBottom(1);
-                    line.Add(new Text(e.EducationLevel ?? "").SetFont(boldFont).SetFontSize(10.5f));
+                    var line = new Paragraph().SetFontSize(10.5f).SetMarginBottom(1);
+                    AddRuns(line, e.EducationLevel ?? "", bold: true);
                     if (!string.IsNullOrWhiteSpace(e.InstituteName))
-                        line.Add(new Text($"  —  {e.InstituteName}").SetFont(regularFont).SetFontSize(10.5f));
+                        AddRuns(line, $"  -  {e.InstituteName}", bold: false);
                     document.Add(line);
 
                     if (e.PassoutYear.HasValue)
                     {
                         document.Add(
-                            new Paragraph($"Year: {e.PassoutYear}")
-                                .SetFont(regularFont)
+                            P($"Year: {e.PassoutYear}", color: grey)
                                 .SetFontSize(9.5f)
-                                .SetFontColor(grey)
                                 .SetMarginBottom(6));
                     }
                 }
@@ -319,8 +339,7 @@ namespace JobPortal.Services.Implement.Candidate
             {
                 SectionHeader("Core Skills");
                 document.Add(
-                    new Paragraph(string.Join("   •   ", skills))
-                        .SetFont(regularFont)
+                    P(string.Join("   |   ", skills))
                         .SetFontSize(10.5f)
                         .SetMarginBottom(6));
             }
@@ -343,8 +362,7 @@ namespace JobPortal.Services.Implement.Candidate
                     var abilityText = abilities.Count > 0 ? $" ({string.Join("/", abilities)})" : "";
 
                     document.Add(
-                        new Paragraph($"{l.SkillName}{abilityText}")
-                            .SetFont(regularFont)
+                        P($"{l.SkillName}{abilityText}")
                             .SetFontSize(10.5f)
                             .SetMarginBottom(2));
                 }
@@ -360,6 +378,61 @@ namespace JobPortal.Services.Implement.Candidate
 
             document.Close();
             return stream.ToArray();
+        }
+
+        // ────────────────────────────────────────────────────────────
+        // Unicode font helpers
+        // ────────────────────────────────────────────────────────────
+
+        private static PdfFont? LoadDevanagariFont(string fileName)
+        {
+            try
+            {
+                var path = System.IO.Path.Combine(AppContext.BaseDirectory, "Fonts", fileName);
+                if (!System.IO.File.Exists(path)) return null;
+
+                return PdfFontFactory.CreateFont(
+                    System.IO.File.ReadAllBytes(path),
+                    PdfEncodings.IDENTITY_H,
+                    PdfFontFactory.EmbeddingStrategy.FORCE_EMBEDDED);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static bool IsDevanagari(char c) =>
+            (c >= '\u0900' && c <= '\u097F') || (c >= '\uA8E0' && c <= '\uA8FF');
+
+        /// <summary>
+        /// Splits text into runs of Devanagari vs everything else. Neutral
+        /// characters (spaces, digits, punctuation) stay with the run they
+        /// follow so words are not fragmented.
+        /// </summary>
+        private static IEnumerable<(string Text, bool IsDevanagari)> SplitByScript(string text)
+        {
+            var sb = new System.Text.StringBuilder();
+            bool current = false;
+
+            foreach (var ch in text)
+            {
+                bool neutral = char.IsWhiteSpace(ch) || char.IsDigit(ch) || char.IsPunctuation(ch)
+                               || ch == '\u200C' || ch == '\u200D';
+                bool dev = neutral ? current : IsDevanagari(ch);
+
+                if (sb.Length > 0 && dev != current)
+                {
+                    yield return (sb.ToString(), current);
+                    sb.Clear();
+                }
+
+                current = dev;
+                sb.Append(ch);
+            }
+
+            if (sb.Length > 0)
+                yield return (sb.ToString(), current);
         }
 
         private static string FormatDateRange(DateOnly? start, DateOnly? end, bool isCurrent)
