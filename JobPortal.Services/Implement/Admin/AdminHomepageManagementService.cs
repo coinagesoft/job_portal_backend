@@ -919,6 +919,8 @@ namespace JobPortal.Services.Implement.Admin
                 {
                     TradeCategoryId = x.TradeCategoryId,
                     Name = x.Name,
+                    DisplayOrder = x.DisplayOrder,
+                    IsActive = x.IsActive,
 
                     SubTrades = _context.HomepageSubTrades
                         .AsNoTracking()
@@ -927,7 +929,9 @@ namespace JobPortal.Services.Implement.Admin
                         .Select(st => new SubTradeDto
                         {
                             SubTradeId = st.SubTradeId,
-                            Name = st.Name
+                            Name = st.Name,
+                            DisplayOrder = st.DisplayOrder,
+                            IsActive = st.IsActive
                         })
                         .ToList()
                 })

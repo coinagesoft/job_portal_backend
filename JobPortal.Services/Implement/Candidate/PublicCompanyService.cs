@@ -269,6 +269,10 @@ public class PublicCompanyService : IPublicCompanyService
 
             TradeCategory = job.TradeCategory,
 
+            SubTrade = job.SubTrade,
+
+            Role = job.Role,
+
             Department = job.Department,
 
             IndustryType = employer?.IndustryType,

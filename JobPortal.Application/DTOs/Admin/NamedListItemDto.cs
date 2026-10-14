@@ -32,5 +32,7 @@ namespace JobPortal.Application.DTOs.Admin
     {
         public Guid SubTradeId { get; set; }
         public string Name { get; set; } = default!;
+        public int DisplayOrder { get; set; }
+        public bool IsActive { get; set; }
     }
 }

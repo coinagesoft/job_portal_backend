@@ -37,6 +37,8 @@ namespace JobPortal.Application.DTOs.Candidate
         public string JobTitle { get; set; } = string.Empty;
         public string JobLevel { get; set; } = string.Empty;
         public string TradeCategory { get; set; } = string.Empty;
+        public string? SubTrade { get; set; }
+        public string? Role { get; set; }
         public string? Department { get; set; }
         public string IndustryType { get; set; } = default!;
         public List<string> RequiredLicencesCertificates { get; set; }

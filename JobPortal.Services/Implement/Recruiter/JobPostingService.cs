@@ -21,6 +21,17 @@ namespace JobPortal.Services.Implement.Recruiter
         private readonly ISubUserPermissionService _permissionService;
 
 
+        // A job is International when ANY of its country fields is set and is
+        // not India. The form has a general "Country" plus an Onshore/Offshore
+        // country; previously only the specific one was checked (and an empty
+        // value counted as international), so a job posted with Country = UAE
+        // but the specific country left as India showed "International Job:
+        // No" on the JD.
+        private static bool IsOutsideIndia(params string?[] countries) =>
+            countries.Any(c =>
+                !string.IsNullOrWhiteSpace(c) &&
+                !string.Equals(c.Trim(), "India", StringComparison.OrdinalIgnoreCase));
+
         private static readonly Dictionary<int, string> StepNames = new()
     {
         { 1, "Job Details" },
@@ -772,12 +783,12 @@ namespace JobPortal.Services.Implement.Recruiter
         // ════════════════════════════════════════════════
         // STEP 5 — Location
         // ════════════════════════════════════════════════
-public async Task<BaseJobResponseDto> SaveLocationAsync(
-    LocationRequestDto request,
-    Guid jobId,
-    Guid employerId,
-    Guid actionUserId,
-    bool isSubUser)
+        public async Task<BaseJobResponseDto> SaveLocationAsync(
+            LocationRequestDto request,
+            Guid jobId,
+            Guid employerId,
+            Guid actionUserId,
+            bool isSubUser)
         {
             try
             {
@@ -871,10 +882,9 @@ public async Task<BaseJobResponseDto> SaveLocationAsync(
                     job.OffshoreRegion = null;
                     job.OffshoreCountry = null;
 
-                    job.IsInternational = !string.Equals(
+                    job.IsInternational = IsOutsideIndia(
                         job.OnshoreCountry,
-                        "India",
-                        StringComparison.OrdinalIgnoreCase);
+                        job.Country);
                 }
 
                 // ==================================================
@@ -894,10 +904,9 @@ public async Task<BaseJobResponseDto> SaveLocationAsync(
                     job.OnshoreCountry = null;
                     job.OnshorePincode = null;
 
-                    job.IsInternational = !string.Equals(
+                    job.IsInternational = IsOutsideIndia(
                         job.OffshoreCountry,
-                        "India",
-                        StringComparison.OrdinalIgnoreCase);
+                        job.Country);
                 }
 
                 // ==================================================
@@ -1463,7 +1472,7 @@ public async Task<BaseJobResponseDto> SaveLocationAsync(
                         OffshoreCountry =
                             job.OffshoreCountry,
 
-                            Country = job.Country,
+                        Country = job.Country,
                     },
 
                     // =====================================================
@@ -1614,10 +1623,10 @@ public async Task<BaseJobResponseDto> SaveLocationAsync(
         private static BaseJobResponseDto Fail(string message) =>
             new() { Success = false, Message = message };
 
-       
 
 
-    
+
+
     }
 
 
