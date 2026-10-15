@@ -1,3 +1,4 @@
+﻿using Microsoft.AspNetCore.HttpOverrides;
 using Amazon;
 using Amazon.Runtime;
 using Amazon.S3;
@@ -66,6 +67,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 
 // ── SERVICES ─────────────────────────────────────────────────
 
+builder.Services.AddScoped<VisitorCountryService>();
 builder.Services.AddScoped<ICreditPlanService, CreditPlanService>();
 builder.Services.AddScoped<IMembershipPlanService, MembershipPlanService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -285,8 +287,17 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Nginx on the same EC2 instance forwards the original client IP.
+// ASP.NET Core's default loopback proxy trust is retained; do not trust arbitrary forwarded headers.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+});
+
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseHttpsRedirection();
