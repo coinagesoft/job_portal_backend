@@ -65,15 +65,24 @@ namespace JobPortal.Services.IImplement.IRecruiter
         Task<CreateRecruiterPlanOrderResponseDto> CreateMembershipOrderAsync(
             CreateRecruiterPlanOrderRequestDto request);
 
+        // PayPal (outside India). visitorRegion comes from the server-side
+        // IP lookup, never from the client.
+        Task<CreateRecruiterPlanOrderResponseDto> CreatePayPalMembershipOrderAsync(
+            CreateRecruiterPlanOrderRequestDto request,
+            string visitorRegion);
+
+        Task<CapturePayPalMembershipResponseDto> CapturePayPalMembershipAsync(
+            CapturePayPalMembershipRequestDto request);
+
         // Step 5 — Final submit
         Task<ReviewSubmitResponseDto> SubmitRegistrationAsync(
             ReviewSubmitRequestDto request, string ipAddress);
 
         Task<ResumeSessionResponseDto> ResumeSessionAsync(string sessionId);
 
-        Task<List<NamedListItemDto>> GetTradeCategoriesByIndustryAsync( Guid registrationIndustryId);
+        Task<List<NamedListItemDto>> GetTradeCategoriesByIndustryAsync(Guid registrationIndustryId);
 
-        Task<List<NamedListItemDto>> GetSubTradesByTradeCategoryAsync( Guid tradeCategoryId);
+        Task<List<NamedListItemDto>> GetSubTradesByTradeCategoryAsync(Guid tradeCategoryId);
 
         Task<RecruiterSuggestionResponseDto> SubmitSuggestionAsync(
     RecruiterSuggestionRequestDto request,

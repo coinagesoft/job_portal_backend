@@ -15,6 +15,7 @@ using JobPortal.Services.IImplement.IAdmin;
 using JobPortal.Services.IImplement.ICoupon;
 using JobPortal.Services.IImplement.IRecruiter;
 using JobPortal.Services.Implement.Coupons;
+using JobPortal.Services.Implement.Public;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -35,6 +36,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     private readonly IGeminiCompanyDocumentParserService _geminiCompanyDocumentParserService;
     private readonly IMembershipPlanService _membershipPlanService;
     private readonly IConfiguration _config;
+    private readonly PayPalPaymentService _payPal;
 
     // Default pricing region for the recruiter membership fee when the
     // caller doesn't specify one — same convention as the candidate flow
@@ -50,7 +52,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
          ICouponValidationService couponValidationService,
          IGeminiCompanyDocumentParserService geminiCompanyDocumentParserService,
          IMembershipPlanService membershipPlanService,
-         IConfiguration config)
+         IConfiguration config,
+         PayPalPaymentService payPal)
     {
         _context = context;
         _logger = logger;
@@ -61,6 +64,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
         _geminiCompanyDocumentParserService = geminiCompanyDocumentParserService;
         _membershipPlanService = membershipPlanService;
         _config = config;
+        _payPal = payPal;
 
     }
 
@@ -357,6 +361,194 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 Success = false,
                 Message = "Payment gateway error. Please try again."
             };
+        }
+    }
+
+    // ════════════════════════════════════════════════
+    // MEMBERSHIP PAYMENT — PayPal (visitors outside India)
+    // Order is bound to the registration session via custom_id, so it can
+    // only be captured/used by the session that created it.
+    // ════════════════════════════════════════════════
+    private static string PayPalSessionRef(Guid sessionId) =>
+        $"regmem-{sessionId:N}";
+
+    public async Task<CreateRecruiterPlanOrderResponseDto> CreatePayPalMembershipOrderAsync(
+        CreateRecruiterPlanOrderRequestDto request,
+        string visitorRegion)
+    {
+        CreateRecruiterPlanOrderResponseDto Fail(string message) =>
+            new() { Success = false, PaymentGateway = "PayPal", Message = message };
+
+        try
+        {
+            var session = await GetValidSessionAsync(request.SessionId);
+
+            if (session == null)
+                return Fail("Session expired. Please start again.");
+
+            if (request.PlanId == Guid.Empty)
+                return Fail("Please select a membership plan.");
+
+            // Region comes from the server-side IP lookup, not the client.
+            var region = (visitorRegion ?? string.Empty).Trim().ToLowerInvariant();
+
+            if (region.Length == 0 ||
+                string.Equals(region, DefaultRecruiterMembershipRegion, StringComparison.OrdinalIgnoreCase))
+                return Fail("PayPal is not available for payments from India.");
+
+            var plan = await _context.MembershipPlans
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p =>
+                    p.PlanId == request.PlanId &&
+                    p.PlanType == PlanType.Recruiter &&
+                    p.IsActive);
+
+            if (plan == null)
+                return Fail("Selected membership plan is no longer available. Please refresh and try again.");
+
+            if (string.IsNullOrWhiteSpace(plan.Region) ||
+                !string.Equals(plan.Region.Trim(), region, StringComparison.OrdinalIgnoreCase))
+                return Fail("Selected membership plan is not available for your region.");
+
+            var currency = VisitorCountryService.CurrencyForRegion(plan.Region);
+
+            if (!VisitorCountryService.IsPayPalCurrency(currency))
+            {
+                _logger.LogWarning(
+                    "Membership plan {PlanId} (region {Region}) is priced in {Currency}, which PayPal can't settle.",
+                    plan.PlanId, plan.Region, currency);
+
+                return Fail("This plan can't be paid with PayPal. Please contact support.");
+            }
+
+            if (plan.Price <= 0)
+                return Fail("This membership plan doesn't require payment.");
+
+            var originalAmount = plan.Price;
+
+            decimal discountAmount = 0;
+            string? appliedCouponCode = null;
+
+            if (!string.IsNullOrWhiteSpace(request.CouponCode))
+            {
+                var couponResult = await _couponValidationService.ValidateCouponAsync(
+                    new ValidateCouponRequestDto
+                    {
+                        Code = request.CouponCode.Trim().ToUpperInvariant(),
+                        PlanType = PlanType.Recruiter,
+                        PlanId = plan.PlanId,
+                        Region = region
+                    },
+                    Guid.Empty);
+
+                if (!couponResult.IsValid)
+                    return Fail(couponResult.Message);
+
+                discountAmount = Math.Clamp(couponResult.DiscountAmount, 0, originalAmount);
+                appliedCouponCode = request.CouponCode.Trim().ToUpperInvariant();
+            }
+
+            var finalAmount = originalAmount - discountAmount;
+
+            int ToMinor(decimal v) =>
+                (int)Math.Round(v * 100, MidpointRounding.AwayFromZero);
+
+            var response = new CreateRecruiterPlanOrderResponseDto
+            {
+                Success = true,
+                PaymentGateway = "PayPal",
+                Currency = currency,
+                PlanId = plan.PlanId,
+                PlanName = plan.PlanName,
+                Amount = originalAmount,
+                AmountPaise = ToMinor(originalAmount),
+                DiscountAmount = discountAmount,
+                DiscountAmountPaise = ToMinor(discountAmount),
+                CouponCode = appliedCouponCode,
+                FinalAmount = finalAmount,
+                FinalAmountPaise = ToMinor(finalAmount),
+                PayPalClientId = _config["PayPal:ClientId"]
+            };
+
+            if (response.FinalAmountPaise == 0)
+            {
+                response.Message = "Coupon applied successfully. No payment is required.";
+                return response;
+            }
+
+            var order = await _payPal.CreateOrderAsync(
+                finalAmount,
+                currency,
+                PayPalSessionRef(session.SessionId));
+
+            response.PayPalOrderId = order.OrderId;
+            response.Message = "Order created successfully.";
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CreatePayPalMembershipOrderAsync Error");
+            return Fail("Payment gateway error. Please try again.");
+        }
+    }
+
+    public async Task<CapturePayPalMembershipResponseDto> CapturePayPalMembershipAsync(
+        CapturePayPalMembershipRequestDto request)
+    {
+        CapturePayPalMembershipResponseDto Fail(string message) =>
+            new() { Success = false, Message = message, PayPalOrderId = request.PayPalOrderId };
+
+        try
+        {
+            var session = await GetValidSessionAsync(request.SessionId);
+
+            if (session == null)
+                return Fail("Session expired. Please start again.");
+
+            if (string.IsNullOrWhiteSpace(request.PayPalOrderId))
+                return Fail("PayPalOrderId is required.");
+
+            // The order must have been created for THIS registration session.
+            var existing = await _payPal.GetOrderAsync(request.PayPalOrderId);
+
+            if (!string.Equals(
+                    existing.CustomId,
+                    PayPalSessionRef(session.SessionId),
+                    StringComparison.Ordinal))
+            {
+                _logger.LogWarning(
+                    "PayPal capture refused: order {OrderId} does not belong to session {SessionId}.",
+                    request.PayPalOrderId, session.SessionId);
+
+                return Fail("This PayPal order does not belong to your registration.");
+            }
+
+            var capture = existing.IsCompleted
+                ? existing
+                : await _payPal.CaptureOrderAsync(request.PayPalOrderId);
+
+            if (!capture.IsCompleted)
+            {
+                _logger.LogWarning(
+                    "PayPal membership capture not completed. Order={OrderId} Status={Status}/{CaptureStatus}",
+                    request.PayPalOrderId, capture.Status, capture.CaptureStatus);
+
+                return Fail("PayPal has not completed this payment. If money was deducted, contact support with your PayPal order reference.");
+            }
+
+            // Amount/currency/plan are verified again when the registration is submitted.
+            return new CapturePayPalMembershipResponseDto
+            {
+                Success = true,
+                Captured = true,
+                PayPalOrderId = request.PayPalOrderId,
+                Message = "Payment captured."
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "CapturePayPalMembershipAsync Error. Order={OrderId}", request.PayPalOrderId);
+            return Fail("We couldn't confirm your PayPal payment. If money was deducted, contact support with your PayPal order reference.");
         }
     }
 
@@ -3007,6 +3199,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                 var discountAmountPaise = 0;
                 var finalAmountPaise = 0;
+                string? payPalCaptureId = null;
 
                 var resolvedPlan = request.PlanId.HasValue
                     ? await _context.MembershipPlans
@@ -3111,7 +3304,69 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     // Payment verification
                     // ----------------------------------------------------------
 
-                    if (finalAmountPaise > 0)
+                    if (finalAmountPaise > 0 && !string.IsNullOrWhiteSpace(request.PayPalOrderId))
+                    {
+                        // ── PayPal path (outside India) ──────────────────────
+                        ReviewSubmitResponseDto PayPalFail(string msg) => new()
+                        {
+                            Success = false,
+                            Message = msg,
+                            StepStatus = BuildStepStatus(session)
+                        };
+
+                        var expectedCurrency =
+                            VisitorCountryService.CurrencyForRegion(membershipPlan.Region ?? string.Empty);
+
+                        if (string.IsNullOrWhiteSpace(membershipPlan.Region) ||
+                            string.Equals(membershipPlan.Region.Trim(), DefaultRecruiterMembershipRegion,
+                                StringComparison.OrdinalIgnoreCase) ||
+                            !VisitorCountryService.IsPayPalCurrency(expectedCurrency))
+                        {
+                            return PayPalFail("PayPal can't be used for the selected membership plan.");
+                        }
+
+                        PayPalCaptureResult capture;
+
+                        try
+                        {
+                            capture = await _payPal.GetOrderAsync(request.PayPalOrderId);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "PayPal order lookup failed at submit. Order={OrderId}", request.PayPalOrderId);
+                            return PayPalFail("We couldn't confirm your PayPal payment. Please try again.");
+                        }
+
+                        if (!capture.IsCompleted)
+                            return PayPalFail("PayPal payment is not completed.");
+
+                        if (!string.Equals(capture.CustomId, PayPalSessionRef(session.SessionId), StringComparison.Ordinal))
+                            return PayPalFail("This PayPal payment does not belong to your registration.");
+
+                        if (!string.Equals(capture.CapturedCurrency, expectedCurrency, StringComparison.OrdinalIgnoreCase) ||
+                            capture.CapturedAmount is null ||
+                            (int)Math.Round(capture.CapturedAmount.Value * 100, MidpointRounding.AwayFromZero) != finalAmountPaise)
+                        {
+                            _logger.LogError(
+                                "PayPal membership amount mismatch. Order={OrderId} Capture={CaptureId} Expected={Expected} {Currency} Got={Got} {GotCurrency}. Needs manual refund.",
+                                capture.OrderId, capture.CaptureId, finalAmountPaise / 100m, expectedCurrency,
+                                capture.CapturedAmount, capture.CapturedCurrency);
+
+                            return PayPalFail("Payment amount does not match the selected membership plan. Please contact support.");
+                        }
+
+                        if (string.IsNullOrWhiteSpace(capture.CaptureId))
+                            return PayPalFail("PayPal payment could not be verified.");
+
+                        var payPalAlreadyUsed = await _context.PaymentTransactions
+                            .AnyAsync(t => t.PayPalCaptureId == capture.CaptureId && t.PaymentStatus == "Completed");
+
+                        if (payPalAlreadyUsed)
+                            return PayPalFail("This payment has already been used to complete a registration.");
+
+                        payPalCaptureId = capture.CaptureId;
+                    }
+                    else if (finalAmountPaise > 0)
                     {
                         if (string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
                             string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
@@ -3334,13 +3589,16 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                         GstAmountPaise = 0,
 
-                        // Actual amount paid through Razorpay
+                        // Actual amount paid (Razorpay in INR paise, or PayPal in minor units of the plan currency)
                         TotalAmountPaise = membershipFinalAmountPaise,
 
-                        PaymentMethod = "Razorpay",
+                        PaymentMethod = payPalCaptureId != null ? "PayPal" : "Razorpay",
 
-                        RazorpayOrderId = request.RazorpayOrderId,
-                        RazorpayPaymentId = request.RazorpayPaymentId,
+                        RazorpayOrderId = payPalCaptureId != null ? null : request.RazorpayOrderId,
+                        RazorpayPaymentId = payPalCaptureId != null ? null : request.RazorpayPaymentId,
+
+                        PayPalOrderId = payPalCaptureId != null ? request.PayPalOrderId : null,
+                        PayPalCaptureId = payPalCaptureId,
 
                         PaymentStatus = "Completed",
 

@@ -52,6 +52,31 @@ namespace JobPortal.Application.DTOs.Recruiter
 
         public string? CouponCode { get; set; }
 
+        // "Razorpay" or "PayPal". Set by the server from the visitor's country.
+        public string PaymentGateway { get; set; } = "Razorpay";
+
+        // PayPal only — the order the JS SDK popup approves.
+        public string? PayPalOrderId { get; set; }
+        public string? PayPalClientId { get; set; }
+
+        public string Message { get; set; } = string.Empty;
+    }
+
+    // POST /api/recruiter/registration/paypal/capture
+    public class CapturePayPalMembershipRequestDto
+    {
+        public string SessionId { get; set; } = string.Empty;
+        public string PayPalOrderId { get; set; } = string.Empty;
+    }
+
+    public class CapturePayPalMembershipResponseDto
+    {
+        public bool Success { get; set; }
+
+        // True once PayPal reports both the order and its capture COMPLETED.
+        public bool Captured { get; set; }
+
+        public string PayPalOrderId { get; set; } = string.Empty;
         public string Message { get; set; } = string.Empty;
     }
 }

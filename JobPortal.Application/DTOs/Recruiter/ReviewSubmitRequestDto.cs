@@ -39,6 +39,10 @@ public class ReviewSubmitRequestDto
     public string? RazorpayOrderId { get; set; }
     public string? RazorpayPaymentId { get; set; }
     public string? RazorpaySignature { get; set; }
+
+    // PayPal (visitors outside India). Set after /registration/paypal/capture
+    // succeeds; Razorpay fields are then not needed.
+    public string? PayPalOrderId { get; set; }
 }
 
 /// <summary>

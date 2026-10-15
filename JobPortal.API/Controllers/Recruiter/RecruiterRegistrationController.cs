@@ -2,6 +2,7 @@
 using JobPortal.Domain.Enums.common;
 using JobPortal.Domain.Enums.Common;
 using JobPortal.Services.IImplement.IRecruiter;
+using JobPortal.Services.Implement;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,10 +14,18 @@ namespace JobPortal.API.Controllers.Recruiter
     public class RecruiterRegistrationController : ControllerBase
     {
         private readonly IRecruiterRegistrationService _service;
+        private readonly VisitorCountryService _visitorCountry;
 
         public RecruiterRegistrationController(
-            IRecruiterRegistrationService service)
-            => _service = service;
+            IRecruiterRegistrationService service,
+            VisitorCountryService visitorCountry)
+        {
+            _service = service;
+            _visitorCountry = visitorCountry;
+        }
+
+        private Task<VisitorCountryResult?> ResolveVisitorAsync(CancellationToken ct) =>
+            _visitorCountry.ResolveAsync(HttpContext.Connection.RemoteIpAddress, ct);
 
         // ════════════════════════════════════════════════
         // STEP 1 — GST Check
@@ -425,12 +434,87 @@ namespace JobPortal.API.Controllers.Recruiter
         [ProducesResponseType(typeof(CreateRecruiterPlanOrderResponseDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> CreateMembershipOrder(
-            [FromBody] CreateRecruiterPlanOrderRequestDto request)
+            [FromBody] CreateRecruiterPlanOrderRequestDto request,
+            CancellationToken cancellationToken)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            // Razorpay is for India only. Same rule as the credit-plan flow:
+            // only refuse when another country is positively detected.
+            var visitor = await ResolveVisitorAsync(cancellationToken);
+            if (visitor is not null && visitor.PaymentGateway != "Razorpay")
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "Razorpay is only available for payments from India. Please pay with PayPal."
+                });
+            }
+
             var result = await _service.CreateMembershipOrderAsync(request);
+
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        // ════════════════════════════════════════════════
+        // MEMBERSHIP PAYMENT — PayPal order (outside India only)
+        // POST /api/recruiter/registration/paypal/create-order
+        // Body: JSON { sessionId, planId, couponCode? }  (region is ignored —
+        // it is taken from the server-side IP lookup)
+        // ════════════════════════════════════════════════
+        [HttpPost("paypal/create-order")]
+        [ProducesResponseType(typeof(CreateRecruiterPlanOrderResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> CreatePayPalMembershipOrder(
+            [FromBody] CreateRecruiterPlanOrderRequestDto request,
+            CancellationToken cancellationToken)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            // Fail closed: PayPal needs a positively detected non-India country.
+            var visitor = await ResolveVisitorAsync(cancellationToken);
+
+            if (visitor is null)
+            {
+                return StatusCode(503, new
+                {
+                    Success = false,
+                    Message = "We could not detect your country. Please refresh the page or contact support."
+                });
+            }
+
+            if (visitor.PaymentGateway != "PayPal")
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "PayPal is not available for payments from India. Please pay with Razorpay."
+                });
+            }
+
+            var result = await _service.CreatePayPalMembershipOrderAsync(request, visitor.Region);
+
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+        // ════════════════════════════════════════════════
+        // MEMBERSHIP PAYMENT — capture the approved PayPal order
+        // POST /api/recruiter/registration/paypal/capture
+        // Body: JSON { sessionId, payPalOrderId }
+        // Then send payPalOrderId in submit-registration.
+        // ════════════════════════════════════════════════
+        [HttpPost("paypal/capture")]
+        [ProducesResponseType(typeof(CapturePayPalMembershipResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> CapturePayPalMembership(
+            [FromBody] CapturePayPalMembershipRequestDto request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var result = await _service.CapturePayPalMembershipAsync(request);
 
             return result.Success ? Ok(result) : BadRequest(result);
         }
