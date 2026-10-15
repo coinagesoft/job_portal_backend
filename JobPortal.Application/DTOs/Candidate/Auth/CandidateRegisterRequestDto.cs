@@ -22,13 +22,18 @@ public class CandidateRegisterRequestDto
     public Guid PlanId { get; set; }
 
     [Required]
-    public string RazorpayPaymentId { get; set; } = string.Empty;
 
-    [Required]
-    public string RazorpayOrderId { get; set; } = string.Empty;
+    public string? PaymentGateway { get; set; }
 
-    [Required]
-    public string RazorpaySignature { get; set; } = string.Empty;
+    public string? RazorpayPaymentId { get; set; }
+
+    public string? RazorpayOrderId { get; set; }
+
+    public string? RazorpaySignature { get; set; }
+
+    public string? PayPalOrderId { get; set; }
+
+    public string? PayPalCaptureId { get; set; }
 
     [Required]
     public bool TermsAccepted { get; set; }

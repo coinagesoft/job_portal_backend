@@ -34,6 +34,14 @@ namespace JobPortal.Application.DTOs.Candidate.Auth
 
         public string RazorpayKeyId { get; set; } = string.Empty;
 
+        public string PaymentGateway { get; set; } = "Razorpay";
+
+        public string? PayPalOrderId { get; set; }
+
+        public string? PayPalApprovalUrl { get; set; }
+
+        public string? PayPalClientId { get; set; }
+
         // The Candidate MembershipPlan used for this order.
         public Guid PlanId { get; set; }
 

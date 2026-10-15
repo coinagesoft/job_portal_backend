@@ -17,7 +17,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Razorpay.Api;
 using System.Linq;
-
+using JobPortal.Services.Implement.Public;
 
 namespace JobPortal.Services.Implement.Candidate;
 
@@ -30,7 +30,7 @@ public class CandidateAuthService : ICandidateAuthService
     private readonly ITwilioOtpService _twilioOtpService;
     private readonly IMembershipPlanService _membershipPlanService;
     private const int OtpExpiryMinutes = 10;
-
+    private readonly PayPalPaymentService _payPalPaymentService;
     private readonly ICouponValidationService _couponValidationService;
     private readonly IConfiguration _config;
 
