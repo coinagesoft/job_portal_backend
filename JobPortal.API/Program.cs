@@ -183,6 +183,25 @@ builder.Services.AddScoped<ITradeCreditImportService, TradeCreditImportService>(
 // ── Affinda AI — resume parsing ──────────────────────────────
 // Uses typed HttpClient so each instance gets its own HttpClient
 builder.Services.AddHttpClient<IAffindaService, AffindaService>();
+
+builder.Services.AddHttpClient<PayPalPaymentService>((sp, client) =>
+{
+    var configuration = sp.GetRequiredService<IConfiguration>();
+
+    var baseUrl = configuration["PayPal:BaseUrl"]
+        ?? "https://api-m.sandbox.paypal.com";
+
+    if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var paypalUri) ||
+        paypalUri.Scheme != Uri.UriSchemeHttps)
+    {
+        throw new InvalidOperationException(
+            "PayPal:BaseUrl must be a valid HTTPS URL.");
+    }
+
+    client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
 builder.Services.AddHttpClient("Razorpay", client =>
 {
     client.BaseAddress = new Uri("https://api.razorpay.com/");

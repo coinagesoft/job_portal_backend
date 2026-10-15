@@ -22,6 +22,10 @@ public class PaymentTransaction
     public string? PaymentMethod { get; set; }
     public string? RazorpayOrderId { get; set; }
     public string? RazorpayPaymentId { get; set; }
+
+    public string? PayPalOrderId { get; set; }
+    public string? PayPalCaptureId { get; set; }
+
     public string? StripePaymentIntentId { get; set; }
     public string? GatewayRefundId { get; set; }
     public string PaymentStatus { get; set; } = "Pending";

@@ -27,6 +27,14 @@ namespace JobPortal.Services.IImplement.IRecruiter
             Guid employerId,
             VerifyPlanPaymentRequestDto request);
 
+        Task<CreatePlanOrderResponseDto> CreatePayPalPlanOrderAsync(
+            Guid employerId,
+            CreatePlanOrderRequestDto request);
+
+        Task<VerifyPlanPaymentResponseDto> VerifyPayPalPlanPaymentAsync(
+            Guid employerId,
+            VerifyPlanPaymentRequestDto request);
+
         // Legacy admin-assign (kept for backward compat)
         Task<CommonResponseDto> BuyPlanAsync(Guid employerId, Guid planId);
     }

@@ -21,6 +21,11 @@ namespace JobPortal.Application.DTOs.Recruiter
         public string Currency { get; set; } = "INR";
         public string? RazorpayKeyId { get; set; }
 
+        public string? PaymentGateway { get; set; }
+        public string? PayPalOrderId { get; set; }
+        public string? PayPalApprovalUrl { get; set; }
+        public string? PayPalClientId { get; set; }
+
         // Breakdown, for display / invoicing
         public int BaseAmountPaise { get; set; }
         public int GstAmountPaise { get; set; }

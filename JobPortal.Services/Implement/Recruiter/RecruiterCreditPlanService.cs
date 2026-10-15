@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using JobPortal.Services.Implement.Public;
 
 namespace JobPortal.Services.Implement.Recruiter
 {

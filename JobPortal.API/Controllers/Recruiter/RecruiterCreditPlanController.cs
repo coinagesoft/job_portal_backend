@@ -126,6 +126,42 @@ namespace JobPortal.API.Controllers.Recruiter
         /// Credits are added **only** after server-side HMAC-SHA256
         /// signature verification passes.
         /// </remarks>
+
+
+        // POST /api/recruiter/plans/paypal/create-order
+        /// <summary>
+        /// Create a PayPal order for an international recruiter.
+        /// </summary>
+        [HttpPost("paypal/create-order")]
+        public async Task<IActionResult> CreatePayPalOrder(
+            [FromBody] CreatePlanOrderRequestDto request)
+        {
+            if (GetIsSubUser())
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "You don't have permission to purchase credits. Please contact your account owner."
+                });
+            }
+
+            if (request.PlanId == Guid.Empty)
+            {
+                return BadRequest(new
+                {
+                    Success = false,
+                    Message = "PlanId is required."
+                });
+            }
+
+            var result = await _service.CreatePayPalPlanOrderAsync(
+                GetEmployerId(),
+                request);
+
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
+
         [HttpPost("verify-payment")]
         public async Task<IActionResult> VerifyPayment(
             [FromBody] VerifyPlanPaymentRequestDto request)
@@ -158,5 +194,40 @@ namespace JobPortal.API.Controllers.Recruiter
 
             return result.Success ? Ok(result) : BadRequest(result);
         }
+
+        // POST /api/recruiter/plans/paypal/capture
+        /// <summary>
+        /// Capture and verify a PayPal order before crediting the wallet.
+        /// </summary>
+        [HttpPost("paypal/capture")]
+        public async Task<IActionResult> CapturePayPalPayment(
+            [FromBody] VerifyPlanPaymentRequestDto request)
+        {
+            if (GetIsSubUser())
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "You don't have permission to purchase credits. Please contact your account owner."
+                });
+            }
+
+            if (request.TransactionId == Guid.Empty ||
+                string.IsNullOrWhiteSpace(request.PayPalOrderId))
+            {
+                return BadRequest(new
+                {
+                    Success = false,
+                    Message = "TransactionId and PayPalOrderId are required."
+                });
+            }
+
+            var result = await _service.VerifyPayPalPlanPaymentAsync(
+                GetEmployerId(),
+                request);
+
+            return result.Success ? Ok(result) : BadRequest(result);
+        }
+
     }
 }
