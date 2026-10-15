@@ -1,6 +1,7 @@
 ﻿// File: JobPortal.API/Controllers/Recruiter/RecruiterCreditPlanController.cs
 
 using JobPortal.Application.DTOs.Recruiter;
+using JobPortal.Services.Implement;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,14 +18,21 @@ namespace JobPortal.API.Controllers.Recruiter
     {
         private readonly IRecruiterCreditPlanService _service;
         private readonly ILogger<RecruiterCreditPlanController> _logger;
+        private readonly VisitorCountryService _visitorCountry;
 
         public RecruiterCreditPlanController(
             IRecruiterCreditPlanService service,
-            ILogger<RecruiterCreditPlanController> logger)
+            ILogger<RecruiterCreditPlanController> logger,
+            VisitorCountryService visitorCountry)
         {
             _service = service;
             _logger = logger;
+            _visitorCountry = visitorCountry;
         }
+
+        // Country is always resolved server-side from the caller's IP — never trusted from the client.
+        private Task<VisitorCountryResult?> ResolveVisitorAsync(CancellationToken ct) =>
+            _visitorCountry.ResolveAsync(HttpContext.Connection.RemoteIpAddress, ct);
 
         // EmployerId is resolved from the signed JWT rather than a
         // client-supplied header — the token already carries it for both
@@ -53,9 +61,9 @@ namespace JobPortal.API.Controllers.Recruiter
         /// pricing / plan-selection page.
         /// </remarks>
         [HttpGet]
-        public async Task<IActionResult> GetActivePlans()
+        public async Task<IActionResult> GetActivePlans([FromQuery] string? region = null)
         {
-            var plans = await _service.GetActivePlansAsync();
+            var plans = await _service.GetActivePlansAsync(region);
             return Ok(plans);
         }
 
@@ -80,7 +88,8 @@ namespace JobPortal.API.Controllers.Recruiter
         /// </remarks>
         [HttpPost("create-order")]
         public async Task<IActionResult> CreateOrder(
-            [FromBody] CreatePlanOrderRequestDto request)
+            [FromBody] CreatePlanOrderRequestDto request,
+            CancellationToken cancellationToken)
         {
             // Buying credits is restricted to the account owner — a
             // sub-user can still view available plans via GetActivePlans
@@ -96,6 +105,18 @@ namespace JobPortal.API.Controllers.Recruiter
 
             if (request.PlanId == Guid.Empty)
                 return BadRequest(new { Success = false, Message = "PlanId is required." });
+
+            // Razorpay is for India only. If geolocation is briefly unavailable we don't
+            // block Indian customers; we only refuse when we positively detect another country.
+            var visitor = await ResolveVisitorAsync(cancellationToken);
+            if (visitor is not null && visitor.PaymentGateway != "Razorpay")
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "Razorpay is only available for payments from India. Please pay with PayPal."
+                });
+            }
 
             var result = await _service.CreatePlanOrderAsync(GetEmployerId(), request);
 
@@ -134,7 +155,8 @@ namespace JobPortal.API.Controllers.Recruiter
         /// </summary>
         [HttpPost("paypal/create-order")]
         public async Task<IActionResult> CreatePayPalOrder(
-            [FromBody] CreatePlanOrderRequestDto request)
+            [FromBody] CreatePlanOrderRequestDto request,
+            CancellationToken cancellationToken)
         {
             if (GetIsSubUser())
             {
@@ -154,9 +176,31 @@ namespace JobPortal.API.Controllers.Recruiter
                 });
             }
 
+            // PayPal is for visitors outside India. Fail closed if we can't detect the country.
+            var visitor = await ResolveVisitorAsync(cancellationToken);
+
+            if (visitor is null)
+            {
+                return StatusCode(503, new
+                {
+                    Success = false,
+                    Message = "We could not detect your country. Please refresh the page or contact support."
+                });
+            }
+
+            if (visitor.PaymentGateway != "PayPal")
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "PayPal is not available for payments from India. Please pay with Razorpay."
+                });
+            }
+
             var result = await _service.CreatePayPalPlanOrderAsync(
                 GetEmployerId(),
-                request);
+                request,
+                visitor.Region);
 
             return result.Success ? Ok(result) : BadRequest(result);
         }

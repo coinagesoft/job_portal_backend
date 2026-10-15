@@ -6,6 +6,7 @@ using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
+using JobPortal.Services.Implement;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
@@ -22,6 +23,10 @@ namespace JobPortal.Services.Implement.Recruiter
         private readonly IConfiguration _configuration;
         private readonly HttpClient _httpClient;
         private readonly IRecruiterInvoiceService _invoiceService;
+        private readonly PayPalPaymentService _payPal;
+
+        private const string GatewayRazorpay = "Razorpay";
+        private const string GatewayPayPal = "PayPal";
 
         private string RazorpayKeyId =>
             _configuration["Razorpay:KeyId"]
@@ -36,13 +41,15 @@ namespace JobPortal.Services.Implement.Recruiter
             ILogger<RecruiterCreditPlanService> logger,
             IConfiguration configuration,
             IHttpClientFactory httpClientFactory,
-            IRecruiterInvoiceService invoiceService)
+            IRecruiterInvoiceService invoiceService,
+            PayPalPaymentService payPal)
         {
             _context = context;
             _logger = logger;
             _configuration = configuration;
             _httpClient = httpClientFactory.CreateClient("Razorpay");
             _invoiceService = invoiceService;
+            _payPal = payPal;
         }
 
         // ─────────────────────────────────────────────────────────────
@@ -183,14 +190,13 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 try
                 {
-                    //--------------------------------------------------------
-                    // Load pending transaction
-                    //--------------------------------------------------------
+                    await LockTransactionAsync(request.TransactionId);
 
                     var txn = await _context.PaymentTransactions
                         .FirstOrDefaultAsync(t =>
                             t.TransactionId == request.TransactionId &&
                             t.EmployerId == employerId &&
+                            t.PaymentMethod == GatewayRazorpay &&
                             t.PaymentStatus == "Pending");
 
                     if (txn == null)
@@ -199,14 +205,10 @@ namespace JobPortal.Services.Implement.Recruiter
                             "Transaction not found or already processed.");
                     }
 
-                    //--------------------------------------------------------
-                    // Verify Razorpay Signature
-                    //--------------------------------------------------------
-
                     if (!VerifySignature(
-                            request.RazorpayOrderId,
-                            request.RazorpayPaymentId,
-                            request.RazorpaySignature))
+                            request.RazorpayOrderId ?? string.Empty,
+                            request.RazorpayPaymentId ?? string.Empty,
+                            request.RazorpaySignature ?? string.Empty))
                     {
                         txn.PaymentStatus = "Failed";
 
@@ -221,10 +223,6 @@ namespace JobPortal.Services.Implement.Recruiter
                             "Payment verification failed.");
                     }
 
-                    //--------------------------------------------------------
-                    // Prevent duplicate payment usage
-                    //--------------------------------------------------------
-
                     var alreadyUsed = await _context.PaymentTransactions
                         .AnyAsync(t =>
                             t.TransactionId != txn.TransactionId &&
@@ -237,176 +235,27 @@ namespace JobPortal.Services.Implement.Recruiter
                             "This payment has already been applied.");
                     }
 
-                    //--------------------------------------------------------
-                    // Load Credit Plan
-                    //--------------------------------------------------------
+                    txn.RazorpayOrderId = request.RazorpayOrderId;
+                    txn.RazorpayPaymentId = request.RazorpayPaymentId;
 
-                    var plan = await _context.CreditPlans
-                        .FirstOrDefaultAsync(p =>
-                            p.PlanName == txn.PackType &&
-                            p.IsActive);
+                    var outcome = await ApplyCompletedPurchaseAsync(employerId, txn);
 
-                    if (plan == null)
+                    if (outcome == null)
                     {
-                        _logger.LogError(
-                            "Credit Plan not found. PackType={PackType}",
-                            txn.PackType);
-
                         return Fail<VerifyPlanPaymentResponseDto>(
                             "Associated credit plan not found.");
                     }
 
-                    //--------------------------------------------------------
-                    // Complete Transaction
-                    //--------------------------------------------------------
-
-                    txn.RazorpayOrderId = request.RazorpayOrderId;
-                    txn.RazorpayPaymentId = request.RazorpayPaymentId;
-                    txn.PaymentStatus = "Completed";
-                    txn.CreditsAddedAt = DateTime.UtcNow;
-
-                    //--------------------------------------------------------
-                    // Wallet
-                    //--------------------------------------------------------
-
-                    var wallet = await _context.CreditWallets
-                        .FirstOrDefaultAsync(x =>
-                            x.EmployerId == employerId);
-
-                    if (wallet == null)
-                    {
-                        wallet = new CreditWallet
-                        {
-                            Wallet_Id = Guid.NewGuid(),
-                            EmployerId = employerId,
-                            CreditBalance = plan.Credits,
-                            PackageName = plan.PlanName,
-                            SharedWallet = true,
-                            PackExpiresAt = DateTime.UtcNow.AddMonths(plan.ValidityMonths),
-                            UpdatedAt = DateTime.UtcNow
-                        };
-
-                        _context.CreditWallets.Add(wallet);
-                    }
-                    else
-                    {
-                        wallet.CreditBalance =
-                            (wallet.CreditBalance) + plan.Credits;
-
-                        wallet.PackageName = plan.PlanName;
-
-                        var baseDate =
-                            wallet.PackExpiresAt.HasValue &&
-                            wallet.PackExpiresAt.Value > DateTime.UtcNow
-                                ? wallet.PackExpiresAt.Value
-                                : DateTime.UtcNow;
-
-                        wallet.PackExpiresAt =
-                            baseDate.AddMonths(plan.ValidityMonths);
-
-                        wallet.UpdatedAt = DateTime.UtcNow;
-                    }
-
-                    //--------------------------------------------------------
-                    // Purchase History
-                    //--------------------------------------------------------
-
-                    // AssignedBy should be the owner's login identity (UserId) —
-                    // that's what transaction-history name resolution matches
-                    // against — not the EmployerId itself, which can never
-                    // equal a User's UserId.
-                    var ownerUserId = await _context.EmployerProfiles
-                        .Where(e => e.EmployerId == employerId)
-                        .Select(e => e.UserId)
-                        .FirstOrDefaultAsync();
-
-                    var purchase = new EmployerPlanPurchase
-                    {
-                        EmployerCreditPlanId = Guid.NewGuid(),
-                        EmployerId = employerId,
-                        PlanId = plan.PlanId,
-                        PlanName = plan.PlanName,
-                        Credits = plan.Credits,
-                        Price = plan.Price,
-                        AssignedAt = DateTime.UtcNow,
-                        ExpiresAt = DateTime.UtcNow.AddMonths(plan.ValidityMonths),
-                        IsActive = true,
-                        AssignedBy = ownerUserId
-                    };
-
-                    _context.EmployerPlanPurchase.Add(purchase);
-
-                    //--------------------------------------------------------
-                    // Invoice (GST-compliant billing record)
-                    //--------------------------------------------------------
-
-                    var invoiceNumber = await GenerateInvoiceNumberAsync();
-
-                    var invoice = new Invoice
-                    {
-                        InvoiceId = Guid.NewGuid(),
-                        TransactionId = txn.TransactionId,
-                        UserId = txn.UserId,
-                        InvoiceNumber = invoiceNumber,
-                        InvoiceDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                        InvoiceAmount = txn.AmountPaise / 100,
-                        InvoiceGst = txn.GstAmountPaise / 100,
-                        InvoiceTotal = txn.TotalAmountPaise / 100,
-                        InvoiceS3Url = null, // PDF is generated on demand — see RecruiterInvoiceService.DownloadInvoicePdfAsync
-                        CreatedAt = DateTime.UtcNow,
-
-                        // NOTE: the DB's actual FK constraint is on a separate shadow
-                        // column (PaymentTransactionTransactionId) that EF created
-                        // because the "PaymentTransaction" nav property doesn't match
-                        // the "TransactionId" FK property by convention. Setting the
-                        // scalar TransactionId above does NOT populate that shadow
-                        // column. Assigning the navigation here — txn is already
-                        // tracked by this same DbContext — lets EF resolve the
-                        // shadow FK from it automatically at SaveChanges time.
-                        PaymentTransaction = txn
-                    };
-
-                    _context.Invoices.Add(invoice);
-
-                    //--------------------------------------------------------
-                    // Save
-                    //--------------------------------------------------------
-
-                    await _context.SaveChangesAsync();
                     await dbTransaction.CommitAsync();
 
-                    _logger.LogInformation(
-                        "Employer {EmployerId} purchased plan {PlanName}. Credits={Credits}",
-                        employerId,
-                        plan.PlanName,
-                        plan.Credits);
-
-                    // ── Email the invoice right away so the employer has a
-                    // copy in their inbox without needing to visit the
-                    // Invoices page. Best-effort: a failed send (bad SMTP
-                    // config, no contact email on file, etc.) should never
-                    // undo a successful payment, so this is swallowed and
-                    // just logged — the invoice is still downloadable from
-                    // the Invoices page regardless. ────────────────────────
-                    try
-                    {
-                        await _invoiceService.EmailInvoiceAsync(invoice.InvoiceId, employerId);
-                    }
-                    catch (Exception emailEx)
-                    {
-                        _logger.LogWarning(
-                            emailEx,
-                            "Could not email invoice {InvoiceId} for employer {EmployerId}.",
-                            invoice.InvoiceId,
-                            employerId);
-                    }
+                    await TryEmailInvoiceAsync(outcome.InvoiceId, employerId);
 
                     return new VerifyPlanPaymentResponseDto
                     {
                         Success = true,
-                        Message = $"Payment successful! {plan.Credits} credits added to your wallet.",
-                        NewCreditBalance = wallet.CreditBalance,
-                        PurchaseId = purchase.EmployerCreditPlanId
+                        Message = $"Payment successful! {outcome.Credits} credits added to your wallet.",
+                        NewCreditBalance = outcome.NewBalance,
+                        PurchaseId = outcome.PurchaseId
                     };
                 }
                 catch (Exception ex)
@@ -418,6 +267,247 @@ namespace JobPortal.Services.Implement.Recruiter
                         "VerifyPlanPaymentAsync failed for EmployerId={EmployerId}",
                         employerId);
 
+                    return new VerifyPlanPaymentResponseDto
+                    {
+                        Success = false,
+                        Message = "Payment verification failed. Please contact support if the amount was deducted."
+                    };
+                }
+            });
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // 4. PayPal — create order (outside India only)
+        // ─────────────────────────────────────────────────────────────
+        public async Task<CreatePlanOrderResponseDto> CreatePayPalPlanOrderAsync(
+            Guid employerId,
+            CreatePlanOrderRequestDto request,
+            string visitorRegion)
+        {
+            var employer = await _context.EmployerProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e => e.EmployerId == employerId);
+
+            if (employer == null)
+                return Fail<CreatePlanOrderResponseDto>("Employer profile not found.");
+
+            var plan = await _context.CreditPlans
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PlanId == request.PlanId && p.IsActive);
+
+            if (plan == null)
+                return Fail<CreatePlanOrderResponseDto>("Plan not found or is no longer active.");
+
+            if (plan.Price <= 0)
+                return Fail<CreatePlanOrderResponseDto>(
+                    "This plan is included automatically with your account and can't be purchased again.");
+
+            // Region-wise pricing: the plan must belong to the region the server
+            // detected for this caller, and India plans are Razorpay-only.
+            if (string.IsNullOrWhiteSpace(visitorRegion) ||
+                !string.Equals(plan.Region, visitorRegion, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(plan.Region, "in", StringComparison.OrdinalIgnoreCase))
+            {
+                return Fail<CreatePlanOrderResponseDto>(
+                    "This plan isn't available for your region.");
+            }
+
+            var currency = VisitorCountryService.CurrencyForRegion(plan.Region);
+
+            if (!VisitorCountryService.IsPayPalCurrency(currency))
+            {
+                _logger.LogError(
+                    "Plan {PlanId} (region {Region}) is priced in {Currency}, which PayPal can't settle.",
+                    plan.PlanId, plan.Region, currency);
+
+                return Fail<CreatePlanOrderResponseDto>(
+                    "This plan can't be paid with PayPal. Please contact support.");
+            }
+
+            // Minor units (cents / pence). No GST outside India.
+            int amountMinor = (int)Math.Round(plan.Price * 100m, MidpointRounding.AwayFromZero);
+            var transactionId = Guid.NewGuid();
+
+            PayPalOrderResult order;
+            try
+            {
+                // reference_id / custom_id = our transaction id; checked again at capture time.
+                order = await _payPal.CreateOrderAsync(
+                    amountMinor / 100m,
+                    currency,
+                    transactionId.ToString("N"));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "PayPal order creation failed for PlanId={PlanId}", plan.PlanId);
+                return Fail<CreatePlanOrderResponseDto>("Payment gateway error. Please try again.");
+            }
+
+            _context.PaymentTransactions.Add(new PaymentTransaction
+            {
+                TransactionId = transactionId,
+                UserId = employer.UserId,
+                EmployerId = employerId,
+                TransactionType = "CreditPlanPurchase",
+                PackType = plan.PlanName,
+                CreditQuantity = plan.Credits,
+                ValidityMonths = (byte)Math.Min(plan.ValidityMonths, 255),
+                AmountPaise = amountMinor,       // column name is legacy: it holds minor units of the plan currency
+                GstAmountPaise = 0,
+                TotalAmountPaise = amountMinor,
+                PaymentMethod = GatewayPayPal,
+                PayPalOrderId = order.OrderId,
+                PaymentStatus = "Pending",
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+
+            return new CreatePlanOrderResponseDto
+            {
+                Success = true,
+                Message = "Order created successfully.",
+                PaymentGateway = GatewayPayPal,
+                PayPalOrderId = order.OrderId,
+                PayPalApprovalUrl = order.ApprovalUrl,
+                PayPalClientId = _configuration["PayPal:ClientId"],
+                AmountPaise = amountMinor,
+                BaseAmountPaise = amountMinor,
+                GstAmountPaise = 0,
+                Currency = currency,
+                PlanId = plan.PlanId,
+                PlanName = plan.PlanName,
+                Credits = plan.Credits,
+                ValidityMonths = plan.ValidityMonths,
+                TransactionId = transactionId
+            };
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // 5. PayPal — capture, verify against our own record, then credit
+        // ─────────────────────────────────────────────────────────────
+        public async Task<VerifyPlanPaymentResponseDto> VerifyPayPalPlanPaymentAsync(
+            Guid employerId,
+            VerifyPlanPaymentRequestDto request)
+        {
+            if (string.IsNullOrWhiteSpace(request.PayPalOrderId))
+                return Fail<VerifyPlanPaymentResponseDto>("PayPalOrderId is required.");
+
+            // The order id must belong to a transaction WE created for THIS employer.
+            var txn = await _context.PaymentTransactions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t =>
+                    t.TransactionId == request.TransactionId &&
+                    t.EmployerId == employerId &&
+                    t.PaymentMethod == GatewayPayPal &&
+                    t.PayPalOrderId == request.PayPalOrderId);
+
+            if (txn == null)
+                return Fail<VerifyPlanPaymentResponseDto>("Transaction not found.");
+
+            if (txn.PaymentStatus == "Completed")
+                return await AlreadyCompletedAsync(employerId);
+
+            if (txn.PaymentStatus != "Pending")
+                return Fail<VerifyPlanPaymentResponseDto>("Transaction not found or already processed.");
+
+            // Capture OUTSIDE the db transaction so we never hold a lock during an HTTP call.
+            PayPalCaptureResult capture;
+            try
+            {
+                capture = await _payPal.CaptureOrderAsync(request.PayPalOrderId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "PayPal capture failed. Txn={TxnId}", txn.TransactionId);
+                return Fail<VerifyPlanPaymentResponseDto>(
+                    "We couldn't confirm your PayPal payment. If money was deducted, contact support with your transaction reference.");
+            }
+
+            var plan = await FindPlanForTransactionAsync(txn);
+            var expectedCurrency = plan == null
+                ? null
+                : VisitorCountryService.CurrencyForRegion(plan.Region);
+
+            var problem = ValidateCapture(txn, capture, expectedCurrency);
+
+            if (problem != null)
+            {
+                _logger.LogCritical(
+                    "PayPal capture REJECTED ({Problem}). Txn={TxnId} Order={OrderId} Capture={CaptureId} Status={Status}/{CaptureStatus}. " +
+                    "If the capture completed, the buyer may need a manual refund.",
+                    problem, txn.TransactionId, capture.OrderId, capture.CaptureId, capture.Status, capture.CaptureStatus);
+
+                await MarkTransactionFailedAsync(txn.TransactionId);
+
+                return Fail<VerifyPlanPaymentResponseDto>(
+                    "Payment verification failed. Please contact support if the amount was deducted.");
+            }
+
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var dbTransaction = await _context.Database.BeginTransactionAsync();
+
+                try
+                {
+                    await LockTransactionAsync(txn.TransactionId);
+
+                    var tracked = await _context.PaymentTransactions
+                        .FirstOrDefaultAsync(t =>
+                            t.TransactionId == txn.TransactionId &&
+                            t.PaymentStatus == "Pending");
+
+                    // A concurrent request (double click / webhook) already applied it.
+                    if (tracked == null)
+                    {
+                        await dbTransaction.RollbackAsync();
+                        return await AlreadyCompletedAsync(employerId);
+                    }
+
+                    var captureUsed = await _context.PaymentTransactions
+                        .AnyAsync(t =>
+                            t.TransactionId != tracked.TransactionId &&
+                            t.PayPalCaptureId == capture.CaptureId &&
+                            t.PaymentStatus == "Completed");
+
+                    if (captureUsed)
+                    {
+                        return Fail<VerifyPlanPaymentResponseDto>(
+                            "This payment has already been applied.");
+                    }
+
+                    tracked.PayPalCaptureId = capture.CaptureId;
+
+                    var outcome = await ApplyCompletedPurchaseAsync(employerId, tracked);
+
+                    if (outcome == null)
+                    {
+                        return Fail<VerifyPlanPaymentResponseDto>(
+                            "Associated credit plan not found.");
+                    }
+
+                    await dbTransaction.CommitAsync();
+
+                    await TryEmailInvoiceAsync(outcome.InvoiceId, employerId);
+
+                    return new VerifyPlanPaymentResponseDto
+                    {
+                        Success = true,
+                        Message = $"Payment successful! {outcome.Credits} credits added to your wallet.",
+                        NewCreditBalance = outcome.NewBalance,
+                        PurchaseId = outcome.PurchaseId
+                    };
+                }
+                catch (Exception ex)
+                {
+                    await dbTransaction.RollbackAsync();
+
+                    _logger.LogError(
+                        ex,
+                        "VerifyPayPalPlanPaymentAsync failed for EmployerId={EmployerId} Txn={TxnId}",
+                        employerId, txn.TransactionId);
 
                     return new VerifyPlanPaymentResponseDto
                     {
@@ -426,6 +516,312 @@ namespace JobPortal.Services.Implement.Recruiter
                     };
                 }
             });
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // 6. PayPal webhook backstop
+        // ─────────────────────────────────────────────────────────────
+        public async Task<PayPalWebhookResult> ReconcilePayPalPaymentAsync(
+            Guid transactionId,
+            string paypalOrderId)
+        {
+            var txn = await _context.PaymentTransactions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t =>
+                    t.TransactionId == transactionId &&
+                    t.PaymentMethod == GatewayPayPal);
+
+            // Not one of ours, or the order id doesn't belong to that transaction.
+            if (txn == null ||
+                txn.EmployerId == null ||
+                !string.Equals(txn.PayPalOrderId, paypalOrderId, StringComparison.Ordinal))
+            {
+                return PayPalWebhookResult.Ignored;
+            }
+
+            if (txn.PaymentStatus == "Completed")
+                return PayPalWebhookResult.Completed;
+
+            // The browser flow may have marked it Failed (e.g. capture was still PENDING review
+            // when the buyer returned) while PayPal later completed it. Re-open it so the same
+            // verification rules decide — the capture is still checked against our own record.
+            if (txn.PaymentStatus == "Failed")
+            {
+                var reopened = await _context.PaymentTransactions
+                    .FirstOrDefaultAsync(t => t.TransactionId == transactionId && t.PaymentStatus == "Failed");
+
+                if (reopened != null)
+                {
+                    reopened.PaymentStatus = "Pending";
+                    await _context.SaveChangesAsync();
+                }
+            }
+            else if (txn.PaymentStatus != "Pending")
+            {
+                return PayPalWebhookResult.Ignored;
+            }
+
+            // Same capture + validation + credit path as the browser flow (capture of an
+            // already-captured order falls back to reading its state).
+            var result = await VerifyPayPalPlanPaymentAsync(
+                txn.EmployerId.Value,
+                new VerifyPlanPaymentRequestDto
+                {
+                    TransactionId = txn.TransactionId,
+                    PayPalOrderId = paypalOrderId,
+                    PaymentGateway = GatewayPayPal
+                });
+
+            if (result.Success)
+                return PayPalWebhookResult.Completed;
+
+            // Distinguish "PayPal/DB hiccup" (retry) from "verification said no" (don't retry forever).
+            var after = await _context.PaymentTransactions
+                .AsNoTracking()
+                .Where(t => t.TransactionId == transactionId)
+                .Select(t => t.PaymentStatus)
+                .FirstOrDefaultAsync();
+
+            return after == "Failed"
+                ? PayPalWebhookResult.Rejected
+                : PayPalWebhookResult.Retry;
+        }
+
+        public async Task MarkPayPalTransactionFailedAsync(Guid transactionId)
+        {
+            var row = await _context.PaymentTransactions
+                .FirstOrDefaultAsync(t =>
+                    t.TransactionId == transactionId &&
+                    t.PaymentMethod == GatewayPayPal &&
+                    t.PaymentStatus == "Pending");
+
+            if (row == null) return;
+
+            row.PaymentStatus = "Failed";
+            await _context.SaveChangesAsync();
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // Shared purchase logic (Razorpay + PayPal)
+        // Must be called inside an open db transaction; the caller commits.
+        // ─────────────────────────────────────────────────────────────
+        private sealed record PurchaseOutcome(int Credits, int NewBalance, Guid PurchaseId, Guid InvoiceId);
+
+        private async Task<PurchaseOutcome?> ApplyCompletedPurchaseAsync(
+            Guid employerId,
+            PaymentTransaction txn)
+        {
+            var plan = await FindPlanForTransactionAsync(txn);
+
+            if (plan == null)
+            {
+                _logger.LogError("Credit Plan not found. PackType={PackType}", txn.PackType);
+                return null;
+            }
+
+            // What the buyer was actually charged for is what we deliver — taken from
+            // the stored transaction, not re-read from a plan an admin may have edited.
+            int credits = txn.CreditQuantity ?? plan.Credits;
+            int months = txn.ValidityMonths.HasValue ? (int)txn.ValidityMonths.Value : plan.ValidityMonths;
+
+            txn.PaymentStatus = "Completed";
+            txn.CreditsAddedAt = DateTime.UtcNow;
+
+            var wallet = await _context.CreditWallets
+                .FirstOrDefaultAsync(x => x.EmployerId == employerId);
+
+            if (wallet == null)
+            {
+                wallet = new CreditWallet
+                {
+                    Wallet_Id = Guid.NewGuid(),
+                    EmployerId = employerId,
+                    CreditBalance = credits,
+                    PackageName = plan.PlanName,
+                    SharedWallet = true,
+                    PackExpiresAt = DateTime.UtcNow.AddMonths(months),
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.CreditWallets.Add(wallet);
+            }
+            else
+            {
+                wallet.CreditBalance = (wallet.CreditBalance) + credits;
+                wallet.PackageName = plan.PlanName;
+
+                var baseDate =
+                    wallet.PackExpiresAt.HasValue &&
+                    wallet.PackExpiresAt.Value > DateTime.UtcNow
+                        ? wallet.PackExpiresAt.Value
+                        : DateTime.UtcNow;
+
+                wallet.PackExpiresAt = baseDate.AddMonths(months);
+                wallet.UpdatedAt = DateTime.UtcNow;
+            }
+
+            // AssignedBy = owner's login identity (UserId), not the EmployerId.
+            var ownerUserId = await _context.EmployerProfiles
+                .Where(e => e.EmployerId == employerId)
+                .Select(e => e.UserId)
+                .FirstOrDefaultAsync();
+
+            var purchase = new EmployerPlanPurchase
+            {
+                EmployerCreditPlanId = Guid.NewGuid(),
+                EmployerId = employerId,
+                PlanId = plan.PlanId,
+                PlanName = plan.PlanName,
+                Credits = credits,
+                Price = txn.AmountPaise / 100m,
+                AssignedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddMonths(months),
+                IsActive = true,
+                AssignedBy = ownerUserId
+            };
+
+            _context.EmployerPlanPurchase.Add(purchase);
+
+            var invoiceNumber = await GenerateInvoiceNumberAsync();
+
+            // Invoice amount columns are int (whole currency units). Razorpay keeps its
+            // existing truncating behaviour; PayPal rounds so 49.99 USD isn't stored as 49.
+            bool isPayPal = txn.PaymentMethod == GatewayPayPal;
+            int Whole(int minor) => isPayPal
+                ? (int)Math.Round(minor / 100m, MidpointRounding.AwayFromZero)
+                : minor / 100;
+
+            var invoice = new Invoice
+            {
+                InvoiceId = Guid.NewGuid(),
+                TransactionId = txn.TransactionId,
+                UserId = txn.UserId,
+                InvoiceNumber = invoiceNumber,
+                InvoiceDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                InvoiceAmount = Whole(txn.AmountPaise),
+                InvoiceGst = Whole(txn.GstAmountPaise),
+                InvoiceTotal = Whole(txn.TotalAmountPaise),
+                InvoiceS3Url = null, // PDF generated on demand — see RecruiterInvoiceService.DownloadInvoicePdfAsync
+                CreatedAt = DateTime.UtcNow,
+
+                // Assigning the navigation populates the FK shadow column
+                // (see the note on the original implementation of this method).
+                PaymentTransaction = txn
+            };
+
+            _context.Invoices.Add(invoice);
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "Employer {EmployerId} purchased plan {PlanName} via {Gateway}. Credits={Credits}",
+                employerId, plan.PlanName, txn.PaymentMethod, credits);
+
+            return new PurchaseOutcome(
+                credits,
+                wallet.CreditBalance,
+                purchase.EmployerCreditPlanId,
+                invoice.InvoiceId);
+        }
+
+        // The transaction has no PlanId column, so match on what we stored. PlanName
+        // alone is ambiguous now that the same plan name exists in several regions.
+        private async Task<CreditPlan?> FindPlanForTransactionAsync(PaymentTransaction txn)
+        {
+            var candidates = await _context.CreditPlans
+                .AsNoTracking()
+                .Where(p => p.PlanName == txn.PackType && p.IsActive)
+                .ToListAsync();
+
+            var paidPrice = txn.PaymentMethod == GatewayPayPal
+                ? txn.AmountPaise / 100m
+                : (decimal?)null; // Razorpay amounts include GST; matched by credits below
+
+            return candidates.FirstOrDefault(p =>
+                       p.Credits == txn.CreditQuantity &&
+                       (paidPrice == null || p.Price == paidPrice))
+                   ?? candidates.FirstOrDefault(p => p.Credits == txn.CreditQuantity)
+                   ?? candidates.FirstOrDefault();
+        }
+
+        // Returns null when the capture is acceptable, otherwise a short reason.
+        private static string? ValidateCapture(
+            PaymentTransaction txn,
+            PayPalCaptureResult capture,
+            string? expectedCurrency)
+        {
+            if (!capture.IsCompleted)
+                return $"not completed ({capture.Status}/{capture.CaptureStatus})";
+
+            if (string.IsNullOrWhiteSpace(capture.CaptureId))
+                return "missing capture id";
+
+            if (!string.Equals(capture.CustomId, txn.TransactionId.ToString("N"), StringComparison.Ordinal))
+                return "custom_id does not match our transaction";
+
+            if (string.IsNullOrWhiteSpace(expectedCurrency))
+                return "could not determine expected currency";
+
+            if (!string.Equals(capture.CapturedCurrency, expectedCurrency, StringComparison.OrdinalIgnoreCase))
+                return $"currency mismatch (got {capture.CapturedCurrency}, expected {expectedCurrency})";
+
+            if (capture.CapturedAmount is null ||
+                Math.Round(capture.CapturedAmount.Value * 100m) != txn.TotalAmountPaise)
+                return $"amount mismatch (got {capture.CapturedAmount}, expected {txn.TotalAmountPaise / 100m})";
+
+            return null;
+        }
+
+        private async Task<VerifyPlanPaymentResponseDto> AlreadyCompletedAsync(Guid employerId)
+        {
+            var balance = await _context.CreditWallets
+                .AsNoTracking()
+                .Where(w => w.EmployerId == employerId)
+                .Select(w => w.CreditBalance)
+                .FirstOrDefaultAsync();
+
+            return new VerifyPlanPaymentResponseDto
+            {
+                Success = true,
+                Message = "Payment already confirmed. Your credits are in your wallet.",
+                NewCreditBalance = balance
+            };
+        }
+
+        private async Task MarkTransactionFailedAsync(Guid transactionId)
+        {
+            var row = await _context.PaymentTransactions
+                .FirstOrDefaultAsync(t => t.TransactionId == transactionId && t.PaymentStatus == "Pending");
+
+            if (row == null) return;
+
+            row.PaymentStatus = "Failed";
+            await _context.SaveChangesAsync();
+        }
+
+        // Serialises concurrent verifies of the same transaction (double click, webhook race).
+        // Transaction-scoped: released automatically on commit/rollback.
+        private Task LockTransactionAsync(Guid transactionId)
+        {
+            var key = transactionId.ToString("N");
+            return _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtext({key}))");
+        }
+
+        private async Task TryEmailInvoiceAsync(Guid invoiceId, Guid employerId)
+        {
+            // Best-effort: a failed send must never undo a successful payment.
+            try
+            {
+                await _invoiceService.EmailInvoiceAsync(invoiceId, employerId);
+            }
+            catch (Exception emailEx)
+            {
+                _logger.LogWarning(
+                    emailEx,
+                    "Could not email invoice {InvoiceId} for employer {EmployerId}.",
+                    invoiceId, employerId);
+            }
         }
 
         // ─────────────────────────────────────────────────────────────

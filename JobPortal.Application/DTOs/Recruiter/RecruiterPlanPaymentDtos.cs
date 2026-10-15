@@ -44,9 +44,17 @@ namespace JobPortal.Application.DTOs.Recruiter
     public class VerifyPlanPaymentRequestDto
     {
         public Guid TransactionId { get; set; }   // from Step 1
-        public string RazorpayOrderId { get; set; } = default!;
-        public string RazorpayPaymentId { get; set; } = default!;
-        public string RazorpaySignature { get; set; } = default!;
+
+        // Razorpay verification
+        public string? RazorpayOrderId { get; set; }
+        public string? RazorpayPaymentId { get; set; }
+        public string? RazorpaySignature { get; set; }
+
+        // PayPal verification
+        public string? PayPalOrderId { get; set; }
+
+        // Informational only — the server decides the gateway from the stored transaction.
+        public string? PaymentGateway { get; set; }
     }
 
     // ── Step 2 response ──────────────────────────────────────────────

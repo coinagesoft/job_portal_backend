@@ -27,15 +27,41 @@ namespace JobPortal.Services.IImplement.IRecruiter
             Guid employerId,
             VerifyPlanPaymentRequestDto request);
 
+        /// <summary>
+        /// Creates a PayPal order. visitorRegion is the pricing region resolved
+        /// server-side from the caller's IP; the plan must belong to that region.
+        /// </summary>
         Task<CreatePlanOrderResponseDto> CreatePayPalPlanOrderAsync(
             Guid employerId,
-            CreatePlanOrderRequestDto request);
+            CreatePlanOrderRequestDto request,
+            string visitorRegion);
 
         Task<VerifyPlanPaymentResponseDto> VerifyPayPalPlanPaymentAsync(
             Guid employerId,
             VerifyPlanPaymentRequestDto request);
 
+        /// <summary>
+        /// Webhook backstop: completes a PayPal purchase whose browser callback never
+        /// arrived (tab closed, network drop). Idempotent — safe to call repeatedly.
+        /// </summary>
+        Task<PayPalWebhookResult> ReconcilePayPalPaymentAsync(Guid transactionId, string paypalOrderId);
+
+        /// <summary>Webhook: the capture was denied/declined — close the pending transaction.</summary>
+        Task MarkPayPalTransactionFailedAsync(Guid transactionId);
+
         // Legacy admin-assign (kept for backward compat)
         Task<CommonResponseDto> BuyPlanAsync(Guid employerId, Guid planId);
+    }
+
+    public enum PayPalWebhookResult
+    {
+        /// <summary>Credits applied now, or already applied earlier.</summary>
+        Completed,
+        /// <summary>No matching transaction of ours (other app on the same PayPal account, old event, etc.).</summary>
+        Ignored,
+        /// <summary>Matched, but not safe to apply (mismatch / not completed). Logged for manual review.</summary>
+        Rejected,
+        /// <summary>Temporary problem — return 5xx so PayPal retries the webhook.</summary>
+        Retry
     }
 }

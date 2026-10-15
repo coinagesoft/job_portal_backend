@@ -1,5 +1,4 @@
-﻿
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -109,13 +108,13 @@ public sealed class PayPalPaymentService
 
         var approvalUrl = root.TryGetProperty("links", out var links)
             ? links.EnumerateArray()
-                .Where(link => ReadString(link, "rel") == "approve")
+                .Where(link => ReadString(link, "rel") is "approve" or "payer-action")
                 .Select(link => ReadString(link, "href"))
                 .FirstOrDefault()
             : null;
 
-        if (string.IsNullOrWhiteSpace(orderId) ||
-            string.IsNullOrWhiteSpace(approvalUrl))
+        // The PayPal JS SDK popup only needs the order id; approvalUrl is optional.
+        if (string.IsNullOrWhiteSpace(orderId))
         {
             throw new InvalidOperationException(
                 "PayPal returned an incomplete order response.");
@@ -147,11 +146,54 @@ public sealed class PayPalPaymentService
         request.Headers.Authorization =
             new AuthenticationHeaderValue("Bearer", token);
 
-        request.Headers.Add(
-            "PayPal-Request-Id",
-            Guid.NewGuid().ToString("N"));
+        // Deterministic id → PayPal treats retries of the same capture as idempotent.
+        request.Headers.Add("PayPal-Request-Id", $"capture-{orderId}");
 
-        request.Content = JsonContent.Create(new { });
+        request.Content = new StringContent(
+            "{}", Encoding.UTF8, "application/json");
+
+        using var response = await _httpClient.SendAsync(
+            request,
+            cancellationToken);
+
+        var body = await response.Content.ReadAsStringAsync(
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            // Double-submit / webhook race: the order was already captured — read its state instead.
+            if (body.Contains("ORDER_ALREADY_CAPTURED", StringComparison.Ordinal))
+                return await GetOrderAsync(orderId, cancellationToken);
+
+            _logger.LogWarning(
+                "PayPal capture failed with HTTP {StatusCode}",
+                (int)response.StatusCode);
+
+            throw new InvalidOperationException(
+                "PayPal could not capture the payment.");
+        }
+
+        return ParseOrder(orderId, body);
+    }
+
+    /// <summary>Reads an order's current state (used for already-captured orders and reconciliation).</summary>
+    public async Task<PayPalCaptureResult> GetOrderAsync(
+        string orderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(orderId))
+            throw new ArgumentException(
+                "PayPal order ID is required.",
+                nameof(orderId));
+
+        var token = await GetAccessTokenAsync(cancellationToken);
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"v2/checkout/orders/{Uri.EscapeDataString(orderId)}");
+
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
 
         using var response = await _httpClient.SendAsync(
             request,
@@ -163,19 +205,26 @@ public sealed class PayPalPaymentService
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogWarning(
-                "PayPal capture failed with HTTP {StatusCode}",
+                "PayPal get order failed with HTTP {StatusCode}",
                 (int)response.StatusCode);
 
             throw new InvalidOperationException(
-                "PayPal could not capture the payment.");
+                "PayPal order could not be retrieved.");
         }
 
+        return ParseOrder(orderId, body);
+    }
+
+    private static PayPalCaptureResult ParseOrder(string orderId, string body)
+    {
         using var json = JsonDocument.Parse(body);
         var root = json.RootElement;
 
         var status = ReadString(root, "status") ?? string.Empty;
 
         string? captureId = null;
+        string? captureStatus = null;
+        string? customId = null;
         decimal? capturedAmount = null;
         string? capturedCurrency = null;
 
@@ -184,6 +233,8 @@ public sealed class PayPalPaymentService
         {
             foreach (var unit in units.EnumerateArray())
             {
+                customId ??= ReadString(unit, "custom_id");
+
                 if (!unit.TryGetProperty("payments", out var payments) ||
                     !payments.TryGetProperty("captures", out var captures) ||
                     captures.ValueKind != JsonValueKind.Array)
@@ -194,9 +245,10 @@ public sealed class PayPalPaymentService
                 foreach (var capture in captures.EnumerateArray())
                 {
                     captureId ??= ReadString(capture, "id");
+                    captureStatus ??= ReadString(capture, "status");
+                    customId ??= ReadString(capture, "custom_id");
 
-                    if (capture.TryGetProperty(
-                        "amount", out var amountElement))
+                    if (capture.TryGetProperty("amount", out var amountElement))
                     {
                         capturedCurrency ??=
                             ReadString(amountElement, "currency_code");
@@ -221,7 +273,95 @@ public sealed class PayPalPaymentService
             captureId,
             status,
             capturedAmount,
-            capturedCurrency);
+            capturedCurrency,
+            captureStatus,
+            customId);
+    }
+
+    /// <summary>
+    /// Verifies a webhook with PayPal's verify-webhook-signature API.
+    /// rawBody must be the exact request body as received (not re-serialised).
+    /// </summary>
+    public async Task<bool> VerifyWebhookSignatureAsync(
+        IDictionary<string, string> headers,
+        string rawBody,
+        CancellationToken cancellationToken = default)
+    {
+        var webhookId = _configuration["PayPal:WebhookId"];
+
+        if (string.IsNullOrWhiteSpace(webhookId))
+        {
+            _logger.LogError("PayPal:WebhookId is not configured; rejecting webhook.");
+            return false;
+        }
+
+        string Header(string name) =>
+            headers.TryGetValue(name, out var v) ? v : string.Empty;
+
+        var transmissionId = Header("PAYPAL-TRANSMISSION-ID");
+        var transmissionTime = Header("PAYPAL-TRANSMISSION-TIME");
+        var certUrl = Header("PAYPAL-CERT-URL");
+        var authAlgo = Header("PAYPAL-AUTH-ALGO");
+        var transmissionSig = Header("PAYPAL-TRANSMISSION-SIG");
+
+        if (string.IsNullOrWhiteSpace(transmissionId) ||
+            string.IsNullOrWhiteSpace(transmissionTime) ||
+            string.IsNullOrWhiteSpace(certUrl) ||
+            string.IsNullOrWhiteSpace(authAlgo) ||
+            string.IsNullOrWhiteSpace(transmissionSig))
+        {
+            return false;
+        }
+
+        var token = await GetAccessTokenAsync(cancellationToken);
+
+        // webhook_event must be the untouched raw JSON, so the envelope is assembled by hand.
+        string Q(string v) => JsonSerializer.Serialize(v);
+
+        var payload =
+            "{" +
+            $"\"auth_algo\":{Q(authAlgo)}," +
+            $"\"cert_url\":{Q(certUrl)}," +
+            $"\"transmission_id\":{Q(transmissionId)}," +
+            $"\"transmission_sig\":{Q(transmissionSig)}," +
+            $"\"transmission_time\":{Q(transmissionTime)}," +
+            $"\"webhook_id\":{Q(webhookId)}," +
+            $"\"webhook_event\":{rawBody}" +
+            "}";
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            "v1/notifications/verify-webhook-signature");
+
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue("Bearer", token);
+
+        request.Content = new StringContent(
+            payload, Encoding.UTF8, "application/json");
+
+        using var response = await _httpClient.SendAsync(
+            request,
+            cancellationToken);
+
+        var body = await response.Content.ReadAsStringAsync(
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning(
+                "PayPal webhook verification call failed with HTTP {StatusCode}",
+                (int)response.StatusCode);
+
+            throw new InvalidOperationException(
+                "PayPal webhook verification could not be completed.");
+        }
+
+        using var json = JsonDocument.Parse(body);
+
+        return string.Equals(
+            ReadString(json.RootElement, "verification_status"),
+            "SUCCESS",
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<string> GetAccessTokenAsync(
@@ -348,7 +488,7 @@ public sealed class PayPalPaymentService
 
 public sealed record PayPalOrderResult(
     string OrderId,
-    string ApprovalUrl,
+    string? ApprovalUrl,
     string Status,
     decimal Amount,
     string Currency);
@@ -358,11 +498,12 @@ public sealed record PayPalCaptureResult(
     string? CaptureId,
     string Status,
     decimal? CapturedAmount,
-    string? CapturedCurrency)
+    string? CapturedCurrency,
+    string? CaptureStatus,
+    string? CustomId)
 {
+    /// <summary>True only when the order AND its capture are both COMPLETED (not PENDING / DECLINED).</summary>
     public bool IsCompleted =>
-        string.Equals(
-            Status,
-            "COMPLETED",
-            StringComparison.OrdinalIgnoreCase);
+        string.Equals(Status, "COMPLETED", StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(CaptureStatus, "COMPLETED", StringComparison.OrdinalIgnoreCase);
 }
