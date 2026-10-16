@@ -29,6 +29,7 @@ namespace JobPortal.Services.Implement.Candidate
         private readonly ITwilioOtpService _twilioOtpService;
         private readonly IConfiguration _config;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly CandidateMembershipPaymentService _payments;
         private const int OtpExpiryMinutes = 10;
         private const int ResendCooldownSeconds = 60;
         private const int MaxOtpAttempts = 5;
@@ -39,6 +40,7 @@ namespace JobPortal.Services.Implement.Candidate
             ITwilioOtpService twilioOtpService,
             IConfiguration config,
             IHttpClientFactory httpClientFactory,
+            CandidateMembershipPaymentService payments,
             ILogger<CandidateRegistrationService> logger)
         {
             _context = context;
@@ -48,51 +50,24 @@ namespace JobPortal.Services.Implement.Candidate
             _config = config;
             _twilioOtpService = twilioOtpService;
             _httpClientFactory = httpClientFactory;
+            _payments = payments;
         }
 
-        // Same trust model as CandidateAuthService.RegisterAsync: never
-        // trust a client-supplied amount, always re-read the plan (and
-        // its price) from the DB using only the PlanId, and require it
-        // to still be an active Candidate plan.
-        private async Task<MembershipPlan?> ResolveAndValidateCandidatePlanAsync(Guid planId)
-        {
-            return await _context.MembershipPlans
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p =>
-                    p.PlanId == planId &&
-                    p.PlanType == PlanType.Candidate &&
-                    p.IsActive);
-        }
-
-        private async Task<bool> IsPaymentAlreadyUsedAsync(string razorpayPaymentId)
-        {
-            return await _context.PaymentTransactions
-                .AnyAsync(t =>
-                    t.RazorpayPaymentId == razorpayPaymentId &&
-                    t.PaymentStatus == "Completed");
-        }
         public async Task<AuthResponseDto> GoogleRegisterAsync(CandidateGoogleRegisterRequestDto request, string ipAddress)
         {
             try
             {
                 if (!request.TermsAccepted)
                     return AuthFail("Terms and Conditions must be accepted.");
-                if (string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
-                    string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
-                    string.IsNullOrWhiteSpace(request.RazorpaySignature))
+                // India pays with Razorpay (order + payment + signature), everywhere
+                // else with PayPal (captured order id). Which one applies, the amount,
+                // the currency and replay protection are verified below.
+                if (string.IsNullOrWhiteSpace(request.PayPalOrderId) &&
+                    (string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
+                     string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
+                     string.IsNullOrWhiteSpace(request.RazorpaySignature)))
                 {
                     return AuthFail("Payment verification failed.");
-                }
-
-                if (await IsPaymentAlreadyUsedAsync(request.RazorpayPaymentId))
-                {
-                    return AuthFail("This payment has already been used to complete a registration.");
-                }
-
-                var membershipPlan = await ResolveAndValidateCandidatePlanAsync(request.PlanId);
-                if (membershipPlan == null)
-                {
-                    return AuthFail("Selected membership plan is no longer available. Please refresh and try again.");
                 }
 
                 var httpClient = _httpClientFactory.CreateClient();
@@ -131,8 +106,28 @@ namespace JobPortal.Services.Implement.Candidate
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+                // Never trust the price from the frontend: the plan, coupon, amount and
+                // currency are re-derived from the database and checked against what the
+                // gateway says was actually paid. The UserId exists, so a coupon's
+                // per-user limit can be enforced. A PayPal order is bound to the access
+                // token it was created for.
+                var payment = await _payments.VerifyPaymentAsync(
+                    new CandidatePaymentProof
+                    {
+                        PlanId = request.PlanId,
+                        CouponCode = request.CouponCode,
+                        RazorpayOrderId = request.RazorpayOrderId,
+                        RazorpayPaymentId = request.RazorpayPaymentId,
+                        RazorpaySignature = request.RazorpaySignature,
+                        PayPalOrderId = request.PayPalOrderId,
+                        BindingSecret = request.AccessToken
+                    },
+                    user.UserId);
+
+                if (!payment.Success)
+                    return AuthFail(payment.Message);
+
                 _context.Users.Add(user);
-                var googleMembershipAmountPaise = (int)Math.Round(membershipPlan.Price * 100, MidpointRounding.AwayFromZero);
 
                 var profile = new JobPortal.Domain.Entities.CandidateProfile
                 {
@@ -143,68 +138,25 @@ namespace JobPortal.Services.Implement.Candidate
                     ProfileCompletionPct = 0,
                     AvailabilityStatus = "Available",
                     IsMember = true,
-                    MembershipPlanId = membershipPlan.PlanId,
+                    MembershipPlanId = payment.Plan.PlanId,
                     MembershipPurchasedAt = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
                 _context.CandidateProfiles.Add(profile);
 
-                // Store the candidate's registration payment — amount is
-                // sourced from the admin-configured MembershipPlan.
-                var paymentTransaction = new PaymentTransaction
-                {
-                    TransactionId = Guid.NewGuid(),
-
-                    UserId = user.UserId,
-
-                    CandidateId = profile.CandidateId,
-
-                    TransactionType = "CandidateRegistration",
-
-                    PackType = membershipPlan.PlanName,
-
-                    AmountPaise = googleMembershipAmountPaise,
-
-                    GstAmountPaise = 0,
-
-                    TotalAmountPaise = googleMembershipAmountPaise,
-
-                    PaymentMethod = "Razorpay",
-
-                    RazorpayOrderId = request.RazorpayOrderId,
-
-                    RazorpayPaymentId = request.RazorpayPaymentId,
-
-                    PaymentStatus = "Completed",
-
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                _context.PaymentTransactions.Add(paymentTransaction);
-
-                // Wrapped in an explicit transaction so the advisory lock
-                // inside GenerateInvoiceNumberAsync actually guards the
-                // insert it protects — see CandidateAuthService for the
-                // full explanation.
+                // Everything from here must succeed together: user, profile, payment,
+                // coupon redemption + usage, invoice. The explicit transaction also lets
+                // the advisory lock used for the invoice number do its job.
                 await using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
-                var invoiceNumber = await GenerateInvoiceNumberAsync();
+                var recordError = await _payments.RecordPaymentAsync(user, profile, payment);
 
-                _context.Invoices.Add(new JobPortal.Domain.Entities.Invoice
+                if (recordError != null)
                 {
-                    InvoiceId = Guid.NewGuid(),
-                    TransactionId = paymentTransaction.TransactionId,
-                    UserId = user.UserId,
-                    InvoiceNumber = invoiceNumber,
-                    InvoiceDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                    InvoiceAmount = googleMembershipAmountPaise / 100,
-                    InvoiceGst = 0,
-                    InvoiceTotal = googleMembershipAmountPaise / 100,
-                    InvoiceS3Url = null,
-                    CreatedAt = DateTime.UtcNow,
-                    PaymentTransaction = paymentTransaction
-                });
+                    await dbTransaction.RollbackAsync();
+                    return AuthFail(recordError);
+                }
 
                 await _context.SaveChangesAsync();
                 await dbTransaction.CommitAsync();
@@ -232,22 +184,15 @@ namespace JobPortal.Services.Implement.Candidate
             {
                 if (!request.TermsAccepted)
                     return AuthFail("Terms and Conditions must be accepted.");
-                if (string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
-                    string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
-                    string.IsNullOrWhiteSpace(request.RazorpaySignature))
+                // India pays with Razorpay (order + payment + signature), everywhere
+                // else with PayPal (captured order id). Which one applies, the amount,
+                // the currency and replay protection are verified below.
+                if (string.IsNullOrWhiteSpace(request.PayPalOrderId) &&
+                    (string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
+                     string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
+                     string.IsNullOrWhiteSpace(request.RazorpaySignature)))
                 {
                     return AuthFail("Payment verification failed.");
-                }
-
-                if (await IsPaymentAlreadyUsedAsync(request.RazorpayPaymentId))
-                {
-                    return AuthFail("This payment has already been used to complete a registration.");
-                }
-
-                var membershipPlan = await ResolveAndValidateCandidatePlanAsync(request.PlanId);
-                if (membershipPlan == null)
-                {
-                    return AuthFail("Selected membership plan is no longer available. Please refresh and try again.");
                 }
 
                 // No code exchange here — reuse the access token from the verify step
@@ -285,8 +230,28 @@ namespace JobPortal.Services.Implement.Candidate
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+                // Never trust the price from the frontend: the plan, coupon, amount and
+                // currency are re-derived from the database and checked against what the
+                // gateway says was actually paid. The UserId exists, so a coupon's
+                // per-user limit can be enforced. A PayPal order is bound to the access
+                // token it was created for.
+                var payment = await _payments.VerifyPaymentAsync(
+                    new CandidatePaymentProof
+                    {
+                        PlanId = request.PlanId,
+                        CouponCode = request.CouponCode,
+                        RazorpayOrderId = request.RazorpayOrderId,
+                        RazorpayPaymentId = request.RazorpayPaymentId,
+                        RazorpaySignature = request.RazorpaySignature,
+                        PayPalOrderId = request.PayPalOrderId,
+                        BindingSecret = request.AccessToken
+                    },
+                    user.UserId);
+
+                if (!payment.Success)
+                    return AuthFail(payment.Message);
+
                 _context.Users.Add(user);
-                var linkedInMembershipAmountPaise = (int)Math.Round(membershipPlan.Price * 100, MidpointRounding.AwayFromZero);
 
                 var profile = new JobPortal.Domain.Entities.CandidateProfile
                 {
@@ -297,68 +262,25 @@ namespace JobPortal.Services.Implement.Candidate
                     ProfileCompletionPct = 0,
                     AvailabilityStatus = "Available",
                     IsMember = true,
-                    MembershipPlanId = membershipPlan.PlanId,
+                    MembershipPlanId = payment.Plan.PlanId,
                     MembershipPurchasedAt = DateTime.UtcNow,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
                 _context.CandidateProfiles.Add(profile);
 
-                // Store the candidate's registration payment — amount is
-                // sourced from the admin-configured MembershipPlan.
-                var paymentTransaction = new PaymentTransaction
-                {
-                    TransactionId = Guid.NewGuid(),
-
-                    UserId = user.UserId,
-
-                    CandidateId = profile.CandidateId,
-
-                    TransactionType = "CandidateRegistration",
-
-                    PackType = membershipPlan.PlanName,
-
-                    AmountPaise = linkedInMembershipAmountPaise,
-
-                    GstAmountPaise = 0,
-
-                    TotalAmountPaise = linkedInMembershipAmountPaise,
-
-                    PaymentMethod = "Razorpay",
-
-                    RazorpayOrderId = request.RazorpayOrderId,
-
-                    RazorpayPaymentId = request.RazorpayPaymentId,
-
-                    PaymentStatus = "Completed",
-
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                _context.PaymentTransactions.Add(paymentTransaction);
-
-                // Wrapped in an explicit transaction so the advisory lock
-                // inside GenerateInvoiceNumberAsync actually guards the
-                // insert it protects — see CandidateAuthService for the
-                // full explanation.
+                // Everything from here must succeed together: user, profile, payment,
+                // coupon redemption + usage, invoice. The explicit transaction also lets
+                // the advisory lock used for the invoice number do its job.
                 await using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
-                var invoiceNumber = await GenerateInvoiceNumberAsync();
+                var recordError = await _payments.RecordPaymentAsync(user, profile, payment);
 
-                _context.Invoices.Add(new JobPortal.Domain.Entities.Invoice
+                if (recordError != null)
                 {
-                    InvoiceId = Guid.NewGuid(),
-                    TransactionId = paymentTransaction.TransactionId,
-                    UserId = user.UserId,
-                    InvoiceNumber = invoiceNumber,
-                    InvoiceDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                    InvoiceAmount = linkedInMembershipAmountPaise / 100,
-                    InvoiceGst = 0,
-                    InvoiceTotal = linkedInMembershipAmountPaise / 100,
-                    InvoiceS3Url = null,
-                    CreatedAt = DateTime.UtcNow,
-                    PaymentTransaction = paymentTransaction
-                });
+                    await dbTransaction.RollbackAsync();
+                    return AuthFail(recordError);
+                }
 
                 await _context.SaveChangesAsync();
                 await dbTransaction.CommitAsync();
@@ -464,31 +386,5 @@ namespace JobPortal.Services.Implement.Candidate
         // ── Private Helpers ───────────────────────────────────
         private static AuthResponseDto AuthFail(string message) =>
             new() { Success = false, Message = message };
-
-        // Generates a sequential, per-month invoice number, e.g. INV-202607-0001.
-        // Same implementation as RecruiterCreditPlanService.GenerateInvoiceNumberAsync
-        // — see that file for the full explanation of the advisory-lock +
-        // MAX-based (not COUNT-based) approach. MUST be called inside an open
-        // db transaction so the advisory lock actually guards the invoice
-        // insert that follows.
-        private async Task<string> GenerateInvoiceNumberAsync()
-        {
-            var prefix = $"INV-{DateTime.UtcNow:yyyyMM}-";
-
-            await _context.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT pg_advisory_xact_lock(hashtext({prefix}))");
-
-            var suffixesThisMonth = await _context.Invoices
-                .Where(i => i.InvoiceNumber.StartsWith(prefix))
-                .Select(i => i.InvoiceNumber.Substring(prefix.Length))
-                .ToListAsync();
-
-            int maxNumber = suffixesThisMonth
-                .Select(s => int.TryParse(s, out var n) ? n : 0)
-                .DefaultIfEmpty(0)
-                .Max();
-
-            return $"{prefix}{(maxNumber + 1):D4}";
-        }
     }
 }

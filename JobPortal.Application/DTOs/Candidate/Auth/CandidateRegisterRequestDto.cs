@@ -21,8 +21,8 @@ public class CandidateRegisterRequestDto
     [Required]
     public Guid PlanId { get; set; }
 
-    [Required]
-
+    // Informational only: the server decides the gateway from the proof that was
+    // sent (PayPalOrderId => PayPal, otherwise Razorpay) and from the plan's region.
     public string? PaymentGateway { get; set; }
 
     public string? RazorpayPaymentId { get; set; }

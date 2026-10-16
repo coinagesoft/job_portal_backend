@@ -20,12 +20,14 @@ namespace JobPortal.Application.DTOs.Candidate.Auth
 
         public bool TermsAccepted { get; set; }
 
-        [Required(ErrorMessage = "Payment verification required.")]
-        public string RazorpayOrderId { get; set; } = default!;
-        [Required(ErrorMessage = "Payment verification required.")]
-        public string RazorpayPaymentId { get; set; } = default!;
-        [Required(ErrorMessage = "Payment verification required.")]
-        public string RazorpaySignature { get; set; } = default!;
+        // Exactly one gateway's proof is sent (see CandidateRegisterRequestDto).
+        public string? RazorpayOrderId { get; set; }
+        public string? RazorpayPaymentId { get; set; }
+        public string? RazorpaySignature { get; set; }
+        public string? PayPalOrderId { get; set; }
+
+        // Coupon applied on the checkout. Validated again server-side.
+        public string? CouponCode { get; set; }
 
         // The MembershipPlan (PlanType.Candidate) the paid order was
         // created for — echoed back from /api/candidate/auth/create-order.

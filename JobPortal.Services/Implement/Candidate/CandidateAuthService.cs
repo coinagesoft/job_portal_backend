@@ -33,6 +33,7 @@ public class CandidateAuthService : ICandidateAuthService
 
     private readonly ICouponValidationService _couponValidationService;
     private readonly IConfiguration _config;
+    private readonly CandidateMembershipPaymentService _payments;
 
     private const int ResendCooldownSeconds = 30;
 
@@ -50,6 +51,7 @@ public class CandidateAuthService : ICandidateAuthService
          IConfiguration config,
            ICouponValidationService couponValidationService,
         IMembershipPlanService membershipPlanService,
+        CandidateMembershipPaymentService payments,
         ILogger<CandidateAuthService> logger)
     {
         _context = context;
@@ -60,6 +62,7 @@ public class CandidateAuthService : ICandidateAuthService
         _couponValidationService = couponValidationService;
         _twilioOtpService = twilioOtpService;
         _membershipPlanService = membershipPlanService;
+        _payments = payments;
     }
 
     // Resolves the active candidate membership plan to charge: prefers
@@ -131,70 +134,25 @@ public class CandidateAuthService : ICandidateAuthService
             // 3. PAYMENT DETAILS REQUIRED
             // ============================================================
 
-            if (string.IsNullOrWhiteSpace(request.RazorpayPaymentId) ||
-                string.IsNullOrWhiteSpace(request.RazorpayOrderId) ||
-                string.IsNullOrWhiteSpace(request.RazorpaySignature))
+            // India pays with Razorpay (order id + payment id + signature),
+            // everywhere else with PayPal (captured order id). Which one is
+            // valid, the amount, the currency and replay protection are all
+            // verified server-side in step 6.
+            var hasPayPalPayment =
+                !string.IsNullOrWhiteSpace(request.PayPalOrderId);
+
+            var hasRazorpayPayment =
+                !string.IsNullOrWhiteSpace(request.RazorpayPaymentId) &&
+                !string.IsNullOrWhiteSpace(request.RazorpayOrderId) &&
+                !string.IsNullOrWhiteSpace(request.RazorpaySignature);
+
+            if (!hasPayPalPayment && !hasRazorpayPayment)
             {
                 return Fail("Payment verification failed.");
             }
 
             // ============================================================
-            // 4. VERIFY RAZORPAY SIGNATURE
-            // ============================================================
-
-            var paymentVerified = VerifyRazorpaySignature(
-                request.RazorpayOrderId,
-                request.RazorpayPaymentId,
-                request.RazorpaySignature
-            );
-
-            if (!paymentVerified)
-            {
-                return Fail("Payment verification failed.");
-            }
-
-            // ============================================================
-            // 5. PREVENT PAYMENT REPLAY
-            // ============================================================
-
-            // A given Razorpay payment can only ever fund one
-            // registration.
-            var paymentAlreadyUsed =
-                await _context.PaymentTransactions
-                    .AnyAsync(t =>
-                        t.RazorpayPaymentId ==
-                            request.RazorpayPaymentId &&
-                        t.PaymentStatus == "Completed");
-
-            if (paymentAlreadyUsed)
-            {
-                return Fail(
-                    "This payment has already been used to complete a registration.");
-            }
-
-            // ============================================================
-            // 6. RESOLVE MEMBERSHIP PLAN FROM DATABASE
-            // ============================================================
-
-            // IMPORTANT:
-            // Never trust the price from the frontend.
-            // The plan and price are always loaded from the database.
-            var membershipPlan =
-                await _context.MembershipPlans
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(p =>
-                        p.PlanId == request.PlanId &&
-                        p.PlanType == PlanType.Candidate &&
-                        p.IsActive);
-
-            if (membershipPlan == null)
-            {
-                return Fail(
-                    "Selected membership plan is no longer available. Please refresh and try again.");
-            }
-
-            // ============================================================
-            // 7. MOBILE ALREADY REGISTERED?
+            // 4. MOBILE ALREADY REGISTERED?
             // ============================================================
 
             // A soft-deleted leftover with this mobile/email must not block re-registration.
@@ -214,7 +172,7 @@ public class CandidateAuthService : ICandidateAuthService
             }
 
             // ============================================================
-            // 8. EMAIL ALREADY REGISTERED?
+            // 5. EMAIL ALREADY REGISTERED?
             // ============================================================
 
             if (!string.IsNullOrWhiteSpace(request.Email))
@@ -234,24 +192,7 @@ public class CandidateAuthService : ICandidateAuthService
             }
 
             // ============================================================
-            // 9. CALCULATE ORIGINAL MEMBERSHIP AMOUNT
-            // ============================================================
-
-            var originalAmount = membershipPlan.Price;
-
-            if (originalAmount <= 0)
-            {
-                return Fail(
-                    "This membership plan doesn't require payment.");
-            }
-
-            var membershipAmountPaise =
-                (int)Math.Round(
-                    originalAmount * 100,
-                    MidpointRounding.AwayFromZero);
-
-            // ============================================================
-            // 10. CREATE USER ID
+            // 6. CREATE USER ID
             // ============================================================
 
             // We generate the UserId now so that the coupon validation
@@ -287,137 +228,42 @@ public class CandidateAuthService : ICandidateAuthService
             };
 
             // ============================================================
-            // 11. COUPON VALIDATION
+            // 7. VERIFY THE PAYMENT (Razorpay or PayPal)
             // ============================================================
 
-            decimal discountAmount = 0;
-
-            decimal finalAmount = originalAmount;
-
-            int discountAmountPaise = 0;
-
-            int finalAmountPaise = membershipAmountPaise;
-
-            Guid? couponId = null;
-
-            string? appliedCouponCode = null;
-
-            if (!string.IsNullOrWhiteSpace(request.CouponCode))
-            {
-                var couponValidationRequest =
-                    new ValidateCouponRequestDto
-                    {
-                        Code = request.CouponCode.Trim(),
-
-                        PlanType = PlanType.Candidate,
-
-                        PlanId = membershipPlan.PlanId,
-
-                        // Use the region stored on the actual plan.
-                        Region = membershipPlan.Region
-                    };
-
-                // IMPORTANT:
-                // At this point the UserId exists.
-                // Therefore PerUserLimit can be checked correctly.
-                var couponResult =
-                    await _couponValidationService
-                        .ValidateCouponAsync(
-                            couponValidationRequest,
-                            user.UserId);
-
-                if (!couponResult.IsValid)
+            // IMPORTANT:
+            // Never trust the price from the frontend. The plan, coupon,
+            // amount and currency are re-derived from the database and
+            // checked against what the gateway says was actually paid.
+            // The UserId exists at this point, so a coupon's PerUserLimit
+            // can be checked correctly.
+            var payment = await _payments.VerifyPaymentAsync(
+                new CandidatePaymentProof
                 {
-                    return Fail(
-                        couponResult.Message);
-                }
+                    PlanId = request.PlanId,
+                    CouponCode = request.CouponCode,
+                    RazorpayOrderId = request.RazorpayOrderId,
+                    RazorpayPaymentId = request.RazorpayPaymentId,
+                    RazorpaySignature = request.RazorpaySignature,
+                    PayPalOrderId = request.PayPalOrderId,
+                    // A PayPal order is bound to the OTP token it was created for.
+                    BindingSecret = request.OtpToken
+                },
+                user.UserId);
 
-                // Always use amounts calculated by the coupon service.
-                discountAmount =
-                    couponResult.DiscountAmount;
-
-                finalAmount =
-                    couponResult.FinalAmount;
-
-                couponId =
-                    couponResult.CouponId;
-
-                appliedCouponCode =
-                    couponResult.CouponCode;
-
-                discountAmountPaise =
-                    (int)Math.Round(
-                        discountAmount * 100,
-                        MidpointRounding.AwayFromZero);
-
-                finalAmountPaise =
-                    (int)Math.Round(
-                        finalAmount * 100,
-                        MidpointRounding.AwayFromZero);
+            if (!payment.Success)
+            {
+                return Fail(payment.Message);
             }
 
             // ============================================================
-            // 12. FINAL AMOUNT VALIDATION
-            // ============================================================
-
-            if (discountAmount < 0)
-            {
-                return Fail(
-                    "Invalid coupon discount.");
-            }
-
-            if (discountAmount > originalAmount)
-            {
-                return Fail(
-                    "Invalid coupon discount.");
-            }
-
-            if (finalAmount < 0)
-            {
-                return Fail(
-                    "Invalid final payment amount.");
-            }
-
-            if (finalAmountPaise <= 0)
-            {
-                return Fail(
-                    "The final payment amount must be greater than zero.");
-            }
-
-            // ============================================================
-            // 13. VERIFY RAZORPAY ORDER AMOUNT
-            // ============================================================
-
-            // Signature verification confirms that the payment belongs
-            // to the Razorpay order, but we also verify that the Razorpay
-            // order amount is exactly what our server calculated.
-            var razorpayClient =
-                new RazorpayClient(
-                    _config["Razorpay:KeyId"],
-                    _config["Razorpay:KeySecret"]);
-
-            var razorpayOrder =
-                razorpayClient.Order.Fetch(
-                    request.RazorpayOrderId);
-
-            var razorpayOrderAmountPaise =
-                Convert.ToInt32(
-                    razorpayOrder["amount"]);
-
-            if (razorpayOrderAmountPaise != finalAmountPaise)
-            {
-                return Fail(
-                    "Payment amount does not match the selected membership plan.");
-            }
-
-            // ============================================================
-            // 14. ADD USER TO EF CONTEXT
+            // 8. ADD USER TO EF CONTEXT
             // ============================================================
 
             _context.Users.Add(user);
 
             // ============================================================
-            // 15. CREATE CANDIDATE PROFILE
+            // 9. CREATE CANDIDATE PROFILE
             // ============================================================
 
             var profile = new CandidateProfile
@@ -437,7 +283,7 @@ public class CandidateAuthService : ICandidateAuthService
                 IsMember = true,
 
                 MembershipPlanId =
-                    membershipPlan.PlanId,
+                    payment.Plan.PlanId,
 
                 MembershipPurchasedAt =
                     DateTime.UtcNow,
@@ -452,7 +298,7 @@ public class CandidateAuthService : ICandidateAuthService
             _context.CandidateProfiles.Add(profile);
 
             // ============================================================
-            // 16. BEGIN DATABASE TRANSACTION
+            // 10. BEGIN DATABASE TRANSACTION
             // ============================================================
 
             // Everything from here must succeed together:
@@ -470,225 +316,45 @@ public class CandidateAuthService : ICandidateAuthService
                 await _context.Database.BeginTransactionAsync();
 
             // ============================================================
-            // 17. ATOMICALLY CONSUME COUPON USAGE
+            // 11. RECORD PAYMENT, COUPON REDEMPTION AND INVOICE
             // ============================================================
 
-            if (couponId.HasValue)
+            // Also atomically consumes the coupon's usage and generates the
+            // invoice number (PostgreSQL advisory lock, hence the open
+            // transaction above).
+            var recordError = await _payments.RecordPaymentAsync(
+                user,
+                profile,
+                payment);
+
+            if (recordError != null)
             {
-                // Increment UsedCount only when:
-                //
-                // - Coupon still exists
-                // - Coupon is active
-                // - UsageLimit has not been reached
-                //
-                // This prevents two simultaneous registrations from
-                // exceeding the coupon's global usage limit.
-                var couponUsageUpdated =
-                    await _context.Database.ExecuteSqlInterpolatedAsync(
-                        $@"
-                    UPDATE coupons
-                    SET used_count = used_count + 1
-                    WHERE coupon_id = {couponId.Value}
-                      AND is_active = TRUE
-                      AND (
-                            usage_limit IS NULL
-                            OR used_count < usage_limit
-                          )
-                    ");
+                await dbTransaction.RollbackAsync();
 
-                if (couponUsageUpdated != 1)
-                {
-                    await dbTransaction.RollbackAsync();
-
-                    return Fail(
-                        "This coupon is no longer available. Please try again.");
-                }
+                return Fail(recordError);
             }
 
             // ============================================================
-            // 18. STORE CANDIDATE REGISTRATION PAYMENT
-            // ============================================================
-
-            var paymentTransaction =
-                new PaymentTransaction
-                {
-                    TransactionId =
-                        Guid.NewGuid(),
-
-                    UserId =
-                        user.UserId,
-
-                    CandidateId =
-                        profile.CandidateId,
-
-                    TransactionType =
-                        "CandidateRegistration",
-
-                    PackType =
-                        membershipPlan.PlanName,
-
-                    CreditQuantity =
-                        null,
-
-                    ValidityMonths =
-                        null,
-
-                    // Original membership plan price
-                    AmountPaise =
-                        membershipAmountPaise,
-
-                    // Coupon discount
-                    DiscountAmountPaise =
-                        discountAmountPaise,
-
-                    GstAmountPaise =
-                        0,
-
-                    // Actual amount paid through Razorpay
-                    TotalAmountPaise =
-                        finalAmountPaise,
-
-                    PaymentMethod =
-                        "Razorpay",
-
-                    RazorpayOrderId =
-                        request.RazorpayOrderId,
-
-                    RazorpayPaymentId =
-                        request.RazorpayPaymentId,
-
-                    PaymentStatus =
-                        "Completed",
-
-                    CreatedAt =
-                        DateTime.UtcNow
-                };
-
-            _context.PaymentTransactions.Add(
-                paymentTransaction);
-
-            // ============================================================
-            // 19. STORE COUPON REDEMPTION
-            // ============================================================
-
-            if (couponId.HasValue &&
-                !string.IsNullOrWhiteSpace(appliedCouponCode))
-            {
-                var couponRedemption =
-                    new CouponRedemption
-                    {
-                        RedemptionId =
-                            Guid.NewGuid(),
-
-                        CouponId =
-                            couponId.Value,
-
-                        UserId =
-                            user.UserId,
-
-                        PlanId =
-                            membershipPlan.PlanId,
-
-                        PaymentTransactionId =
-                            paymentTransaction.TransactionId,
-
-                        CouponCode =
-                            appliedCouponCode,
-
-                        OriginalAmountPaise =
-                            membershipAmountPaise,
-
-                        DiscountAmountPaise =
-                            discountAmountPaise,
-
-                        FinalAmountPaise =
-                            finalAmountPaise,
-
-                        RedeemedAt =
-                            DateTime.UtcNow,
-
-                        PaymentTransaction =
-                            paymentTransaction
-                    };
-
-                _context.CouponRedemptions.Add(
-                    couponRedemption);
-            }
-
-            // ============================================================
-            // 20. GENERATE INVOICE
-            // ============================================================
-
-            // GenerateInvoiceNumberAsync uses a PostgreSQL advisory
-            // transaction lock. Because we already have an explicit
-            // transaction open, that lock protects the invoice number
-            // generation and insertion.
-            var invoiceNumber =
-                await GenerateInvoiceNumberAsync();
-
-            _context.Invoices.Add(
-                new JobPortal.Domain.Entities.Invoice
-                {
-                    InvoiceId =
-                        Guid.NewGuid(),
-
-                    TransactionId =
-                        paymentTransaction.TransactionId,
-
-                    UserId =
-                        user.UserId,
-
-                    InvoiceNumber =
-                        invoiceNumber,
-
-                    InvoiceDate =
-                        DateOnly.FromDateTime(
-                            DateTime.UtcNow),
-
-                    // Invoice reflects the actual discounted amount.
-                    InvoiceAmount =
-                        finalAmountPaise / 100,
-
-                    InvoiceGst =
-                        0,
-
-                    InvoiceTotal =
-                        finalAmountPaise / 100,
-
-                    InvoiceS3Url =
-                        null,
-
-                    CreatedAt =
-                        DateTime.UtcNow,
-
-                    // Keep the navigation property because the existing
-                    // EF configuration uses the PaymentTransaction
-                    // relationship.
-                    PaymentTransaction =
-                        paymentTransaction
-                });
-
-            // ============================================================
-            // 21. CONSUME OTP TOKEN
+            // 12. CONSUME OTP TOKEN
             // ============================================================
 
             // Prevent the same OTP verification token from being reused.
             verifiedOtp.VerificationToken = null;
 
             // ============================================================
-            // 22. SAVE EVERYTHING
+            // 13. SAVE EVERYTHING
             // ============================================================
 
             await _context.SaveChangesAsync();
 
             // ============================================================
-            // 23. COMMIT DATABASE TRANSACTION
+            // 14. COMMIT DATABASE TRANSACTION
             // ============================================================
 
             await dbTransaction.CommitAsync();
 
             // ============================================================
-            // 24. GENERATE JWT
+            // 15. GENERATE JWT
             // ============================================================
 
             var (token, _) =
@@ -700,7 +366,7 @@ public class CandidateAuthService : ICandidateAuthService
                         profile.CandidateId);
 
             // ============================================================
-            // 25. SUCCESS RESPONSE
+            // 16. SUCCESS RESPONSE
             // ============================================================
 
             return new CandidateRegisterResponseDto
@@ -1424,35 +1090,6 @@ public class CandidateAuthService : ICandidateAuthService
         }
     }
 
-    private bool VerifyRazorpaySignature(
-        string orderId,
-        string paymentId,
-        string signature)
-    {
-        try
-        {
-            var attributes = new Dictionary<string, string>
-        {
-            { "razorpay_order_id", orderId },
-            { "razorpay_payment_id", paymentId },
-            { "razorpay_signature", signature }
-        };
-
-            Utils.verifyPaymentSignature(attributes);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(
-                ex,
-                "Razorpay signature verification failed. OrderId:{OrderId}",
-                orderId);
-
-            return false;
-        }
-    }
-
     // =====================================================
     // HELPERS
     // =====================================================
@@ -1509,31 +1146,5 @@ public class CandidateAuthService : ICandidateAuthService
             Success = false,
             Message = message
         };
-    }
-
-    // Generates a sequential, per-month invoice number, e.g. INV-202607-0001.
-    // Same implementation as RecruiterCreditPlanService.GenerateInvoiceNumberAsync
-    // — see that file for the full explanation of the advisory-lock +
-    // MAX-based (not COUNT-based) approach. MUST be called inside an open
-    // db transaction so the advisory lock actually guards the invoice
-    // insert that follows.
-    private async Task<string> GenerateInvoiceNumberAsync()
-    {
-        var prefix = $"INV-{DateTime.UtcNow:yyyyMM}-";
-
-        await _context.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT pg_advisory_xact_lock(hashtext({prefix}))");
-
-        var suffixesThisMonth = await _context.Invoices
-            .Where(i => i.InvoiceNumber.StartsWith(prefix))
-            .Select(i => i.InvoiceNumber.Substring(prefix.Length))
-            .ToListAsync();
-
-        int maxNumber = suffixesThisMonth
-            .Select(s => int.TryParse(s, out var n) ? n : 0)
-            .DefaultIfEmpty(0)
-            .Max();
-
-        return $"{prefix}{(maxNumber + 1):D4}";
     }
 }

@@ -68,6 +68,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 // ── SERVICES ─────────────────────────────────────────────────
 
 builder.Services.AddScoped<VisitorCountryService>();
+builder.Services.AddScoped<CandidateMembershipPaymentService>();   // candidate membership: Razorpay (India) / PayPal (elsewhere)
 builder.Services.AddScoped<ICreditPlanService, CreditPlanService>();
 builder.Services.AddScoped<IMembershipPlanService, MembershipPlanService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
