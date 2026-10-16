@@ -17,9 +17,6 @@ public interface ICandidateAuthService
         CandidateVerifyOtpRequestDto request,
         string ipAddress);
 
-    Task<CreateCandidateOrderResponseDto> CreatePayPalOrderAsync(
-        CreateCandidateOrderRequestDto request);
-
     Task<CreateCandidateOrderResponseDto> CreateOrderAsync(
     CreateCandidateOrderRequestDto request);
 }

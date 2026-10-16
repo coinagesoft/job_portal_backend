@@ -105,16 +105,6 @@ public class CandidateAuthController : ControllerBase
             : BadRequest(result);
     }
 
-    [HttpPost("paypal/create-order")]
-    [AllowAnonymous]
-    public async Task<IActionResult> CreatePayPalOrder(
-        [FromBody] CreateCandidateOrderRequestDto request)
-    {
-        var result = await _service.CreatePayPalOrderAsync(request);
-
-        return result.Success ? Ok(result) : BadRequest(result);
-    }
-
     [HttpPost("validate-coupon")]
     [AllowAnonymous]
     public async Task<IActionResult> ValidateCoupon(
