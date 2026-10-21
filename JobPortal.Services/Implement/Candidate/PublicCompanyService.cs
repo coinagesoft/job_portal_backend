@@ -1322,6 +1322,122 @@ public class PublicCompanyService : IPublicCompanyService
     }
 
     //==========================================================
+    // LICENCE RULES (company details page)
+    //
+    //   Onshore + company country outside India -> POE Licence
+    //   Offshore                                -> RPSL Licence OR
+    //                                              Registration Certificate
+    //   Onshore + India                         -> no licence required
+    //==========================================================
+
+    private const string RuleOnshoreAbroad = "OnshoreAbroad";
+    private const string RuleOffshore = "Offshore";
+    private const string RuleOnshoreIndia = "OnshoreIndia";
+
+    private static readonly string[] LicenceDocumentCodes =
+    {
+        "POE_LICENSE",
+        "RPSL_LICENSE",
+        "REGISTRATION_CERTIFICATE"
+    };
+
+    private sealed record LicenceDocumentInfo(
+        string Code,
+        VerificationDocumentStatus Status,
+        DateOnly? ExpiryDate);
+
+    private static string ResolveLicenceRule(string? locationType, string? country)
+    {
+        if (string.Equals(locationType?.Trim(), "Offshore", StringComparison.OrdinalIgnoreCase))
+            return RuleOffshore;
+
+        // Onshore (or legacy rows with no location type saved): the rule
+        // depends on whether the company is based outside India.
+        var isIndia = string.IsNullOrWhiteSpace(country) ||
+                      string.Equals(country.Trim(), "India", StringComparison.OrdinalIgnoreCase);
+
+        return isIndia ? RuleOnshoreIndia : RuleOnshoreAbroad;
+    }
+
+    private static bool IsLicenceApproved(
+        List<LicenceDocumentInfo> docs,
+        string code,
+        DateOnly today) =>
+        docs.Any(x =>
+            x.Code == code &&
+            x.Status == VerificationDocumentStatus.Approved &&
+            (x.ExpiryDate == null || x.ExpiryDate >= today));
+
+    private static bool IsLicencePending(List<LicenceDocumentInfo> docs, string code) =>
+        docs.Any(x =>
+            x.Code == code &&
+            (x.Status == VerificationDocumentStatus.Pending ||
+             x.Status == VerificationDocumentStatus.Resubmission));
+
+    private static string StatusFor(List<LicenceDocumentInfo> docs, string code, DateOnly today) =>
+        IsLicenceApproved(docs, code, today) ? "Verified"
+        : IsLicencePending(docs, code) ? "Pending"
+        : "Not Available";
+
+    private static List<CompanyLicenceDto> BuildLicences(
+        string rule,
+        List<LicenceDocumentInfo> docs,
+        DateOnly today)
+    {
+        var result = new List<CompanyLicenceDto>();
+
+        switch (rule)
+        {
+            case RuleOnshoreAbroad:
+                result.Add(new CompanyLicenceDto
+                {
+                    Code = "POE",
+                    Label = "POE Licence",
+                    Status = StatusFor(docs, "POE_LICENSE", today),
+                    VerifiedWith = IsLicenceApproved(docs, "POE_LICENSE", today) ? "POE Licence" : null
+                });
+                break;
+
+            case RuleOffshore:
+                var rpsl = StatusFor(docs, "RPSL_LICENSE", today);
+                var reg = StatusFor(docs, "REGISTRATION_CERTIFICATE", today);
+
+                // Either document satisfies the requirement; RPSL wins when
+                // both are verified.
+                var status =
+                    rpsl == "Verified" || reg == "Verified" ? "Verified"
+                    : rpsl == "Pending" || reg == "Pending" ? "Pending"
+                    : "Not Available";
+
+                result.Add(new CompanyLicenceDto
+                {
+                    Code = "RPSL_OR_REGISTRATION",
+                    Label = "RPSL Licence / Registration Certificate",
+                    Status = status,
+                    VerifiedWith =
+                        rpsl == "Verified" ? "RPSL Licence"
+                        : reg == "Verified" ? "Registration Certificate"
+                        : null
+                });
+                break;
+
+            default:
+                // Onshore in India: nothing is required, so only show a
+                // licence if the company voluntarily has a verified one.
+                if (IsLicenceApproved(docs, "POE_LICENSE", today))
+                    result.Add(new CompanyLicenceDto { Code = "POE", Label = "POE Licence", Status = "Verified", VerifiedWith = "POE Licence" });
+
+                if (IsLicenceApproved(docs, "RPSL_LICENSE", today))
+                    result.Add(new CompanyLicenceDto { Code = "RPSL_OR_REGISTRATION", Label = "RPSL Licence", Status = "Verified", VerifiedWith = "RPSL Licence" });
+                else if (IsLicenceApproved(docs, "REGISTRATION_CERTIFICATE", today))
+                    result.Add(new CompanyLicenceDto { Code = "RPSL_OR_REGISTRATION", Label = "Registration Certificate", Status = "Verified", VerifiedWith = "Registration Certificate" });
+                break;
+        }
+
+        return result;
+    }
+
+    //==========================================================
     // PART 2
     //==========================================================
 
@@ -1348,6 +1464,29 @@ public class PublicCompanyService : IPublicCompanyService
                     Message = "Company not found."
                 };
             }
+
+            //-------------------------------------------------------
+            // Licences (POE / RPSL / Registration Certificate)
+            //-------------------------------------------------------
+
+            var licenceDocuments = await _context.EmployerVerificationDocuments
+                .AsNoTracking()
+                .Where(x =>
+                    x.EmployerId == employerId &&
+                    !x.IsDeleted &&
+                    x.DocumentType != null &&
+                    LicenceDocumentCodes.Contains(x.DocumentType.Code))
+                .Select(x => new LicenceDocumentInfo(
+                    x.DocumentType!.Code,
+                    x.Status,
+                    x.ExpiryDate))
+                .ToListAsync();
+
+            var licenceRule = ResolveLicenceRule(
+                company.CompanyLocationType,
+                company.Country);
+
+            var licences = BuildLicences(licenceRule, licenceDocuments, DateOnly.FromDateTime(DateTime.UtcNow));
 
             //-------------------------------------------------------
             // Open Jobs
@@ -1454,15 +1593,31 @@ public class PublicCompanyService : IPublicCompanyService
                 // Licence: Verified / Not Available" from these two flags.
                 // Derived the same way IsVerified already is below — from
                 // an Approved badge of the matching type.
+                // Admin approval creates badges with BadgeType = null (they
+                // are linked to the document instead), so the typed-badge
+                // check below never matched. The real source of truth is the
+                // approved, unexpired verification document of that type;
+                // the typed badge is kept only as a legacy fallback.
                 HasPoeLicence =
+                    IsLicenceApproved(licenceDocuments, "POE_LICENSE", DateOnly.FromDateTime(DateTime.UtcNow)) ||
                     company.Badges.Any(x =>
                         x.BadgeType == BadgeType.PoeLicensed &&
                         x.BadgeStatus == BadgeStatus.Approved),
 
                 HasRpslLicence =
+                    IsLicenceApproved(licenceDocuments, "RPSL_LICENSE", DateOnly.FromDateTime(DateTime.UtcNow)) ||
                     company.Badges.Any(x =>
                         x.BadgeType == BadgeType.RpslLicensed &&
                         x.BadgeStatus == BadgeStatus.Approved),
+
+                HasRegistrationCertificate =
+                    IsLicenceApproved(licenceDocuments, "REGISTRATION_CERTIFICATE", DateOnly.FromDateTime(DateTime.UtcNow)),
+
+                CompanyLocationType = company.CompanyLocationType,
+
+                LicenceRule = licenceRule,
+
+                Licences = licences,
 
                 IsVerified =
                     company.Badges.Any(x =>

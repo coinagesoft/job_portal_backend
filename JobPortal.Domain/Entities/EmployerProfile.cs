@@ -40,6 +40,13 @@ public class EmployerProfile
     // regardless of NatureOfCompany. Drives whether POE/RPSL licences
     // are expected on the Recruiters > Documents screen post-registration.
     public bool? PlacesCandidatesInternationally { get; set; }
+
+    // "Onshore" | "Offshore" — answered at registration (Step 2) and kept
+    // on the permanent profile. Together with Country it decides which
+    // licence candidates see on the company page:
+    //   Onshore + Country outside India -> POE Licence
+    //   Offshore                        -> RPSL Licence or Registration Certificate
+    public string? CompanyLocationType { get; set; }
     // GST
     public bool GstRegistered { get; set; } = false;
     public string? Gstin { get; set; }

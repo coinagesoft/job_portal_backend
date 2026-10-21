@@ -112,6 +112,24 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public bool HasRpslLicence { get; set; }
 
+        public bool HasRegistrationCertificate { get; set; }
+
+        /// <summary>"Onshore" | "Offshore" — chosen at registration.</summary>
+        public string? CompanyLocationType { get; set; }
+
+        /// <summary>
+        /// Which licence rule applies to this company:
+        /// "OnshoreAbroad" (POE), "Offshore" (RPSL or Registration Certificate)
+        /// or "OnshoreIndia" (no licence required).
+        /// </summary>
+        public string LicenceRule { get; set; } = "OnshoreIndia";
+
+        /// <summary>
+        /// Licence cards the candidate should see for this company, already
+        /// filtered by <see cref="LicenceRule"/>.
+        /// </summary>
+        public List<CompanyLicenceDto> Licences { get; set; } = new();
+
         public bool IsVerified { get; set; }
 
         // Company Highlights
@@ -129,5 +147,20 @@ namespace JobPortal.Application.DTOs.Candidate
         // Open Jobs
 
         public List<CandidateJobListItemDto> Jobs { get; set; } = new();
+    }
+    /// <summary>One licence line on the candidate-facing company page.</summary>
+    public class CompanyLicenceDto
+    {
+        /// <summary>"POE" | "RPSL_OR_REGISTRATION"</summary>
+        public string Code { get; set; } = string.Empty;
+
+        /// <summary>Card title, e.g. "POE Licence".</summary>
+        public string Label { get; set; } = string.Empty;
+
+        /// <summary>"Verified" | "Pending" | "Not Available"</summary>
+        public string Status { get; set; } = "Not Available";
+
+        /// <summary>Which document satisfied it, e.g. "RPSL Licence".</summary>
+        public string? VerifiedWith { get; set; }
     }
 }

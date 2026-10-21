@@ -102,6 +102,18 @@ namespace JobPortal.API.Controllers.Recruiter
                 });
             }
 
+            // Company location type decides which licence is required
+            // (Onshore outside India -> POE; Offshore -> RPSL / Registration
+            // Certificate), so it must be one of the two known values.
+            if (!string.Equals(request.CompanyLocationType, "Onshore", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(request.CompanyLocationType, "Offshore", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new
+                {
+                    message = "Company location type must be either 'Onshore' or 'Offshore'."
+                });
+            }
+
             // Places-internationally must be explicitly answered — the
             // frontend blocks Continue until it is, but the API shouldn't
             // silently accept "unanswered" as "No".

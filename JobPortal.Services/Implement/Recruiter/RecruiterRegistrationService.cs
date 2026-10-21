@@ -3516,6 +3516,10 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     NatureOfCompany = session.NatureOfCompany,
                     PlacesCandidatesInternationally = session.PlacesCandidatesInternationally,
 
+                    // Persist Onshore/Offshore on the permanent profile so the
+                    // candidate-facing company page can show the right licence.
+                    CompanyLocationType = session.CompanyLocationType,
+
                     CompanySize =
                         !string.IsNullOrWhiteSpace(session.CompanySize)
                             ? Enum.Parse<CompanySize>(session.CompanySize, true)

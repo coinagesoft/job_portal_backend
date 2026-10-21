@@ -447,7 +447,7 @@ public class AppDbContext : DbContext
                 .HasColumnName("tier_id")
                 .IsRequired();
 
-          
+
 
             e.Property(x => x.IsActive)
                 .HasColumnName("is_active")
@@ -997,6 +997,9 @@ public class AppDbContext : DbContext
 
             e.Property(x => x.PlacesCandidatesInternationally)
                 .HasColumnName("places_candidates_internationally");
+
+            e.Property(x => x.CompanyLocationType)
+                .HasColumnName("company_location_type");
 
             e.Property(x => x.BusinessType)
                  .HasConversion<string>()
