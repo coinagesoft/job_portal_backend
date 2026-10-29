@@ -3677,6 +3677,12 @@ namespace JobPortal.Infrastructure.Migrations
                 b.Property<string>("PackType")
                     .HasColumnType("text");
 
+                b.Property<string>("PayPalCaptureId")
+                    .HasColumnType("text");
+
+                b.Property<string>("PayPalOrderId")
+                    .HasColumnType("text");
+
                 b.Property<string>("PaymentMethod")
                     .HasColumnType("text");
 
