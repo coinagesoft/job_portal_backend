@@ -77,8 +77,21 @@ namespace JobPortal.Application.DTOs.Admin
         public int Credits { get; set; }
         public decimal Price { get; set; }
         public DateTime AssignedAt { get; set; }
-        public DateTime ExpiresAt { get; set; }
+
+        // Null = the membership has no end date (lifetime).
+        public DateTime? ExpiresAt { get; set; }
+
         public bool IsActive { get; set; }
+
+        // Membership end date has passed; the recruiter must renew.
+        public bool IsExpired { get; set; }
+
+        // Member with no end date.
+        public bool IsLifetime { get; set; }
+
+        // Credits still in the wallet that can no longer be used because the
+        // membership ended (forfeited when the recruiter renews).
+        public int ExpiredCredits { get; set; }
     }
 
     public class RecruiterDocumentDto

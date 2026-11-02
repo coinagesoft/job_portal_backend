@@ -53,19 +53,40 @@ namespace JobPortal.Services.Implement.Recruiter
                     .SumAsync(x =>
                         (int?)x.RemainingCredits) ?? 0;
 
+            // Once the membership has ended nothing in the wallet can be
+            // spent or handed out. Show it as zero (the raw amount is
+            // reported separately as ExpiredCredits) instead of showing a
+            // balance the recruiter can't use. It is physically forfeited
+            // when they renew.
+            var membershipExpired =
+                await IsMembershipExpiredAsync(employerId);
+
             return new WalletSummaryDto
             {
                 EmployerId = employerId,
 
+                MembershipExpired = membershipExpired,
+
+                ExpiredCredits =
+                    membershipExpired
+                        ? Math.Max(wallet.CreditBalance, 0)
+                        : 0,
+
                 CreditBalance =
-                    wallet.CreditBalance,
+                    membershipExpired
+                        ? 0
+                        : wallet.CreditBalance,
 
                 AllocatedCredits =
-                    allocatedCredits,
+                    membershipExpired
+                        ? 0
+                        : allocatedCredits,
 
                 AvailableCredits =
-                    wallet.CreditBalance -
-                    allocatedCredits,
+                    membershipExpired
+                        ? 0
+                        : wallet.CreditBalance -
+                          allocatedCredits,
 
                 PackageName =
                     wallet.PackageName,
@@ -87,6 +108,15 @@ namespace JobPortal.Services.Implement.Recruiter
                 {
                     Success = false,
                     Message = "Wallet not found."
+                };
+            }
+
+            if (await IsMembershipExpiredAsync(employerId))
+            {
+                return new AllocateCreditsResponseDto
+                {
+                    Success = false,
+                    Message = MembershipExpiredMessage
                 };
             }
 
@@ -245,6 +275,11 @@ namespace JobPortal.Services.Implement.Recruiter
             if (allocation == null)
                 return null;
 
+            // A sub-user can't spend from the pool once the owner's
+            // membership has ended, so don't show a spendable balance.
+            var membershipExpired =
+                await IsMembershipExpiredAsync(allocation.EmployerId);
+
             return new SubUserCreditBalanceDto
             {
                 SubUserId =
@@ -257,7 +292,9 @@ namespace JobPortal.Services.Implement.Recruiter
                     allocation.UsedCredits,
 
                 RemainingCredits =
-                    allocation.RemainingCredits
+                    membershipExpired
+                        ? 0
+                        : allocation.RemainingCredits
             };
         }
 
@@ -318,6 +355,18 @@ namespace JobPortal.Services.Implement.Recruiter
                 {
                     Success = false,
                     Message = "Wallet not found."
+                };
+            }
+
+            // Membership first: an expired member must renew (packs can't be
+            // bought), so don't tell them to "purchase a new package".
+            if (await IsMembershipExpiredAsync(employerId))
+            {
+                return new UnlockCandidateResponseDto
+                {
+                    Success = false,
+                    Message =
+                        "Your membership has expired. Please renew your membership to continue unlocking profiles."
                 };
             }
 
@@ -1125,8 +1174,6 @@ namespace JobPortal.Services.Implement.Recruiter
                     .SumAsync(x =>
                         (int?)x.RemainingCredits) ?? 0;
 
-            var remainingCredits = wallet?.CreditBalance ?? 0;
-
             var membership = await _context.EmployerProfiles
                 .AsNoTracking()
                 .Where(e => e.EmployerId == employerId)
@@ -1139,6 +1186,36 @@ namespace JobPortal.Services.Implement.Recruiter
                 membership.MembershipExpiresAt.HasValue &&
                 membership.MembershipExpiresAt.Value <= DateTime.UtcNow;
 
+            var earlyRenewalWindowDays =
+                MembershipRules.GetEarlyRenewalWindowDays(_configuration);
+
+            var isLifetimeMembership =
+                membership != null &&
+                membership.IsMember &&
+                !membership.MembershipExpiresAt.HasValue;
+
+            var canRenewEarly =
+                earlyRenewalWindowDays > 0 &&
+                membership != null &&
+                membership.IsMember &&
+                !membershipExpired &&
+                membership.MembershipExpiresAt.HasValue &&
+                membership.MembershipExpiresAt.Value <=
+                    DateTime.UtcNow.AddDays(earlyRenewalWindowDays);
+
+            // Credits left after the membership ended are unusable (and are
+            // forfeited on renewal) — report them as expired, not remaining.
+            var rawCredits = wallet?.CreditBalance ?? 0;
+
+            var expiredCredits =
+                membershipExpired ? Math.Max(rawCredits, 0) : 0;
+
+            var remainingCredits =
+                membershipExpired ? 0 : rawCredits;
+
+            if (membershipExpired)
+                allocatedToSubUsers = 0;
+
             return new CreditWalletDashboardDto
             {
                 IsMember = membership?.IsMember ?? false,
@@ -1147,8 +1224,17 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 MembershipExpired = membershipExpired,
 
+                IsLifetimeMembership = isLifetimeMembership,
+
+                CanRenewEarly = canRenewEarly,
+
+                EarlyRenewalWindowDays = earlyRenewalWindowDays,
+
                 RemainingCredits =
                     remainingCredits,
+
+                ExpiredCredits =
+                    expiredCredits,
 
                 PlanName =
                     wallet?.PackageName,
@@ -1180,6 +1266,25 @@ namespace JobPortal.Services.Implement.Recruiter
         {
             return await _context.CreditConfigurations
                 .FirstOrDefaultAsync(x => x.IsActive);
+        }
+
+        private const string MembershipExpiredMessage =
+            "Your membership has expired. Please renew your membership to continue.";
+
+        // True when the recruiter is a member whose membership end date has
+        // passed. Members with no end date never expire (legacy rows).
+        private async Task<bool> IsMembershipExpiredAsync(Guid employerId)
+        {
+            var membership = await _context.EmployerProfiles
+                .AsNoTracking()
+                .Where(e => e.EmployerId == employerId)
+                .Select(e => new { e.IsMember, e.MembershipExpiresAt })
+                .FirstOrDefaultAsync();
+
+            return membership != null &&
+                   membership.IsMember &&
+                   membership.MembershipExpiresAt.HasValue &&
+                   membership.MembershipExpiresAt.Value <= DateTime.UtcNow;
         }
 
         private async Task<CreditWallet?> GetEmployerWalletEntityAsync(Guid employerId)

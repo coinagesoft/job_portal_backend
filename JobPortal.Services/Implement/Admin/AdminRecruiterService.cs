@@ -616,11 +616,62 @@ namespace JobPortal.Services.Implement.Admin
             // MEMBERSHIP / PLAN
             // --------------------------------------------------
 
+            // The membership comes from the employer profile (plan + start +
+            // end date), NOT from the latest purchase-ledger row: that row can
+            // be a credit add-on pack or the negative "Unused credits expired"
+            // entry written on renewal. The ledger is only used as a fallback
+            // for recruiters without a membership (e.g. the free trial), and
+            // only positive grants count.
+            var membershipPlan = employer.IsMember && employer.MembershipPlanId.HasValue
+                ? await _db.MembershipPlans
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.PlanId == employer.MembershipPlanId.Value)
+                : null;
+
             var membership = await _db.EmployerPlanPurchase
                 .AsNoTracking()
-                .Where(p => p.EmployerId == employerId)
+                .Where(p => p.EmployerId == employerId && p.Credits > 0)
                 .OrderByDescending(p => p.AssignedAt)
                 .FirstOrDefaultAsync();
+
+            var nowUtc = DateTime.UtcNow;
+
+            RecruiterMembershipDto? membershipDto = null;
+
+            if (employer.IsMember)
+            {
+                var endsAt = employer.MembershipExpiresAt;
+                var isExpired = endsAt.HasValue && endsAt.Value <= nowUtc;
+
+                membershipDto = new RecruiterMembershipDto
+                {
+                    PlanName = membershipPlan?.PlanName ?? membership?.PlanName,
+                    Credits = membershipPlan?.InitialCredits ?? membership?.Credits ?? 0,
+                    Price = membershipPlan?.Price ?? membership?.Price ?? 0,
+                    AssignedAt = employer.MembershipPurchasedAt ?? employer.CreatedAt,
+                    ExpiresAt = endsAt,
+                    IsExpired = isExpired,
+                    IsLifetime = !endsAt.HasValue,
+                    IsActive = !isExpired,
+                    ExpiredCredits = isExpired
+                        ? Math.Max(employer.CreditWallet?.CreditBalance ?? 0, 0)
+                        : 0
+                };
+            }
+            else if (membership != null)
+            {
+                membershipDto = new RecruiterMembershipDto
+                {
+                    PlanName = membership.PlanName,
+                    Credits = membership.Credits,
+                    Price = membership.Price,
+                    AssignedAt = membership.AssignedAt,
+                    ExpiresAt = membership.ExpiresAt,
+                    IsExpired = membership.ExpiresAt <= nowUtc,
+                    IsLifetime = false,
+                    IsActive = membership.IsActive && membership.ExpiresAt > nowUtc
+                };
+            }
 
             // --------------------------------------------------
             // JOBS
@@ -919,22 +970,7 @@ namespace JobPortal.Services.Implement.Admin
                         employer.PlacesCandidatesInternationally
                 },
 
-                Membership = membership == null
-                    ? null
-                    : new RecruiterMembershipDto
-                    {
-                        PlanName = membership.PlanName,
-
-                        Credits = membership.Credits,
-
-                        Price = membership.Price,
-
-                        AssignedAt = membership.AssignedAt,
-
-                        ExpiresAt = membership.ExpiresAt,
-
-                        IsActive = membership.IsActive
-                    },
+                Membership = membershipDto,
 
                 Documents = documents,
 

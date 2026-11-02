@@ -20,5 +20,11 @@ namespace JobPortal.Application.DTOs.Recruiter.CreditWallet
         public string? PackageName { get; set; }
 
         public DateTime? PackExpiresAt { get; set; }
+
+        // True once the membership has ended. CreditBalance/AvailableCredits
+        // are 0 then; the unusable leftover is reported in ExpiredCredits.
+        public bool MembershipExpired { get; set; }
+
+        public int ExpiredCredits { get; set; }
     }
 }

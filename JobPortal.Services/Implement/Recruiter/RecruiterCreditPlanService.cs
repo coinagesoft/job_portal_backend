@@ -251,6 +251,12 @@ namespace JobPortal.Services.Implement.Recruiter
                             "Associated credit plan not found.");
                     }
 
+                    if (outcome.RejectedReason != null)
+                    {
+                        await dbTransaction.CommitAsync(); // persist the RefundRequired flag
+                        return Fail<VerifyPlanPaymentResponseDto>(RejectedPaymentMessage(outcome.RejectedReason));
+                    }
+
                     await dbTransaction.CommitAsync();
 
                     await TryEmailInvoiceAsync(outcome.InvoiceId, employerId);
@@ -497,6 +503,12 @@ namespace JobPortal.Services.Implement.Recruiter
                             "Associated credit plan not found.");
                     }
 
+                    if (outcome.RejectedReason != null)
+                    {
+                        await dbTransaction.CommitAsync(); // persist the RefundRequired flag
+                        return Fail<VerifyPlanPaymentResponseDto>(RejectedPaymentMessage(outcome.RejectedReason));
+                    }
+
                     await dbTransaction.CommitAsync();
 
                     await TryEmailInvoiceAsync(outcome.InvoiceId, employerId);
@@ -591,7 +603,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 .Select(t => t.PaymentStatus)
                 .FirstOrDefaultAsync();
 
-            return after == "Failed"
+            return after is "Failed" or "RefundRequired"
                 ? PayPalWebhookResult.Rejected
                 : PayPalWebhookResult.Retry;
         }
@@ -614,7 +626,11 @@ namespace JobPortal.Services.Implement.Recruiter
         // Shared purchase logic (Razorpay + PayPal)
         // Must be called inside an open db transaction; the caller commits.
         // ─────────────────────────────────────────────────────────────
-        private sealed record PurchaseOutcome(int Credits, int NewBalance, Guid PurchaseId, Guid InvoiceId);
+        // RejectedReason is set when the payment was captured but the purchase can
+        // no longer be applied (see ApplyCompletedPurchaseAsync). Nothing was granted.
+        private sealed record PurchaseOutcome(
+            int Credits, int NewBalance, Guid PurchaseId, Guid InvoiceId,
+            string? RejectedReason = null);
 
         private async Task<PurchaseOutcome?> ApplyCompletedPurchaseAsync(
             Guid employerId,
@@ -635,11 +651,13 @@ namespace JobPortal.Services.Implement.Recruiter
 
             var now = DateTime.UtcNow;
 
-            txn.PaymentStatus = "Completed";
-            txn.CreditsAddedAt = now;
-
             var isRenewal = string.Equals(
                 txn.TransactionType, MembershipRenewalType, StringComparison.Ordinal);
+
+            // Serialise purchases per employer. LockTransactionAsync only locks
+            // one transaction, so two different orders for the same employer
+            // (e.g. two renewals) could otherwise both pass the check below.
+            await LockEmployerAsync(employerId);
 
             var employer = await _context.EmployerProfiles
                 .FirstOrDefaultAsync(e => e.EmployerId == employerId);
@@ -649,6 +667,32 @@ namespace JobPortal.Services.Implement.Recruiter
                 _logger.LogError("Employer {EmployerId} not found while applying purchase.", employerId);
                 return null;
             }
+
+            // Eligibility was checked when the order was created, but the
+            // membership state can change between order creation and payment
+            // (an earlier order was paid, or the membership expired meanwhile).
+            // Check again against the current state, under the lock.
+            var eligibilityError = CheckPurchaseEligibility(employer, isRenewal);
+
+            if (eligibilityError != null)
+            {
+                // The gateway has already taken the money. Don't grant anything
+                // and don't leave the transaction looking "Pending"/"Completed":
+                // flag it so it can be refunded, and never retried.
+                txn.PaymentStatus = "RefundRequired";
+                txn.RefundReason = $"Payment received but not applied: {eligibilityError}";
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogCritical(
+                    "Purchase NOT applied, refund required. Txn={TxnId} Employer={EmployerId} Type={Type} Reason={Reason}",
+                    txn.TransactionId, employerId, txn.TransactionType, eligibilityError);
+
+                return new PurchaseOutcome(0, 0, Guid.Empty, Guid.Empty, eligibilityError);
+            }
+
+            txn.PaymentStatus = "Completed";
+            txn.CreditsAddedAt = now;
 
             // AssignedBy = owner's login identity (UserId), not the EmployerId.
             var ownerUserId = employer.UserId;
@@ -666,34 +710,70 @@ namespace JobPortal.Services.Implement.Recruiter
                 // previous term are forfeited (a negative ledger row zeroes
                 // them out, because the wallet balance is recomputed from
                 // the ledger), then the new plan's credits are granted.
-                purchaseExpiresAt = now.AddMonths(months > 0 ? months : 1);
+                // Early renewal (membership still running, inside the renewal
+                // window — eligibility was verified above): the new term starts
+                // when the current one ends, so the recruiter loses no paid
+                // time, and the credits they still have are carried over
+                // instead of forfeited, because their term hasn't ended yet.
+                var isEarlyRenewal =
+                    employer.IsMember &&
+                    employer.MembershipExpiresAt.HasValue &&
+                    employer.MembershipExpiresAt.Value > now;
+
+                var termStart = isEarlyRenewal
+                    ? employer.MembershipExpiresAt!.Value
+                    : now;
+
+                purchaseExpiresAt = termStart.AddMonths(months > 0 ? months : 1);
                 ledgerPlanId = Guid.Empty; // membership plans aren't CreditPlans (same as registration grant)
 
-                var totalGranted = await _context.EmployerPlanPurchase
-                    .Where(x => x.EmployerId == employerId)
-                    .SumAsync(x => (int?)x.Credits) ?? 0;
-
-                var totalUsed = await _context.CreditUsageTransactions
-                    .Where(x => x.EmployerId == employerId)
-                    .SumAsync(x => (int?)x.CreditsUsed) ?? 0;
-
-                var leftover = totalGranted - totalUsed;
-
-                if (leftover > 0)
+                // Forfeiting only applies when the previous term has actually
+                // ended (not for an early renewal).
+                if (!isEarlyRenewal)
                 {
-                    _context.EmployerPlanPurchase.Add(new EmployerPlanPurchase
+                    var totalGranted = await _context.EmployerPlanPurchase
+                        .Where(x => x.EmployerId == employerId)
+                        .SumAsync(x => (int?)x.Credits) ?? 0;
+
+                    var totalUsed = await _context.CreditUsageTransactions
+                        .Where(x => x.EmployerId == employerId)
+                        .SumAsync(x => (int?)x.CreditsUsed) ?? 0;
+
+                    var leftover = totalGranted - totalUsed;
+
+                    if (leftover > 0)
                     {
-                        EmployerCreditPlanId = Guid.NewGuid(),
-                        EmployerId = employerId,
-                        PlanId = Guid.Empty,
-                        PlanName = "Unused credits expired (previous membership ended)",
-                        Credits = -leftover,
-                        Price = 0,
-                        AssignedAt = now,
-                        ExpiresAt = now,
-                        IsActive = false,
-                        AssignedBy = ownerUserId
-                    });
+                        _context.EmployerPlanPurchase.Add(new EmployerPlanPurchase
+                        {
+                            EmployerCreditPlanId = Guid.NewGuid(),
+                            EmployerId = employerId,
+                            PlanId = Guid.Empty,
+                            PlanName = "Unused credits expired (previous membership ended)",
+                            Credits = -leftover,
+                            Price = 0,
+                            AssignedAt = now,
+                            ExpiresAt = now,
+                            IsActive = false,
+                            AssignedBy = ownerUserId
+                        });
+                    }
+
+                    // The wallet is reset to the new plan's credits, so whatever was
+                    // handed out to sub-users from the old pool is forfeited too.
+                    // Otherwise their allocations would still add up to more than
+                    // the wallet holds (AvailableToAllocate going negative).
+                    // Allocated = Used + Remaining is kept: only the unspent part
+                    // is taken back.
+                    var staleAllocations = await _context.SubUserCreditAllocation
+                        .Where(a => a.EmployerId == employerId && a.RemainingCredits > 0)
+                        .ToListAsync();
+
+                    foreach (var allocation in staleAllocations)
+                    {
+                        allocation.AllocatedCredits -= allocation.RemainingCredits;
+                        allocation.RemainingCredits = 0;
+                        allocation.UpdatedAt = now;
+                    }
                 }
 
                 employer.IsMember = true;
@@ -719,7 +799,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 }
                 else
                 {
-                    wallet.CreditBalance = credits;
+                    wallet.CreditBalance = isEarlyRenewal ? wallet.CreditBalance + credits : credits;
                     wallet.PackageName = plan.PlanName;
                     wallet.PackExpiresAt = purchaseExpiresAt;
                     wallet.UpdatedAt = now;
@@ -899,9 +979,11 @@ namespace JobPortal.Services.Implement.Recruiter
 
         // Membership rules:
         //  * Credit packs can only be bought while the membership is active.
-        //  * A membership can only be bought again once the previous one ended.
+        //  * A membership can only be bought again once the previous one ended,
+        //    or — when Membership:EarlyRenewalWindowDays is set — within that
+        //    many days before it ends (early renewal; see ApplyCompletedPurchaseAsync).
         // Returns null when the purchase is allowed, otherwise the reason.
-        private static string? CheckPurchaseEligibility(EmployerProfile employer, bool isMembershipPlan)
+        private string? CheckPurchaseEligibility(EmployerProfile employer, bool isMembershipPlan)
         {
             var now = DateTime.UtcNow;
             var expiresAt = employer.MembershipExpiresAt;
@@ -910,8 +992,16 @@ namespace JobPortal.Services.Implement.Recruiter
             {
                 if (employer.IsMember && expiresAt.HasValue && expiresAt.Value > now)
                 {
-                    return $"Your membership is active until {expiresAt.Value:dd MMM yyyy}. " +
-                           "You can renew it after it expires.";
+                    var windowDays = MembershipRules.GetEarlyRenewalWindowDays(_configuration);
+
+                    if (windowDays > 0 && expiresAt.Value <= now.AddDays(windowDays))
+                        return null; // inside the early-renewal window
+
+                    return windowDays > 0
+                        ? $"Your membership is active until {expiresAt.Value:dd MMM yyyy}. " +
+                          $"You can renew it from {expiresAt.Value.AddDays(-windowDays):dd MMM yyyy}."
+                        : $"Your membership is active until {expiresAt.Value:dd MMM yyyy}. " +
+                          "You can renew it after it expires.";
                 }
 
                 return null;
@@ -995,6 +1085,11 @@ namespace JobPortal.Services.Implement.Recruiter
             return null;
         }
 
+        private static string RejectedPaymentMessage(string reason) =>
+            "Your payment was received, but we couldn't apply it. " + reason +
+            " No credits were added and the amount will be refunded. " +
+            "Please contact support with your transaction reference if you don't receive it.";
+
         private async Task<VerifyPlanPaymentResponseDto> AlreadyCompletedAsync(Guid employerId)
         {
             var balance = await _context.CreditWallets
@@ -1024,6 +1119,13 @@ namespace JobPortal.Services.Implement.Recruiter
 
         // Serialises concurrent verifies of the same transaction (double click, webhook race).
         // Transaction-scoped: released automatically on commit/rollback.
+        private Task LockEmployerAsync(Guid employerId)
+        {
+            var key = "employer-purchase:" + employerId.ToString("N");
+            return _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtext({key}))");
+        }
+
         private Task LockTransactionAsync(Guid transactionId)
         {
             var key = transactionId.ToString("N");
