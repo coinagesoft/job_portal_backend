@@ -1127,8 +1127,26 @@ namespace JobPortal.Services.Implement.Recruiter
 
             var remainingCredits = wallet?.CreditBalance ?? 0;
 
+            var membership = await _context.EmployerProfiles
+                .AsNoTracking()
+                .Where(e => e.EmployerId == employerId)
+                .Select(e => new { e.IsMember, e.MembershipExpiresAt })
+                .FirstOrDefaultAsync();
+
+            var membershipExpired =
+                membership != null &&
+                membership.IsMember &&
+                membership.MembershipExpiresAt.HasValue &&
+                membership.MembershipExpiresAt.Value <= DateTime.UtcNow;
+
             return new CreditWalletDashboardDto
             {
+                IsMember = membership?.IsMember ?? false,
+
+                MembershipExpiresAt = membership?.MembershipExpiresAt,
+
+                MembershipExpired = membershipExpired,
+
                 RemainingCredits =
                     remainingCredits,
 

@@ -29,7 +29,13 @@ namespace JobPortal.Domain.Entities
         // "one-time" for lifetime plans; kept as a string so future
         // periods (monthly/yearly) don't require a schema change.
         public string Period { get; set; } = "one-time";
+        // Credits granted to the recruiter's wallet when this plan is
+        // purchased (at registration).
         public int InitialCredits { get; set; } = 0;
+
+        // How long (in months) the granted credits stay valid. Mirrors
+        // CreditPlan.ValidityMonths. Must be > 0 when InitialCredits > 0.
+        public int ValidityMonths { get; set; } = 0;
         public string? Badge { get; set; }
 
         public List<string> Features { get; set; } = new();

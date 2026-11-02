@@ -20,6 +20,12 @@ namespace JobPortal.Application.DTOs.Admin.MembershipPlan
 
         public string Period { get; set; } = "one-time";
 
+        // Credits added to the recruiter wallet on purchase
+        public int InitialCredits { get; set; } = 0;
+
+        // Validity of those credits, in months
+        public int ValidityMonths { get; set; } = 0;
+
         public string? Badge { get; set; }
 
         public List<string> Features { get; set; } = new();

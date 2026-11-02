@@ -81,6 +81,11 @@ public class EmployerProfile
     public bool IsMember { get; set; } = false;
     public Guid? MembershipPlanId { get; set; }
     public DateTime? MembershipPurchasedAt { get; set; }
+
+    // When the current membership ends. Credit top-ups bought during the
+    // membership expire on this date, and once it passes the recruiter
+    // must renew the membership before buying more credits.
+    public DateTime? MembershipExpiresAt { get; set; }
     public byte ProfileCompletionScore { get; set; } = 0;
     public Guid? VerifiedBy { get; set; }
 

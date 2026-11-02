@@ -3,6 +3,7 @@
 using JobPortal.Application.DTOs.Admin.CreditWallet;
 using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Domain.Entities;
+using JobPortal.Domain.Enums.common;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
@@ -97,12 +98,16 @@ namespace JobPortal.Services.Implement.Recruiter
             if (employer == null)
                 return Fail<CreatePlanOrderResponseDto>("Employer profile not found.");
 
-            var plan = await _context.CreditPlans
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.PlanId == request.PlanId && p.IsActive);
+            // The id can be a credit top-up pack OR a recruiter membership plan
+            // (renewal after the previous membership expired).
+            var (plan, isMembershipPlan) = await ResolvePlanForOrderAsync(request.PlanId);
 
             if (plan == null)
                 return Fail<CreatePlanOrderResponseDto>("Plan not found or is no longer active.");
+
+            var eligibilityError = CheckPurchaseEligibility(employer, isMembershipPlan);
+            if (eligibilityError != null)
+                return Fail<CreatePlanOrderResponseDto>(eligibilityError);
 
             // The free plan is granted automatically once at registration
             // (see SubmitRegistrationAsync) and isn't meant to be
@@ -136,7 +141,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 TransactionId = Guid.NewGuid(),
                 UserId = employer.UserId,   // ← resolved from DB
                 EmployerId = employerId,
-                TransactionType = "CreditPlanPurchase",
+                TransactionType = isMembershipPlan ? MembershipRenewalType : "CreditPlanPurchase",
                 PackType = plan.PlanName,
                 CreditQuantity = plan.Credits,
                 ValidityMonths = (byte)Math.Min(plan.ValidityMonths, 255),
@@ -291,12 +296,16 @@ namespace JobPortal.Services.Implement.Recruiter
             if (employer == null)
                 return Fail<CreatePlanOrderResponseDto>("Employer profile not found.");
 
-            var plan = await _context.CreditPlans
-                .AsNoTracking()
-                .FirstOrDefaultAsync(p => p.PlanId == request.PlanId && p.IsActive);
+            // The id can be a credit top-up pack OR a recruiter membership plan
+            // (renewal after the previous membership expired).
+            var (plan, isMembershipPlan) = await ResolvePlanForOrderAsync(request.PlanId);
 
             if (plan == null)
                 return Fail<CreatePlanOrderResponseDto>("Plan not found or is no longer active.");
+
+            var eligibilityError = CheckPurchaseEligibility(employer, isMembershipPlan);
+            if (eligibilityError != null)
+                return Fail<CreatePlanOrderResponseDto>(eligibilityError);
 
             if (plan.Price <= 0)
                 return Fail<CreatePlanOrderResponseDto>(
@@ -348,7 +357,7 @@ namespace JobPortal.Services.Implement.Recruiter
                 TransactionId = transactionId,
                 UserId = employer.UserId,
                 EmployerId = employerId,
-                TransactionType = "CreditPlanPurchase",
+                TransactionType = isMembershipPlan ? MembershipRenewalType : "CreditPlanPurchase",
                 PackType = plan.PlanName,
                 CreditQuantity = plan.Credits,
                 ValidityMonths = (byte)Math.Min(plan.ValidityMonths, 255),
@@ -624,58 +633,183 @@ namespace JobPortal.Services.Implement.Recruiter
             int credits = txn.CreditQuantity ?? plan.Credits;
             int months = txn.ValidityMonths.HasValue ? (int)txn.ValidityMonths.Value : plan.ValidityMonths;
 
+            var now = DateTime.UtcNow;
+
             txn.PaymentStatus = "Completed";
-            txn.CreditsAddedAt = DateTime.UtcNow;
+            txn.CreditsAddedAt = now;
+
+            var isRenewal = string.Equals(
+                txn.TransactionType, MembershipRenewalType, StringComparison.Ordinal);
+
+            var employer = await _context.EmployerProfiles
+                .FirstOrDefaultAsync(e => e.EmployerId == employerId);
+
+            if (employer == null)
+            {
+                _logger.LogError("Employer {EmployerId} not found while applying purchase.", employerId);
+                return null;
+            }
+
+            // AssignedBy = owner's login identity (UserId), not the EmployerId.
+            var ownerUserId = employer.UserId;
 
             var wallet = await _context.CreditWallets
                 .FirstOrDefaultAsync(x => x.EmployerId == employerId);
 
-            if (wallet == null)
-            {
-                wallet = new CreditWallet
-                {
-                    Wallet_Id = Guid.NewGuid(),
-                    EmployerId = employerId,
-                    CreditBalance = credits,
-                    PackageName = plan.PlanName,
-                    SharedWallet = true,
-                    PackExpiresAt = DateTime.UtcNow.AddMonths(months),
-                    UpdatedAt = DateTime.UtcNow
-                };
+            DateTime purchaseExpiresAt;
+            var ledgerPlanId = plan.PlanId;
 
-                _context.CreditWallets.Add(wallet);
+            if (isRenewal)
+            {
+                // ── Membership renewal ────────────────────────────────
+                // Starts a fresh membership term. Credits left over from the
+                // previous term are forfeited (a negative ledger row zeroes
+                // them out, because the wallet balance is recomputed from
+                // the ledger), then the new plan's credits are granted.
+                purchaseExpiresAt = now.AddMonths(months > 0 ? months : 1);
+                ledgerPlanId = Guid.Empty; // membership plans aren't CreditPlans (same as registration grant)
+
+                var totalGranted = await _context.EmployerPlanPurchase
+                    .Where(x => x.EmployerId == employerId)
+                    .SumAsync(x => (int?)x.Credits) ?? 0;
+
+                var totalUsed = await _context.CreditUsageTransactions
+                    .Where(x => x.EmployerId == employerId)
+                    .SumAsync(x => (int?)x.CreditsUsed) ?? 0;
+
+                var leftover = totalGranted - totalUsed;
+
+                if (leftover > 0)
+                {
+                    _context.EmployerPlanPurchase.Add(new EmployerPlanPurchase
+                    {
+                        EmployerCreditPlanId = Guid.NewGuid(),
+                        EmployerId = employerId,
+                        PlanId = Guid.Empty,
+                        PlanName = "Unused credits expired (previous membership ended)",
+                        Credits = -leftover,
+                        Price = 0,
+                        AssignedAt = now,
+                        ExpiresAt = now,
+                        IsActive = false,
+                        AssignedBy = ownerUserId
+                    });
+                }
+
+                employer.IsMember = true;
+                employer.MembershipPlanId = plan.PlanId;
+                employer.MembershipPurchasedAt = now;
+                employer.MembershipExpiresAt = purchaseExpiresAt;
+                employer.UpdatedAt = now;
+
+                if (wallet == null)
+                {
+                    wallet = new CreditWallet
+                    {
+                        Wallet_Id = Guid.NewGuid(),
+                        EmployerId = employerId,
+                        CreditBalance = credits,
+                        PackageName = plan.PlanName,
+                        SharedWallet = true,
+                        PackExpiresAt = purchaseExpiresAt,
+                        UpdatedAt = now
+                    };
+
+                    _context.CreditWallets.Add(wallet);
+                }
+                else
+                {
+                    wallet.CreditBalance = credits;
+                    wallet.PackageName = plan.PlanName;
+                    wallet.PackExpiresAt = purchaseExpiresAt;
+                    wallet.UpdatedAt = now;
+                }
             }
             else
             {
-                wallet.CreditBalance = (wallet.CreditBalance) + credits;
-                wallet.PackageName = plan.PlanName;
+                // ── Credit top-up pack ────────────────────────────────
+                // While a membership is running, the pack only lives until
+                // the membership ends (it does not extend it). Employers
+                // without a membership expiry keep the pack's own validity.
+                DateTime? membershipEnd =
+                    employer.IsMember &&
+                    employer.MembershipExpiresAt.HasValue &&
+                    employer.MembershipExpiresAt.Value > now
+                        ? employer.MembershipExpiresAt.Value
+                        : (DateTime?)null;
 
-                var baseDate =
-                    wallet.PackExpiresAt.HasValue &&
-                    wallet.PackExpiresAt.Value > DateTime.UtcNow
-                        ? wallet.PackExpiresAt.Value
-                        : DateTime.UtcNow;
+                if (membershipEnd.HasValue)
+                {
+                    purchaseExpiresAt = membershipEnd.Value;
 
-                wallet.PackExpiresAt = baseDate.AddMonths(months);
-                wallet.UpdatedAt = DateTime.UtcNow;
+                    if (wallet == null)
+                    {
+                        wallet = new CreditWallet
+                        {
+                            Wallet_Id = Guid.NewGuid(),
+                            EmployerId = employerId,
+                            CreditBalance = credits,
+                            PackageName = plan.PlanName,
+                            SharedWallet = true,
+                            PackExpiresAt = purchaseExpiresAt,
+                            UpdatedAt = now
+                        };
+
+                        _context.CreditWallets.Add(wallet);
+                    }
+                    else
+                    {
+                        wallet.CreditBalance += credits;
+                        wallet.PackExpiresAt = purchaseExpiresAt; // never beyond the membership
+                        wallet.UpdatedAt = now;
+                    }
+                }
+                else
+                {
+                    purchaseExpiresAt = now.AddMonths(months);
+
+                    if (wallet == null)
+                    {
+                        wallet = new CreditWallet
+                        {
+                            Wallet_Id = Guid.NewGuid(),
+                            EmployerId = employerId,
+                            CreditBalance = credits,
+                            PackageName = plan.PlanName,
+                            SharedWallet = true,
+                            PackExpiresAt = purchaseExpiresAt,
+                            UpdatedAt = now
+                        };
+
+                        _context.CreditWallets.Add(wallet);
+                    }
+                    else
+                    {
+                        wallet.CreditBalance = (wallet.CreditBalance) + credits;
+                        wallet.PackageName = plan.PlanName;
+
+                        var baseDate =
+                            wallet.PackExpiresAt.HasValue &&
+                            wallet.PackExpiresAt.Value > now
+                                ? wallet.PackExpiresAt.Value
+                                : now;
+
+                        wallet.PackExpiresAt = baseDate.AddMonths(months);
+                        wallet.UpdatedAt = now;
+                    }
+                }
             }
-
-            // AssignedBy = owner's login identity (UserId), not the EmployerId.
-            var ownerUserId = await _context.EmployerProfiles
-                .Where(e => e.EmployerId == employerId)
-                .Select(e => e.UserId)
-                .FirstOrDefaultAsync();
 
             var purchase = new EmployerPlanPurchase
             {
                 EmployerCreditPlanId = Guid.NewGuid(),
                 EmployerId = employerId,
-                PlanId = plan.PlanId,
+                PlanId = ledgerPlanId,
                 PlanName = plan.PlanName,
                 Credits = credits,
                 Price = txn.AmountPaise / 100m,
-                AssignedAt = DateTime.UtcNow,
-                ExpiresAt = DateTime.UtcNow.AddMonths(months),
+                AssignedAt = now,
+                ExpiresAt = purchaseExpiresAt,
                 IsActive = true,
                 AssignedBy = ownerUserId
             };
@@ -726,8 +860,97 @@ namespace JobPortal.Services.Implement.Recruiter
 
         // The transaction has no PlanId column, so match on what we stored. PlanName
         // alone is ambiguous now that the same plan name exists in several regions.
+        private const string MembershipRenewalType = "MembershipRenewal";
+
+        // Credit pack (top-up) OR active recruiter membership plan. A membership
+        // plan is returned in CreditPlan shape so the shared order/verify code
+        // (price, region, currency, name) works for both.
+        private async Task<(CreditPlan? Plan, bool IsMembership)> ResolvePlanForOrderAsync(Guid planId)
+        {
+            var creditPlan = await _context.CreditPlans
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.PlanId == planId && p.IsActive);
+
+            if (creditPlan != null)
+                return (creditPlan, false);
+
+            var membershipPlan = await _context.MembershipPlans
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p =>
+                    p.PlanId == planId &&
+                    p.PlanType == PlanType.Recruiter &&
+                    p.IsActive);
+
+            return membershipPlan == null
+                ? (null, false)
+                : (ToCreditPlanShape(membershipPlan), true);
+        }
+
+        private static CreditPlan ToCreditPlanShape(MembershipPlan m) => new CreditPlan
+        {
+            PlanId = m.PlanId,
+            PlanName = m.PlanName,
+            Credits = m.InitialCredits,
+            Price = m.Price,
+            ValidityMonths = m.ValidityMonths,
+            Region = m.Region,
+            IsActive = m.IsActive
+        };
+
+        // Membership rules:
+        //  * Credit packs can only be bought while the membership is active.
+        //  * A membership can only be bought again once the previous one ended.
+        // Returns null when the purchase is allowed, otherwise the reason.
+        private static string? CheckPurchaseEligibility(EmployerProfile employer, bool isMembershipPlan)
+        {
+            var now = DateTime.UtcNow;
+            var expiresAt = employer.MembershipExpiresAt;
+
+            if (isMembershipPlan)
+            {
+                if (employer.IsMember && expiresAt.HasValue && expiresAt.Value > now)
+                {
+                    return $"Your membership is active until {expiresAt.Value:dd MMM yyyy}. " +
+                           "You can renew it after it expires.";
+                }
+
+                return null;
+            }
+
+            if (employer.IsMember && expiresAt.HasValue && expiresAt.Value <= now)
+            {
+                return "Your membership has expired. Please renew your membership to buy more credits.";
+            }
+
+            return null;
+        }
+
         private async Task<CreditPlan?> FindPlanForTransactionAsync(PaymentTransaction txn)
         {
+            if (string.Equals(txn.TransactionType, MembershipRenewalType, StringComparison.Ordinal))
+            {
+                var membershipCandidates = await _context.MembershipPlans
+                    .AsNoTracking()
+                    .Where(p =>
+                        p.PlanName == txn.PackType &&
+                        p.PlanType == PlanType.Recruiter &&
+                        p.IsActive)
+                    .ToListAsync();
+
+                var membershipPaidPrice = txn.PaymentMethod == GatewayPayPal
+                    ? txn.AmountPaise / 100m
+                    : (decimal?)null;
+
+                var match =
+                    membershipCandidates.FirstOrDefault(p =>
+                        p.InitialCredits == txn.CreditQuantity &&
+                        (membershipPaidPrice == null || p.Price == membershipPaidPrice))
+                    ?? membershipCandidates.FirstOrDefault(p => p.InitialCredits == txn.CreditQuantity)
+                    ?? membershipCandidates.FirstOrDefault();
+
+                return match == null ? null : ToCreditPlanShape(match);
+            }
+
             var candidates = await _context.CreditPlans
                 .AsNoTracking()
                 .Where(p => p.PlanName == txn.PackType && p.IsActive)

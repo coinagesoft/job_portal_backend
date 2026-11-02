@@ -15,6 +15,14 @@ namespace JobPortal.Application.DTOs.Recruiter.CreditWallet
 
         public DateTime? PlanExpiryDate { get; set; }
 
+        // Membership state. When MembershipExpired is true the recruiter must
+        // renew the membership before buying more credits.
+        public bool IsMember { get; set; }
+
+        public DateTime? MembershipExpiresAt { get; set; }
+
+        public bool MembershipExpired { get; set; }
+
         // Widget 1
         public int CreditsUsedThisMonth { get; set; }
 

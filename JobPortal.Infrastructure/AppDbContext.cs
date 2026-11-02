@@ -1095,6 +1095,7 @@ public class AppDbContext : DbContext
             e.Property(x => x.IsMember).HasColumnName("is_member");
             e.Property(x => x.MembershipPlanId).HasColumnName("membership_plan_id");
             e.Property(x => x.MembershipPurchasedAt).HasColumnName("membership_purchased_at");
+            e.Property(x => x.MembershipExpiresAt).HasColumnName("membership_expires_at");
 
             // INDEX
             e.HasIndex(x => x.Gstin)

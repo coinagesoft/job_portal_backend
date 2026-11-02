@@ -25,6 +25,13 @@ namespace JobPortal.Services.Implement.Admin
             CreateMembershipPlanRequestDto request,
             Guid adminId)
         {
+            var validationError = ValidateCreditsAndValidity(
+                request.InitialCredits, request.ValidityMonths);
+            if (validationError != null)
+            {
+                return new CommonResponseDto { Success = false, Message = validationError };
+            }
+
             var plan = new MembershipPlan
             {
                 PlanId = Guid.NewGuid(),
@@ -34,6 +41,8 @@ namespace JobPortal.Services.Implement.Admin
                 Description = request.Description,
                 Price = request.Price,
                 Period = string.IsNullOrWhiteSpace(request.Period) ? "one-time" : request.Period,
+                InitialCredits = request.InitialCredits,
+                ValidityMonths = request.ValidityMonths,
                 Badge = request.Badge,
                 Features = request.Features ?? new List<string>(),
                 IsActive = true,
@@ -68,12 +77,21 @@ namespace JobPortal.Services.Implement.Admin
                 };
             }
 
+            var validationError = ValidateCreditsAndValidity(
+                request.InitialCredits, request.ValidityMonths);
+            if (validationError != null)
+            {
+                return new CommonResponseDto { Success = false, Message = validationError };
+            }
+
             plan.PlanType = request.PlanType;
             plan.Region = string.IsNullOrWhiteSpace(request.Region) ? plan.Region : request.Region;
             plan.PlanName = request.PlanName;
             plan.Description = request.Description;
             plan.Price = request.Price;
             plan.Period = string.IsNullOrWhiteSpace(request.Period) ? plan.Period : request.Period;
+            plan.InitialCredits = request.InitialCredits;
+            plan.ValidityMonths = request.ValidityMonths;
             plan.Badge = request.Badge;
             plan.Features = request.Features ?? new List<string>();
             plan.IsActive = request.IsActive;
@@ -184,7 +202,21 @@ namespace JobPortal.Services.Implement.Admin
                 .ToList();
         }
 
-        private static MembershipPlanResponseDto ToResponseDto( MembershipPlan plan, List<Coupon> allActiveCoupons)
+        private static string? ValidateCreditsAndValidity(int credits, int validityMonths)
+        {
+            if (credits < 0)
+                return "Credits cannot be negative.";
+
+            if (validityMonths < 0)
+                return "Validity cannot be negative.";
+
+            if (credits > 0 && validityMonths <= 0)
+                return "Validity (months) is required when the plan includes credits.";
+
+            return null;
+        }
+
+        private static MembershipPlanResponseDto ToResponseDto(MembershipPlan plan, List<Coupon> allActiveCoupons)
         {
             var planRegion = plan.Region?.Trim().ToLower();
 
@@ -231,6 +263,8 @@ namespace JobPortal.Services.Implement.Admin
                 Description = plan.Description,
                 Price = plan.Price,
                 Period = plan.Period,
+                InitialCredits = plan.InitialCredits,
+                ValidityMonths = plan.ValidityMonths,
                 Badge = plan.Badge,
                 Features = plan.Features,
                 IsActive = plan.IsActive,

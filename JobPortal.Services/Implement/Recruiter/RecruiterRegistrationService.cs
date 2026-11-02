@@ -3465,6 +3465,13 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                 var now = DateTime.UtcNow;
 
+                // When the purchased membership ends (null = no validity set).
+                // Credits granted below and any later top-ups expire on this date.
+                DateTime? membershipExpiresAt =
+                    membershipPlan != null && membershipPlan.ValidityMonths > 0
+                        ? now.AddMonths(membershipPlan.ValidityMonths)
+                        : (DateTime?)null;
+
                 var membershipAmountPaise = membershipPlan != null
        ? (int)Math.Round(
            membershipPlan.Price * 100,
@@ -3559,6 +3566,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     IsMember = membershipPlan != null,
                     MembershipPlanId = membershipPlan?.PlanId,
                     MembershipPurchasedAt = membershipPlan != null ? now : (DateTime?)null,
+                    MembershipExpiresAt = membershipExpiresAt,
 
                     CreatedAt = now,
                     UpdatedAt = now
@@ -3735,9 +3743,26 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
 
 
-                // ── Create Wallet (10 Free Trial Credits) ─────────────────────────
-                var trialCreditsGranted = 10;
-                var trialExpiresAt = DateTime.UtcNow.AddDays(30);
+                // ── Create Wallet ─────────────────────────────────────
+                // If the recruiter bought a membership plan that carries
+                // credits, grant exactly those credits for the plan's
+                // validity period. Otherwise fall back to the default
+                // free-trial grant (10 credits, 30 days).
+                var planGrantsCredits =
+                    membershipPlan != null &&
+                    membershipPlan.InitialCredits > 0;
+
+                var creditsGranted = planGrantsCredits
+                    ? membershipPlan!.InitialCredits
+                    : 10;
+
+                var grantPackageName = planGrantsCredits
+                    ? membershipPlan!.PlanName
+                    : "Free Trial";
+
+                var grantExpiresAt = planGrantsCredits
+                    ? (membershipExpiresAt ?? now.AddDays(30))
+                    : now.AddDays(30);
 
                 _context.CreditWallets.Add(new CreditWallet
                 {
@@ -3745,13 +3770,11 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                     EmployerId = employer.EmployerId,
 
-                    // Give every new employer 10 free credits
-                    CreditBalance = trialCreditsGranted,
+                    CreditBalance = creditsGranted,
 
-                    PackageName = "Free Trial",
+                    PackageName = grantPackageName,
 
-                    // Trial validity (change/remove as needed)
-                    PackExpiresAt = trialExpiresAt,
+                    PackExpiresAt = grantExpiresAt,
 
                     SharedWallet = true,
 
@@ -3764,19 +3787,19 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 // (sum of EmployerPlanPurchase.Credits) - (sum of
                 // CreditUsageTransactions.CreditsUsed) every time the wallet
                 // is read, and overwrites CreditBalance with that figure.
-                // Without a matching ledger row here, the free trial credits
-                // above get silently reset to 0 the first time the wallet
-                // page loads.
+                // Without a matching ledger row here, the credits above
+                // get silently reset to 0 the first time the wallet page
+                // loads.
                 _context.EmployerPlanPurchase.Add(new EmployerPlanPurchase
                 {
                     EmployerCreditPlanId = Guid.NewGuid(),
                     EmployerId = employer.EmployerId,
                     PlanId = Guid.Empty,
-                    PlanName = "Free Trial",
-                    Credits = trialCreditsGranted,
-                    Price = 0,
+                    PlanName = grantPackageName,
+                    Credits = creditsGranted,
+                    Price = planGrantsCredits ? membershipPlan!.Price : 0,
                     AssignedAt = now,
-                    ExpiresAt = trialExpiresAt,
+                    ExpiresAt = grantExpiresAt,
                     IsActive = true,
                     AssignedBy = user.UserId,
                 });

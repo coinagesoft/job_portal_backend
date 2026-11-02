@@ -2040,6 +2040,10 @@ namespace JobPortal.Infrastructure.Migrations
                 b.Property<string>("LinkedInUrl")
                     .HasColumnType("text");
 
+                b.Property<DateTime?>("MembershipExpiresAt")
+                    .HasColumnType("timestamp with time zone")
+                    .HasColumnName("membership_expires_at");
+
                 b.Property<Guid?>("MembershipPlanId")
                     .HasColumnType("uuid")
                     .HasColumnName("membership_plan_id");
@@ -3413,6 +3417,9 @@ namespace JobPortal.Infrastructure.Migrations
                 b.Property<Guid?>("UpdatedBy")
                     .HasColumnType("uuid");
 
+                b.Property<int>("ValidityMonths")
+                    .HasColumnType("integer");
+
                 b.HasKey("PlanId");
 
                 b.HasIndex("PlanType", "Region", "IsActive");
@@ -3675,12 +3682,6 @@ namespace JobPortal.Infrastructure.Migrations
                     .HasColumnType("uuid");
 
                 b.Property<string>("PackType")
-                    .HasColumnType("text");
-
-                b.Property<string>("PayPalCaptureId")
-                    .HasColumnType("text");
-
-                b.Property<string>("PayPalOrderId")
                     .HasColumnType("text");
 
                 b.Property<string>("PaymentMethod")
