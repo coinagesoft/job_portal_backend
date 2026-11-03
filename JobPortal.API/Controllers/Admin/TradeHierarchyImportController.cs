@@ -1,10 +1,12 @@
 ﻿using JobPortal.Services.IImplement.IAdmin;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace JobPortal.API.Controllers.Admin
 {
     [ApiController]
     [Route("api/admin/trade-hierarchy")]
+    [Authorize(Roles = "Admin")]
     public class TradeHierarchyImportController : ControllerBase
     {
         private readonly ITradeHierarchyImportService _importService;

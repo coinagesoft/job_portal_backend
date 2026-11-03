@@ -24,16 +24,50 @@ namespace JobPortal.Services.Implement.Recruiter
             _creditConfigurationService = creditConfigurationService;
         }
 
-        // Profile unlock cost is a single global setting managed by the
-        // admin (Plans > Unlock pricing). Every candidate card should show
-        // this same figure — it is NOT band-specific — so we read it once
-        // per request instead of hardcoding it here.
-        private async Task<int> GetProfileUnlockCreditsAsync()
+        // Unlock cost is decided by the candidate's main trade -> Band (tier)
+        // mapping managed in Admin > Homepage Management. This is the same
+        // lookup CreditWalletService.UnlockCandidateAsync uses to deduct
+        // credits, so the figure shown on a card always equals the charge.
+        // Key = trimmed, lower-cased trade name. A trade with no active
+        // band is simply absent (the card shows 0 = "not priced").
+        private async Task<Dictionary<string, int>> GetTradeUnlockCostMapAsync()
         {
-            var config =
-                await _creditConfigurationService.GetConfigurationAsync();
+            var rows = await _context.TradeCreditMappings
+                .AsNoTracking()
+                .Where(x =>
+                    x.IsActive &&
+                    x.SubTradeId == null &&
+                    x.TradeCategory.IsActive &&
+                    x.Tier.IsActive)
+                .Select(x => new
+                {
+                    x.TradeCategory.Name,
+                    x.Tier.UnlockCredits
+                })
+                .ToListAsync();
 
-            return config?.ProfileUnlockCredits ?? 2;
+            var map = new Dictionary<string, int>();
+
+            foreach (var row in rows)
+            {
+                var key = (row.Name ?? string.Empty).Trim().ToLower();
+
+                if (key.Length > 0 && !map.ContainsKey(key))
+                    map[key] = row.UnlockCredits;
+            }
+
+            return map;
+        }
+
+        private static int UnlockCostFor(
+            Dictionary<string, int> map,
+            string? primaryTrade)
+        {
+            var key = (primaryTrade ?? string.Empty).Trim().ToLower();
+
+            return key.Length > 0 && map.TryGetValue(key, out var credits)
+                ? credits
+                : 0;
         }
 
         // =====================================================
@@ -242,10 +276,10 @@ namespace JobPortal.Services.Implement.Recruiter
             var candidateCards =
                 new List<CvSearchCandidateCardDto>();
 
-            // Read once for the whole page — it's a single global admin
-            // setting (Plans > Unlock pricing), not per-candidate.
-            var profileUnlockCredits =
-                await GetProfileUnlockCreditsAsync();
+            // Read once for the whole page; the cost is then looked up per
+            // candidate from their main trade's band.
+            var tradeUnlockCosts =
+                await GetTradeUnlockCostMapAsync();
 
             foreach (var candidate in candidates)
             {
@@ -353,7 +387,9 @@ namespace JobPortal.Services.Implement.Recruiter
                             isUnlocked,
 
                         UnlockCredits =
-                            profileUnlockCredits,
+                            UnlockCostFor(
+                                tradeUnlockCosts,
+                                candidate.PrimaryTrade),
 
                         Skills =
                             skillNames,
@@ -561,8 +597,8 @@ namespace JobPortal.Services.Implement.Recruiter
             var result =
                 new List<CvSearchCandidateCardDto>();
 
-            var profileUnlockCredits =
-                await GetProfileUnlockCreditsAsync();
+            var tradeUnlockCosts =
+                await GetTradeUnlockCostMapAsync();
 
             foreach (var candidate in candidates)
             {
@@ -627,7 +663,9 @@ namespace JobPortal.Services.Implement.Recruiter
                         CanDownloadCv = true,
 
                         UnlockCredits =
-                            profileUnlockCredits,
+                            UnlockCostFor(
+                                tradeUnlockCosts,
+                                candidate.PrimaryTrade),
 
                         Skills =
                             candidate.Skills

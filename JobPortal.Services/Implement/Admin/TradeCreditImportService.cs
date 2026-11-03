@@ -344,9 +344,18 @@ namespace JobPortal.Services.Implement.Admin
             var digits = new string(
                 tierName.Where(char.IsDigit).ToArray());
 
-            return int.TryParse(digits, out var order)
-                ? order
-                : 0;
+            if (int.TryParse(digits, out var order))
+                return order;
+
+            // "Band A" / "Band B" / "Band C" -> 1 / 2 / 3
+            var lastWord = tierName
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .LastOrDefault();
+
+            if (lastWord is { Length: 1 } && char.IsLetter(lastWord[0]))
+                return char.ToUpperInvariant(lastWord[0]) - 'A' + 1;
+
+            return 0;
         }
 
         // Saves the tier for the selected trade AND every other trade with the same name.
