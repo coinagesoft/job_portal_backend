@@ -26,5 +26,8 @@ namespace JobPortal.Application.DTOs.Recruiter.CreditWallet
         public bool MembershipExpired { get; set; }
 
         public int ExpiredCredits { get; set; }
+
+        // Last day the recruiter can renew and still get ExpiredCredits back.
+        public DateTime? CreditGraceEndsAt { get; set; }
     }
 }

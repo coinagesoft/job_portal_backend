@@ -61,11 +61,17 @@ namespace JobPortal.Services.Implement.Recruiter
             var membershipExpired =
                 await IsMembershipExpiredAsync(employerId);
 
+            var graceEndsAt = membershipExpired
+                ? await GetCreditGraceEndsAtAsync(employerId)
+                : null;
+
             return new WalletSummaryDto
             {
                 EmployerId = employerId,
 
                 MembershipExpired = membershipExpired,
+
+                CreditGraceEndsAt = graceEndsAt,
 
                 ExpiredCredits =
                     membershipExpired
@@ -365,6 +371,8 @@ namespace JobPortal.Services.Implement.Recruiter
                 return new UnlockCandidateResponseDto
                 {
                     Success = false,
+                    Code = "MEMBERSHIP_EXPIRED",
+                    MembershipExpired = true,
                     Message =
                         "Your membership has expired. Please renew your membership to continue unlocking profiles."
                 };
@@ -1216,8 +1224,19 @@ namespace JobPortal.Services.Implement.Recruiter
             if (membershipExpired)
                 allocatedToSubUsers = 0;
 
+            var creditGraceDays =
+                MembershipRules.GetCreditGraceDays(_configuration);
+
+            DateTime? creditGraceEndsAt = membershipExpired
+                ? membership!.MembershipExpiresAt!.Value.AddDays(creditGraceDays)
+                : null;
+
             return new CreditWalletDashboardDto
             {
+                CreditGraceDays = creditGraceDays,
+
+                CreditGraceEndsAt = creditGraceEndsAt,
+
                 IsMember = membership?.IsMember ?? false,
 
                 MembershipExpiresAt = membership?.MembershipExpiresAt,
@@ -1299,6 +1318,20 @@ namespace JobPortal.Services.Implement.Recruiter
             return wallet;
         }
 
+        // Last day an expired member can renew and still get their unused
+        // credits back. Null when the employer has no membership end date.
+        private async Task<DateTime?> GetCreditGraceEndsAtAsync(Guid employerId)
+        {
+            var expiresAt = await _context.EmployerProfiles
+                .AsNoTracking()
+                .Where(e => e.EmployerId == employerId && e.IsMember)
+                .Select(e => e.MembershipExpiresAt)
+                .FirstOrDefaultAsync();
+
+            return expiresAt?.AddDays(
+                MembershipRules.GetCreditGraceDays(_configuration));
+        }
+
         private async Task ReconcileWalletBalanceAsync(CreditWallet wallet)
         {
             var totalGranted = await _context.EmployerPlanPurchase
@@ -1310,6 +1343,64 @@ namespace JobPortal.Services.Implement.Recruiter
                 .SumAsync(x => (int?)x.CreditsUsed) ?? 0;
 
             var trueRemaining = totalGranted - totalUsed;
+
+            // Credits left over from an expired membership are on hold for
+            // Membership:CreditGraceDays (30) days so the recruiter can renew
+            // and get them back. Once that window has passed without a
+            // renewal they are forfeited for good: a negative ledger row
+            // zeroes them (the balance is always recomputed from the ledger)
+            // and sub-user allocations are taken back too.
+            if (trueRemaining > 0)
+            {
+                var membership = await _context.EmployerProfiles
+                    .AsNoTracking()
+                    .Where(e => e.EmployerId == wallet.EmployerId)
+                    .Select(e => new
+                    {
+                        e.IsMember,
+                        e.MembershipExpiresAt,
+                        e.UserId
+                    })
+                    .FirstOrDefaultAsync();
+
+                var now = DateTime.UtcNow;
+
+                if (membership != null &&
+                    membership.IsMember &&
+                    membership.MembershipExpiresAt.HasValue &&
+                    membership.MembershipExpiresAt.Value.AddDays(
+                        MembershipRules.GetCreditGraceDays(_configuration)) <= now)
+                {
+                    _context.EmployerPlanPurchase.Add(new EmployerPlanPurchase
+                    {
+                        EmployerCreditPlanId = Guid.NewGuid(),
+                        EmployerId = wallet.EmployerId,
+                        PlanId = Guid.Empty,
+                        PlanName = "Unused credits expired (renewal window ended)",
+                        Credits = -trueRemaining,
+                        Price = 0,
+                        AssignedAt = now,
+                        ExpiresAt = now,
+                        IsActive = false,
+                        AssignedBy = membership.UserId
+                    });
+
+                    var staleAllocations = await _context.SubUserCreditAllocation
+                        .Where(a => a.EmployerId == wallet.EmployerId &&
+                                    a.RemainingCredits > 0)
+                        .ToListAsync();
+
+                    foreach (var allocation in staleAllocations)
+                    {
+                        allocation.AllocatedCredits -= allocation.RemainingCredits;
+                        allocation.RemainingCredits = 0;
+                        allocation.UpdatedAt = now;
+                    }
+
+                    trueRemaining = 0;
+                    wallet.CreditBalance = -1; // force the save below
+                }
+            }
 
             if (wallet.CreditBalance != trueRemaining)
             {

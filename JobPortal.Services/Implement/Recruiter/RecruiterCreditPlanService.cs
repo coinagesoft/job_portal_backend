@@ -720,6 +720,34 @@ namespace JobPortal.Services.Implement.Recruiter
                     employer.MembershipExpiresAt.HasValue &&
                     employer.MembershipExpiresAt.Value > now;
 
+                // Renewed after the term ended but still inside the credit
+                // grace window (Membership:CreditGraceDays, default 30 days
+                // after expiry): the credits left over were on hold, so they
+                // are given back and added to the new plan's credits.
+                // Renewing later than that forfeits them.
+                var isGraceRenewal =
+                    !isEarlyRenewal &&
+                    employer.IsMember &&
+                    employer.MembershipExpiresAt.HasValue &&
+                    employer.MembershipExpiresAt.Value <= now &&
+                    now <= employer.MembershipExpiresAt.Value.AddDays(
+                        MembershipRules.GetCreditGraceDays(_configuration));
+
+                var carriedCredits = 0;
+
+                if (isGraceRenewal)
+                {
+                    var granted = await _context.EmployerPlanPurchase
+                        .Where(x => x.EmployerId == employerId)
+                        .SumAsync(x => (int?)x.Credits) ?? 0;
+
+                    var spent = await _context.CreditUsageTransactions
+                        .Where(x => x.EmployerId == employerId)
+                        .SumAsync(x => (int?)x.CreditsUsed) ?? 0;
+
+                    carriedCredits = Math.Max(granted - spent, 0);
+                }
+
                 var termStart = isEarlyRenewal
                     ? employer.MembershipExpiresAt!.Value
                     : now;
@@ -727,9 +755,10 @@ namespace JobPortal.Services.Implement.Recruiter
                 purchaseExpiresAt = termStart.AddMonths(months > 0 ? months : 1);
                 ledgerPlanId = Guid.Empty; // membership plans aren't CreditPlans (same as registration grant)
 
-                // Forfeiting only applies when the previous term has actually
-                // ended (not for an early renewal).
-                if (!isEarlyRenewal)
+                // Forfeiting only applies when the previous term has ended AND
+                // the credit grace window has passed (not for an early or a
+                // grace-period renewal, which keep the leftover credits).
+                if (!isEarlyRenewal && !isGraceRenewal)
                 {
                     var totalGranted = await _context.EmployerPlanPurchase
                         .Where(x => x.EmployerId == employerId)
@@ -799,7 +828,11 @@ namespace JobPortal.Services.Implement.Recruiter
                 }
                 else
                 {
-                    wallet.CreditBalance = isEarlyRenewal ? wallet.CreditBalance + credits : credits;
+                    wallet.CreditBalance = isEarlyRenewal
+                        ? wallet.CreditBalance + credits
+                        : isGraceRenewal
+                            ? carriedCredits + credits
+                            : credits;
                     wallet.PackageName = plan.PlanName;
                     wallet.PackExpiresAt = purchaseExpiresAt;
                     wallet.UpdatedAt = now;

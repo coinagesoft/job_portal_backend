@@ -12,6 +12,13 @@ namespace JobPortal.Application.DTOs.Recruiter.CreditWallet
 
         public string Message { get; set; } = string.Empty;
 
+        // Set to "MEMBERSHIP_EXPIRED" when the unlock was refused because the
+        // recruiter's membership validity has ended, so the app can send them
+        // to the membership plans page instead of just showing an error.
+        public string? Code { get; set; }
+
+        public bool MembershipExpired { get; set; }
+
         public Guid UnlockId { get; set; }
 
         public Guid CandidateId { get; set; }

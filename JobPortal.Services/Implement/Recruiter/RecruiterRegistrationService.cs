@@ -43,6 +43,17 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     // (CandidateAuthService.DefaultCandidateMembershipRegion).
     private const string DefaultRecruiterMembershipRegion = "in";
 
+    // Plans are stored under region codes ("in", "us", ...). Older clients sent
+    // the country name ("india"), which never matched the stored "in" code.
+    private static string NormalizeMembershipRegion(string? region)
+    {
+        if (string.IsNullOrWhiteSpace(region))
+            return DefaultRecruiterMembershipRegion;
+
+        var r = region.Trim().ToLowerInvariant();
+        return r == "india" ? DefaultRecruiterMembershipRegion : r;
+    }
+
     public RecruiterRegistrationService(
         AppDbContext context,
          ILogger<RecruiterRegistrationService> logger,
@@ -87,9 +98,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
     // CandidateAuthService.ResolveCandidateMembershipPlanAsync.
     private async Task<JobPortal.Application.DTOs.Admin.MembershipPlan.MembershipPlanResponseDto?> ResolveRecruiterMembershipPlanAsync(string? region)
     {
-        var normalizedRegion = string.IsNullOrWhiteSpace(region)
-            ? DefaultRecruiterMembershipRegion
-            : region.Trim().ToLowerInvariant();
+        var normalizedRegion = NormalizeMembershipRegion(region);
 
         var regionPlans = await _membershipPlanService.GetActivePlansAsync(PlanType.Recruiter, normalizedRegion);
         var plan = regionPlans.OrderBy(p => p.Price).FirstOrDefault();
@@ -142,9 +151,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 };
             }
 
-            var normalizedRegion = string.IsNullOrWhiteSpace(request.Region)
-                ? DefaultRecruiterMembershipRegion
-                : request.Region.Trim().ToLowerInvariant();
+            var normalizedRegion = NormalizeMembershipRegion(request.Region);
 
             var plan = await _context.MembershipPlans
                 .AsNoTracking()
@@ -3233,10 +3240,7 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
                     if (!string.IsNullOrWhiteSpace(request.CouponCode))
                     {
-                        var normalizedRegion =
-       string.IsNullOrWhiteSpace(request.Region)
-           ? DefaultRecruiterMembershipRegion
-           : request.Region.Trim().ToLowerInvariant();
+                        var normalizedRegion = NormalizeMembershipRegion(request.Region);
 
                         var couponRequest = new ValidateCouponRequestDto
                         {
@@ -3744,25 +3748,14 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
 
                 // ── Create Wallet ─────────────────────────────────────
-                // If the recruiter bought a membership plan that carries
-                // credits, grant exactly those credits for the plan's
-                // validity period. Otherwise fall back to the default
-                // free-trial grant (10 credits, 30 days).
-                var planGrantsCredits =
-                    membershipPlan != null &&
-                    membershipPlan.InitialCredits > 0;
-
-                var creditsGranted = planGrantsCredits
-                    ? membershipPlan!.InitialCredits
-                    : 10;
-
-                var grantPackageName = planGrantsCredits
-                    ? membershipPlan!.PlanName
-                    : "Free Trial";
-
-                var grantExpiresAt = planGrantsCredits
-                    ? (membershipExpiresAt ?? now.AddDays(30))
-                    : now.AddDays(30);
+                // The wallet reflects the membership plan the recruiter
+                // purchased: its name, its credits (InitialCredits) and its
+                // validity. There is no automatic "Free Trial" grant any more.
+                // A recruiter who registers without a plan starts with an
+                // empty wallet.
+                var creditsGranted = membershipPlan?.InitialCredits ?? 0;
+                var grantPackageName = membershipPlan?.PlanName;
+                var grantExpiresAt = membershipExpiresAt;
 
                 _context.CreditWallets.Add(new CreditWallet
                 {
@@ -3781,28 +3774,27 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                     UpdatedAt = now
                 });
 
-                // Record the grant in the plan-purchase ledger too.
+                // Record the purchase in the plan-purchase ledger.
                 // CreditWalletService.ReconcileWalletBalanceAsync recomputes
-                // the wallet's balance as
-                // (sum of EmployerPlanPurchase.Credits) - (sum of
-                // CreditUsageTransactions.CreditsUsed) every time the wallet
-                // is read, and overwrites CreditBalance with that figure.
-                // Without a matching ledger row here, the credits above
-                // get silently reset to 0 the first time the wallet page
-                // loads.
-                _context.EmployerPlanPurchase.Add(new EmployerPlanPurchase
+                // the wallet balance from this ledger on every read, so the
+                // row is required or the credits above would be reset to 0.
+                if (membershipPlan != null)
                 {
-                    EmployerCreditPlanId = Guid.NewGuid(),
-                    EmployerId = employer.EmployerId,
-                    PlanId = Guid.Empty,
-                    PlanName = grantPackageName,
-                    Credits = creditsGranted,
-                    Price = planGrantsCredits ? membershipPlan!.Price : 0,
-                    AssignedAt = now,
-                    ExpiresAt = grantExpiresAt,
-                    IsActive = true,
-                    AssignedBy = user.UserId,
-                });
+                    _context.EmployerPlanPurchase.Add(new EmployerPlanPurchase
+                    {
+                        EmployerCreditPlanId = Guid.NewGuid(),
+                        EmployerId = employer.EmployerId,
+                        PlanId = Guid.Empty,
+                        PlanName = membershipPlan.PlanName,
+                        Credits = creditsGranted,
+                        Price = membershipPlan.Price,
+                        AssignedAt = now,
+                        // No validity set on the plan = lifetime access.
+                        ExpiresAt = grantExpiresAt ?? now.AddYears(50),
+                        IsActive = true,
+                        AssignedBy = user.UserId,
+                    });
+                }
 
                 // ── Create Notification Settings ─────────────────────
                 _context.EmployerNotificationSettings.Add(

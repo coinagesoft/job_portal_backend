@@ -11,9 +11,17 @@ namespace JobPortal.Application.DTOs.Recruiter.CreditWallet
         // Top Card
         public int RemainingCredits { get; set; }
 
-        // Credits left over after the membership ended. Unusable, and
-        // forfeited when the membership is renewed.
+        // Credits left over after the membership ended. Unusable ("on hold").
+        // They come back, added to the new plan's credits, if the membership
+        // is renewed on or before CreditGraceEndsAt. After that date they are
+        // forfeited and this is 0.
         public int ExpiredCredits { get; set; }
+
+        // Last day the recruiter can renew and still get ExpiredCredits back.
+        // Only set while the membership is expired.
+        public DateTime? CreditGraceEndsAt { get; set; }
+
+        public int CreditGraceDays { get; set; }
 
         public string? PlanName { get; set; }
 

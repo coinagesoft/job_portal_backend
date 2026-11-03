@@ -9,6 +9,21 @@ namespace JobPortal.Services.Implement.Recruiter
     public static class MembershipRules
     {
         private const string EarlyRenewalWindowKey = "Membership:EarlyRenewalWindowDays";
+        private const string CreditGraceDaysKey = "Membership:CreditGraceDays";
+        private const int DefaultCreditGraceDays = 30;
+
+        /// <summary>
+        /// How many days after a membership expires the recruiter can still
+        /// renew and get the credits they had left back. Until they renew,
+        /// those credits are on hold and cannot be spent. After this many
+        /// days they are forfeited. Default 30 (Membership:CreditGraceDays).
+        /// </summary>
+        public static int GetCreditGraceDays(IConfiguration configuration)
+        {
+            return int.TryParse(configuration[CreditGraceDaysKey], out var days)
+                ? Math.Clamp(days, 0, 365)
+                : DefaultCreditGraceDays;
+        }
 
         /// <summary>
         /// How many days before the membership end date a recruiter may renew
