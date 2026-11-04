@@ -46,6 +46,7 @@ public class CandidateAvailabilityService : ICandidateAvailabilityService
             {
                 CandidateId = profile.CandidateId,
                 AvailabilityStatus = profile.AvailabilityStatus,
+                AvailableIn = profile.AvailableIn,
                 AvailabilityUpdatedAt =
                     profile.AvailabilityUpdatedAt ?? profile.UpdatedAt
             }
@@ -66,7 +67,25 @@ public class CandidateAvailabilityService : ICandidateAvailabilityService
                 Message = "Candidate profile not found."
             };
 
+        var isAvailable = string.Equals(
+            request.AvailabilityStatus, "Available",
+            StringComparison.OrdinalIgnoreCase);
+
+        // "Not Available" must say when the candidate will be available,
+        // matching the PATCH endpoint in CandidateProfileService.
+        if (string.Equals(request.AvailabilityStatus, "Not Available",
+                StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(request.AvailableIn))
+        {
+            return new AvailabilityResponseDto
+            {
+                Success = false,
+                Message = "Please select when you will be available."
+            };
+        }
+
         profile.AvailabilityStatus = request.AvailabilityStatus;
+        profile.AvailableIn = isAvailable ? null : request.AvailableIn?.Trim();
         profile.AvailabilityUpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();

@@ -29,6 +29,9 @@ namespace JobPortal.Application.DTOs.Recruiter.CandidateProfile
 
         public string AvailabilityStatus { get; set; } = string.Empty;
 
+        /// <summary>When a not-available candidate expects to be available (e.g. "1 Month"). Null when available now.</summary>
+        public string? AvailableIn { get; set; }
+
         public string? NoticePeriod { get; set; }
 
         public byte? AiMatchScore { get; set; }

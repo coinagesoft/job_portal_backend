@@ -147,6 +147,11 @@ namespace JobPortal.Services.Implement.Recruiter
                             AvailabilityStatus =
                                 candidate.AvailabilityStatus,
 
+                            AvailableIn =
+
+                                candidate.AvailableIn,
+
+
                             NoticePeriod =
                                 candidate.NoticePeriod,
 

@@ -2500,13 +2500,20 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
             // VALIDATE PREVIOUS STEP
             // --------------------------------------------------
 
+            await EnsureStep3CompletedAsync(session);
+
             if (session.LastCompletedStep < 3)
             {
                 return new RegistrationDocumentsResponseDto
                 {
                     Success = false,
-                    Message =
-                        "Please complete Step 3 (Contact & OTP) first."
+                    Message = !session.CompanyEmailVerified && !session.MobileVerified
+                        ? "Please verify your email and mobile number (Step 3) first."
+                        : !session.CompanyEmailVerified
+                            ? "Please verify your email (Step 3) first."
+                            : !session.MobileVerified
+                                ? "Please verify your mobile number (Step 3) first."
+                                : "Please complete Step 3 (Contact & OTP) first."
                 };
             }
 
@@ -3053,6 +3060,8 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
                 // --------------------------------------------------
                 // Documents/licences are not required for registration.
                 // Step 3 is the last mandatory step before Review & Submit.
+
+                await EnsureStep3CompletedAsync(session);
 
                 if (session.LastCompletedStep < 3)
                 {
@@ -4024,6 +4033,26 @@ public class RecruiterRegistrationService : IRecruiterRegistrationService
 
 
     // ── Private Helpers ───────────────────────────────────
+    // Step 3 (Contact & OTP) is complete once BOTH email and mobile are
+    // verified. LastCompletedStep is normally advanced by the verify calls, but
+    // it can be left behind (e.g. the two verifications saved at the same time
+    // and each saw the other as unverified). Trust the verification flags and
+    // repair the counter so later steps are not blocked.
+    private async Task EnsureStep3CompletedAsync(RegistrationSession session)
+    {
+        if (session.LastCompletedStep < 3 &&
+            session.MobileVerified &&
+            session.CompanyEmailVerified)
+        {
+            session.LastCompletedStep = 3;
+
+            if (session.CurrentStep < 4)
+                session.CurrentStep = 4;
+
+            await _context.SaveChangesAsync();
+        }
+    }
+
     private async Task<RegistrationSession?> GetValidSessionAsync(string sessionId)
     {
         if (!Guid.TryParse(sessionId, out var parsedId))

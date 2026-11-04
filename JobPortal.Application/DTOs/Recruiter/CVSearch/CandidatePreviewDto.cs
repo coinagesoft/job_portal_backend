@@ -26,6 +26,9 @@ namespace JobPortal.Application.DTOs.Recruiter.CVSearch
 
         public string AvailabilityStatus { get; set; } = string.Empty;
 
+        /// <summary>When a not-available candidate expects to be available (e.g. "1 Month"). Null when available now.</summary>
+        public string? AvailableIn { get; set; }
+
         public bool IsItiCertified { get; set; }
 
         public bool IsKycVerified { get; set; }

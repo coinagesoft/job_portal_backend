@@ -139,6 +139,47 @@ public class CandidateProfileService : ICandidateProfileService
         if (c == null)
             return new() { Success = false, Message = "Profile not found." };
 
+        // email/mobile are unique across active accounts. Check up front so a
+        // clash returns a clear message instead of a database error (HTTP 500).
+        var newEmail = r.Email?.Trim();
+        var newMobile = r.MobileNumber?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(newEmail) &&
+            !string.Equals(newEmail, c.User?.Email?.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            var emailLower = newEmail.ToLower();
+
+            if (await _context.Users.AnyAsync(u =>
+                    u.UserId != c.UserId &&
+                    !u.IsDeleted &&
+                    u.Email != null &&
+                    u.Email.ToLower() == emailLower))
+            {
+                return new()
+                {
+                    Success = false,
+                    Message = "This email is already registered with another account."
+                };
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(newMobile) &&
+            newMobile != c.User?.MobileNumber?.Trim())
+        {
+            if (await _context.Users.AnyAsync(u =>
+                    u.UserId != c.UserId &&
+                    !u.IsDeleted &&
+                    u.MobileNumber == newMobile))
+            {
+                return new()
+                {
+                    Success = false,
+                    Message = "This mobile number is already registered with another account."
+                };
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(r.FullName)) c.FullName = r.FullName;
         if (!string.IsNullOrWhiteSpace(r.Role))
         {
@@ -206,8 +247,8 @@ public class CandidateProfileService : ICandidateProfileService
         // email/mobile live on the User record
         if (c.User != null)
         {
-            if (!string.IsNullOrWhiteSpace(r.Email)) c.User.Email = r.Email;
-            if (!string.IsNullOrWhiteSpace(r.MobileNumber)) c.User.MobileNumber = r.MobileNumber;
+            if (!string.IsNullOrWhiteSpace(newEmail)) c.User.Email = newEmail;
+            if (!string.IsNullOrWhiteSpace(newMobile)) c.User.MobileNumber = newMobile;
             if (!string.IsNullOrWhiteSpace(r.CountryCode)) c.User.CountryCode = r.CountryCode;
         }
 

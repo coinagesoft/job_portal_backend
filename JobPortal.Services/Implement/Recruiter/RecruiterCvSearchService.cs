@@ -354,6 +354,11 @@ namespace JobPortal.Services.Implement.Recruiter
                         AvailabilityStatus =
                             candidate.AvailabilityStatus,
 
+                        AvailableIn =
+
+                            candidate.AvailableIn,
+
+
                         KeywordMatchPercentage =
     aiResult?.MatchScore ?? 0,
 
@@ -494,6 +499,11 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 AvailabilityStatus =
                     candidate.AvailabilityStatus,
+
+                AvailableIn =
+
+                    candidate.AvailableIn,
+
 
                 IsItiCertified =
                     candidate.ItiCertified,
@@ -638,6 +648,9 @@ namespace JobPortal.Services.Implement.Recruiter
 
                         AvailabilityStatus =
                             candidate.AvailabilityStatus,
+                        AvailableIn =
+                            candidate.AvailableIn,
+
                         KeywordMatchPercentage = 0,
                         AiMatchScore = 0,
                         MatchReason = null,

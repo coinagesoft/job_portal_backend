@@ -24,6 +24,9 @@ namespace JobPortal.Application.DTOs.Recruiter.CreditWallet
 
         public string? AvailabilityStatus { get; set; }
 
+        /// <summary>When a not-available candidate expects to be available (e.g. "1 Month"). Null when available now.</summary>
+        public string? AvailableIn { get; set; }
+
         public bool IsUnlocked { get; set; }
 
         // Visible only after unlock

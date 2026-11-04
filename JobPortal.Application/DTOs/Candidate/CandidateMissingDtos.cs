@@ -12,9 +12,12 @@ public class UpdateAvailabilityRequestDto
 {
     [Required]
     [RegularExpression(
-        "^(Available|Open_To_Opportunities|Not_Looking)$",
-        ErrorMessage = "Must be: Available, Open_To_Opportunities, or Not_Looking")]
+        "^(Available|Not Available|Open_To_Opportunities|Not_Looking)$",
+        ErrorMessage = "Must be: Available, Not Available, Open_To_Opportunities, or Not_Looking")]
     public string AvailabilityStatus { get; set; } = "Available";
+
+    /// <summary>Required when AvailabilityStatus is "Not Available".</summary>
+    public string? AvailableIn { get; set; }
 }
 
 public class AvailabilityResponseDto
@@ -28,6 +31,7 @@ public class AvailabilityData
 {
     public Guid CandidateId { get; set; }
     public string AvailabilityStatus { get; set; } = "Available";
+    public string? AvailableIn { get; set; }
     public DateTime AvailabilityUpdatedAt { get; set; }
 }
 
