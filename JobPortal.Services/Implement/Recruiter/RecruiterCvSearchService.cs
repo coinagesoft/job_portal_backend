@@ -4,6 +4,7 @@ using JobPortal.Domain.Entities;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 using JobPortal.Services.IImplement.AI;
 
 namespace JobPortal.Services.Implement.Recruiter
@@ -99,6 +100,64 @@ namespace JobPortal.Services.Implement.Recruiter
         }
 
         // =====================================================
+        // Keyword helpers
+        // =====================================================
+
+        private const int MaxKeywordTerms = 10;
+
+        // "Welder, Pune ,iti certified" -> ["welder", "pune", "iti certified"]
+        // Commas separate terms so multi-word phrases stay intact.
+        private static List<string> ParseKeywordTerms(string? keyword)
+        {
+            if (string.IsNullOrWhiteSpace(keyword))
+                return new List<string>();
+
+            return keyword
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.Trim().ToLower())
+                .Where(t => t.Length > 0)
+                .Distinct()
+                .Take(MaxKeywordTerms)
+                .ToList();
+        }
+
+        // Builds (p1 OR p2 OR ...) over a single shared parameter so EF Core
+        // can translate it to SQL.
+        private static Expression<Func<CandidateProfile, bool>> CombineWithOr(
+            List<Expression<Func<CandidateProfile, bool>>> predicates)
+        {
+            var parameter = Expression.Parameter(typeof(CandidateProfile), "c");
+
+            Expression? body = null;
+
+            foreach (var predicate in predicates)
+            {
+                var replaced = new ParameterReplacer(
+                    predicate.Parameters[0], parameter).Visit(predicate.Body)!;
+
+                body = body == null ? replaced : Expression.OrElse(body, replaced);
+            }
+
+            return Expression.Lambda<Func<CandidateProfile, bool>>(
+                body ?? Expression.Constant(true), parameter);
+        }
+
+        private sealed class ParameterReplacer : ExpressionVisitor
+        {
+            private readonly ParameterExpression _from;
+            private readonly ParameterExpression _to;
+
+            public ParameterReplacer(ParameterExpression from, ParameterExpression to)
+            {
+                _from = from;
+                _to = to;
+            }
+
+            protected override Expression VisitParameter(ParameterExpression node)
+                => node == _from ? _to : base.VisitParameter(node);
+        }
+
+        // =====================================================
         // Search Candidates
         // =====================================================
 
@@ -119,20 +178,47 @@ namespace JobPortal.Services.Implement.Recruiter
             // Keyword
             // -----------------------------------------
 
-            if (!string.IsNullOrWhiteSpace(request.Keyword))
-            {
-                var keyword =
-                    request.Keyword.Trim().ToLower();
+            var keywordTerms = ParseKeywordTerms(request.Keyword);
 
-                query = query.Where(x =>
-                    x.FullName.ToLower().Contains(keyword)
-                    ||
-                    (x.PrimaryTrade != null &&
-                     x.PrimaryTrade.ToLower().Contains(keyword))
-                    ||
-                    x.Skills.Any(s =>
-                        s.SkillName.ToLower()
-                            .Contains(keyword)));
+            if (keywordTerms.Count > 0)
+            {
+                var matchAll = string.Equals(
+                    request.KeywordMatch,
+                    "all",
+                    StringComparison.OrdinalIgnoreCase);
+
+                // One predicate per term; each term may hit name, trade,
+                // role, location or any skill.
+                var termPredicates = keywordTerms
+                    .Select(term => (Expression<Func<CandidateProfile, bool>>)(x =>
+                        x.FullName.ToLower().Contains(term)
+                        ||
+                        (x.PrimaryTrade != null &&
+                         x.PrimaryTrade.ToLower().Contains(term))
+                        ||
+                        (x.Role != null &&
+                         x.Role.ToLower().Contains(term))
+                        ||
+                        (x.CurrentCity != null &&
+                         x.CurrentCity.ToLower().Contains(term))
+                        ||
+                        (x.CurrentState != null &&
+                         x.CurrentState.ToLower().Contains(term))
+                        ||
+                        x.Skills.Any(s =>
+                            s.SkillName.ToLower().Contains(term))))
+                    .ToList();
+
+                if (matchAll)
+                {
+                    // Chained Where() calls = AND
+                    foreach (var predicate in termPredicates)
+                        query = query.Where(predicate);
+                }
+                else
+                {
+                    query = query.Where(CombineWithOr(termPredicates));
+                }
             }
 
             // -----------------------------------------

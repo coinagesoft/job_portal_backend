@@ -10,7 +10,17 @@ namespace JobPortal.Application.DTOs.Recruiter.CVSearch
 {
     public class CvSearchRequestDto
     {
+        /// <summary>
+        /// One or more search terms separated by commas, e.g. "welder, pune, iti".
+        /// A single term without commas behaves exactly as before.
+        /// </summary>
         public string? Keyword { get; set; }
+
+        /// <summary>
+        /// "any" (default) = candidate matches at least one term.
+        /// "all" = candidate must match every term.
+        /// </summary>
+        public string? KeywordMatch { get; set; } = "any";
 
         public string? TradeCategory { get; set; }
 
