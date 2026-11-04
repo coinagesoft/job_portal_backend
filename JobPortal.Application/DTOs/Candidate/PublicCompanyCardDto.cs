@@ -108,11 +108,17 @@ namespace JobPortal.Application.DTOs.Candidate
 
         public bool GstRegistered { get; set; }
 
-        public bool HasPoeLicence { get; set; }
+        // Rule-aware flags: null = NOT APPLICABLE for this company
+        // (see LicenceRule), true = verified, false = applicable but not
+        // verified yet.
+        //   OnshoreAbroad (outside India) -> HasPoeLicence only
+        //   Offshore                      -> HasRpslLicence + HasRegistrationCertificate
+        //   OnshoreIndia                  -> all three are null
+        public bool? HasPoeLicence { get; set; }
 
-        public bool HasRpslLicence { get; set; }
+        public bool? HasRpslLicence { get; set; }
 
-        public bool HasRegistrationCertificate { get; set; }
+        public bool? HasRegistrationCertificate { get; set; }
 
         /// <summary>"Onshore" | "Offshore" — chosen at registration.</summary>
         public string? CompanyLocationType { get; set; }

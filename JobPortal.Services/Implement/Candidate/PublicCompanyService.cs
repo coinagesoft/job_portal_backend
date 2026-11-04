@@ -1,6 +1,7 @@
 ﻿using JobPortal.Application.DTOs.Candidate;
 using JobPortal.Application.DTOs.Candidate.Jobs;
 using JobPortal.Application.DTOs.Public;
+using JobPortal.Domain.Common;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
@@ -1334,17 +1335,21 @@ public class PublicCompanyService : IPublicCompanyService
     private const string RuleOffshore = "Offshore";
     private const string RuleOnshoreIndia = "OnshoreIndia";
 
-    private static readonly string[] LicenceDocumentCodes =
-    {
-        "POE_LICENSE",
-        "RPSL_LICENSE",
-        "REGISTRATION_CERTIFICATE"
-    };
+    /// <summary>
+    /// When a recruiter replaces an already-approved licence, the new file
+    /// starts as Pending and the old row is soft-deleted. With this on, the
+    /// licence stays "Verified" for candidates while the replacement waits
+    /// for admin review (it turns off again if the admin rejects it).
+    /// Set to false to show "Pending" during re-verification instead.
+    /// </summary>
+    private const bool KeepVerifiedWhileReverifying = true;
 
     private sealed record LicenceDocumentInfo(
         string Code,
         VerificationDocumentStatus Status,
-        DateOnly? ExpiryDate);
+        DateOnly? IssueDate,
+        DateOnly? ExpiryDate,
+        bool IsDeleted);
 
     private static string ResolveLicenceRule(string? locationType, string? country)
     {
@@ -1359,18 +1364,50 @@ public class PublicCompanyService : IPublicCompanyService
         return isIndia ? RuleOnshoreIndia : RuleOnshoreAbroad;
     }
 
+    // A licence is expired only when its ExpiryDate is in the past.
+    //  - Registration Certificate / GST are permanent: expiry is ignored.
+    //  - An expiry on or before the issue date is a mis-read by the AI
+    //    parser (swapped / wrong field), so it is ignored too.
+    private static bool IsExpired(LicenceDocumentInfo d, DateOnly today)
+    {
+        if (JobPortal.Domain.Common.LicenceDocumentCodes.NeverExpires(d.Code)) return false;
+        if (d.ExpiryDate == null) return false;
+        if (d.IssueDate != null && d.ExpiryDate <= d.IssueDate) return false;
+
+        return d.ExpiryDate < today;
+    }
+
+    // Strict: a live (non-deleted) Approved document that has not expired.
+    private static bool HasApprovedDocument(
+        List<LicenceDocumentInfo> docs, string code, DateOnly today) =>
+        docs.Any(x =>
+            x.Code == code &&
+            !x.IsDeleted &&
+            x.Status == VerificationDocumentStatus.Approved &&
+            !IsExpired(x, today));
+
+    // Re-upload: a new Pending file exists AND an earlier (now
+    // soft-deleted) file of the same type had been Approved.
+    private static bool IsUnderReverification(
+        List<LicenceDocumentInfo> docs, string code, DateOnly today) =>
+        docs.Any(x => x.Code == code && !x.IsDeleted &&
+                      x.Status == VerificationDocumentStatus.Pending) &&
+        docs.Any(x => x.Code == code && x.IsDeleted &&
+                      x.Status == VerificationDocumentStatus.Approved &&
+                      !IsExpired(x, today));
+
+    // What candidates see as "Verified".
     private static bool IsLicenceApproved(
         List<LicenceDocumentInfo> docs,
         string code,
         DateOnly today) =>
-        docs.Any(x =>
-            x.Code == code &&
-            x.Status == VerificationDocumentStatus.Approved &&
-            (x.ExpiryDate == null || x.ExpiryDate >= today));
+        HasApprovedDocument(docs, code, today) ||
+        (KeepVerifiedWhileReverifying && IsUnderReverification(docs, code, today));
 
     private static bool IsLicencePending(List<LicenceDocumentInfo> docs, string code) =>
         docs.Any(x =>
             x.Code == code &&
+            !x.IsDeleted &&
             (x.Status == VerificationDocumentStatus.Pending ||
              x.Status == VerificationDocumentStatus.Resubmission));
 
@@ -1422,15 +1459,8 @@ public class PublicCompanyService : IPublicCompanyService
                 break;
 
             default:
-                // Onshore in India: nothing is required, so only show a
-                // licence if the company voluntarily has a verified one.
-                if (IsLicenceApproved(docs, "POE_LICENSE", today))
-                    result.Add(new CompanyLicenceDto { Code = "POE", Label = "POE Licence", Status = "Verified", VerifiedWith = "POE Licence" });
-
-                if (IsLicenceApproved(docs, "RPSL_LICENSE", today))
-                    result.Add(new CompanyLicenceDto { Code = "RPSL_OR_REGISTRATION", Label = "RPSL Licence", Status = "Verified", VerifiedWith = "RPSL Licence" });
-                else if (IsLicenceApproved(docs, "REGISTRATION_CERTIFICATE", today))
-                    result.Add(new CompanyLicenceDto { Code = "RPSL_OR_REGISTRATION", Label = "Registration Certificate", Status = "Verified", VerifiedWith = "Registration Certificate" });
+                // Onshore in India: no licence applies, so nothing is shown
+                // (POE / RPSL / Registration Certificate are not applicable).
                 break;
         }
 
@@ -1469,18 +1499,41 @@ public class PublicCompanyService : IPublicCompanyService
             // Licences (POE / RPSL / Registration Certificate)
             //-------------------------------------------------------
 
-            var licenceDocuments = await _context.EmployerVerificationDocuments
+            // Soft-deleted rows are included on purpose: a replaced (re-
+            // uploaded) licence is soft-deleted, and its earlier approval is
+            // needed to recognise "re-verification in progress".
+            var rawLicenceDocs = await _context.EmployerVerificationDocuments
                 .AsNoTracking()
                 .Where(x =>
                     x.EmployerId == employerId &&
-                    !x.IsDeleted &&
-                    x.DocumentType != null &&
-                    LicenceDocumentCodes.Contains(x.DocumentType.Code))
-                .Select(x => new LicenceDocumentInfo(
+                    x.DocumentType != null)
+                .Select(x => new
+                {
                     x.DocumentType!.Code,
+                    x.DocumentType.DocumentName,
                     x.Status,
-                    x.ExpiryDate))
+                    x.IssueDate,
+                    x.ExpiryDate,
+                    x.IsDeleted
+                })
                 .ToListAsync();
+
+            // Match on Code, falling back to DocumentName, so a wrong Code
+            // on a hand-made Admin document type can't hide a licence.
+            var licenceDocuments = rawLicenceDocs
+                .Select(x => new
+                {
+                    Resolved = JobPortal.Domain.Common.LicenceDocumentCodes.Resolve(x.Code, x.DocumentName),
+                    Doc = x
+                })
+                .Where(x => x.Resolved != null)
+                .Select(x => new LicenceDocumentInfo(
+                    x.Resolved!,
+                    x.Doc.Status,
+                    x.Doc.IssueDate,
+                    x.Doc.ExpiryDate,
+                    x.Doc.IsDeleted))
+                .ToList();
 
             var licenceRule = ResolveLicenceRule(
                 company.CompanyLocationType,
@@ -1598,20 +1651,28 @@ public class PublicCompanyService : IPublicCompanyService
                 // check below never matched. The real source of truth is the
                 // approved, unexpired verification document of that type;
                 // the typed badge is kept only as a legacy fallback.
+                // Rule-aware: null when the licence does not apply to this
+                // company, so "not applicable" is never shown as "false".
                 HasPoeLicence =
-                    IsLicenceApproved(licenceDocuments, "POE_LICENSE", DateOnly.FromDateTime(DateTime.UtcNow)) ||
-                    company.Badges.Any(x =>
-                        x.BadgeType == BadgeType.PoeLicensed &&
-                        x.BadgeStatus == BadgeStatus.Approved),
+                    licenceRule == RuleOnshoreAbroad
+                        ? IsLicenceApproved(licenceDocuments, "POE_LICENSE", DateOnly.FromDateTime(DateTime.UtcNow)) ||
+                          company.Badges.Any(x =>
+                              x.BadgeType == BadgeType.PoeLicensed &&
+                              x.BadgeStatus == BadgeStatus.Approved)
+                        : (bool?)null,
 
                 HasRpslLicence =
-                    IsLicenceApproved(licenceDocuments, "RPSL_LICENSE", DateOnly.FromDateTime(DateTime.UtcNow)) ||
-                    company.Badges.Any(x =>
-                        x.BadgeType == BadgeType.RpslLicensed &&
-                        x.BadgeStatus == BadgeStatus.Approved),
+                    licenceRule == RuleOffshore
+                        ? IsLicenceApproved(licenceDocuments, "RPSL_LICENSE", DateOnly.FromDateTime(DateTime.UtcNow)) ||
+                          company.Badges.Any(x =>
+                              x.BadgeType == BadgeType.RpslLicensed &&
+                              x.BadgeStatus == BadgeStatus.Approved)
+                        : (bool?)null,
 
                 HasRegistrationCertificate =
-                    IsLicenceApproved(licenceDocuments, "REGISTRATION_CERTIFICATE", DateOnly.FromDateTime(DateTime.UtcNow)),
+                    licenceRule == RuleOffshore
+                        ? IsLicenceApproved(licenceDocuments, "REGISTRATION_CERTIFICATE", DateOnly.FromDateTime(DateTime.UtcNow))
+                        : (bool?)null,
 
                 CompanyLocationType = company.CompanyLocationType,
 

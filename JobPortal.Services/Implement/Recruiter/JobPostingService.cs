@@ -1301,30 +1301,50 @@ namespace JobPortal.Services.Implement.Recruiter
 
                 if (verification.IsOffshore)
                 {
-                    var rpslMaster = await _context.VerificationDocumentMasters
+                    // Match on Code OR name so a hand-made Admin document
+                    // type with a wrong Code is still recognised.
+                    var rpslMaster = (await _context.VerificationDocumentMasters
                         .AsNoTracking()
-                        .FirstOrDefaultAsync(x =>
-                            x.Code == "RPSL_LICENSE" &&
-                            x.IsActive);
+                        .Where(x => x.IsActive)
+                        .ToListAsync())
+                        .FirstOrDefault(x =>
+                            JobPortal.Domain.Common.LicenceDocumentCodes
+                                .Resolve(x.Code, x.DocumentName) == "RPSL_LICENSE");
 
                     if (rpslMaster != null)
                     {
                         verification.RpslRequired = rpslMaster.IsMandatory;
 
-                        var rpslDocument = await _context.EmployerVerificationDocuments
+                        var rpslDocs = await _context.EmployerVerificationDocuments
                             .AsNoTracking()
                             .Where(x =>
                                 x.EmployerId == employerId &&
-                                x.DocumentTypeId == rpslMaster.DocumentTypeId &&
-                                !x.IsDeleted)
+                                x.DocumentTypeId == rpslMaster.DocumentTypeId)
                             .OrderByDescending(x => x.UploadedAt)
-                            .FirstOrDefaultAsync();
+                            .ToListAsync();
 
-                        verification.RpslStatus =
-                            rpslDocument?.Status.ToString();
+                        var live = rpslDocs.Where(x => !x.IsDeleted).ToList();
+                        var latest = live.FirstOrDefault();
+                        var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-                        verification.RpslVerified =
-                            rpslDocument?.Status == VerificationDocumentStatus.Approved;
+                        // Expiry on or before the issue date is an AI mis-read: ignore it.
+                        bool NotExpired(EmployerVerificationDocument d) =>
+                            d.ExpiryDate == null ||
+                            (d.IssueDate != null && d.ExpiryDate <= d.IssueDate) ||
+                            d.ExpiryDate >= today;
+
+                        // Verified = a live approved file, OR a new pending
+                        // re-upload while an earlier file had been approved.
+                        var approved = live.Any(x =>
+                            x.Status == VerificationDocumentStatus.Approved && NotExpired(x));
+
+                        var reverifying =
+                            live.Any(x => x.Status == VerificationDocumentStatus.Pending) &&
+                            rpslDocs.Any(x => x.IsDeleted &&
+                                x.Status == VerificationDocumentStatus.Approved && NotExpired(x));
+
+                        verification.RpslStatus = latest?.Status.ToString();
+                        verification.RpslVerified = approved || reverifying;
                     }
                 }
 

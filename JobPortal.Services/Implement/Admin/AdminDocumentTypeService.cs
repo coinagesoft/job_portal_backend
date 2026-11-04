@@ -1,4 +1,5 @@
 using JobPortal.Application.DTOs.Admin.CompanyDocuments;
+using JobPortal.Domain.Common;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IAdmin;
 using Microsoft.EntityFrameworkCore;
@@ -53,12 +54,23 @@ namespace JobPortal.Services.Implement.Admin
                 var maxDisplayOrder = await _context.VerificationDocumentMasters
                     .MaxAsync(x => (int?)x.DisplayOrder) ?? 0;
 
+                // POE / RPSL / Registration Certificate must carry their
+                // canonical code — the candidate-facing company page and the
+                // job-posting check match on it. Any other document type
+                // keeps an auto-generated internal code.
+                var code = LicenceDocumentCodes.CodeForName(documentName);
+
+                if (code != null &&
+                    await _context.VerificationDocumentMasters.AnyAsync(x => x.Code == code))
+                {
+                    code = null; // canonical code already taken by another row
+                }
+
                 var entity = new VerificationDocumentMaster
                 {
                     DocumentTypeId = Guid.NewGuid(),
 
-                    // Auto-generated internal code
-                    Code = Guid.NewGuid().ToString("N")[..8].ToUpper(),
+                    Code = code ?? Guid.NewGuid().ToString("N")[..8].ToUpper(),
 
                     DocumentName = documentName,
                     Category = request.Category.Trim(),
