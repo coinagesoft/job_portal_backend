@@ -1,5 +1,6 @@
 ﻿// File: JobPortal.Services/IImplement/IRecruiter/IRecruiterCreditPlanService.cs
 
+using JobPortal.Application.DTOs.Admin.Coupons;
 using JobPortal.Application.DTOs.Admin.CreditWallet;
 using JobPortal.Application.DTOs.Recruiter;
 
@@ -48,6 +49,14 @@ namespace JobPortal.Services.IImplement.IRecruiter
 
         /// <summary>Webhook: the capture was denied/declined — close the pending transaction.</summary>
         Task MarkPayPalTransactionFailedAsync(Guid transactionId);
+
+        /// <summary>
+        /// Checks a coupon against a recruiter membership plan and returns the
+        /// discount, without creating any order.
+        /// </summary>
+        Task<CouponValidationResponseDto> ValidatePlanCouponAsync(
+            Guid employerId,
+            ValidatePlanCouponRequestDto request);
 
         // Legacy admin-assign (kept for backward compat)
         Task<CommonResponseDto> BuyPlanAsync(Guid employerId, Guid planId);

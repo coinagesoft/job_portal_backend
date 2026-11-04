@@ -206,6 +206,31 @@ namespace JobPortal.API.Controllers.Recruiter
         }
 
 
+        // ── POST /api/recruiter/plans/validate-coupon ────────────────
+        /// <summary>
+        /// Check a coupon for a membership plan and return the discount.
+        /// </summary>
+        [HttpPost("validate-coupon")]
+        public async Task<IActionResult> ValidateCoupon(
+            [FromBody] ValidatePlanCouponRequestDto request)
+        {
+            if (GetIsSubUser())
+            {
+                return StatusCode(403, new
+                {
+                    Success = false,
+                    Message = "You don't have permission to purchase plans. Please contact your account owner."
+                });
+            }
+
+            if (request.PlanId == Guid.Empty || string.IsNullOrWhiteSpace(request.Code))
+                return BadRequest(new { IsValid = false, Message = "Coupon code and plan are required." });
+
+            var result = await _service.ValidatePlanCouponAsync(GetEmployerId(), request);
+
+            return result.IsValid ? Ok(result) : BadRequest(result);
+        }
+
         [HttpPost("verify-payment")]
         public async Task<IActionResult> VerifyPayment(
             [FromBody] VerifyPlanPaymentRequestDto request)

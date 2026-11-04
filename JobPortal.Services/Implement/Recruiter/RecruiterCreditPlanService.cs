@@ -1,6 +1,8 @@
 ﻿// File: JobPortal.Services/Implement/Recruiter/RecruiterCreditPlanService.cs
 
+using JobPortal.Application.DTOs.Admin.Coupons;
 using JobPortal.Application.DTOs.Admin.CreditWallet;
+using JobPortal.Services.IImplement.ICoupon;
 using JobPortal.Application.DTOs.Recruiter;
 using JobPortal.Domain.Entities;
 using JobPortal.Domain.Enums.common;
@@ -25,6 +27,7 @@ namespace JobPortal.Services.Implement.Recruiter
         private readonly HttpClient _httpClient;
         private readonly IRecruiterInvoiceService _invoiceService;
         private readonly PayPalPaymentService _payPal;
+        private readonly ICouponValidationService _couponValidation;
 
         private const string GatewayRazorpay = "Razorpay";
         private const string GatewayPayPal = "PayPal";
@@ -43,7 +46,8 @@ namespace JobPortal.Services.Implement.Recruiter
             IConfiguration configuration,
             IHttpClientFactory httpClientFactory,
             IRecruiterInvoiceService invoiceService,
-            PayPalPaymentService payPal)
+            PayPalPaymentService payPal,
+            ICouponValidationService couponValidation)
         {
             _context = context;
             _logger = logger;
@@ -51,6 +55,7 @@ namespace JobPortal.Services.Implement.Recruiter
             _httpClient = httpClientFactory.CreateClient("Razorpay");
             _invoiceService = invoiceService;
             _payPal = payPal;
+            _couponValidation = couponValidation;
         }
 
         // ─────────────────────────────────────────────────────────────
@@ -119,6 +124,17 @@ namespace JobPortal.Services.Implement.Recruiter
                     "This plan is included automatically with your account and can't be purchased again.");
 
             int amountPaise = (int)(plan.Price * 100);   // ₹ → paise
+
+            // Optional coupon (membership plans only). The discount comes off
+            // the base price; GST is then charged on the discounted amount.
+            var (couponError, couponResult, discountPaise) =
+                await EvaluateCouponAsync(employer, plan, isMembershipPlan, request.CouponCode);
+
+            if (couponError != null)
+                return Fail<CreatePlanOrderResponseDto>(couponError);
+
+            amountPaise -= discountPaise;
+
             int gstAmountPaise = (int)Math.Round(amountPaise * 0.18m, MidpointRounding.AwayFromZero);
             int totalAmountPaise = amountPaise + gstAmountPaise;
 
@@ -148,6 +164,9 @@ namespace JobPortal.Services.Implement.Recruiter
                 AmountPaise = amountPaise,
                 GstAmountPaise = gstAmountPaise,
                 TotalAmountPaise = totalAmountPaise,
+                CouponId = couponResult?.CouponId,
+                CouponCode = couponResult?.CouponCode,
+                DiscountAmountPaise = discountPaise,
                 PaymentMethod = "Razorpay",
                 RazorpayOrderId = razorpayOrderId,
                 PaymentStatus = "Pending",
@@ -165,6 +184,8 @@ namespace JobPortal.Services.Implement.Recruiter
                 AmountPaise = totalAmountPaise,   // GST-inclusive — this is what the Razorpay SDK actually charges
                 BaseAmountPaise = amountPaise,
                 GstAmountPaise = gstAmountPaise,
+                DiscountAmountPaise = discountPaise,
+                CouponCode = couponResult?.CouponCode,
                 Currency = "INR",
                 RazorpayKeyId = RazorpayKeyId,
                 PlanId = plan.PlanId,
@@ -341,6 +362,14 @@ namespace JobPortal.Services.Implement.Recruiter
 
             // Minor units (cents / pence). No GST outside India.
             int amountMinor = (int)Math.Round(plan.Price * 100m, MidpointRounding.AwayFromZero);
+
+            var (couponError, couponResult, discountMinor) =
+                await EvaluateCouponAsync(employer, plan, isMembershipPlan, request.CouponCode);
+
+            if (couponError != null)
+                return Fail<CreatePlanOrderResponseDto>(couponError);
+
+            amountMinor -= discountMinor;
             var transactionId = Guid.NewGuid();
 
             PayPalOrderResult order;
@@ -370,6 +399,9 @@ namespace JobPortal.Services.Implement.Recruiter
                 AmountPaise = amountMinor,       // column name is legacy: it holds minor units of the plan currency
                 GstAmountPaise = 0,
                 TotalAmountPaise = amountMinor,
+                CouponId = couponResult?.CouponId,
+                CouponCode = couponResult?.CouponCode,
+                DiscountAmountPaise = discountMinor,
                 PaymentMethod = GatewayPayPal,
                 PayPalOrderId = order.OrderId,
                 PaymentStatus = "Pending",
@@ -389,6 +421,8 @@ namespace JobPortal.Services.Implement.Recruiter
                 AmountPaise = amountMinor,
                 BaseAmountPaise = amountMinor,
                 GstAmountPaise = 0,
+                DiscountAmountPaise = discountMinor,
+                CouponCode = couponResult?.CouponCode,
                 Currency = currency,
                 PlanId = plan.PlanId,
                 PlanName = plan.PlanName,
@@ -693,6 +727,32 @@ namespace JobPortal.Services.Implement.Recruiter
 
             txn.PaymentStatus = "Completed";
             txn.CreditsAddedAt = now;
+
+            // Record the coupon redemption (membership purchases only).
+            if (isRenewal && txn.CouponId.HasValue && !string.IsNullOrWhiteSpace(txn.CouponCode))
+            {
+                var redeemedCoupon = await _context.Coupons
+                    .FirstOrDefaultAsync(c => c.CouponId == txn.CouponId.Value);
+
+                if (redeemedCoupon != null)
+                {
+                    redeemedCoupon.UsedCount++;
+
+                    _context.CouponRedemptions.Add(new CouponRedemption
+                    {
+                        RedemptionId = Guid.NewGuid(),
+                        CouponId = redeemedCoupon.CouponId,
+                        UserId = txn.UserId,
+                        PlanId = plan.PlanId,
+                        PaymentTransactionId = txn.TransactionId,
+                        CouponCode = txn.CouponCode!,
+                        OriginalAmountPaise = txn.AmountPaise + txn.DiscountAmountPaise,
+                        DiscountAmountPaise = txn.DiscountAmountPaise,
+                        FinalAmountPaise = txn.AmountPaise,
+                        RedeemedAt = now
+                    });
+                }
+            }
 
             // AssignedBy = owner's login identity (UserId), not the EmployerId.
             var ownerUserId = employer.UserId;
@@ -1010,11 +1070,83 @@ namespace JobPortal.Services.Implement.Recruiter
             IsActive = m.IsActive
         };
 
+        // ── Coupons (recruiter membership plans only) ───────────────
+        // Validates the code server-side against the plan's own price/region.
+        // Returns (error, result, discountMinor). discountMinor is in minor
+        // units of the plan currency and never exceeds the plan price.
+        private async Task<(string? Error, CouponValidationResponseDto? Result, int DiscountMinor)>
+            EvaluateCouponAsync(EmployerProfile employer, CreditPlan plan, bool isMembershipPlan, string? code)
+        {
+            if (string.IsNullOrWhiteSpace(code))
+                return (null, null, 0);
+
+            if (!isMembershipPlan)
+                return ("Coupons can only be used on membership plans.", null, 0);
+
+            var result = await _couponValidation.ValidateCouponAsync(
+                new ValidateCouponRequestDto
+                {
+                    Code = code.Trim().ToUpperInvariant(),
+                    PlanType = PlanType.Recruiter,
+                    PlanId = plan.PlanId,
+                    Region = plan.Region
+                },
+                employer.UserId);
+
+            if (!result.IsValid)
+                return (result.Message, result, 0);
+
+            var priceMinor = (int)Math.Round(plan.Price * 100m, MidpointRounding.AwayFromZero);
+            var discountMinor = (int)Math.Round(result.DiscountAmount * 100m, MidpointRounding.AwayFromZero);
+            discountMinor = Math.Clamp(discountMinor, 0, priceMinor);
+
+            if (priceMinor - discountMinor <= 0)
+                return ("This coupon covers the full price, which can't be applied to a renewal payment. Please contact support.", result, 0);
+
+            return (null, result, discountMinor);
+        }
+
+        public async Task<CouponValidationResponseDto> ValidatePlanCouponAsync(
+            Guid employerId,
+            ValidatePlanCouponRequestDto request)
+        {
+            var fail = new CouponValidationResponseDto { IsValid = false, PlanId = request.PlanId };
+
+            var employer = await _context.EmployerProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e => e.EmployerId == employerId);
+
+            if (employer == null)
+            {
+                fail.Message = "Employer profile not found.";
+                return fail;
+            }
+
+            var (plan, isMembershipPlan) = await ResolvePlanForOrderAsync(request.PlanId);
+
+            if (plan == null)
+            {
+                fail.Message = "Plan not found or is no longer active.";
+                return fail;
+            }
+
+            var (error, result, _) = await EvaluateCouponAsync(employer, plan, isMembershipPlan, request.Code);
+
+            if (error != null)
+            {
+                fail.Message = error;
+                return fail;
+            }
+
+            return result ?? fail;
+        }
+
         // Membership rules:
         //  * Credit packs can only be bought while the membership is active.
-        //  * A membership can only be bought again once the previous one ended,
-        //    or — when Membership:EarlyRenewalWindowDays is set — within that
-        //    many days before it ends (early renewal; see ApplyCompletedPurchaseAsync).
+        //  * A membership plan can be bought at any time. If the current
+        //    membership is still running, the new term starts when it ends and
+        //    the credits left are carried over (see ApplyCompletedPurchaseAsync);
+        //    if it has ended, a fresh term starts now.
         // Returns null when the purchase is allowed, otherwise the reason.
         private string? CheckPurchaseEligibility(EmployerProfile employer, bool isMembershipPlan)
         {
@@ -1022,23 +1154,7 @@ namespace JobPortal.Services.Implement.Recruiter
             var expiresAt = employer.MembershipExpiresAt;
 
             if (isMembershipPlan)
-            {
-                if (employer.IsMember && expiresAt.HasValue && expiresAt.Value > now)
-                {
-                    var windowDays = MembershipRules.GetEarlyRenewalWindowDays(_configuration);
-
-                    if (windowDays > 0 && expiresAt.Value <= now.AddDays(windowDays))
-                        return null; // inside the early-renewal window
-
-                    return windowDays > 0
-                        ? $"Your membership is active until {expiresAt.Value:dd MMM yyyy}. " +
-                          $"You can renew it from {expiresAt.Value.AddDays(-windowDays):dd MMM yyyy}."
-                        : $"Your membership is active until {expiresAt.Value:dd MMM yyyy}. " +
-                          "You can renew it after it expires.";
-                }
-
                 return null;
-            }
 
             if (employer.IsMember && expiresAt.HasValue && expiresAt.Value <= now)
             {

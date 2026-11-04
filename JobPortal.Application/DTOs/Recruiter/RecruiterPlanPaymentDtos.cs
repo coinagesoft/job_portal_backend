@@ -6,6 +6,16 @@ namespace JobPortal.Application.DTOs.Recruiter
     public class CreatePlanOrderRequestDto
     {
         public Guid PlanId { get; set; }
+
+        /// <summary>Optional coupon — only valid for recruiter membership plans.</summary>
+        public string? CouponCode { get; set; }
+    }
+
+    // ── Coupon validation (membership purchase) ──────────────────────
+    public class ValidatePlanCouponRequestDto
+    {
+        public string Code { get; set; } = string.Empty;
+        public Guid PlanId { get; set; }
     }
 
     // ── Step 1 response ──────────────────────────────────────────────
@@ -29,6 +39,10 @@ namespace JobPortal.Application.DTOs.Recruiter
         // Breakdown, for display / invoicing
         public int BaseAmountPaise { get; set; }
         public int GstAmountPaise { get; set; }
+
+        // Coupon applied to this order (BaseAmountPaise is already net of it)
+        public int DiscountAmountPaise { get; set; }
+        public string? CouponCode { get; set; }
 
         // Plan metadata — useful for the checkout UI
         public Guid PlanId { get; set; }
