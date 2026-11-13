@@ -189,11 +189,32 @@ public class CandidateProfileService : ICandidateProfileService
             // "Trade / Job Title" edit on the Personal tab is actually reflected
             // there — otherwise PrimaryTrade stays stuck at whatever value was
             // set at registration or parsed from an old resume.
+            var jobTitleChanged = !string.Equals(
+                c.PrimaryTrade?.Trim(), r.Role.Trim(),
+                StringComparison.OrdinalIgnoreCase);
+
             c.PrimaryTrade = r.Role;
+
+            // Changing the Job Title must not leave the previous Trade
+            // Category / Sub-trade attached to this candidate. If the client
+            // sent a new category it is applied below; otherwise the old
+            // association is cleared so it stops counting as "in use".
+            if (jobTitleChanged && !r.TradeCategoryId.HasValue)
+            {
+                c.TradeCategoryId = null;
+                c.SubTradeId = null;
+            }
         }
 
         if (r.TradeCategoryId.HasValue)
         {
+            // New category selected -> old sub-trade no longer applies
+            // unless the client also sent a new one.
+            if (c.TradeCategoryId != r.TradeCategoryId && !r.SubTradeId.HasValue)
+            {
+                c.SubTradeId = null;
+            }
+
             c.TradeCategoryId = r.TradeCategoryId;
         }
 

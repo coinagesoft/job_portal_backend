@@ -53,7 +53,7 @@ namespace JobPortal.Services.IImplement.IRecruiter
         /// <summary>
         /// Checks a coupon against a recruiter membership plan and returns the
         /// discount, without creating any order.
-        /// </summary>
+        /// </su
         Task<CouponValidationResponseDto> ValidatePlanCouponAsync(
             Guid employerId,
             ValidatePlanCouponRequestDto request);

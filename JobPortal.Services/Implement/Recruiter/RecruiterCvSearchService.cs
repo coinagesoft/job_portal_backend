@@ -1,6 +1,7 @@
 ﻿using JobPortal.Application.DTOs.Recruiter.CVSearch;
 using JobPortal.Application.DTOs.Recruiter.CandidateProfile;
 using JobPortal.Domain.Entities;
+using JobPortal.Domain.Enums.RecruiterEnums;
 using JobPortal.Infrastructure.Persistence;
 using JobPortal.Services.IImplement.IRecruiter;
 using Microsoft.EntityFrameworkCore;
@@ -437,6 +438,9 @@ namespace JobPortal.Services.Implement.Recruiter
                         CurrentState =
                             candidate.CurrentState,
 
+                        ExpectedSalary =
+                            candidate.PreferredSalary,
+
                         AvailabilityStatus =
                             candidate.AvailabilityStatus,
 
@@ -619,19 +623,51 @@ namespace JobPortal.Services.Implement.Recruiter
         public async Task<CvSearchFilterOptionsDto>
             GetFilterOptionsAsync()
         {
-            var trades =
+            // A trade is only offered if it is still in use by a live
+            // candidate profile (same visibility rule as SearchCandidatesAsync:
+            // self-deleted accounts are excluded) or by an active job posting.
+            // Because PrimaryTrade is overwritten when a candidate changes
+            // their Job Title, the previous value drops out of this list
+            // automatically once nobody else uses it, and stays listed while
+            // any other user / active job still does. Nothing is deleted from
+            // the trade master tables.
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            var candidateTrades =
                 await _context.CandidateProfiles
+                    .AsNoTracking()
                     .Where(x =>
-                        !string.IsNullOrWhiteSpace(
-                            x.PrimaryTrade))
-                    .Select(x => x.PrimaryTrade!)
+                        !x.User.IsDeleted &&
+                        x.PrimaryTrade != null &&
+                        x.PrimaryTrade.Trim() != "")
+                    .Select(x => x.PrimaryTrade!.Trim())
                     .Distinct()
-                    .OrderBy(x => x)
                     .ToListAsync();
+
+            var jobTrades =
+                await _context.JobPostings
+                    .AsNoTracking()
+                    .Where(j =>
+                        j.JobStatus == JobStatus.Active &&
+                        j.IsActive &&
+                        !j.IsDeleted &&
+                        j.ApplicationDeadline >= today &&
+                        j.TradeCategory != null &&
+                        j.TradeCategory.Trim() != "")
+                    .Select(j => j.TradeCategory!.Trim())
+                    .Distinct()
+                    .ToListAsync();
+
+            var trades =
+                candidateTrades
+                    .Union(jobTrades, StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
 
             var cities =
                 await _context.CandidateProfiles
                     .Where(x =>
+                        !x.User.IsDeleted &&
                         !string.IsNullOrWhiteSpace(
                             x.CurrentCity))
                     .Select(x => x.CurrentCity!)
@@ -731,6 +767,9 @@ namespace JobPortal.Services.Implement.Recruiter
 
                         CurrentState =
                             candidate.CurrentState,
+
+                        ExpectedSalary =
+                            candidate.PreferredSalary,
 
                         AvailabilityStatus =
                             candidate.AvailabilityStatus,

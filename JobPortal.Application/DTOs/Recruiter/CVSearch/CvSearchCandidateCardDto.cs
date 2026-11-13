@@ -24,6 +24,9 @@ namespace JobPortal.Application.DTOs.Recruiter.CVSearch
 
         public int ExperienceYears { get; set; }
 
+        /// <summary>Candidate's expected salary per month (PreferredSalary). Shown on the card before unlock. Null/0 = not set.</summary>
+        public int? ExpectedSalary { get; set; }
+
         public string? CurrentCity { get; set; }
 
         public string? CurrentState { get; set; }

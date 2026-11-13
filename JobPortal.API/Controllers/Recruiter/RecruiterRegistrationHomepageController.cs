@@ -28,7 +28,13 @@ namespace JobPortal.API.Controllers.Recruiter
     [Produces("application/json")]
     public class RecruiterRegistrationHomepageController : ControllerBase
     {
-        private static readonly string[] AllowedFields ={"RegistrationIndustry","TradeCategory", "SubTrade"};
+        private static readonly string[] AllowedFields =
+        {
+            "RegistrationIndustry",
+            "Industry",   // legacy alias, maps to RegistrationIndustry in the service
+            "TradeCategory",
+            "SubTrade"
+        };
 
         private readonly IRecruiterHomepageService _service;
 
