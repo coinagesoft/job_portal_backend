@@ -4,6 +4,8 @@
     {
         public Guid DocumentTypeId { get; set; }
 
+        public string Code { get; set; } = default!;
+
         public string DocumentName { get; set; } = default!;
 
         public string Category { get; set; } = default!;

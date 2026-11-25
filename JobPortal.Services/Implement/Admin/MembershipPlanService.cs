@@ -145,7 +145,7 @@ namespace JobPortal.Services.Implement.Admin
                 query = query.Where(x => x.PlanType == planType.Value);
 
             if (!string.IsNullOrWhiteSpace(region))
-                query = query.Where(x => x.Region == region);
+                query = query.Where(x => x.Region.ToLower() == region.Trim().ToLower());
 
             var plans = await query
                 .Include(x => x.Coupons)
@@ -186,7 +186,7 @@ namespace JobPortal.Services.Implement.Admin
                 .Where(x => x.PlanType == planType && x.IsActive);
 
             if (!string.IsNullOrWhiteSpace(region))
-                query = query.Where(x => x.Region == region);
+                query = query.Where(x => x.Region.ToLower() == region.Trim().ToLower());
 
             var plans = await query
                 .Include(x => x.Coupons)

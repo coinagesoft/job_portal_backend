@@ -21,17 +21,17 @@ namespace JobPortal.Services.Implement.Recruiter
         private readonly ILogger<VerificationService> _logger;
         private readonly IGeminiCompanyDocumentParserService _geminiCompanyDocumentParserService;
 
-public VerificationService(
-    AppDbContext context,
-    IFileStorageService fileStorageService,
-    IGeminiCompanyDocumentParserService geminiCompanyDocumentParserService,
-    ILogger<VerificationService> logger)
-{
-    _context = context;
-    _fileStorageService = fileStorageService;
-    _geminiCompanyDocumentParserService = geminiCompanyDocumentParserService;
-    _logger = logger;
-}
+        public VerificationService(
+            AppDbContext context,
+            IFileStorageService fileStorageService,
+            IGeminiCompanyDocumentParserService geminiCompanyDocumentParserService,
+            ILogger<VerificationService> logger)
+        {
+            _context = context;
+            _fileStorageService = fileStorageService;
+            _geminiCompanyDocumentParserService = geminiCompanyDocumentParserService;
+            _logger = logger;
+        }
 
 
 
@@ -1115,6 +1115,7 @@ public VerificationService(
                 .Select(x => new DocumentViewResponseDto
                 {
                     DocumentTypeId = x.DocumentTypeId,
+                    Code = x.Code,
                     DocumentName = x.DocumentName,
                     Category = x.IsMandatory
                         ? "Mandatory"
@@ -1124,7 +1125,7 @@ public VerificationService(
                 .ToListAsync();
         }
 
-        string? GetDocumentReason( EmployerVerificationDocument? document)
+        string? GetDocumentReason(EmployerVerificationDocument? document)
         {
             if (document == null)
             {
