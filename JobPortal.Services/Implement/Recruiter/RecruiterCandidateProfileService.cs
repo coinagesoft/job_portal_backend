@@ -35,7 +35,9 @@ namespace JobPortal.Services.Implement.Recruiter
                 .Include(x => x.Cvs)
                 .FirstOrDefaultAsync(
                     x => x.CandidateId == candidateId &&
-                         !x.User.IsDeleted);
+                         !x.User.IsDeleted &&
+                         x.PrimaryTrade != null &&
+                         x.PrimaryTrade.Trim() != "");
 
             if (candidate == null)
             {
@@ -96,6 +98,7 @@ namespace JobPortal.Services.Implement.Recruiter
                     .AsNoTracking()
                     .Where(x =>
                         x.CandidateId != candidateId &&
+                        !x.User.IsDeleted &&
                         x.PrimaryTrade != null &&
                         x.PrimaryTrade.ToLower() == trade.ToLower())
                     .OrderByDescending(x => x.LastAppliedAt ?? x.UpdatedAt)

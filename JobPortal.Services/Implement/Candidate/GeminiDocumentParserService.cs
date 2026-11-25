@@ -114,35 +114,25 @@ Return format:
         };
 
         var json = JsonSerializer.Serialize(requestBody);
-        using var content = new StringContent(json, Encoding.UTF8, "application/json");
+        // ── Call Gemini (retries 429/5xx, then falls back to a second model) ──
+        var fallbackModel =
+            _configuration["Gemini:FallbackModel"] ??
+            GeminiRequestHelper.DefaultFallbackModel;
 
-        var endpoint =
-            $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={apiKey}";
+        var call = await GeminiRequestHelper.PostWithRetryAsync(
+            _httpClient, apiKey, model, fallbackModel, json);
 
-        // ── Call Gemini ────────────────────────────────────────────────
-        HttpResponseMessage response;
-        try
-        {
-            response = await _httpClient.PostAsync(endpoint, content);
-        }
-        catch (Exception ex)
-        {
-            return new GeminiDocumentParseResponse
-            {
-                Success = false,
-                Message = $"Network error contacting Gemini: {ex.Message}"
-            };
-        }
+        var responseBody = call.Body;
 
-        var responseBody = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
+        if (!call.Success)
         {
             return new GeminiDocumentParseResponse
             {
                 Success = false,
-                Message = $"Gemini API error ({(int)response.StatusCode}): {responseBody}",
-                RawResponse = responseBody
+                // Friendly text for the user; the technical detail is in
+                // RawResponse for logs/debugging.
+                Message = call.UserMessage,
+                RawResponse = call.NetworkError ?? call.Body
             };
         }
 

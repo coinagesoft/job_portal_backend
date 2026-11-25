@@ -1230,7 +1230,10 @@ public class PublicCompanyService : IPublicCompanyService
                     x.JobStatus == JobStatus.Active &&
                     x.IsActive &&
                     !x.IsDeleted &&
-                    x.ApplicationDeadline >= today)
+                    x.ApplicationDeadline >= today &&
+                    // Count only jobs shown under the company name, so the
+                    // number matches the company page's job list.
+                    x.CompanyVisibility == CompanyVisibility.ShowName)
                 .GroupBy(x => x.EmployerId)
                 .Select(x => new
                 {
@@ -1554,7 +1557,11 @@ public class PublicCompanyService : IPublicCompanyService
                     x.JobStatus == JobStatus.Active &&
                     x.IsActive &&
                     !x.IsDeleted &&
-                    x.ApplicationDeadline >= today)
+                    x.ApplicationDeadline >= today &&
+                    // A job that hides the company name must never be listed
+                    // on the public company page, otherwise the page would
+                    // reveal who posted it.
+                    x.CompanyVisibility == CompanyVisibility.ShowName)
                 .OrderByDescending(x => x.IsFeatured)
                 .ThenByDescending(x => x.PublishedAt)
                 .ToListAsync();

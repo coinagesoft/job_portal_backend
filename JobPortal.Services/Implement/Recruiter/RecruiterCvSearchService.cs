@@ -32,7 +32,7 @@ namespace JobPortal.Services.Implement.Recruiter
         // credits, so the figure shown on a card always equals the charge.
         // Key = trimmed, lower-cased trade name. A trade with no active
         // band is simply absent (the card shows 0 = "not priced").
-        private async Task<Dictionary<string, int>> GetTradeUnlockCostMapAsync()
+        private async Task<List<TradeCreditResolver.TradeCreditRow>> GetTradeUnlockCostMapAsync()
         {
             var rows = await _context.TradeCreditMappings
                 .AsNoTracking()
@@ -41,35 +41,26 @@ namespace JobPortal.Services.Implement.Recruiter
                     x.SubTradeId == null &&
                     x.TradeCategory.IsActive &&
                     x.Tier.IsActive)
-                .Select(x => new
-                {
+                .Select(x => new TradeCreditResolver.TradeCreditRow(
                     x.TradeCategory.Name,
-                    x.Tier.UnlockCredits
-                })
+                    x.Tier.UnlockCredits,
+                    x.Tier.TierName))
                 .ToListAsync();
 
-            var map = new Dictionary<string, int>();
-
-            foreach (var row in rows)
-            {
-                var key = (row.Name ?? string.Empty).Trim().ToLower();
-
-                if (key.Length > 0 && !map.ContainsKey(key))
-                    map[key] = row.UnlockCredits;
-            }
-
-            return map;
+            return rows;
         }
 
+        // Same resolver as CreditWalletService.UnlockCandidateAsync: matches
+        // the candidate's trade/title to a configured trade, otherwise the
+        // default 6 credits, so the card price always equals the charge.
         private static int UnlockCostFor(
-            Dictionary<string, int> map,
+            List<TradeCreditResolver.TradeCreditRow> rows,
             string? primaryTrade)
         {
-            var key = (primaryTrade ?? string.Empty).Trim().ToLower();
+            if (string.IsNullOrWhiteSpace(primaryTrade))
+                return 0;
 
-            return key.Length > 0 && map.TryGetValue(key, out var credits)
-                ? credits
-                : 0;
+            return TradeCreditResolver.Resolve(rows, primaryTrade).Credits;
         }
 
         // =====================================================
@@ -83,6 +74,9 @@ namespace JobPortal.Services.Implement.Recruiter
                 await _context.CandidateProfiles
                     .AsNoTracking()
                     .Where(x => !x.User.IsDeleted)
+                    // Only candidates with a main trade can be unlocked/priced.
+                    .Where(x => x.PrimaryTrade != null &&
+                                x.PrimaryTrade.Trim() != "")
                     .ToListAsync();
 
             return new CvSearchDashboardDto
@@ -173,6 +167,10 @@ namespace JobPortal.Services.Implement.Recruiter
                     .Include(x => x.Skills)
                     .Include(x => x.Cvs)
                     .Where(x => !x.User.IsDeleted)   // hide self-deleted candidate accounts
+                                                     // Hide candidates with no main trade: they can't be priced,
+                                                     // so unlocking them would give the recruiter nothing.
+                    .Where(x => x.PrimaryTrade != null &&
+                                x.PrimaryTrade.Trim() != "")
                     .AsQueryable();
 
             // -----------------------------------------
@@ -548,7 +546,9 @@ namespace JobPortal.Services.Implement.Recruiter
                     .Include(x => x.Skills)
                     .FirstOrDefaultAsync(x =>
                         x.CandidateId == candidateId &&
-                        !x.User.IsDeleted);
+                        !x.User.IsDeleted &&
+                        x.PrimaryTrade != null &&
+                        x.PrimaryTrade.Trim() != "");
 
             if (candidate == null)
             {

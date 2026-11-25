@@ -52,7 +52,9 @@ public class RankedCandidateService : IRankedCandidateService
             .AsNoTracking()
             .Include(x => x.User)
             .Include(x => x.Skills)
-            .Where(x => !x.User.IsDeleted)
+            .Where(x => !x.User.IsDeleted &&
+                        x.PrimaryTrade != null &&
+                        x.PrimaryTrade.Trim() != "")
             .ToListAsync();
 
         // ── Pre-load job skills once ─────────────────────────

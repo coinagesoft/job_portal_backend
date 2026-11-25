@@ -411,35 +411,27 @@ namespace JobPortal.Services.Implement.Recruiter
                 };
             }
 
-            // Match only the main trade.
-            // Completely ignore all subtrade mappings.
-
-            var tradeMapping = await _context.TradeCreditMappings
+            // Match only the main trade (sub-trade mappings are ignored).
+            // The candidate's trade is often a job title, so it is matched
+            // against the configured trades (exact, then "contains"); a trade
+            // that matches nothing is new and costs the default 6 credits.
+            var mappingRows = await _context.TradeCreditMappings
                 .AsNoTracking()
                 .Where(x =>
                     x.IsActive &&
                     x.SubTradeId == null &&
                     x.TradeCategory.IsActive &&
-                    x.TradeCategory.Name.ToLower() == candidateTrade.ToLower() &&
                     x.Tier.IsActive)
-                .Select(x => new
-                {
-                    UnlockCredits = x.Tier.UnlockCredits,
-                    TierName = x.Tier.TierName
-                })
-                .FirstOrDefaultAsync();
+                .Select(x => new TradeCreditResolver.TradeCreditRow(
+                    x.TradeCategory.Name,
+                    x.Tier.UnlockCredits,
+                    x.Tier.TierName))
+                .ToListAsync();
 
+            var tradeMapping =
+                TradeCreditResolver.Resolve(mappingRows, candidateTrade);
 
-            if (tradeMapping == null)
-            {
-                return new UnlockCandidateResponseDto
-                {
-                    Success = false,
-                    Message = $"No main-trade credit mapping found for '{candidateTrade}'."
-                };
-            }
-
-            var unlockCost = tradeMapping.UnlockCredits;
+            var unlockCost = tradeMapping.Credits;
 
             if (unlockCost <= 0)
             {
@@ -1286,10 +1278,38 @@ namespace JobPortal.Services.Implement.Recruiter
             };
         }
 
+        private const int DefaultCandidateAccessDays = 30;
+
         private async Task<CreditConfiguration?> GetCreditConfigurationAsync()
         {
-            return await _context.CreditConfigurations
-                .FirstOrDefaultAsync(x => x.IsActive);
+            var config = await _context.CreditConfigurations
+                .Where(x => x.IsActive)
+                .OrderByDescending(x => x.UpdatedAt)
+                .FirstOrDefaultAsync();
+
+            if (config != null)
+                return config;
+
+            // Self-heal: no active row exists (fresh/empty DB), which used to
+            // block every unlock with "Credit configuration not found.".
+            // Create a default one. Admins can change it later from
+            // PUT api/admin/credit-configuration. The per-unlock cost comes
+            // from TradeCreditMappings; only CandidateAccessDays is used here.
+            config = new CreditConfiguration
+            {
+                ConfigurationId = Guid.NewGuid(),
+                ProfileUnlockCredits = 1,
+                CvDownloadCredits = 1,
+                CandidateAccessDays = DefaultCandidateAccessDays,
+                IsActive = true,
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = Guid.Empty
+            };
+
+            _context.CreditConfigurations.Add(config);
+            await _context.SaveChangesAsync();
+
+            return config;
         }
 
         private const string MembershipExpiredMessage =
